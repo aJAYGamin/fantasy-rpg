@@ -9,6 +9,9 @@ signal party_updated
 var party: Array[Character] = []
 const MAX_PARTY_SIZE = 4
 
+# ─── Species Memory ─────────────────────────────────────
+var species_memory: Dictionary = {}
+
 # ─── Economy ─────────────────────────────────────────────
 var gold: int = 100:
 	set(value):
@@ -103,6 +106,7 @@ func save_game():
 		"completed_quests": completed_quests,
 		"story_flags": story_flags,
 		"play_time": play_time_seconds,
+		"species_memory": species_memory,
 		"party": []
 	}
 	for c in party:
@@ -137,6 +141,7 @@ func load_game() -> bool:
 	current_map = data.get("current_map", "world_map")
 	completed_quests = data.get("completed_quests", [])
 	story_flags = data.get("story_flags", {})
+	species_memory = data.get("species_memory", {})
 	play_time_seconds = data.get("play_time", 0.0)
 	print("Game loaded!")
 	return true
@@ -150,3 +155,23 @@ func get_formatted_playtime() -> String:
 	var minutes = int(fmod(play_time_seconds, 3600) / 60)
 	var seconds = int(fmod(play_time_seconds, 60))
 	return "%02d:%02d:%02d" % [hours, minutes, seconds]
+
+func get_species_memory(species: String) -> int:
+	return species_memory.get(species, 0)
+ 
+func record_battle_against(species: String):
+	if not species_memory.has(species):
+		species_memory[species] = 0
+	species_memory[species] += 1
+	print("Memory Echo: %s has been fought %d times" % [species, species_memory[species]])
+ 
+func get_memory_level_description(species: String) -> String:
+	var count = get_species_memory(species)
+	if count < 3:
+		return ""
+	elif count < 7:
+		return "%s senses something familiar..." % species
+	elif count < 15:
+		return "%s has learned from past encounters!" % species
+	else:
+		return "%s has fully adapted to your tactics!" % species
