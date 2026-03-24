@@ -3,9 +3,13 @@
 [ext_resource type="Script" uid="uid://cydfwk7lh6qtg" path="res://scripts/MainMenu.gd" id="1_yqorp"]
 [ext_resource type="FontFile" uid="uid://mwnjd7gj21c1" path="res://fonts/Cinzel-Bold.ttf" id="2_2wh52"]
 [ext_resource type="Script" uid="uid://2f3r02lvb3bj" path="res://scripts/StarField.gd" id="2_ow34m"]
+[ext_resource type="Script" uid="uid://rh3lbwnhwc5m" path="res://scripts/BackgroundGradient.gd" id="3_8a8k8"]
 [ext_resource type="Script" uid="uid://cif1rqerdd5jn" path="res://scripts/GemDisplay.gd" id="3_826wr"]
 [ext_resource type="FontFile" uid="uid://dok11xbo8ic5v" path="res://fonts/Cinzel-Regular.ttf" id="3_ow34m"]
 [ext_resource type="Script" uid="uid://cd6pabwrkpma1" path="res://scripts/CornerBrackets.gd" id="6_ucygd"]
+[ext_resource type="Script" uid="uid://cnmb6nwb10ia2" path="res://scripts/GradientDivider.gd" id="7_7la6k"]
+[ext_resource type="AudioStream" uid="uid://b500aek31uwn6" path="res://music/fight_against_corruption.ogg" id="7_mipys"]
+[ext_resource type="AudioStream" uid="uid://d2nc1fw17irq7" path="res://music/GUI_Sound_Effects_by_Lokif/misc_menu_4.wav" id="8_8a8k8"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_2wh52"]
 bg_color = Color(0.023529412, 0.011764706, 0.05882353, 1)
@@ -21,17 +25,19 @@ corner_radius_bottom_left = 20
 corner_detail = 4
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ow34m"]
-bg_color = Color(0.101960786, 0.039215688, 0.22745098, 1)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.60784316, 0.34901962, 0.7137255, 1)
+bg_color = Color(0.16470589, 0.039215688, 0.2901961, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.6901961, 0.49019608, 0.8784314, 1)
 corner_radius_top_left = 20
 corner_radius_top_right = 20
 corner_radius_bottom_right = 20
 corner_radius_bottom_left = 20
 corner_detail = 3
+shadow_color = Color(0.60784316, 0.34901962, 0.7137255, 1)
+shadow_size = 6
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_l72w3"]
 bg_color = Color(0.023529412, 0.011764706, 0.05882353, 1)
@@ -47,17 +53,19 @@ corner_radius_bottom_left = 20
 corner_detail = 3
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_826wr"]
-bg_color = Color(0.101960786, 0.039215688, 0.22745098, 1)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.60784316, 0.34901962, 0.7137255, 1)
+bg_color = Color(0.16470589, 0.039215688, 0.2901961, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.6901961, 0.49019608, 0.8784314, 1)
 corner_radius_top_left = 20
 corner_radius_top_right = 20
 corner_radius_bottom_right = 20
 corner_radius_bottom_left = 20
 corner_detail = 3
+shadow_color = Color(0.60784316, 0.34901962, 0.7137255, 1)
+shadow_size = 6
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ucygd"]
 bg_color = Color(0.023529412, 0.011764706, 0.05882353, 1)
@@ -73,17 +81,19 @@ corner_radius_bottom_left = 20
 corner_detail = 3
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_mipys"]
-bg_color = Color(0.101960786, 0.039215688, 0.22745098, 1)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.60784316, 0.34901962, 0.7137255, 1)
+bg_color = Color(0.16470589, 0.039215688, 0.2901961, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.6901961, 0.49019608, 0.8784314, 1)
 corner_radius_top_left = 20
 corner_radius_top_right = 20
 corner_radius_bottom_right = 20
 corner_radius_bottom_left = 20
 corner_detail = 3
+shadow_color = Color(0.60784316, 0.34901962, 0.7137255, 1)
+shadow_size = 6
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_8a8k8"]
 bg_color = Color(0.023529412, 0.011764706, 0.05882353, 1)
@@ -99,17 +109,19 @@ corner_radius_bottom_left = 20
 corner_detail = 3
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_7la6k"]
-bg_color = Color(0.101960786, 0.039215688, 0.22745098, 1)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.60784316, 0.34901962, 0.7137255, 1)
+bg_color = Color(0.16470589, 0.039215688, 0.2901961, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.6901961, 0.49019608, 0.8784314, 1)
 corner_radius_top_left = 20
 corner_radius_top_right = 20
 corner_radius_bottom_right = 20
 corner_radius_bottom_left = 20
 corner_detail = 3
+shadow_color = Color(0.60784316, 0.34901962, 0.7137255, 1)
+shadow_size = 6
 
 [node name="MainMenu" type="Control" unique_id=1484296348]
 layout_mode = 3
@@ -128,6 +140,16 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.023529412, 0.011764706, 0.05882353, 1)
+
+[node name="BackgroundGradient" type="Control" parent="ColorRect" unique_id=494702293]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_8a8k8")
 
 [node name="StarField" type="Control" parent="ColorRect" unique_id=1153770927]
 layout_mode = 1
@@ -148,7 +170,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/separation = 20
+theme_override_constants/separation = 2
 alignment = 1
 
 [node name="GemDisplay" type="Control" parent="LayoutContainer" unique_id=974823563]
@@ -174,10 +196,16 @@ theme_override_font_sizes/font_size = 14
 text = "A Fantasy Odyssey"
 horizontal_alignment = 1
 
-[node name="Divider" type="ColorRect" parent="LayoutContainer" unique_id=2005995214]
-custom_minimum_size = Vector2(200, 1)
+[node name="GradientDivider" type="Control" parent="LayoutContainer" unique_id=1840225037]
+custom_minimum_size = Vector2(200, 6)
 layout_mode = 2
-color = Color(0.2901961, 0.1764706, 0.41960785, 1)
+size_flags_horizontal = 4
+mouse_filter = 2
+script = ExtResource("7_7la6k")
+
+[node name="SmallSpacer" type="Control" parent="LayoutContainer" unique_id=676228648]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
 
 [node name="CenterContainer" type="CenterContainer" parent="LayoutContainer" unique_id=1071583530]
 layout_mode = 2
@@ -236,3 +264,27 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("6_ucygd")
+
+[node name="VersionLabel" type="Label" parent="." unique_id=519227411]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -45.0
+offset_top = -36.0
+offset_right = -24.0
+offset_bottom = -19.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.2901961, 0.1764706, 0.41960785, 1)
+theme_override_fonts/font = ExtResource("3_ow34m")
+theme_override_font_sizes/font_size = 12
+text = "v0.1"
+
+[node name="MusicPlayer" type="AudioStreamPlayer2D" parent="." unique_id=273759676]
+stream = ExtResource("7_mipys")
+
+[node name="HoverSound" type="AudioStreamPlayer2D" parent="." unique_id=1856075574]
+stream = ExtResource("8_8a8k8")
