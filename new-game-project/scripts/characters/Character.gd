@@ -4,7 +4,7 @@ extends Resource
 ## Base class for all playable characters and enemies
 
 @export var character_name: String = "Unknown"
-@export var character_class: String = "Warrior"  # Warrior, Mage, Rogue, Cleric
+@export var character_class: String = "Warrior"
 @export var portrait: Texture2D
 
 # --- Core Stats ---
@@ -14,6 +14,11 @@ extends Resource
 @export var base_defense: int = 5
 @export var base_magic: int = 5
 @export var base_speed: int = 10
+
+# --- Elemental Affinity ---
+@export var element: ElementalSystem.Element = ElementalSystem.Element.NONE
+@export var extra_weakness: ElementalSystem.Element = ElementalSystem.Element.NONE
+@export var extra_resistance: ElementalSystem.Element = ElementalSystem.Element.NONE
 
 # --- Runtime State ---
 var current_hp: int
@@ -25,18 +30,18 @@ var experience_to_next: int = 100
 # --- Inventory ---
 var inventory: Inventory
 
-# --- Skills learned ---
+# --- Skills ---
 var skills: Array[Skill] = []
 
 # --- Status Effects ---
-var status_effects: Array[String] = []  # "poison", "burn", "freeze", "stun"
+var status_effects: Array[String] = []
 
 func _init():
 	current_hp = max_hp()
 	current_mp = max_mp()
 	inventory = Inventory.new()
 
-# --- Stat Calculations (scale with level) ---
+# --- Stat Calculations ---
 func max_hp() -> int:
 	return base_hp + (level - 1) * 15
 
@@ -63,16 +68,43 @@ func is_alive() -> bool:
 func is_status(effect: String) -> bool:
 	return effect in status_effects
 
-# --- Combat Actions ---
-func take_damage(amount: int) -> int:
-	var actual_damage = max(1, amount - defense_power())
-	current_hp = max(0, current_hp - actual_damage)
-	return actual_damage
+# --- Combat ---
+func take_damage(amount: int, attack_element: ElementalSystem.Element = ElementalSystem.Element.NONE) -> Dictionary:
+	var multiplier = ElementalSystem.get_multiplier(attack_element, element)
 
-func take_magic_damage(amount: int) -> int:
-	# Magic bypasses physical defense
-	current_hp = max(0, current_hp - amount)
-	return amount
+	if extra_weakness != ElementalSystem.Element.NONE and attack_element == extra_weakness:
+		multiplier *= 1.5
+	if extra_resistance != ElementalSystem.Element.NONE and attack_element == extra_resistance:
+		multiplier *= 0.6
+
+	var base_damage = max(1, amount - defense_power())
+	var final_damage = max(1, int(base_damage * multiplier))
+	current_hp = max(0, current_hp - final_damage)
+
+	return {
+		"damage": final_damage,
+		"multiplier": multiplier,
+		"effectiveness": ElementalSystem.get_effectiveness_text(multiplier),
+		"effectiveness_color": ElementalSystem.get_effectiveness_color(multiplier)
+	}
+
+func take_magic_damage(amount: int, attack_element: ElementalSystem.Element = ElementalSystem.Element.NONE) -> Dictionary:
+	var multiplier = ElementalSystem.get_multiplier(attack_element, element)
+
+	if extra_weakness != ElementalSystem.Element.NONE and attack_element == extra_weakness:
+		multiplier *= 1.5
+	if extra_resistance != ElementalSystem.Element.NONE and attack_element == extra_resistance:
+		multiplier *= 0.6
+
+	var final_damage = max(1, int(amount * multiplier))
+	current_hp = max(0, current_hp - final_damage)
+
+	return {
+		"damage": final_damage,
+		"multiplier": multiplier,
+		"effectiveness": ElementalSystem.get_effectiveness_text(multiplier),
+		"effectiveness_color": ElementalSystem.get_effectiveness_color(multiplier)
+	}
 
 func heal(amount: int) -> int:
 	var actual_heal = min(amount, max_hp() - current_hp)
@@ -93,7 +125,6 @@ func use_mp(amount: int) -> bool:
 func add_status(effect: String):
 	if not is_status(effect):
 		status_effects.append(effect)
-		print("%s is now %s!" % [character_name, effect])
 
 func remove_status(effect: String):
 	status_effects.erase(effect)
@@ -110,7 +141,7 @@ func process_status_effects() -> Array[Dictionary]:
 		results.append({"type": "regenerate", "value": heal_amt})
 	return results
 
-# --- Leveling Up ---
+# --- Leveling ---
 func gain_experience(amount: int) -> bool:
 	experience += amount
 	if experience >= experience_to_next:
@@ -122,14 +153,11 @@ func level_up():
 	level += 1
 	experience -= experience_to_next
 	experience_to_next = int(experience_to_next * 1.5)
-	# Restore HP/MP on level up
 	current_hp = max_hp()
 	current_mp = max_mp()
-	print("%s reached level %d!" % [character_name, level])
 	_learn_skills_at_level()
 
 func _learn_skills_at_level():
-	# Override in subclasses or data to add skills on level-up
 	pass
 
 func get_stats_summary() -> Dictionary:
@@ -143,5 +171,7 @@ func get_stats_summary() -> Dictionary:
 		"defense": defense_power(),
 		"magic": magic_power(),
 		"speed": speed(),
+		"element": ElementalSystem.get_element_name(element),
 		"exp": "%d/%d" % [experience, experience_to_next]
 	}
+	

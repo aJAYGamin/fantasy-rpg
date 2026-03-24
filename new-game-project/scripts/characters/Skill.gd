@@ -10,11 +10,11 @@ enum TargetType {
 }
 
 enum SkillType {
-	PHYSICAL,  # Uses attack stat
-	MAGIC,     # Uses magic stat
-	HEAL,      # Restores HP
-	BUFF,      # Applies positive effect
-	DEBUFF     # Applies negative effect
+	PHYSICAL,
+	MAGIC,
+	HEAL,
+	BUFF,
+	DEBUFF
 }
 
 @export var skill_name: String = "Attack"
@@ -22,11 +22,11 @@ enum SkillType {
 @export var mp_cost: int = 0
 @export var skill_type: SkillType = SkillType.PHYSICAL
 @export var target_type: TargetType = TargetType.SINGLE_ENEMY
-@export var power: float = 1.0       # Damage/heal multiplier
-@export var status_to_apply: String = ""  # Optional status effect
-@export var status_chance: float = 0.0    # 0.0 - 1.0
+@export var power: float = 1.0
+@export var element: ElementalSystem.Element = ElementalSystem.Element.NONE
+@export var status_to_apply: String = ""
+@export var status_chance: float = 0.0
 
-## Calculate the effect value based on the user's stats
 func calculate_value(user: Character) -> int:
 	match skill_type:
 		SkillType.PHYSICAL:
@@ -43,8 +43,17 @@ func can_use(user: Character) -> bool:
 func get_target_description() -> String:
 	match target_type:
 		TargetType.SINGLE_ENEMY: return "One Enemy"
-		TargetType.ALL_ENEMIES: return "All Enemies"
-		TargetType.SINGLE_ALLY: return "One Ally"
-		TargetType.ALL_ALLIES: return "All Allies"
-		TargetType.SELF: return "Self"
+		TargetType.ALL_ENEMIES:  return "All Enemies"
+		TargetType.SINGLE_ALLY:  return "One Ally"
+		TargetType.ALL_ALLIES:   return "All Allies"
+		TargetType.SELF:         return "Self"
 	return ""
+
+func get_element_display() -> String:
+	if element == ElementalSystem.Element.NONE:
+		return ""
+	return "%s %s" % [
+		ElementalSystem.get_element_icon(element),
+		ElementalSystem.get_element_name(element)
+	]
+	
