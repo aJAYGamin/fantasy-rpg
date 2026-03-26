@@ -1,3 +1,384 @@
 [gd_scene format=3 uid="uid://vg7d5afrm3j6"]
 
+[ext_resource type="Script" uid="uid://b0hh3f5weilua" path="res://scripts/battle/BattleScene.gd" id="1_ltshs"]
+[ext_resource type="FontFile" uid="uid://mwnjd7gj21c1" path="res://fonts/Cinzel-Bold.ttf" id="2_3mvhd"]
+[ext_resource type="FontFile" uid="uid://dok11xbo8ic5v" path="res://fonts/Cinzel-Regular.ttf" id="2_gkmpl"]
+
 [node name="BattleScene" type="Node2D" unique_id=249494973]
+script = ExtResource("1_ltshs")
+
+[node name="Background" type="TextureRect" parent="." unique_id=1484282745]
+offset_right = 1152.0
+offset_bottom = 648.0
+expand_mode = 1
+
+[node name="CharactersLayer" type="Node2D" parent="." unique_id=1365571197]
+
+[node name="PartyPositions" type="Node2D" parent="CharactersLayer" unique_id=1414150572]
+
+[node name="EnemyPositions" type="Node2D" parent="CharactersLayer" unique_id=125411086]
+
+[node name="BattleUI" type="CanvasLayer" parent="." unique_id=1999774524]
+
+[node name="UIRoot" type="Control" parent="BattleUI" unique_id=1662486480]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 1152.0
+offset_bottom = 648.0
+
+[node name="EnemyInfoRow" type="HBoxContainer" parent="BattleUI/UIRoot" unique_id=976862352]
+custom_minimum_size = Vector2(200, 70)
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -250.0
+offset_top = 10.0
+offset_right = 250.0
+offset_bottom = 80.0
+grow_horizontal = 2
+theme_override_constants/separation = 16
+
+[node name="PartyStatusBar" type="HBoxContainer" parent="BattleUI/UIRoot" unique_id=1457520393]
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = -114.0
+offset_right = 739.0
+offset_bottom = -10.0
+grow_vertical = 0
+size_flags_horizontal = 0
+theme_override_constants/separation = 6
+
+[node name="HeroStatus1" type="PanelContainer" parent="BattleUI/UIRoot/PartyStatusBar" unique_id=657586424]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="HeroLayout" type="VBoxContainer" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus1" unique_id=1357319413]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="HeroNameLabel" type="Label" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus1/HeroLayout" unique_id=50321871]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_3mvhd")
+theme_override_font_sizes/font_size = 12
+text = "  Hero Name"
+
+[node name="HPRow" type="HBoxContainer" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus1/HeroLayout" unique_id=1747325187]
+layout_mode = 2
+
+[node name="HPLabel" type="Label" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus1/HeroLayout/HPRow" unique_id=995534124]
+custom_minimum_size = Vector2(25, 0)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_gkmpl")
+theme_override_font_sizes/font_size = 12
+text = "  HP"
+
+[node name="HPBar" type="ProgressBar" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus1/HeroLayout/HPRow" unique_id=48825825]
+custom_minimum_size = Vector2(80, 12)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+show_percentage = false
+
+[node name="HPValue" type="Label" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus1/HeroLayout/HPRow" unique_id=8944023]
+custom_minimum_size = Vector2(55, 0)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_gkmpl")
+theme_override_font_sizes/font_size = 12
+text = "100/100"
+
+[node name="MPRow" type="HBoxContainer" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus1/HeroLayout" unique_id=1511214698]
+layout_mode = 2
+
+[node name="MPLabel" type="Label" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus1/HeroLayout/MPRow" unique_id=1441427931]
+custom_minimum_size = Vector2(25, 0)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_gkmpl")
+theme_override_font_sizes/font_size = 12
+text = "  MP"
+
+[node name="MPBar" type="ProgressBar" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus1/HeroLayout/MPRow" unique_id=1815745243]
+custom_minimum_size = Vector2(80, 12)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+show_percentage = false
+
+[node name="MPValue" type="Label" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus1/HeroLayout/MPRow" unique_id=1851543922]
+custom_minimum_size = Vector2(55, 0)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_gkmpl")
+theme_override_font_sizes/font_size = 12
+text = "50/50"
+
+[node name="ResonanceRow" type="HBoxContainer" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus1/HeroLayout" unique_id=1193604325]
+layout_mode = 2
+
+[node name="ResLabel" type="Label" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus1/HeroLayout/ResonanceRow" unique_id=383533578]
+custom_minimum_size = Vector2(25, 0)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_gkmpl")
+theme_override_font_sizes/font_size = 12
+text = "  Resonance"
+
+[node name="ResonanceBar" type="ProgressBar" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus1/HeroLayout/ResonanceRow" unique_id=1865520199]
+custom_minimum_size = Vector2(80, 12)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+show_percentage = false
+
+[node name="ResValue" type="Label" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus1/HeroLayout/ResonanceRow" unique_id=682582862]
+custom_minimum_size = Vector2(55, 0)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_gkmpl")
+theme_override_font_sizes/font_size = 12
+text = "0%"
+
+[node name="StatusRow" type="HBoxContainer" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus1" unique_id=825323966]
+layout_mode = 2
+
+[node name="HeroStatus2" type="PanelContainer" parent="BattleUI/UIRoot/PartyStatusBar" unique_id=889467684]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="HeroLayout" type="VBoxContainer" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus2" unique_id=1735113265]
+layout_mode = 2
+
+[node name="HeroNameLabel" type="Label" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus2/HeroLayout" unique_id=513825227]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_3mvhd")
+theme_override_font_sizes/font_size = 12
+text = "  Hero Name"
+
+[node name="HPRow" type="HBoxContainer" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus2/HeroLayout" unique_id=730532156]
+layout_mode = 2
+
+[node name="HPLabel" type="Label" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus2/HeroLayout/HPRow" unique_id=1639990366]
+custom_minimum_size = Vector2(25, 0)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_gkmpl")
+theme_override_font_sizes/font_size = 12
+text = "  HP"
+
+[node name="HPBar" type="ProgressBar" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus2/HeroLayout/HPRow" unique_id=944475964]
+custom_minimum_size = Vector2(80, 12)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+show_percentage = false
+
+[node name="HPValue" type="Label" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus2/HeroLayout/HPRow" unique_id=1512403335]
+custom_minimum_size = Vector2(55, 0)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_gkmpl")
+theme_override_font_sizes/font_size = 12
+text = "100/100"
+
+[node name="MPRow" type="HBoxContainer" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus2/HeroLayout" unique_id=1888808345]
+layout_mode = 2
+
+[node name="MPLabel" type="Label" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus2/HeroLayout/MPRow" unique_id=972101691]
+custom_minimum_size = Vector2(25, 0)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_gkmpl")
+theme_override_font_sizes/font_size = 12
+text = "  MP"
+
+[node name="MPBar" type="ProgressBar" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus2/HeroLayout/MPRow" unique_id=693744696]
+custom_minimum_size = Vector2(80, 12)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+show_percentage = false
+
+[node name="MPValue" type="Label" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus2/HeroLayout/MPRow" unique_id=82835317]
+custom_minimum_size = Vector2(55, 0)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_gkmpl")
+theme_override_font_sizes/font_size = 12
+text = "50/50"
+
+[node name="ResonanceRow" type="HBoxContainer" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus2/HeroLayout" unique_id=43863563]
+layout_mode = 2
+
+[node name="ResLabel" type="Label" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus2/HeroLayout/ResonanceRow" unique_id=115438983]
+custom_minimum_size = Vector2(25, 0)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_gkmpl")
+theme_override_font_sizes/font_size = 12
+text = "  Resonance"
+
+[node name="ResonanceBar" type="ProgressBar" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus2/HeroLayout/ResonanceRow" unique_id=208122807]
+custom_minimum_size = Vector2(80, 12)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+show_percentage = false
+
+[node name="ResValue" type="Label" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus2/HeroLayout/ResonanceRow" unique_id=785090155]
+custom_minimum_size = Vector2(55, 0)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_gkmpl")
+theme_override_font_sizes/font_size = 12
+text = "0%"
+
+[node name="StatusRow" type="HBoxContainer" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus2" unique_id=1855692518]
+layout_mode = 2
+
+[node name="HeroStatus3" type="PanelContainer" parent="BattleUI/UIRoot/PartyStatusBar" unique_id=1781267657]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="HeroLayout" type="VBoxContainer" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus3" unique_id=238221638]
+layout_mode = 2
+
+[node name="HeroNameLabel" type="Label" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus3/HeroLayout" unique_id=81371904]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_3mvhd")
+theme_override_font_sizes/font_size = 12
+text = "  Hero Name"
+
+[node name="HPRow" type="HBoxContainer" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus3/HeroLayout" unique_id=1481390052]
+layout_mode = 2
+
+[node name="HPLabel" type="Label" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus3/HeroLayout/HPRow" unique_id=1726248706]
+custom_minimum_size = Vector2(25, 0)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_gkmpl")
+theme_override_font_sizes/font_size = 12
+text = "  HP"
+
+[node name="HPBar" type="ProgressBar" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus3/HeroLayout/HPRow" unique_id=732905936]
+custom_minimum_size = Vector2(80, 12)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+show_percentage = false
+
+[node name="HPValue" type="Label" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus3/HeroLayout/HPRow" unique_id=753485270]
+custom_minimum_size = Vector2(55, 0)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_gkmpl")
+theme_override_font_sizes/font_size = 12
+text = "100/100"
+
+[node name="MPRow" type="HBoxContainer" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus3/HeroLayout" unique_id=1301216937]
+layout_mode = 2
+
+[node name="MPLabel" type="Label" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus3/HeroLayout/MPRow" unique_id=1987159074]
+custom_minimum_size = Vector2(25, 0)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_gkmpl")
+theme_override_font_sizes/font_size = 12
+text = "  MP"
+
+[node name="MPBar" type="ProgressBar" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus3/HeroLayout/MPRow" unique_id=171772469]
+custom_minimum_size = Vector2(80, 12)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+show_percentage = false
+
+[node name="MPValue" type="Label" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus3/HeroLayout/MPRow" unique_id=86843549]
+custom_minimum_size = Vector2(55, 0)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_gkmpl")
+theme_override_font_sizes/font_size = 12
+text = "50/50"
+
+[node name="ResonanceRow" type="HBoxContainer" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus3/HeroLayout" unique_id=83841626]
+layout_mode = 2
+
+[node name="ResLabel" type="Label" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus3/HeroLayout/ResonanceRow" unique_id=1922497531]
+custom_minimum_size = Vector2(25, 0)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_gkmpl")
+theme_override_font_sizes/font_size = 12
+text = "  Resonance"
+
+[node name="ResonanceBar" type="ProgressBar" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus3/HeroLayout/ResonanceRow" unique_id=542632171]
+custom_minimum_size = Vector2(80, 12)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+show_percentage = false
+
+[node name="ResValue" type="Label" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus3/HeroLayout/ResonanceRow" unique_id=1361540189]
+custom_minimum_size = Vector2(55, 0)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_gkmpl")
+theme_override_font_sizes/font_size = 12
+text = "0%"
+
+[node name="StatusRow" type="HBoxContainer" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus3" unique_id=1731499340]
+layout_mode = 2
+
+[node name="ActionMenu" type="PanelContainer" parent="BattleUI/UIRoot" unique_id=216057634]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -404.0
+offset_top = -114.0
+offset_right = -10.0
+offset_bottom = -10.0
+grow_horizontal = 0
+grow_vertical = 0
+
+[node name="ActionLayout" type="VBoxContainer" parent="BattleUI/UIRoot/ActionMenu" unique_id=473659937]
+layout_mode = 2
+
+[node name="ActionTitle" type="Label" parent="BattleUI/UIRoot/ActionMenu/ActionLayout" unique_id=1653104244]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_3mvhd")
+theme_override_font_sizes/font_size = 12
+text = "— Choose Action —"
+horizontal_alignment = 1
+
+[node name="ActionGrid" type="GridContainer" parent="BattleUI/UIRoot/ActionMenu/ActionLayout" unique_id=1727205676]
+layout_mode = 2
+columns = 2
+
+[node name="AttackButton" type="Button" parent="BattleUI/UIRoot/ActionMenu/ActionLayout/ActionGrid" unique_id=796575839]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_fonts/font = ExtResource("2_gkmpl")
+theme_override_font_sizes/font_size = 12
+text = "Attack"
+
+[node name="SpecialButton" type="Button" parent="BattleUI/UIRoot/ActionMenu/ActionLayout/ActionGrid" unique_id=1281323553]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_fonts/font = ExtResource("2_gkmpl")
+theme_override_font_sizes/font_size = 12
+text = "Special"
+
+[node name="ItemsButton" type="Button" parent="BattleUI/UIRoot/ActionMenu/ActionLayout/ActionGrid" unique_id=1357359643]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_fonts/font = ExtResource("2_gkmpl")
+theme_override_font_sizes/font_size = 12
+text = "Items"
+
+[node name="RunButton" type="Button" parent="BattleUI/UIRoot/ActionMenu/ActionLayout/ActionGrid" unique_id=935181238]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_fonts/font = ExtResource("2_gkmpl")
+theme_override_font_sizes/font_size = 12
+text = "Run"
+
+[node name="ResonanceButton" type="Button" parent="BattleUI/UIRoot/ActionMenu/ActionLayout" unique_id=2034856397]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_gkmpl")
+theme_override_font_sizes/font_size = 12
+text = "Resonance"
