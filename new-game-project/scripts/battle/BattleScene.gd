@@ -111,9 +111,7 @@ func _setup_hero_panels(party: Array[Character]):
 
 func _update_hero_panel(panel: PanelContainer, hero: Character):
 	var layout = panel.get_node("HeroLayout")
-	var name_lbl = layout.get_node("HeroNameLabel")
-	name_lbl.text = "  %s · Lv%d" % [hero.character_name, hero.level]
-	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL	
+	layout.get_node("HeroNameLabel").text = "  %s · Lv%d" % [hero.character_name, hero.level]
 
 	var hp_bar  = layout.get_node("HPRow/HPBar")
 	var hp_val  = layout.get_node("HPRow/HPValue")
@@ -166,14 +164,38 @@ func _create_enemy_card(enemy: Character) -> PanelContainer:
 	# Load Cinzel font for enemy cards
 	var cinzel = load("res://fonts/Cinzel-Regular.ttf")
 
-	# Name row
+	# Name row with rarity gem
+	var name_row = HBoxContainer.new()
+	vbox.add_child(name_row)
+
+	# Rarity gem icon
+	var gem = TextureRect.new()
+	gem.custom_minimum_size = Vector2(24, 24)
+	gem.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	gem.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	gem.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	gem.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	var icon_path = _get_rarity_icon_path(enemy)
+	var icon_texture = load(icon_path)
+	if icon_texture:
+		gem.texture = icon_texture
+	name_row.add_child(gem)
+
+	# Name label
 	var name_lbl = Label.new()
 	name_lbl.text = enemy.character_name
 	name_lbl.add_theme_font_size_override("font_size", 11)
 	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	if cinzel:
 		name_lbl.add_theme_font_override("font", cinzel)
-	vbox.add_child(name_lbl)
+	name_row.add_child(name_lbl)
+
+	# Invisible spacer to balance gem on left — keeps name centered
+	var spacer = Control.new()
+	spacer.custom_minimum_size = Vector2(16, 16)
+	spacer.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	name_row.add_child(spacer)
 
 	# HP bar
 	var hp_bar = ProgressBar.new()
@@ -301,3 +323,16 @@ func _refresh_hero_panel_for(character: Character):
 	for i in range(mini(panels.size(), party.size())):
 		if party[i] == character and panels[i].visible:
 			_update_hero_panel(panels[i], party[i])
+
+func _get_rarity_icon_path(enemy: Character) -> String:
+	if not enemy is Enemy:
+		return "res://assets/icons/CommonGemIcon.png"
+	match enemy.rarity:
+		Rarity.Tier.COMMON:    return "res://assets/icons/CommonGemIcon.png"
+		Rarity.Tier.UNCOMMON:  return "res://assets/icons/UncommonGemIcon.png"
+		Rarity.Tier.RARE:      return "res://assets/icons/RareGemIcon.png"
+		Rarity.Tier.EPIC:      return "res://assets/icons/EpicGemIcon.png"
+		Rarity.Tier.MYTHIC:    return "res://assets/icons/MythicGemIcon.png"
+		Rarity.Tier.LEGENDARY: return "res://assets/icons/LegendaryGemIcon.png"
+		Rarity.Tier.CELESTIAL: return "res://assets/icons/CelestialGemIcon.png"
+	return "res://assets/icons/CommonGemIcon.png"
