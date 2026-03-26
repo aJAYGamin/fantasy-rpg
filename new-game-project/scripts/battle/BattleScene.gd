@@ -170,7 +170,7 @@ func _create_enemy_card(enemy: Character) -> PanelContainer:
 
 	# Rarity gem icon
 	var gem = TextureRect.new()
-	gem.custom_minimum_size = Vector2(24, 24)
+	gem.custom_minimum_size = Vector2(16, 16)
 	gem.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	gem.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	gem.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -230,8 +230,20 @@ func _on_turn_started(character: Character):
 
 func _on_action_performed(result: Dictionary):
 	_refresh_all_panels()
-	if result.has("multiplier") and result["multiplier"] != 1.0:
-		print(result.get("effectiveness", ""))
+
+	# Spawn damage/heal numbers
+	if result.has("value") and result.has("target"):
+		var target = result["target"]
+		var spawn_pos = _get_character_screen_pos(target)
+		match result.get("action", ""):
+			"attack", "skill_physical", "skill_magic":
+				var multiplier = result.get("multiplier", 1.0)
+				var dmg_value = result["value"]
+				if dmg_value is Dictionary:
+					dmg_value = dmg_value.get("damage", 0)
+				_spawn_damage_number(int(dmg_value), spawn_pos, multiplier)
+			"heal":
+				_spawn_heal_number(result["value"], spawn_pos)
 	if result.has("actor") and battle_manager.party.has(result["actor"]):
 		match result.get("action", ""):
 			"attack":
@@ -323,6 +335,39 @@ func _refresh_hero_panel_for(character: Character):
 	for i in range(mini(panels.size(), party.size())):
 		if party[i] == character and panels[i].visible:
 			_update_hero_panel(panels[i], party[i])
+
+func _get_character_screen_pos(character: Character) -> Vector2:
+	# Returns an approximate screen position for the character
+	# This will be updated when sprites are added
+	var party = battle_manager.party
+	var enemies = battle_manager.enemies
+	var screen_w = get_viewport().get_visible_rect().size.x
+	var screen_h = get_viewport().get_visible_rect().size.y
+
+	if party.has(character):
+		var idx = party.find(character)
+		var x = screen_w * 0.3 + idx * 80
+		return Vector2(x, screen_h * 0.55)
+	elif enemies.has(character):
+		var idx = enemies.find(character)
+		var count = enemies.size()
+		var x = screen_w * 0.5 + (idx - count / 2.0) * (screen_w * 0.3 / count) + 60
+		return Vector2(x, screen_h * 0.35)
+	return Vector2(screen_w * 0.5, screen_h * 0.5)
+
+func _spawn_damage_number(amount: int, pos: Vector2, multiplier: float = 1.0):
+	var label = Label.new()
+	add_child(label)
+	label.set_script(load("res://scripts/battle/DamageNumber.gd"))
+	label.position = pos + Vector2(randf_range(-20, 20), 0)
+	label.call("setup", amount, multiplier)
+
+func _spawn_heal_number(amount: int, pos: Vector2):
+	var label = Label.new()
+	add_child(label)
+	label.set_script(load("res://scripts/battle/DamageNumber.gd"))
+	label.position = pos + Vector2(randf_range(-20, 20), 0)
+	label.call("setup_heal", amount)
 
 func _get_rarity_icon_path(enemy: Character) -> String:
 	if not enemy is Enemy:

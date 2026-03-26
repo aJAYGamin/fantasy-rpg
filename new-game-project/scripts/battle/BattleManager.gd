@@ -1,7 +1,6 @@
 class_name BattleManager
 extends Node
 
-## Signals (events) that the UI listens to
 signal battle_started(party: Array, enemies: Array)
 signal turn_started(character: Character)
 signal action_performed(result: Dictionary)
@@ -31,10 +30,8 @@ func start_battle(player_party: Array[Character], enemy_group: Array[Character])
 	state = BattleState.IDLE
 	_build_turn_order()
 	emit_signal("battle_started", party, enemies)
-	print("Battle started!")
 	_next_turn()
 
-## Sort all combatants by speed (highest goes first)
 func _build_turn_order():
 	turn_order.clear()
 	for c in party:
@@ -46,21 +43,18 @@ func _build_turn_order():
 	turn_order.sort_custom(func(a, b): return a.speed() > b.speed())
 
 func _next_turn():
-	# Skip dead characters
 	while current_turn_index < turn_order.size():
 		var actor = turn_order[current_turn_index]
 		if actor.is_alive():
 			break
 		current_turn_index += 1
 
-	# Check if round is over
 	if current_turn_index >= turn_order.size():
 		_start_new_round()
 		return
 
 	current_actor = turn_order[current_turn_index]
 
-	# Process status effects at start of turn
 	var status_results = current_actor.process_status_effects()
 	for result in status_results:
 		emit_signal("status_effect_triggered", current_actor, result)
@@ -80,21 +74,23 @@ func _next_turn():
 
 func _start_new_round():
 	current_turn_index = 0
-	_build_turn_order()  # Rebuild in case speed changed
+	_build_turn_order()
 	_next_turn()
 
 # --- Player Actions ---
-
-## Called by UI when player selects Attack
 func player_attack(attacker: Character, target: Character):
 	if state != BattleState.CHOOSING_ACTION and state != BattleState.CHOOSING_TARGET:
 		return
-	var damage = target.take_damage(attacker.attack_power())
+	# take_damage now returns a Dictionary with damage, multiplier, effectiveness
+	var dmg_result = target.take_damage(attacker.attack_power(), attacker.element)
 	var result = {
 		"action": "attack",
 		"actor": attacker,
 		"target": target,
-		"value": damage,
+		"value": dmg_result.get("damage", 0),
+		"multiplier": dmg_result.get("multiplier", 1.0),
+		"effectiveness": dmg_result.get("effectiveness", ""),
+		"effectiveness_color": dmg_result.get("effectiveness_color", Color.WHITE),
 		"target_alive": target.is_alive()
 	}
 	emit_signal("action_performed", result)
@@ -102,16 +98,13 @@ func player_attack(attacker: Character, target: Character):
 		_handle_defeat(target)
 	_end_player_turn()
 
-## Called by UI when player uses a skill
 func player_use_skill(user: Character, skill: Skill, targets: Array[Character]):
 	if state != BattleState.CHOOSING_ACTION and state != BattleState.CHOOSING_TARGET:
 		return
 	if not skill.can_use(user):
-		print("Not enough MP!")
 		return
 
 	user.use_mp(skill.mp_cost)
-	var results = []
 
 	for target in targets:
 		var value = skill.calculate_value(user)
@@ -119,13 +112,19 @@ func player_use_skill(user: Character, skill: Skill, targets: Array[Character]):
 
 		match skill.skill_type:
 			Skill.SkillType.PHYSICAL:
-				var dmg = target.take_damage(value)
+				var dmg_result = target.take_damage(value, skill.element)
 				result["action"] = "skill_physical"
-				result["value"] = dmg
+				result["value"] = dmg_result.get("damage", 0)
+				result["multiplier"] = dmg_result.get("multiplier", 1.0)
+				result["effectiveness"] = dmg_result.get("effectiveness", "")
+				result["effectiveness_color"] = dmg_result.get("effectiveness_color", Color.WHITE)
 			Skill.SkillType.MAGIC:
-				var dmg = target.take_magic_damage(value)
+				var dmg_result = target.take_magic_damage(value, skill.element)
 				result["action"] = "skill_magic"
-				result["value"] = dmg
+				result["value"] = dmg_result.get("damage", 0)
+				result["multiplier"] = dmg_result.get("multiplier", 1.0)
+				result["effectiveness"] = dmg_result.get("effectiveness", "")
+				result["effectiveness_color"] = dmg_result.get("effectiveness_color", Color.WHITE)
 			Skill.SkillType.HEAL:
 				var healed = target.heal(value)
 				result["action"] = "heal"
@@ -139,20 +138,16 @@ func player_use_skill(user: Character, skill: Skill, targets: Array[Character]):
 				result["action"] = "debuff"
 				result["value"] = 0
 
-		# Apply status effect if applicable
 		if skill.status_to_apply != "" and randf() < skill.status_chance:
 			target.add_status(skill.status_to_apply)
 
 		result["target_alive"] = target.is_alive()
-		results.append(result)
 		emit_signal("action_performed", result)
-
 		if not target.is_alive():
 			_handle_defeat(target)
 
 	_end_player_turn()
 
-## Called by UI when player uses an item
 func player_use_item(user: Character, item: Item, target: Character):
 	if state != BattleState.CHOOSING_ACTION:
 		return
@@ -161,7 +156,6 @@ func player_use_item(user: Character, item: Item, target: Character):
 	emit_signal("action_performed", result)
 	_end_player_turn()
 
-## Player defends this turn (reduces incoming damage)
 func player_defend(character: Character):
 	character.add_status("defending")
 	var result = {"action": "defend", "actor": character, "value": 0}
@@ -177,7 +171,7 @@ func _end_player_turn():
 
 # --- Enemy AI ---
 func _execute_enemy_turn():
-	await get_tree().create_timer(1.0).timeout  # Short delay for readability
+	await get_tree().create_timer(1.0).timeout
 
 	var enemy = current_actor
 	var alive_party = party.filter(func(c): return c.is_alive())
@@ -185,7 +179,6 @@ func _execute_enemy_turn():
 	if alive_party.is_empty():
 		return
 
-	# Simple AI: use a skill if available & has MP, else basic attack
 	var available_skills = enemy.skills.filter(func(s): return s.can_use(enemy))
 
 	if not available_skills.is_empty() and randf() < 0.4:
@@ -193,14 +186,16 @@ func _execute_enemy_turn():
 		var target = alive_party[randi() % alive_party.size()]
 		player_use_skill(enemy, skill, [target])
 	else:
-		# Basic attack on random party member
 		var target = alive_party[randi() % alive_party.size()]
-		var damage = target.take_damage(enemy.attack_power())
+		var dmg_result = target.take_damage(enemy.attack_power(), enemy.element)
 		var result = {
 			"action": "attack",
 			"actor": enemy,
 			"target": target,
-			"value": damage,
+			"value": dmg_result.get("damage", 0),
+			"multiplier": dmg_result.get("multiplier", 1.0),
+			"effectiveness": dmg_result.get("effectiveness", ""),
+			"effectiveness_color": dmg_result.get("effectiveness_color", Color.WHITE),
 			"target_alive": target.is_alive()
 		}
 		emit_signal("action_performed", result)
@@ -214,7 +209,6 @@ func _execute_enemy_turn():
 
 # --- Helpers ---
 func _handle_defeat(character: Character):
-	print("%s was defeated!" % character.character_name)
 	emit_signal("character_defeated", character)
 
 func _check_battle_end() -> bool:
@@ -236,13 +230,9 @@ func _calculate_rewards() -> Dictionary:
 	var total_exp = 0
 	var total_gold = 0
 	var dropped_items: Array[Item] = []
-
 	for enemy in enemies:
 		total_exp += enemy.level * 20 + 10
 		total_gold += enemy.level * 5 + randi() % 10
-		# Item drop logic (20% chance per enemy)
-		# Add your item drop table here
-
 	return {"exp": total_exp, "gold": total_gold, "items": dropped_items}
 
 func get_alive_party() -> Array[Character]:
