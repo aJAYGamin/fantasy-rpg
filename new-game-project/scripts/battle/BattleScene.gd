@@ -18,6 +18,7 @@ extends Node2D
 @onready var run_btn          = $BattleUI/UIRoot/ActionMenu/ActionLayout/ActionGrid/RunButton
 @onready var resonance_btn       = $BattleUI/UIRoot/ActionMenu/ActionLayout/ResonanceButton
 @onready var turn_order_indicator = $BattleUI/UIRoot/TurnOrderIndicator
+@onready var attack_menu          = $BattleUI/UIRoot/AttackMenu
 @onready var victory_screen   = $BattleUI/UIRoot/VictoryScreen
 @onready var defeat_screen    = $BattleUI/UIRoot/DefeatScreen
 @onready var level_up_screen  = $BattleUI/UIRoot/LevelUpScreen
@@ -88,6 +89,9 @@ func start_battle(party: Array[Character], enemies: Array[Character], area: Stri
 	_setup_hero_panels(party)
 	_setup_enemy_cards(enemies)
 	turn_order_indicator.setup(party, enemies)
+	attack_menu.setup(battle_manager, resonance_system)
+	attack_menu.move_selected.connect(_on_move_selected)
+	attack_menu.menu_closed.connect(_on_attack_menu_closed)
 	battle_manager.start_battle(party, enemies)
 
 func _start_test_battle():
@@ -105,6 +109,83 @@ func _start_test_battle():
 	hero1.current_hp = hero1.max_hp()
 	hero1.current_mp = hero1.max_mp()
 
+	# Aria's attacks (index 0-3)
+	var slash = Skill.new()
+	slash.skill_name = "Arcane Slash"
+	slash.description = "A swift slash imbued with arcane energy."
+	slash.skill_type = Skill.SkillType.PHYSICAL
+	slash.element = ElementalSystem.Element.ARCANE
+	slash.power = 1.2
+	slash.mp_cost = 0
+	slash.target_type = Skill.TargetType.SINGLE_ENEMY
+
+	var frost = Skill.new()
+	frost.skill_name = "Frost Bolt"
+	frost.description = "A bolt of ice that slows the target."
+	frost.skill_type = Skill.SkillType.MAGIC
+	frost.element = ElementalSystem.Element.ICE
+	frost.power = 1.5
+	frost.mp_cost = 12
+	frost.target_type = Skill.TargetType.SINGLE_ENEMY
+
+	var dark_pulse = Skill.new()
+	dark_pulse.skill_name = "Dark Pulse"
+	dark_pulse.description = "A wave of dark energy hitting all enemies."
+	dark_pulse.skill_type = Skill.SkillType.MAGIC
+	dark_pulse.element = ElementalSystem.Element.DARK
+	dark_pulse.power = 1.0
+	dark_pulse.mp_cost = 18
+	dark_pulse.target_type = Skill.TargetType.ALL_ENEMIES
+
+	var heal_spell = Skill.new()
+	heal_spell.skill_name = "Mend"
+	heal_spell.description = "Restores HP to a single ally."
+	heal_spell.skill_type = Skill.SkillType.HEAL
+	heal_spell.element = ElementalSystem.Element.LIGHT
+	heal_spell.power = 1.8
+	heal_spell.mp_cost = 15
+	heal_spell.target_type = Skill.TargetType.SINGLE_ALLY
+
+	# Aria's specials (index 4-7)
+	var requiem = Skill.new()
+	requiem.skill_name = "Amethyst Requiem"
+	requiem.description = "Aria's ultimate — a burst of pure amethyst energy."
+	requiem.skill_type = Skill.SkillType.MAGIC
+	requiem.element = ElementalSystem.Element.ARCANE
+	requiem.power = 3.5
+	requiem.mp_cost = 40
+	requiem.target_type = Skill.TargetType.ALL_ENEMIES
+
+	var void_strike = Skill.new()
+	void_strike.skill_name = "Void Strike"
+	void_strike.description = "Strikes through defenses with void energy."
+	void_strike.skill_type = Skill.SkillType.MAGIC
+	void_strike.element = ElementalSystem.Element.DARK
+	void_strike.power = 2.5
+	void_strike.mp_cost = 25
+	void_strike.target_type = Skill.TargetType.SINGLE_ENEMY
+
+	var barrier = Skill.new()
+	barrier.skill_name = "Arcane Barrier"
+	barrier.description = "Shields all allies with an arcane field."
+	barrier.skill_type = Skill.SkillType.BUFF
+	barrier.element = ElementalSystem.Element.ARCANE
+	barrier.power = 1.0
+	barrier.mp_cost = 20
+	barrier.target_type = Skill.TargetType.ALL_ALLIES
+
+	var mass_heal = Skill.new()
+	mass_heal.skill_name = "Grand Mend"
+	mass_heal.description = "Restores HP to all allies."
+	mass_heal.skill_type = Skill.SkillType.HEAL
+	mass_heal.element = ElementalSystem.Element.LIGHT
+	mass_heal.power = 1.5
+	mass_heal.mp_cost = 30
+	mass_heal.target_type = Skill.TargetType.ALL_ALLIES
+
+	var h1_skills: Array[Skill] = [slash, frost, dark_pulse, heal_spell, requiem, void_strike, barrier, mass_heal]
+	hero1.skills = h1_skills
+
 	var hero2 = Character.new()
 	hero2.character_name = "Kael"
 	hero2.character_class = "Warrior"
@@ -112,10 +193,91 @@ func _start_test_battle():
 	hero2.base_hp = 280
 	hero2.base_mp = 60
 	hero2.base_attack = 20
-	hero2.experience = 85
+	hero2.experience = 0
 	hero2.experience_to_next = 100
 	hero2.current_hp = hero2.max_hp()
 	hero2.current_mp = hero2.max_mp()
+
+	# Kael's attacks (index 0-3)
+	var flame_strike = Skill.new()
+	flame_strike.skill_name = "Flame Strike"
+	flame_strike.description = "A powerful strike wreathed in fire."
+	flame_strike.skill_type = Skill.SkillType.PHYSICAL
+	flame_strike.element = ElementalSystem.Element.FIRE
+	flame_strike.power = 1.4
+	flame_strike.mp_cost = 0
+	flame_strike.target_type = Skill.TargetType.SINGLE_ENEMY
+
+	var shield_bash = Skill.new()
+	shield_bash.skill_name = "Shield Bash"
+	shield_bash.description = "Stuns the enemy with a powerful bash."
+	shield_bash.skill_type = Skill.SkillType.PHYSICAL
+	shield_bash.element = ElementalSystem.Element.NONE
+	shield_bash.power = 1.0
+	shield_bash.mp_cost = 8
+	shield_bash.status_to_apply = "stun"
+	shield_bash.status_chance = 0.5
+	shield_bash.target_type = Skill.TargetType.SINGLE_ENEMY
+
+	var war_cry = Skill.new()
+	war_cry.skill_name = "War Cry"
+	war_cry.description = "Boosts the party's fighting spirit."
+	war_cry.skill_type = Skill.SkillType.BUFF
+	war_cry.element = ElementalSystem.Element.NONE
+	war_cry.power = 1.0
+	war_cry.mp_cost = 10
+	war_cry.target_type = Skill.TargetType.ALL_ALLIES
+
+	var inferno = Skill.new()
+	inferno.skill_name = "Inferno"
+	inferno.description = "Engulfs all enemies in roaring flames."
+	inferno.skill_type = Skill.SkillType.MAGIC
+	inferno.element = ElementalSystem.Element.FIRE
+	inferno.power = 1.2
+	inferno.mp_cost = 20
+	inferno.target_type = Skill.TargetType.ALL_ENEMIES
+
+	# Kael's specials (index 4-7)
+	var phoenix = Skill.new()
+	phoenix.skill_name = "Phoenix Fury"
+	phoenix.description = "Kael's ultimate — unleashes the fury of a phoenix."
+	phoenix.skill_type = Skill.SkillType.MAGIC
+	phoenix.element = ElementalSystem.Element.FIRE
+	phoenix.power = 4.0
+	phoenix.mp_cost = 45
+	phoenix.target_type = Skill.TargetType.ALL_ENEMIES
+
+	var molten = Skill.new()
+	molten.skill_name = "Molten Blade"
+	molten.description = "A blade heated to molten temperatures."
+	molten.skill_type = Skill.SkillType.PHYSICAL
+	molten.element = ElementalSystem.Element.FIRE
+	molten.power = 2.8
+	molten.mp_cost = 28
+	molten.target_type = Skill.TargetType.SINGLE_ENEMY
+
+	var iron_will = Skill.new()
+	iron_will.skill_name = "Iron Will"
+	iron_will.description = "Regenerates HP each turn for the party."
+	iron_will.skill_type = Skill.SkillType.BUFF
+	iron_will.element = ElementalSystem.Element.NONE
+	iron_will.power = 1.0
+	iron_will.mp_cost = 22
+	iron_will.target_type = Skill.TargetType.ALL_ALLIES
+
+	var flame_wall = Skill.new()
+	flame_wall.skill_name = "Flame Wall"
+	flame_wall.description = "Creates a wall of fire that poisons enemies."
+	flame_wall.skill_type = Skill.SkillType.MAGIC
+	flame_wall.element = ElementalSystem.Element.FIRE
+	flame_wall.power = 1.8
+	flame_wall.mp_cost = 32
+	flame_wall.status_to_apply = "burn"
+	flame_wall.status_chance = 0.7
+	flame_wall.target_type = Skill.TargetType.ALL_ENEMIES
+
+	var h2_skills: Array[Skill] = [flame_strike, shield_bash, war_cry, inferno, phoenix, molten, iron_will, flame_wall]
+	hero2.skills = h2_skills
 
 	# Ice Golem — weak to Fire (Kael will do 2x damage)
 	var enemy1 = Character.new()
@@ -405,6 +567,8 @@ func _on_battle_ended(player_won: bool, rewards: Dictionary):
 	enemy_info_row.visible = false
 	party_status_bar.visible = false
 	turn_order_indicator.visible = false
+	attack_menu.visible = false
+	action_menu.visible = false
 	if player_won:
 		GameManager.award_rewards(rewards)
 		for enemy in battle_manager.enemies:
@@ -424,6 +588,7 @@ func _on_status_triggered(character: Character, result: Dictionary):
 
 # --- Target Selection ---
 var _pending_action: String = ""
+var _pending_skill: Skill = null
 
 func _enter_target_selection(action: String):
 	_pending_action = action
@@ -456,6 +621,10 @@ func _on_target_selected(target: Character):
 	match _pending_action:
 		"attack":
 			battle_manager.player_attack(current_actor, target)
+		"skill":
+			if _pending_skill != null:
+				battle_manager.player_use_skill(current_actor, _pending_skill, [target])
+				_pending_skill = null
 	_pending_action = ""
 
 func _clear_target_buttons():
@@ -468,18 +637,35 @@ func _clear_target_buttons():
 func _on_attack_pressed():
 	if current_actor == null:
 		return
-	var alive_enemies = battle_manager.get_alive_enemies()
-	if alive_enemies.is_empty():
+	if current_actor.skills.is_empty():
+		# No skills — fallback to basic attack
+		var alive_enemies = battle_manager.get_alive_enemies()
+		if alive_enemies.size() == 1:
+			battle_manager.player_attack(current_actor, alive_enemies[0])
+		else:
+			_enter_target_selection("attack")
 		return
-	if alive_enemies.size() == 1:
-		# Only one enemy — attack directly
-		battle_manager.player_attack(current_actor, alive_enemies[0])
-	else:
-		# Multiple enemies — enter target selection
-		_enter_target_selection("attack")
+	action_menu.visible = false
+	attack_menu.show_attacks(current_actor)
 
 func _on_special_pressed():
-	print("Special menu — coming soon!")
+	if current_actor == null:
+		return
+	action_menu.visible = false
+	attack_menu.show_specials(current_actor)
+
+func _on_move_selected(skill: Skill, targets: Array):
+	if targets.is_empty():
+		_pending_skill = skill
+		_enter_target_selection("skill")
+	else:
+		var typed_targets: Array[Character] = []
+		for t in targets:
+			typed_targets.append(t)
+		battle_manager.player_use_skill(current_actor, skill, typed_targets)
+
+func _on_attack_menu_closed():
+	action_menu.visible = true
 
 func _on_items_pressed():
 	print("Items menu — coming soon!")

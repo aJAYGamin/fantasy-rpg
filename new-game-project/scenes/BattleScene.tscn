@@ -7,6 +7,7 @@
 [ext_resource type="Script" uid="uid://ieb3syh4modv" path="res://scripts/battle/DefeatScreen.gd" id="5_0yex5"]
 [ext_resource type="Script" uid="uid://ca4jbpa4lj6dp" path="res://scripts/battle/LevelUpScreen.gd" id="6_0yex5"]
 [ext_resource type="Script" uid="uid://dtu367hjmtpmf" path="res://scripts/battle/TurnOrderIndicator.gd" id="7_bsu3s"]
+[ext_resource type="Script" uid="uid://da7dfv407gp1n" path="res://scripts/battle/AttackMenu.gd" id="8_sdfhe"]
 
 [node name="BattleScene" type="Node2D" unique_id=249494973]
 script = ExtResource("1_ltshs")
@@ -533,3 +534,18 @@ offset_top = 90.0
 offset_right = 48.0
 offset_bottom = 130.0
 script = ExtResource("7_bsu3s")
+
+[node name="AttackMenu" type="Control" parent="BattleUI/UIRoot" unique_id=1487681162]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -404.0
+offset_top = -139.0
+offset_right = -10.0
+offset_bottom = -10.0
+grow_horizontal = 0
+grow_vertical = 0
+script = ExtResource("8_sdfhe")
