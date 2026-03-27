@@ -16,7 +16,8 @@ extends Node2D
 @onready var special_btn      = $BattleUI/UIRoot/ActionMenu/ActionLayout/ActionGrid/SpecialButton
 @onready var items_btn        = $BattleUI/UIRoot/ActionMenu/ActionLayout/ActionGrid/ItemsButton
 @onready var run_btn          = $BattleUI/UIRoot/ActionMenu/ActionLayout/ActionGrid/RunButton
-@onready var resonance_btn    = $BattleUI/UIRoot/ActionMenu/ActionLayout/ResonanceButton
+@onready var resonance_btn       = $BattleUI/UIRoot/ActionMenu/ActionLayout/ResonanceButton
+@onready var turn_order_indicator = $BattleUI/UIRoot/TurnOrderIndicator
 @onready var victory_screen   = $BattleUI/UIRoot/VictoryScreen
 @onready var defeat_screen    = $BattleUI/UIRoot/DefeatScreen
 @onready var level_up_screen  = $BattleUI/UIRoot/LevelUpScreen
@@ -86,6 +87,7 @@ func start_battle(party: Array[Character], enemies: Array[Character], area: Stri
 		_max_mp[e] = e.max_mp()
 	_setup_hero_panels(party)
 	_setup_enemy_cards(enemies)
+	turn_order_indicator.setup(party, enemies)
 	battle_manager.start_battle(party, enemies)
 
 func _start_test_battle():
@@ -110,7 +112,7 @@ func _start_test_battle():
 	hero2.base_hp = 280
 	hero2.base_mp = 60
 	hero2.base_attack = 20
-	hero2.experience = 0
+	hero2.experience = 85
 	hero2.experience_to_next = 100
 	hero2.current_hp = hero2.max_hp()
 	hero2.current_mp = hero2.max_mp()
@@ -319,6 +321,7 @@ func _on_turn_started(character: Character):
 	var is_player = battle_manager.party.has(character)
 	_toggle_action_menu(is_player)
 	_update_resonance_button()
+	turn_order_indicator.set_active(character)
 
 func _refresh_enemy_card(enemy: Character):
 	if not _enemy_hp_bars.has(enemy):
@@ -380,6 +383,7 @@ func _on_action_performed(result: Dictionary):
 func _on_character_defeated(character: Character):
 	print("%s was defeated!" % character.character_name)
 	_refresh_all_panels()
+	turn_order_indicator.remove_character(character)
 	# Remove enemy card if an enemy was defeated
 	if battle_manager.enemies.has(character):
 		_remove_enemy_card(character)
@@ -400,6 +404,7 @@ func _on_battle_ended(player_won: bool, rewards: Dictionary):
 	# Hide battle UI elements
 	enemy_info_row.visible = false
 	party_status_bar.visible = false
+	turn_order_indicator.visible = false
 	if player_won:
 		GameManager.award_rewards(rewards)
 		for enemy in battle_manager.enemies:

@@ -6,6 +6,7 @@
 [ext_resource type="Script" uid="uid://dkyo5iah6gwg1" path="res://scripts/battle/VictoryScreen.gd" id="4_ftvu5"]
 [ext_resource type="Script" uid="uid://ieb3syh4modv" path="res://scripts/battle/DefeatScreen.gd" id="5_0yex5"]
 [ext_resource type="Script" uid="uid://ca4jbpa4lj6dp" path="res://scripts/battle/LevelUpScreen.gd" id="6_0yex5"]
+[ext_resource type="Script" uid="uid://dtu367hjmtpmf" path="res://scripts/battle/TurnOrderIndicator.gd" id="7_bsu3s"]
 
 [node name="BattleScene" type="Node2D" unique_id=249494973]
 script = ExtResource("1_ltshs")
@@ -523,3 +524,12 @@ offset_bottom = 20.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/separation = 16
+
+[node name="TurnOrderIndicator" type="VBoxContainer" parent="BattleUI/UIRoot" unique_id=1895333504]
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 1
+offset_left = 8.0
+offset_top = 90.0
+offset_right = 48.0
+offset_bottom = 130.0
+script = ExtResource("7_bsu3s")
