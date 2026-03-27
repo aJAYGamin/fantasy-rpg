@@ -17,6 +17,8 @@ extends Node2D
 @onready var items_btn        = $BattleUI/UIRoot/ActionMenu/ActionLayout/ActionGrid/ItemsButton
 @onready var run_btn          = $BattleUI/UIRoot/ActionMenu/ActionLayout/ActionGrid/RunButton
 @onready var resonance_btn    = $BattleUI/UIRoot/ActionMenu/ActionLayout/ResonanceButton
+@onready var victory_screen   = $BattleUI/UIRoot/VictoryScreen
+@onready var defeat_screen    = $BattleUI/UIRoot/DefeatScreen
 
 # --- Systems ---
 var battle_manager: BattleManager
@@ -54,6 +56,9 @@ func _ready():
 
 	resonance_system.resonance_changed.connect(_on_resonance_changed)
 	resonance_system.resonance_full.connect(_on_resonance_full)
+
+	# Connect victory/defeat screens
+	victory_screen.victory_closed.connect(_on_victory_closed)
 
 	_start_test_battle()
 
@@ -262,14 +267,21 @@ func _on_character_defeated(character: Character):
 
 func _on_battle_ended(player_won: bool, rewards: Dictionary):
 	_toggle_action_menu(false)
+	# Hide battle UI elements
+	enemy_info_row.visible = false
+	party_status_bar.visible = false
 	if player_won:
 		GameManager.award_rewards(rewards)
-		print("Victory!")
 		for enemy in battle_manager.enemies:
 			if enemy is Enemy:
 				GameManager.record_battle_against(enemy.species)
+		victory_screen.show_victory(rewards, battle_manager.party, resonance_system)
 	else:
-		print("Defeated...")
+		defeat_screen.show_defeat()
+
+func _on_victory_closed():
+	# Return to game — for now go back to main menu until world map is built
+	get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")
 
 func _on_status_triggered(character: Character, result: Dictionary):
 	print("%s: %s %d" % [character.character_name, result["type"], result["value"]])

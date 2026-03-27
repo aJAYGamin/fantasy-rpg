@@ -3,6 +3,8 @@
 [ext_resource type="Script" uid="uid://b0hh3f5weilua" path="res://scripts/battle/BattleScene.gd" id="1_ltshs"]
 [ext_resource type="FontFile" uid="uid://mwnjd7gj21c1" path="res://fonts/Cinzel-Bold.ttf" id="2_3mvhd"]
 [ext_resource type="FontFile" uid="uid://dok11xbo8ic5v" path="res://fonts/Cinzel-Regular.ttf" id="2_gkmpl"]
+[ext_resource type="Script" uid="uid://dkyo5iah6gwg1" path="res://scripts/battle/VictoryScreen.gd" id="4_ftvu5"]
+[ext_resource type="Script" uid="uid://ieb3syh4modv" path="res://scripts/battle/DefeatScreen.gd" id="5_0yex5"]
 
 [node name="BattleScene" type="Node2D" unique_id=249494973]
 script = ExtResource("1_ltshs")
@@ -382,3 +384,108 @@ layout_mode = 2
 theme_override_fonts/font = ExtResource("2_gkmpl")
 theme_override_font_sizes/font_size = 12
 text = "Resonance"
+
+[node name="VictoryScreen" type="Control" parent="BattleUI/UIRoot" unique_id=380985735]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("4_ftvu5")
+
+[node name="Overlay" type="ColorRect" parent="BattleUI/UIRoot/VictoryScreen" unique_id=1655357422]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.6)
+
+[node name="Content" type="VBoxContainer" parent="BattleUI/UIRoot/VictoryScreen" unique_id=523929168]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -33.0
+offset_right = 20.0
+offset_bottom = 33.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 16
+
+[node name="VictoryLabel" type="Label" parent="BattleUI/UIRoot/VictoryScreen/Content" unique_id=401800552]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.84313726, 0, 1)
+theme_override_fonts/font = ExtResource("2_3mvhd")
+theme_override_font_sizes/font_size = 48
+text = "Victory"
+horizontal_alignment = 1
+
+[node name="PartyList" type="VBoxContainer" parent="BattleUI/UIRoot/VictoryScreen/Content" unique_id=291444115]
+layout_mode = 2
+
+[node name="RewardsLabel" type="Label" parent="BattleUI/UIRoot/VictoryScreen/Content" unique_id=335959261]
+layout_mode = 2
+
+[node name="ContinueButton" type="Button" parent="BattleUI/UIRoot/VictoryScreen/Content" unique_id=1824760510]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_gkmpl")
+text = "Continue"
+
+[node name="DefeatScreen" type="Control" parent="BattleUI/UIRoot" unique_id=728736558]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("5_0yex5")
+
+[node name="Overlay" type="ColorRect" parent="BattleUI/UIRoot/DefeatScreen" unique_id=859744284]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.6)
+
+[node name="Content" type="VBoxContainer" parent="BattleUI/UIRoot/DefeatScreen" unique_id=2044706336]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -23.5
+offset_right = 20.0
+offset_bottom = 23.5
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 16
+
+[node name="DefeatLabel" type="Label" parent="BattleUI/UIRoot/DefeatScreen/Content" unique_id=1187448882]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8862745, 0.29411766, 0.2901961, 1)
+theme_override_fonts/font = ExtResource("2_3mvhd")
+theme_override_font_sizes/font_size = 48
+text = "Defeat"
+horizontal_alignment = 1
+
+[node name="ContinueButton" type="Button" parent="BattleUI/UIRoot/DefeatScreen/Content" unique_id=572496606]
+custom_minimum_size = Vector2(220, 40)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_gkmpl")
+text = "Continue"
+
+[node name="QuitButton" type="Button" parent="BattleUI/UIRoot/DefeatScreen/Content" unique_id=1393620636]
+custom_minimum_size = Vector2(220, 40)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_gkmpl")
+text = "Quit Game"
