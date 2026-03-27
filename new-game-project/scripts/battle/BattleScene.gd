@@ -19,6 +19,7 @@ extends Node2D
 @onready var resonance_btn    = $BattleUI/UIRoot/ActionMenu/ActionLayout/ResonanceButton
 @onready var victory_screen   = $BattleUI/UIRoot/VictoryScreen
 @onready var defeat_screen    = $BattleUI/UIRoot/DefeatScreen
+@onready var level_up_screen  = $BattleUI/UIRoot/LevelUpScreen
 
 # --- Systems ---
 var battle_manager: BattleManager
@@ -26,6 +27,10 @@ var resonance_system: ResonanceSystem
 
 # --- State ---
 var current_actor: Character = null
+var _max_hp: Dictionary = {}   # character -> max hp at battle start
+var _max_mp: Dictionary = {}   # character -> max mp at battle start
+var _enemy_hp_bars: Dictionary = {}   # character -> ProgressBar
+var _enemy_hp_labels: Dictionary = {} # character -> Label
 
 # --- Backgrounds per area ---
 const BACKGROUNDS = {
@@ -59,6 +64,7 @@ func _ready():
 
 	# Connect victory/defeat screens
 	victory_screen.victory_closed.connect(_on_victory_closed)
+	victory_screen.setup_level_up_screen(level_up_screen)
 
 	_start_test_battle()
 
@@ -71,6 +77,13 @@ func set_background(area: String):
 func start_battle(party: Array[Character], enemies: Array[Character], area: String = "fallster_plains"):
 	set_background(area)
 	resonance_system.setup(party)
+	# Store max values at battle start so bars don't change mid-battle
+	for c in party:
+		_max_hp[c] = c.max_hp()
+		_max_mp[c] = c.max_mp()
+	for e in enemies:
+		_max_hp[e] = e.max_hp()
+		_max_mp[e] = e.max_mp()
 	_setup_hero_panels(party)
 	_setup_enemy_cards(enemies)
 	battle_manager.start_battle(party, enemies)
@@ -85,6 +98,10 @@ func _start_test_battle():
 	hero1.base_hp = 200
 	hero1.base_mp = 120
 	hero1.base_magic = 18
+	hero1.experience = 85
+	hero1.experience_to_next = 100
+	hero1.current_hp = hero1.max_hp()
+	hero1.current_mp = hero1.max_mp()
 
 	var hero2 = Character.new()
 	hero2.character_name = "Kael"
@@ -93,15 +110,32 @@ func _start_test_battle():
 	hero2.base_hp = 280
 	hero2.base_mp = 60
 	hero2.base_attack = 20
+	hero2.experience = 0
+	hero2.experience_to_next = 100
+	hero2.current_hp = hero2.max_hp()
+	hero2.current_mp = hero2.max_mp()
 
+	# Ice Golem — weak to Fire (Kael will do 2x damage)
 	var enemy1 = Character.new()
-	enemy1.character_name = "Shadow Wraith"
-	enemy1.element = ElementalSystem.Element.DARK
-	enemy1.base_hp = 150
-	enemy1.base_attack = 12
+	enemy1.character_name = "Ice Golem"
+	enemy1.element = ElementalSystem.Element.ICE
+	enemy1.base_hp = 60
+	enemy1.base_attack = 8
+	enemy1.current_hp = enemy1.max_hp()
+
+	# Fire Drake — resists Fire (Kael does 0.5x), weak to Ice
+	var enemy2 = Character.new()
+	enemy2.character_name = "Fire Drake"
+	enemy2.element = ElementalSystem.Element.FIRE
+	enemy2.base_hp = 50
+	enemy2.base_attack = 10
+	enemy2.current_hp = enemy2.max_hp()
+
+	# Start with 50 gold to verify gold addition on victory screen
+	GameManager.gold = 50
 
 	var party: Array[Character] = [hero1, hero2]
-	var enemies: Array[Character] = [enemy1]
+	var enemies: Array[Character] = [enemy1, enemy2]
 	start_battle(party, enemies, "fallster_plains")
 
 # --- UI Setup ---
@@ -118,30 +152,62 @@ func _update_hero_panel(panel: PanelContainer, hero: Character):
 	var layout = panel.get_node("HeroLayout")
 	layout.get_node("HeroNameLabel").text = "  %s · Lv%d" % [hero.character_name, hero.level]
 
-	var hp_bar  = layout.get_node("HPRow/HPBar")
-	var hp_val  = layout.get_node("HPRow/HPValue")
-	var mp_bar  = layout.get_node("MPRow/MPBar")
-	var mp_val  = layout.get_node("MPRow/MPValue")
-	var res_bar = layout.get_node("ResonanceRow/ResonanceBar")
-	var res_val = layout.get_node("ResonanceRow/ResValue")
+	var hp_bar   = layout.get_node("HPRow/HPBar")
+	var hp_lbl   = layout.get_node("HPRow/HPLabel")
+	var hp_val   = layout.get_node("HPRow/HPValue")
+	var mp_bar   = layout.get_node("MPRow/MPBar")
+	var mp_lbl   = layout.get_node("MPRow/MPLabel")
+	var mp_val   = layout.get_node("MPRow/MPValue")
+	var res_bar  = layout.get_node("ResonanceRow/ResonanceBar")
+	var res_lbl  = layout.get_node("ResonanceRow/ResLabel")
+	var res_val  = layout.get_node("ResonanceRow/ResValue")
 
+	# --- HP ---
 	hp_bar.max_value = hero.max_hp()
 	hp_bar.value = hero.current_hp
 	hp_val.text = "%d/%d" % [hero.current_hp, hero.max_hp()]
 
+	# HP color based on percentage
+	var hp_pct = float(hero.current_hp) / float(hero.max_hp())
+	var hp_color: Color
+	if hp_pct >= 0.5:
+		hp_color = Color(0.2, 0.85, 0.3)       # Green
+	elif hp_pct >= 0.3:
+		hp_color = Color(0.95, 0.85, 0.1)       # Yellow
+	elif hp_pct >= 0.15:
+		hp_color = Color(1.0, 0.5, 0.1)         # Orange
+	else:
+		hp_color = Color(0.9, 0.15, 0.15)       # Red
+
+	hp_bar.modulate = hp_color
+	hp_lbl.add_theme_color_override("font_color", hp_color)
+	hp_val.add_theme_color_override("font_color", hp_color)
+
+	# --- MP ---
 	mp_bar.max_value = hero.max_mp()
 	mp_bar.value = hero.current_mp
 	mp_val.text = "%d/%d" % [hero.current_mp, hero.max_mp()]
 
+	var mp_color = Color(0.3, 0.65, 1.0)        # Light blue
+	mp_bar.modulate = mp_color
+	mp_lbl.add_theme_color_override("font_color", mp_color)
+	mp_val.add_theme_color_override("font_color", mp_color)
+
+	# --- Resonance ---
 	var res_pct = resonance_system.get_resonance_percent(hero) * 100
 	res_bar.max_value = 100
 	res_bar.value = res_pct
+
+	var res_color = Color(0.72, 0.55, 1.0)      # Light purple
+	res_bar.modulate = res_color
+	res_lbl.add_theme_color_override("font_color", res_color)
+
 	if resonance_system.is_full(hero):
 		res_val.text = "FULL ✦"
-		res_val.modulate = Color(0.88, 0.69, 1.0)
+		res_val.add_theme_color_override("font_color", Color(0.88, 0.69, 1.0))
 	else:
 		res_val.text = "%d%%" % int(res_pct)
-		res_val.modulate = Color(0.78, 0.62, 0.88)
+		res_val.add_theme_color_override("font_color", res_color)
 
 func _setup_enemy_cards(enemies: Array[Character]):
 	for child in enemy_info_row.get_children():
@@ -203,22 +269,43 @@ func _create_enemy_card(enemy: Character) -> PanelContainer:
 	name_row.add_child(spacer)
 
 	# HP bar
+	var enemy_max_hp = _max_hp.get(enemy, enemy.max_hp())
 	var hp_bar = ProgressBar.new()
-	hp_bar.max_value = enemy.max_hp()
+	hp_bar.max_value = enemy_max_hp
 	hp_bar.value = enemy.current_hp
 	hp_bar.custom_minimum_size = Vector2(0, 8)
 	hp_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hp_bar.show_percentage = false
 	vbox.add_child(hp_bar)
 
+	# Store bar reference for live updates
+	_enemy_hp_bars[enemy] = hp_bar
+
+	# HP color based on percentage
+	var hp_pct = float(enemy.current_hp) / float(enemy_max_hp)
+	var hp_color: Color
+	if hp_pct >= 0.5:
+		hp_color = Color(0.2, 0.85, 0.3)
+	elif hp_pct >= 0.3:
+		hp_color = Color(0.95, 0.85, 0.1)
+	elif hp_pct >= 0.15:
+		hp_color = Color(1.0, 0.5, 0.1)
+	else:
+		hp_color = Color(0.9, 0.15, 0.15)
+	hp_bar.modulate = hp_color
+
 	# HP label
 	var hp_lbl = Label.new()
-	hp_lbl.text = "%d/%d" % [enemy.current_hp, enemy.max_hp()]
+	hp_lbl.text = "%d/%d" % [enemy.current_hp, enemy_max_hp]
 	hp_lbl.add_theme_font_size_override("font_size", 9)
 	hp_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hp_lbl.add_theme_color_override("font_color", hp_color)
 	if cinzel:
 		hp_lbl.add_theme_font_override("font", cinzel)
 	vbox.add_child(hp_lbl)
+
+	# Store label reference for live updates
+	_enemy_hp_labels[enemy] = hp_lbl
 
 	return card
 
@@ -233,8 +320,37 @@ func _on_turn_started(character: Character):
 	_toggle_action_menu(is_player)
 	_update_resonance_button()
 
+func _refresh_enemy_card(enemy: Character):
+	if not _enemy_hp_bars.has(enemy):
+		return
+	var hp_bar = _enemy_hp_bars[enemy]
+	var hp_lbl = _enemy_hp_labels.get(enemy)
+	if not is_instance_valid(hp_bar):
+		return
+	var enemy_max_hp = _max_hp.get(enemy, enemy.max_hp())
+	hp_bar.value = enemy.current_hp
+	var hp_pct = float(enemy.current_hp) / float(enemy_max_hp)
+	var hp_color: Color
+	if hp_pct >= 0.5:
+		hp_color = Color(0.2, 0.85, 0.3)
+	elif hp_pct >= 0.3:
+		hp_color = Color(0.95, 0.85, 0.1)
+	elif hp_pct >= 0.15:
+		hp_color = Color(1.0, 0.5, 0.1)
+	else:
+		hp_color = Color(0.9, 0.15, 0.15)
+	hp_bar.modulate = hp_color
+	if hp_lbl and is_instance_valid(hp_lbl):
+		hp_lbl.text = "%d/%d" % [enemy.current_hp, enemy_max_hp]
+		hp_lbl.add_theme_color_override("font_color", hp_color)
+
 func _on_action_performed(result: Dictionary):
 	_refresh_all_panels()
+	# Refresh enemy card if enemy took damage
+	if result.has("target"):
+		var target = result["target"]
+		if battle_manager.enemies.has(target):
+			_refresh_enemy_card(target)
 
 	# Spawn damage/heal numbers
 	if result.has("value") and result.has("target"):
@@ -264,6 +380,20 @@ func _on_action_performed(result: Dictionary):
 func _on_character_defeated(character: Character):
 	print("%s was defeated!" % character.character_name)
 	_refresh_all_panels()
+	# Remove enemy card if an enemy was defeated
+	if battle_manager.enemies.has(character):
+		_remove_enemy_card(character)
+
+func _remove_enemy_card(enemy: Character):
+	var alive_enemies = battle_manager.get_alive_enemies()
+	# Rebuild enemy cards showing only alive enemies
+	for card in enemy_info_row.get_children():
+		card.queue_free()
+	await get_tree().process_frame
+	for e in alive_enemies:
+		if e != enemy:
+			var card = _create_enemy_card(e)
+			enemy_info_row.add_child(card)
 
 func _on_battle_ended(player_won: bool, rewards: Dictionary):
 	_toggle_action_menu(false)
@@ -287,6 +417,48 @@ func _on_status_triggered(character: Character, result: Dictionary):
 	print("%s: %s %d" % [character.character_name, result["type"], result["value"]])
 	_refresh_all_panels()
 
+# --- Target Selection ---
+var _pending_action: String = ""
+
+func _enter_target_selection(action: String):
+	_pending_action = action
+	action_title.text = "— Choose Target —"
+	# Clear and rebuild enemy info row with clickable buttons
+	for child in enemy_info_row.get_children():
+		child.mouse_filter = Control.MOUSE_FILTER_STOP
+	_show_target_buttons()
+
+func _show_target_buttons():
+	# Add a clickable overlay button on top of each enemy card
+	var alive_enemies = battle_manager.get_alive_enemies()
+	for i in range(enemy_info_row.get_child_count()):
+		var card = enemy_info_row.get_child(i)
+		if i < alive_enemies.size():
+			var enemy = alive_enemies[i]
+			# Add a transparent button over the card
+			var btn = Button.new()
+			btn.name = "TargetBtn_%d" % i
+			btn.flat = true
+			btn.set_anchors_preset(Control.PRESET_FULL_RECT)
+			btn.modulate = Color(1, 1, 1, 0.01)
+			card.add_child(btn)
+			btn.pressed.connect(_on_target_selected.bind(enemy))
+
+func _on_target_selected(target: Character):
+	# Remove target buttons
+	_clear_target_buttons()
+	action_title.text = "— %s's Turn —" % current_actor.character_name
+	match _pending_action:
+		"attack":
+			battle_manager.player_attack(current_actor, target)
+	_pending_action = ""
+
+func _clear_target_buttons():
+	for card in enemy_info_row.get_children():
+		for child in card.get_children():
+			if child.name.begins_with("TargetBtn_"):
+				child.queue_free()
+
 # --- Action Buttons ---
 func _on_attack_pressed():
 	if current_actor == null:
@@ -294,7 +466,12 @@ func _on_attack_pressed():
 	var alive_enemies = battle_manager.get_alive_enemies()
 	if alive_enemies.is_empty():
 		return
-	battle_manager.player_attack(current_actor, alive_enemies[0])
+	if alive_enemies.size() == 1:
+		# Only one enemy — attack directly
+		battle_manager.player_attack(current_actor, alive_enemies[0])
+	else:
+		# Multiple enemies — enter target selection
+		_enter_target_selection("attack")
 
 func _on_special_pressed():
 	print("Special menu — coming soon!")

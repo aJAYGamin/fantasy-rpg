@@ -144,15 +144,20 @@ func process_status_effects() -> Array[Dictionary]:
 # --- Leveling ---
 func gain_experience(amount: int) -> bool:
 	experience += amount
-	if experience >= experience_to_next:
+	var leveled = false
+	# Handle multiple level ups from one batch of EXP
+	while experience >= experience_to_next:
 		level_up()
-		return true
-	return false
+		leveled = true
+	return leveled
 
 func level_up():
 	level += 1
+	# Carry over remaining EXP to next level
 	experience -= experience_to_next
+	# Scale EXP requirement — each level needs 50% more than the last
 	experience_to_next = int(experience_to_next * 1.5)
+	# Restore HP/MP on level up
 	current_hp = max_hp()
 	current_mp = max_mp()
 	_learn_skills_at_level()
@@ -174,4 +179,3 @@ func get_stats_summary() -> Dictionary:
 		"element": ElementalSystem.get_element_name(element),
 		"exp": "%d/%d" % [experience, experience_to_next]
 	}
-	
