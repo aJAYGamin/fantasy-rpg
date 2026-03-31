@@ -8,6 +8,8 @@
 [ext_resource type="Script" uid="uid://ca4jbpa4lj6dp" path="res://scripts/battle/LevelUpScreen.gd" id="6_0yex5"]
 [ext_resource type="Script" uid="uid://dtu367hjmtpmf" path="res://scripts/battle/TurnOrderIndicator.gd" id="7_bsu3s"]
 [ext_resource type="Script" uid="uid://da7dfv407gp1n" path="res://scripts/battle/AttackMenu.gd" id="8_sdfhe"]
+[ext_resource type="Script" uid="uid://bqc21n4dt5ap4" path="res://scripts/battle/ResonanceMenu.gd" id="9_hrc4b"]
+[ext_resource type="Script" uid="uid://oubrrn0hxpy0" path="res://scripts/battle/ItemsMenu.gd" id="10_sgm0l"]
 
 [node name="BattleScene" type="Node2D" unique_id=249494973]
 script = ExtResource("1_ltshs")
@@ -549,3 +551,19 @@ offset_bottom = -10.0
 grow_horizontal = 0
 grow_vertical = 0
 script = ExtResource("8_sdfhe")
+
+[node name="ResonanceMenu" type="Control" parent="BattleUI/UIRoot" unique_id=1475732936]
+anchors_preset = 0
+offset_left = 748.0
+offset_top = 450.0
+offset_right = 1142.0
+offset_bottom = 638.0
+script = ExtResource("9_hrc4b")
+
+[node name="ItemsMenu" type="Control" parent="BattleUI/UIRoot" unique_id=684108618]
+anchors_preset = 0
+offset_left = 748.0
+offset_top = 534.0
+offset_right = 1142.0
+offset_bottom = 638.0
+script = ExtResource("10_sgm0l")

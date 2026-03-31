@@ -19,6 +19,8 @@ extends Node2D
 @onready var resonance_btn       = $BattleUI/UIRoot/ActionMenu/ActionLayout/ResonanceButton
 @onready var turn_order_indicator = $BattleUI/UIRoot/TurnOrderIndicator
 @onready var attack_menu          = $BattleUI/UIRoot/AttackMenu
+@onready var resonance_menu       = $BattleUI/UIRoot/ResonanceMenu
+@onready var items_menu           = $BattleUI/UIRoot/ItemsMenu
 @onready var victory_screen   = $BattleUI/UIRoot/VictoryScreen
 @onready var defeat_screen    = $BattleUI/UIRoot/DefeatScreen
 @onready var level_up_screen  = $BattleUI/UIRoot/LevelUpScreen
@@ -53,6 +55,7 @@ func _ready():
 	battle_manager.action_performed.connect(_on_action_performed)
 	battle_manager.character_defeated.connect(_on_character_defeated)
 	battle_manager.battle_ended.connect(_on_battle_ended)
+	battle_manager.enemy_move_preview.connect(_on_enemy_move_preview)
 	battle_manager.status_effect_triggered.connect(_on_status_triggered)
 
 	attack_btn.pressed.connect(_on_attack_pressed)
@@ -92,6 +95,14 @@ func start_battle(party: Array[Character], enemies: Array[Character], area: Stri
 	attack_menu.setup(battle_manager, resonance_system)
 	attack_menu.move_selected.connect(_on_move_selected)
 	attack_menu.menu_closed.connect(_on_attack_menu_closed)
+	resonance_menu.setup(battle_manager, resonance_system)
+	resonance_menu.resonance_action_selected.connect(_on_resonance_action)
+	resonance_menu.menu_closed.connect(_on_attack_menu_closed)
+	_test_items = _create_test_items()
+	items_menu.setup(battle_manager, null)
+	items_menu.set_items(_test_items)
+	items_menu.item_used.connect(_on_item_used)
+	items_menu.menu_closed.connect(_on_attack_menu_closed)
 	battle_manager.start_battle(party, enemies)
 
 func _start_test_battle():
@@ -103,11 +114,16 @@ func _start_test_battle():
 	hero1.element = ElementalSystem.Element.ARCANE
 	hero1.base_hp = 200
 	hero1.base_mp = 120
+	hero1.base_attack = 8    # Mages have low but non-zero physical attack
+	hero1.base_defense = 6
 	hero1.base_magic = 18
+	hero1.base_speed = 12
 	hero1.experience = 85
 	hero1.experience_to_next = 100
 	hero1.current_hp = hero1.max_hp()
 	hero1.current_mp = hero1.max_mp()
+	hero1.set_meta("ultimate_name", "Void Requiem")
+	hero1.set_meta("ultimate_desc", "Aria tears open the void, unleashing pure amethyst energy on all enemies.")
 
 	# Aria's attacks (index 0-3)
 	var slash = Skill.new()
@@ -193,10 +209,15 @@ func _start_test_battle():
 	hero2.base_hp = 280
 	hero2.base_mp = 60
 	hero2.base_attack = 20
+	hero2.base_defense = 14
+	hero2.base_magic = 6     # Warriors have low but non-zero magic
+	hero2.base_speed = 8
 	hero2.experience = 0
 	hero2.experience_to_next = 100
 	hero2.current_hp = hero2.max_hp()
 	hero2.current_mp = hero2.max_mp()
+	hero2.set_meta("ultimate_name", "Phoenix Inferno")
+	hero2.set_meta("ultimate_desc", "Kael becomes one with the phoenix, raining fire on all enemies.")
 
 	# Kael's attacks (index 0-3)
 	var flame_strike = Skill.new()
@@ -285,7 +306,38 @@ func _start_test_battle():
 	enemy1.element = ElementalSystem.Element.ICE
 	enemy1.base_hp = 60
 	enemy1.base_attack = 8
+	enemy1.base_defense = 6
+	enemy1.base_magic = 10
+	enemy1.base_speed = 7
 	enemy1.current_hp = enemy1.max_hp()
+
+	# Ice Golem skills
+	var ice_shard = Skill.new()
+	ice_shard.skill_name = "Ice Shard"
+	ice_shard.skill_type = Skill.SkillType.MAGIC
+	ice_shard.element = ElementalSystem.Element.ICE
+	ice_shard.power = 1.2
+	ice_shard.mp_cost = 0
+	ice_shard.target_type = Skill.TargetType.SINGLE_ENEMY
+
+	var blizzard = Skill.new()
+	blizzard.skill_name = "Blizzard"
+	blizzard.skill_type = Skill.SkillType.MAGIC
+	blizzard.element = ElementalSystem.Element.ICE
+	blizzard.power = 1.8
+	blizzard.mp_cost = 15
+	blizzard.target_type = Skill.TargetType.ALL_ENEMIES
+
+	var frost_armor = Skill.new()
+	frost_armor.skill_name = "Frost Armor"
+	frost_armor.skill_type = Skill.SkillType.BUFF
+	frost_armor.element = ElementalSystem.Element.ICE
+	frost_armor.power = 1.0
+	frost_armor.mp_cost = 10
+	frost_armor.target_type = Skill.TargetType.SELF
+
+	var e1_skills: Array[Skill] = [ice_shard, blizzard, frost_armor]
+	enemy1.skills = e1_skills
 
 	# Fire Drake — resists Fire (Kael does 0.5x), weak to Ice
 	var enemy2 = Character.new()
@@ -293,7 +345,49 @@ func _start_test_battle():
 	enemy2.element = ElementalSystem.Element.FIRE
 	enemy2.base_hp = 50
 	enemy2.base_attack = 10
+	enemy2.base_defense = 5
+	enemy2.base_magic = 12
+	enemy2.base_speed = 9
 	enemy2.current_hp = enemy2.max_hp()
+
+	# Fire Drake skills
+	var flame_breath = Skill.new()
+	flame_breath.skill_name = "Flame Breath"
+	flame_breath.skill_type = Skill.SkillType.MAGIC
+	flame_breath.element = ElementalSystem.Element.FIRE
+	flame_breath.power = 1.4
+	flame_breath.mp_cost = 0
+	flame_breath.target_type = Skill.TargetType.SINGLE_ENEMY
+
+	var inferno_roar = Skill.new()
+	inferno_roar.skill_name = "Inferno Roar"
+	inferno_roar.skill_type = Skill.SkillType.MAGIC
+	inferno_roar.element = ElementalSystem.Element.FIRE
+	inferno_roar.power = 2.0
+	inferno_roar.mp_cost = 20
+	inferno_roar.target_type = Skill.TargetType.ALL_ENEMIES
+
+	var ember_bite = Skill.new()
+	ember_bite.skill_name = "Ember Bite"
+	ember_bite.skill_type = Skill.SkillType.PHYSICAL
+	ember_bite.element = ElementalSystem.Element.FIRE
+	ember_bite.power = 1.0
+	ember_bite.mp_cost = 0
+	ember_bite.status_to_apply = "burn"
+	ember_bite.status_chance = 0.4
+	ember_bite.target_type = Skill.TargetType.SINGLE_ENEMY
+
+	var dragon_regen = Skill.new()
+	dragon_regen.skill_name = "Dragon Regen"
+	dragon_regen.description = "The Fire Drake regenerates its scales."
+	dragon_regen.skill_type = Skill.SkillType.HEAL
+	dragon_regen.element = ElementalSystem.Element.FIRE
+	dragon_regen.power = 1.5
+	dragon_regen.mp_cost = 10
+	dragon_regen.target_type = Skill.TargetType.SELF
+
+	var e2_skills: Array[Skill] = [flame_breath, inferno_roar, ember_bite, dragon_regen]
+	enemy2.skills = e2_skills
 
 	# Start with 50 gold to verify gold addition on victory screen
 	GameManager.gold = 50
@@ -479,11 +573,78 @@ func _on_battle_started(_party, _enemies):
 
 func _on_turn_started(character: Character):
 	current_actor = character
-	action_title.text = "— %s's Turn —" % character.character_name
 	var is_player = battle_manager.party.has(character)
-	_toggle_action_menu(is_player)
+
+	# Always clean up target selection state on any new turn
+	_pending_action = ""
+	_clear_target_buttons()
+	var action_layout = action_menu.get_node_or_null("ActionLayout")
+	if action_layout:
+		var back_btn = action_layout.get_node_or_null("TargetBackBtn")
+		if back_btn:
+			back_btn.queue_free()
+		for child in action_layout.get_children():
+			child.visible = true
+
+	if is_player:
+		action_title.text = "— %s's Turn —" % character.character_name
+		action_menu.visible = not _battle_over
+	else:
+		action_menu.visible = false
+
 	_update_resonance_button()
 	turn_order_indicator.set_active(character)
+
+func _on_enemy_move_preview(enemy: Character, move_name: String):
+	# Remove any existing preview panel
+	var existing = $BattleUI/UIRoot.get_node_or_null("MovePreviewPanel")
+	if existing:
+		existing.queue_free()
+
+	if move_name == "":
+		return
+
+	# Find the enemy card's screen position
+	var alive_enemies = battle_manager.get_alive_enemies()
+	for i in range(enemy_info_row.get_child_count()):
+		var card = enemy_info_row.get_child(i)
+		if i >= alive_enemies.size() or alive_enemies[i] != enemy:
+			continue
+
+		var cinzel = load("res://fonts/Cinzel-Regular.ttf")
+
+		# Create panel as a child of UIRoot so it doesn't interfere with cards
+		var panel = PanelContainer.new()
+		panel.name = "MovePreviewPanel"
+		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+		var style = StyleBoxFlat.new()
+		style.bg_color = Color(0.05, 0.05, 0.08, 0.92)
+		style.border_color = Color(0.4, 0.35, 0.5, 1.0)
+		style.set_border_width_all(1)
+		style.set_corner_radius_all(3)
+		panel.add_theme_stylebox_override("panel", style)
+
+		var lbl = Label.new()
+		lbl.text = move_name
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if cinzel: lbl.add_theme_font_override("font", cinzel)
+		lbl.add_theme_font_size_override("font_size", 10)
+		lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+		panel.add_child(lbl)
+
+		# Position below the card using its global position
+		$BattleUI/UIRoot.add_child(panel)
+		await get_tree().process_frame
+		var card_pos = card.global_position
+		var ui_pos = $BattleUI/UIRoot.global_position
+		panel.position = Vector2(
+			card_pos.x - ui_pos.x,
+			card_pos.y - ui_pos.y + card.size.y + 4
+		)
+		panel.custom_minimum_size = Vector2(card.size.x, 0)
+		break
 
 func _refresh_enemy_card(enemy: Character):
 	if not _enemy_hp_bars.has(enemy):
@@ -517,19 +678,21 @@ func _on_action_performed(result: Dictionary):
 		if battle_manager.enemies.has(target):
 			_refresh_enemy_card(target)
 
-	# Spawn damage/heal numbers
-	if result.has("value") and result.has("target"):
+	# Spawn damage/heal/dodge numbers
+	if result.has("target"):
 		var target = result["target"]
 		var spawn_pos = _get_character_screen_pos(target)
 		match result.get("action", ""):
 			"attack", "skill_physical", "skill_magic":
 				var multiplier = result.get("multiplier", 1.0)
-				var dmg_value = result["value"]
+				var dmg_value = result.get("value", 0)
 				if dmg_value is Dictionary:
 					dmg_value = dmg_value.get("damage", 0)
 				_spawn_damage_number(int(dmg_value), spawn_pos, multiplier)
 			"heal":
-				_spawn_heal_number(result["value"], spawn_pos)
+				_spawn_heal_number(result.get("value", 0), spawn_pos)
+			"dodge":
+				_spawn_dodge_text(spawn_pos)
 	if result.has("actor") and battle_manager.party.has(result["actor"]):
 		match result.get("action", ""):
 			"attack":
@@ -562,6 +725,7 @@ func _remove_enemy_card(enemy: Character):
 			enemy_info_row.add_child(card)
 
 func _on_battle_ended(player_won: bool, rewards: Dictionary):
+	_battle_over = true
 	_toggle_action_menu(false)
 	# Hide battle UI elements
 	enemy_info_row.visible = false
@@ -569,6 +733,8 @@ func _on_battle_ended(player_won: bool, rewards: Dictionary):
 	turn_order_indicator.visible = false
 	attack_menu.visible = false
 	action_menu.visible = false
+	resonance_menu.visible = false
+	items_menu.visible = false
 	if player_won:
 		GameManager.award_rewards(rewards)
 		for enemy in battle_manager.enemies:
@@ -589,58 +755,152 @@ func _on_status_triggered(character: Character, result: Dictionary):
 # --- Target Selection ---
 var _pending_action: String = ""
 var _pending_skill: Skill = null
+var _pending_item: Item = null
+var _battle_over: bool = false
+var _test_items: Array[Item] = []
+
+func _input(event):
+	if _battle_over:
+		return
+	if event is InputEventKey and event.pressed and event.keycode == KEY_BACKSPACE:
+		if _pending_action != "":
+			_cancel_target_selection()
 
 func _enter_target_selection(action: String):
 	_pending_action = action
 	action_title.text = "— Choose Target —"
-	# Clear and rebuild enemy info row with clickable buttons
-	for child in enemy_info_row.get_children():
-		child.mouse_filter = Control.MOUSE_FILTER_STOP
-	_show_target_buttons()
+	_set_target_selection_ui(true)
+	if action == "item_ally":
+		_show_ally_target_buttons()
+	else:
+		_show_target_buttons()
+
+func _show_ally_target_buttons():
+	var alive_party = battle_manager.get_alive_party()
+	# Highlight hero panels to show they are selectable
+	for i in range(party_status_bar.get_child_count()):
+		var panel = party_status_bar.get_child(i)
+		if i < alive_party.size():
+			panel.modulate = Color(1.2, 1.2, 0.6)
+			var btn = Button.new()
+			btn.name = "AllyTargetBtn_%d" % i
+			btn.flat = true
+			btn.set_anchors_preset(Control.PRESET_FULL_RECT)
+			btn.modulate = Color(1, 1, 1, 0.01)
+			panel.add_child(btn)
+			btn.pressed.connect(_on_target_selected.bind(alive_party[i]))
+
+func _clear_ally_target_buttons():
+	for panel in party_status_bar.get_children():
+		panel.modulate = Color(1, 1, 1)
+		for child in panel.get_children():
+			if child.name.begins_with("AllyTargetBtn_"):
+				child.queue_free()
+
+func _set_target_selection_ui(selecting: bool):
+	var action_layout = action_menu.get_node_or_null("ActionLayout")
+	if action_layout == null:
+		return
+	# Show/hide all children except title and back button
+	for child in action_layout.get_children():
+		if child.name == "ActionTitle":
+			child.visible = true
+		elif child.name == "TargetBackBtn":
+			child.visible = selecting
+		else:
+			child.visible = not selecting
+	# Create back button if entering selection
+	if selecting and action_layout.get_node_or_null("TargetBackBtn") == null:
+		var cinzel = load("res://fonts/Cinzel-Regular.ttf")
+		var back_btn = Button.new()
+		back_btn.name = "TargetBackBtn"
+		back_btn.text = "← Back"
+		back_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		back_btn.custom_minimum_size = Vector2(0, 30)
+		if cinzel: back_btn.add_theme_font_override("font", cinzel)
+		back_btn.add_theme_font_size_override("font_size", 13)
+		back_btn.pressed.connect(func(): _cancel_target_selection())
+		action_layout.add_child(back_btn)
+	# Only show if it's a player's turn and battle isn't over
+	if current_actor != null and battle_manager.party.has(current_actor) and not _battle_over:
+		action_menu.visible = true
+
+func _cancel_target_selection():
+	_clear_target_buttons()
+	_pending_action = ""
+	_pending_skill = null
+	action_title.text = "— %s's Turn —" % current_actor.character_name
+	_set_target_selection_ui(false)
+	# Remove back button
+	var action_layout = action_menu.get_node_or_null("ActionLayout")
+	if action_layout:
+		var back_btn = action_layout.get_node_or_null("TargetBackBtn")
+		if back_btn:
+			back_btn.queue_free()
 
 func _show_target_buttons():
-	# Add a clickable overlay button on top of each enemy card
 	var alive_enemies = battle_manager.get_alive_enemies()
 	for i in range(enemy_info_row.get_child_count()):
 		var card = enemy_info_row.get_child(i)
 		if i < alive_enemies.size():
-			var enemy = alive_enemies[i]
-			# Add a transparent button over the card
+			card.modulate = Color(1.2, 1.2, 0.6)
 			var btn = Button.new()
 			btn.name = "TargetBtn_%d" % i
 			btn.flat = true
 			btn.set_anchors_preset(Control.PRESET_FULL_RECT)
 			btn.modulate = Color(1, 1, 1, 0.01)
 			card.add_child(btn)
-			btn.pressed.connect(_on_target_selected.bind(enemy))
+			btn.pressed.connect(_on_target_selected.bind(alive_enemies[i]))
 
 func _on_target_selected(target: Character):
-	# Remove target buttons
 	_clear_target_buttons()
-	action_title.text = "— %s's Turn —" % current_actor.character_name
-	match _pending_action:
-		"attack":
-			battle_manager.player_attack(current_actor, target)
-		"skill":
-			if _pending_skill != null:
-				battle_manager.player_use_skill(current_actor, _pending_skill, [target])
-				_pending_skill = null
 	_pending_action = ""
+	# Clean up UI
+	var action_layout = action_menu.get_node_or_null("ActionLayout")
+	if action_layout:
+		var back_btn = action_layout.get_node_or_null("TargetBackBtn")
+		if back_btn:
+			back_btn.queue_free()
+	_set_target_selection_ui(false)
+
+	if _pending_skill != null:
+		var typed: Array[Character] = [target]
+		battle_manager.player_use_skill(current_actor, _pending_skill, typed)
+		_pending_skill = null
+	elif _pending_item != null:
+		var item = _pending_item
+		_pending_item = null
+		# Decrement quantity
+		item.quantity -= 1
+		# Use item directly — do NOT go through player_attack or player_use_skill
+		var result = item.use(target)
+		result["target"] = target
+		_handle_item_result(result)
+		_refresh_all_panels()
+		# Remove item from list if depleted
+		if item.quantity <= 0:
+			_test_items.erase(item)
+		if not _battle_over:
+			battle_manager.end_player_turn()
+	else:
+		battle_manager.player_attack(current_actor, target)
 
 func _clear_target_buttons():
 	for card in enemy_info_row.get_children():
+		card.modulate = Color(1, 1, 1)
 		for child in card.get_children():
 			if child.name.begins_with("TargetBtn_"):
 				child.queue_free()
+	_clear_ally_target_buttons()
 
 # --- Action Buttons ---
 func _on_attack_pressed():
 	if current_actor == null:
 		return
 	if current_actor.skills.is_empty():
-		# No skills — fallback to basic attack
 		var alive_enemies = battle_manager.get_alive_enemies()
 		if alive_enemies.size() == 1:
+			action_menu.visible = false
 			battle_manager.player_attack(current_actor, alive_enemies[0])
 		else:
 			_enter_target_selection("attack")
@@ -665,21 +925,164 @@ func _on_move_selected(skill: Skill, targets: Array):
 		battle_manager.player_use_skill(current_actor, skill, typed_targets)
 
 func _on_attack_menu_closed():
-	action_menu.visible = true
+	if not _battle_over and current_actor != null and battle_manager.party.has(current_actor):
+		action_menu.visible = true
+
+func _create_test_items() -> Array[Item]:
+	var items: Array[Item] = []
+
+	var potion = Item.new()
+	potion.item_name = "Health Potion"
+	potion.description = "Restores 50 HP to one ally."
+	potion.item_type = Item.ItemType.HP_RESTORE
+	potion.effect_value = 50
+	potion.quantity = 3
+	potion.target_type = Item.TargetType.SINGLE_ALLY
+	items.append(potion)
+
+	var mp_potion = Item.new()
+	mp_potion.item_name = "Mana Potion"
+	mp_potion.description = "Restores 30 MP to one ally."
+	mp_potion.item_type = Item.ItemType.MP_RESTORE
+	mp_potion.effect_value = 30
+	mp_potion.quantity = 2
+	mp_potion.target_type = Item.TargetType.SINGLE_ALLY
+	items.append(mp_potion)
+
+	var elixir = Item.new()
+	elixir.item_name = "Elixir"
+	elixir.description = "Restores 100 HP to all allies."
+	elixir.item_type = Item.ItemType.HP_RESTORE
+	elixir.effect_value = 100
+	elixir.quantity = 1
+	elixir.target_type = Item.TargetType.ALL_ALLIES
+	items.append(elixir)
+
+	var revive = Item.new()
+	revive.item_name = "Phoenix Down"
+	revive.description = "Revives a defeated ally with 50% HP."
+	revive.item_type = Item.ItemType.REVIVAL
+	revive.effect_value = 50
+	revive.quantity = 1
+	revive.target_type = Item.TargetType.SINGLE_ALLY
+	items.append(revive)
+
+	var antidote = Item.new()
+	antidote.item_name = "Antidote"
+	antidote.description = "Cures poison and burn from one ally."
+	antidote.item_type = Item.ItemType.ANTIDOTE
+	antidote.effect_value = 0
+	antidote.quantity = 2
+	antidote.target_type = Item.TargetType.SINGLE_ALLY
+	items.append(antidote)
+
+	var bomb = Item.new()
+	bomb.item_name = "Fire Bomb"
+	bomb.description = "Deals 40 fire damage to all enemies."
+	bomb.item_type = Item.ItemType.DAMAGE
+	bomb.effect_value = 40
+	bomb.quantity = 2
+	bomb.target_type = Item.TargetType.ALL_ENEMIES
+	items.append(bomb)
+
+	var smoke = Item.new()
+	smoke.item_name = "Smoke Veil"
+	smoke.description = "Grants a 20% chance to dodge attacks to one ally."
+	smoke.item_type = Item.ItemType.DODGE_BUFF
+	smoke.effect_value = 20
+	smoke.quantity = 2
+	smoke.target_type = Item.TargetType.SINGLE_ALLY
+	items.append(smoke)
+
+	return items
 
 func _on_items_pressed():
-	print("Items menu — coming soon!")
+	if current_actor == null:
+		return
+	action_menu.visible = false
+	items_menu.show_menu(current_actor)
+
+func _on_item_used(item: Item, targets: Array):
+	if targets.is_empty():
+		_pending_skill = null
+		_pending_item = item
+		# Choose correct target pool based on item type
+		if item.target_type == Item.TargetType.SINGLE_ENEMY:
+			_enter_target_selection("item_enemy")
+		else:
+			_enter_target_selection("item_ally")
+	else:
+		action_menu.visible = false
+		item.quantity -= 1
+		if item.quantity <= 0:
+			_test_items.erase(item)
+		for t in targets:
+			var result = item.use(t)
+			result["target"] = t
+			_handle_item_result(result)
+		_refresh_all_panels()
+		if not _battle_over:
+			battle_manager.end_player_turn()
+
+func _handle_item_result(result: Dictionary):
+	if not result.has("target"):
+		return
+	var target = result["target"]
+	var pos = _get_character_screen_pos(target)
+	match result.get("action", ""):
+		"heal", "mp_restore", "revival":
+			_spawn_heal_number(result.get("value", 0), pos)
+		"attack":
+			var mult = result.get("multiplier", 1.0)
+			_spawn_damage_number(result.get("value", 0), pos, mult)
+	if battle_manager.enemies.has(target):
+		_refresh_enemy_card(target)
+		if not target.is_alive():
+			battle_manager.handle_defeat(target)
+			if battle_manager.check_battle_end():
+				return
 
 func _on_run_pressed():
+	action_menu.visible = false
 	get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")
 
 func _on_resonance_pressed():
 	if current_actor == null:
 		return
 	if resonance_system.is_full(current_actor):
-		resonance_system.spend_solo_ultimate(current_actor)
-		print("%s unleashes their Ultimate!" % current_actor.character_name)
-		_refresh_all_panels()
+		action_menu.visible = false
+		resonance_menu.show_menu(current_actor)
+
+func _on_resonance_action(action_type: String, heroes: Array, targets: Array):
+	action_menu.visible = false
+	var typed_targets: Array[Character] = []
+	for t in targets:
+		typed_targets.append(t)
+
+	# Calculate resonance damage based on type
+	var total_magic = 0
+	for h in heroes:
+		total_magic += h.magic_power()
+
+	var resonance_skill = Skill.new()
+	resonance_skill.element = ElementalSystem.Element.ARCANE
+	resonance_skill.mp_cost = 0
+
+	if action_type == "solo":
+		resonance_skill.skill_name = "%s Ultimate" % heroes[0].character_name
+		resonance_skill.skill_type = Skill.SkillType.MAGIC
+		resonance_skill.power = 3.5
+		resonance_skill.target_type = Skill.TargetType.ALL_ENEMIES
+		battle_manager.player_use_skill(heroes[0], resonance_skill, typed_targets)
+	else:
+		resonance_skill.skill_name = "Combined Resonance"
+		resonance_skill.skill_type = Skill.SkillType.MAGIC
+		resonance_skill.power = 5.0
+		resonance_skill.target_type = Skill.TargetType.ALL_ENEMIES
+		# Use first hero to execute but damage scales with both
+		battle_manager.player_use_skill(heroes[0], resonance_skill, typed_targets)
+
+	_refresh_all_panels()
 
 # --- Resonance Callbacks ---
 func _on_resonance_changed(character: Character, _value: float):
@@ -700,6 +1103,9 @@ func _update_resonance_button():
 
 # --- Helpers ---
 func _toggle_action_menu(is_shown: bool):
+	if _battle_over:
+		action_menu.visible = false
+		return
 	action_menu.visible = is_shown
 
 func _refresh_all_panels():
@@ -734,6 +1140,13 @@ func _get_character_screen_pos(character: Character) -> Vector2:
 		var x = screen_w * 0.5 + (idx - count / 2.0) * (screen_w * 0.3 / count) + 60
 		return Vector2(x, screen_h * 0.35)
 	return Vector2(screen_w * 0.5, screen_h * 0.5)
+
+func _spawn_dodge_text(pos: Vector2):
+	var label = Label.new()
+	add_child(label)
+	label.set_script(load("res://scripts/battle/DamageNumber.gd"))
+	label.position = pos + Vector2(randf_range(-20, 20), 0)
+	label.call("setup_dodge")
 
 func _spawn_damage_number(amount: int, pos: Vector2, multiplier: float = 1.0):
 	var label = Label.new()

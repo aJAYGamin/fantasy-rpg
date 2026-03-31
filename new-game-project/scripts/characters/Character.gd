@@ -126,6 +126,9 @@ func add_status(effect: String):
 	if not is_status(effect):
 		status_effects.append(effect)
 
+func has_status(effect: String) -> bool:
+	return effect in status_effects
+
 func remove_status(effect: String):
 	status_effects.erase(effect)
 

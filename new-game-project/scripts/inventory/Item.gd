@@ -2,52 +2,70 @@ class_name Item
 extends Resource
 
 enum ItemType {
-	CONSUMABLE,
-	WEAPON,
-	ARMOR,
-	ACCESSORY,
-	KEY_ITEM
+	HP_RESTORE,
+	MP_RESTORE,
+	REVIVAL,
+	BUFF,
+	ANTIDOTE,
+	DAMAGE,
+	DEBUFF,
+	DODGE_BUFF   # Gives hero a chance to dodge attacks for one turn
 }
 
-@export var item_name: String = "Item"
+enum TargetType {
+	SINGLE_ALLY,
+	SINGLE_ENEMY,
+	ALL_ALLIES,
+	ALL_ENEMIES,
+	ALL
+}
+
+@export var item_name: String = ""
 @export var description: String = ""
-@export var item_type: ItemType = ItemType.CONSUMABLE
-@export var icon: Texture2D
-@export var value: int = 0
+@export var item_type: ItemType = ItemType.HP_RESTORE
+@export var target_type: TargetType = TargetType.SINGLE_ALLY
+@export var effect_value: int = 0
+@export var effect_stat: String = ""
+@export var quantity: int = 1
 
-# Equipment stats
-@export var equipment_slot: String = ""
-@export var attack_bonus: int = 0
-@export var defense_bonus: int = 0
-@export var magic_bonus: int = 0
-@export var speed_bonus: int = 0
-
-# Consumable effect
-@export var heal_hp: int = 0
-@export var heal_mp: int = 0
-@export var status_to_cure: String = ""
-
-func use(target) -> Dictionary:
-	var result = {"action": "item", "item": self, "target": target}
-	if heal_hp > 0:
-		var healed = target.heal(heal_hp)
-		result["hp_restored"] = healed
-	if heal_mp > 0:
-		var restored = target.restore_mp(heal_mp)
-		result["mp_restored"] = restored
-	if status_to_cure != "":
-		target.remove_status(status_to_cure)
-		result["cured"] = status_to_cure
+func use(target: Character) -> Dictionary:
+	# NOTE: quantity is managed by BattleScene, not here
+	var result = {"action": "item", "target": target, "value": 0}
+	match item_type:
+		ItemType.HP_RESTORE:
+			var healed = target.heal(effect_value)
+			result["action"] = "heal"
+			result["value"] = healed
+		ItemType.MP_RESTORE:
+			var restored = target.restore_mp(effect_value)
+			result["action"] = "mp_restore"
+			result["value"] = restored
+		ItemType.REVIVAL:
+			if not target.is_alive():
+				target.current_hp = int(target.max_hp() * (effect_value / 100.0))
+				result["action"] = "revival"
+				result["value"] = target.current_hp
+		ItemType.BUFF:
+			target.add_status("buff_%s_%d" % [effect_stat.to_lower(), effect_value])
+			result["action"] = "buff"
+			result["value"] = effect_value
+		ItemType.ANTIDOTE:
+			target.remove_status("poison")
+			target.remove_status("burn")
+			result["action"] = "antidote"
+			result["value"] = 0
+		ItemType.DAMAGE:
+			var dmg_result = target.take_damage(effect_value, ElementalSystem.Element.FIRE)
+			result["action"] = "attack"
+			result["value"] = dmg_result.get("damage", effect_value)
+			result["multiplier"] = dmg_result.get("multiplier", 1.0)
+		ItemType.DEBUFF:
+			target.add_status(effect_stat.to_lower())
+			result["action"] = "debuff"
+			result["value"] = 0
+		ItemType.DODGE_BUFF:
+			# effect_value is dodge chance as percentage (e.g. 20 = 20%)
+			target.set_meta("dodge_chance", effect_value / 100.0)
+			result["action"] = "dodge_buff"
+			result["value"] = effect_value
 	return result
-
-func can_use_in_battle() -> bool:
-	return item_type == ItemType.CONSUMABLE
-
-func get_stat_description() -> String:
-	var parts = []
-	if attack_bonus != 0: parts.append("ATK +%d" % attack_bonus)
-	if defense_bonus != 0: parts.append("DEF +%d" % defense_bonus)
-	if magic_bonus != 0: parts.append("MAG +%d" % magic_bonus)
-	if heal_hp != 0: parts.append("Heal %d HP" % heal_hp)
-	if heal_mp != 0: parts.append("Restore %d MP" % heal_mp)
-	return ", ".join(parts) if parts else description

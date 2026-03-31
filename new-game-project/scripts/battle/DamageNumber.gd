@@ -10,32 +10,30 @@ func setup(amount: int, multiplier: float = 1.0):
 	var cinzel = load("res://fonts/Cinzel-Regular.ttf")
 	if cinzel:
 		add_theme_font_override("font", cinzel)
-	add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
-	add_theme_constant_override("shadow_offset_x", 1)
-	add_theme_constant_override("shadow_offset_y", 1)
+
+	# Dark background for readability
+	add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.9))
+	add_theme_constant_override("shadow_offset_x", 2)
+	add_theme_constant_override("shadow_offset_y", 2)
+	add_theme_constant_override("shadow_outline_size", 4)
 
 	if multiplier >= 2.0:
-		# Super effective — cyan/teal, show "Critical!" below
 		text = "%d\nCritical!" % amount
 		add_theme_color_override("font_color", Color(0.2, 0.9, 0.9))
 		add_theme_font_size_override("font_size", 20)
 	elif multiplier > 1.0:
-		# Effective — white, number only
 		text = "%d" % amount
 		add_theme_color_override("font_color", Color.WHITE)
 		add_theme_font_size_override("font_size", 16)
 	elif multiplier <= 0.0:
-		# Immune — grey, show "Immune"
 		text = "Immune"
 		add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 		add_theme_font_size_override("font_size", 14)
 	elif multiplier < 1.0:
-		# Not very effective — orange/red, show "Resisted" below
 		text = "%d\nResisted" % amount
 		add_theme_color_override("font_color", Color(0.95, 0.35, 0.15))
 		add_theme_font_size_override("font_size", 16)
 	else:
-		# Normal hit — white, no extra text
 		text = "%d" % amount
 		add_theme_color_override("font_color", Color.WHITE)
 		add_theme_font_size_override("font_size", 16)
@@ -47,12 +45,27 @@ func setup_heal(amount: int):
 	var cinzel = load("res://fonts/Cinzel-Regular.ttf")
 	if cinzel:
 		add_theme_font_override("font", cinzel)
-	add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
-	add_theme_constant_override("shadow_offset_x", 1)
-	add_theme_constant_override("shadow_offset_y", 1)
+	add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.9))
+	add_theme_constant_override("shadow_offset_x", 2)
+	add_theme_constant_override("shadow_offset_y", 2)
+	add_theme_constant_override("shadow_outline_size", 4)
 	text = "%d\nHealed" % amount
 	add_theme_color_override("font_color", Color(0.2, 0.9, 0.4))
 	add_theme_font_size_override("font_size", 16)
+	horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_animate()
+
+func setup_dodge():
+	var cinzel = load("res://fonts/Cinzel-Regular.ttf")
+	if cinzel:
+		add_theme_font_override("font", cinzel)
+	add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.9))
+	add_theme_constant_override("shadow_offset_x", 2)
+	add_theme_constant_override("shadow_offset_y", 2)
+	add_theme_constant_override("shadow_outline_size", 4)
+	text = "Dodged!"
+	add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
+	add_theme_font_size_override("font_size", 14)
 	horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_animate()
 

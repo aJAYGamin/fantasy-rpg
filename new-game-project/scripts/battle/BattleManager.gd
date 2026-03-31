@@ -2,6 +2,7 @@ class_name BattleManager
 extends Node
 
 signal battle_started(party: Array, enemies: Array)
+signal enemy_move_preview(enemy: Character, move_name: String)
 signal turn_started(character: Character)
 signal action_performed(result: Dictionary)
 signal character_defeated(character: Character)
@@ -59,7 +60,7 @@ func _next_turn():
 	for result in status_results:
 		emit_signal("status_effect_triggered", current_actor, result)
 		if not current_actor.is_alive():
-			_handle_defeat(current_actor)
+			handle_defeat(current_actor)
 			current_turn_index += 1
 			_next_turn()
 			return
@@ -95,8 +96,8 @@ func player_attack(attacker: Character, target: Character):
 	}
 	emit_signal("action_performed", result)
 	if not target.is_alive():
-		_handle_defeat(target)
-	_end_player_turn()
+		handle_defeat(target)
+	end_player_turn()
 
 func player_use_skill(user: Character, skill: Skill, targets: Array[Character]):
 	if state != BattleState.CHOOSING_ACTION and state != BattleState.CHOOSING_TARGET:
@@ -144,9 +145,9 @@ func player_use_skill(user: Character, skill: Skill, targets: Array[Character]):
 		result["target_alive"] = target.is_alive()
 		emit_signal("action_performed", result)
 		if not target.is_alive():
-			_handle_defeat(target)
+			handle_defeat(target)
 
-	_end_player_turn()
+	end_player_turn()
 
 func player_use_item(user: Character, item: Item, target: Character):
 	if state != BattleState.CHOOSING_ACTION:
@@ -154,64 +155,138 @@ func player_use_item(user: Character, item: Item, target: Character):
 	var result = item.use(target)
 	result["actor"] = user
 	emit_signal("action_performed", result)
-	_end_player_turn()
+	end_player_turn()
+
+func enemy_use_skill(enemy: Character, skill: Skill, targets: Array[Character]):
+	if not skill.can_use(enemy):
+		return
+	enemy.use_mp(skill.mp_cost)
+	# Override target for SELF skills
+	var actual_targets = targets
+	if skill.target_type == Skill.TargetType.SELF:
+		actual_targets = [enemy]
+	for target in actual_targets:
+		var value = skill.calculate_value(enemy)
+		var result = {"actor": enemy, "target": target, "skill": skill}
+		match skill.skill_type:
+			Skill.SkillType.PHYSICAL:
+				var dmg_result = target.take_damage(value, skill.element)
+				result["action"] = "attack"
+				result["value"] = dmg_result.get("damage", 0)
+				result["multiplier"] = dmg_result.get("multiplier", 1.0)
+				result["effectiveness"] = dmg_result.get("effectiveness", "")
+				result["effectiveness_color"] = dmg_result.get("effectiveness_color", Color.WHITE)
+			Skill.SkillType.MAGIC:
+				var dmg_result = target.take_magic_damage(value, skill.element)
+				result["action"] = "skill_magic"
+				result["value"] = dmg_result.get("damage", 0)
+				result["multiplier"] = dmg_result.get("multiplier", 1.0)
+				result["effectiveness"] = dmg_result.get("effectiveness", "")
+				result["effectiveness_color"] = dmg_result.get("effectiveness_color", Color.WHITE)
+			Skill.SkillType.HEAL:
+				var healed = target.heal(value)
+				result["action"] = "heal"
+				result["value"] = healed
+			Skill.SkillType.BUFF:
+				target.add_status("regenerate")
+				result["action"] = "buff"
+				result["value"] = 0
+			Skill.SkillType.DEBUFF:
+				target.add_status(skill.status_to_apply)
+				result["action"] = "debuff"
+				result["value"] = 0
+		if skill.status_to_apply != "" and randf() < skill.status_chance:
+			target.add_status(skill.status_to_apply)
+		result["target_alive"] = target.is_alive()
+		emit_signal("action_performed", result)
+		if not target.is_alive():
+			handle_defeat(target)
 
 func player_defend(character: Character):
 	character.add_status("defending")
 	var result = {"action": "defend", "actor": character, "value": 0}
 	emit_signal("action_performed", result)
-	_end_player_turn()
+	end_player_turn()
 
-func _end_player_turn():
+func end_player_turn():
 	state = BattleState.IDLE
-	if _check_battle_end():
+	if check_battle_end():
 		return
 	current_turn_index += 1
 	_next_turn()
 
 # --- Enemy AI ---
 func _execute_enemy_turn():
-	await get_tree().create_timer(1.0).timeout
+	await get_tree().create_timer(0.4).timeout
 
 	var enemy = current_actor
 	var alive_party = party.filter(func(c): return c.is_alive())
-
 	if alive_party.is_empty():
 		return
 
-	var available_skills = enemy.skills.filter(func(s): return s.can_use(enemy))
+	# Use EnemyAI to decide action
+	var decision = EnemyAI.choose_action(enemy, party, enemies)
+	var target: Character = decision.get("target", alive_party[0])
+	var skill = decision.get("skill", null)
 
-	if not available_skills.is_empty() and randf() < 0.4:
-		var skill = available_skills[randi() % available_skills.size()]
-		var target = alive_party[randi() % alive_party.size()]
-		player_use_skill(enemy, skill, [target])
+	# Show move name under enemy card before executing
+	var move_name = skill.skill_name if skill != null else "Attack"
+	emit_signal("enemy_move_preview", enemy, move_name)
+
+	# Delay before executing
+	await get_tree().create_timer(1.0).timeout
+
+	# Clear move preview
+	emit_signal("enemy_move_preview", enemy, "")
+
+	if skill != null:
+		if EnemyAI.try_dodge(target):
+			var dodge_result = {
+				"action": "dodge",
+				"actor": enemy,
+				"target": target,
+				"value": 0,
+				"target_alive": target.is_alive()
+			}
+			emit_signal("action_performed", dodge_result)
+		else:
+			enemy_use_skill(enemy, skill, [target])
 	else:
-		var target = alive_party[randi() % alive_party.size()]
-		var dmg_result = target.take_damage(enemy.attack_power(), enemy.element)
-		var result = {
-			"action": "attack",
-			"actor": enemy,
-			"target": target,
-			"value": dmg_result.get("damage", 0),
-			"multiplier": dmg_result.get("multiplier", 1.0),
-			"effectiveness": dmg_result.get("effectiveness", ""),
-			"effectiveness_color": dmg_result.get("effectiveness_color", Color.WHITE),
-			"target_alive": target.is_alive()
-		}
-		emit_signal("action_performed", result)
-		if not target.is_alive():
-			_handle_defeat(target)
+		if EnemyAI.try_dodge(target):
+			var dodge_result = {
+				"action": "dodge",
+				"actor": enemy,
+				"target": target,
+				"value": 0,
+				"target_alive": target.is_alive()
+			}
+			emit_signal("action_performed", dodge_result)
+		else:
+			var dmg_result = target.take_damage(enemy.attack_power(), enemy.element)
+			var result = {
+				"action": "attack",
+				"actor": enemy,
+				"target": target,
+				"value": dmg_result.get("damage", 0),
+				"multiplier": dmg_result.get("multiplier", 1.0),
+				"effectiveness": dmg_result.get("effectiveness", ""),
+				"effectiveness_color": dmg_result.get("effectiveness_color", Color.WHITE),
+				"target_alive": target.is_alive()
+			}
+			emit_signal("action_performed", result)
+			if not target.is_alive():
+				handle_defeat(target)
 
-	if _check_battle_end():
+	if check_battle_end():
 		return
 	current_turn_index += 1
 	_next_turn()
 
 # --- Helpers ---
-func _handle_defeat(character: Character):
+func handle_defeat(character: Character):
 	emit_signal("character_defeated", character)
 
-func _check_battle_end() -> bool:
+func check_battle_end() -> bool:
 	var party_alive = party.any(func(c): return c.is_alive())
 	var enemies_alive = enemies.any(func(c): return c.is_alive())
 
