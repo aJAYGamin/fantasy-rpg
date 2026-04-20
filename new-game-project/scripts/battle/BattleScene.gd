@@ -140,7 +140,8 @@ func _start_test_battle():
 	var slash = Skill.new()
 	slash.skill_name = "Arcane Slash"
 	slash.description = "A swift slash imbued with arcane energy."
-	slash.skill_type = Skill.SkillType.PHYSICAL
+	slash.skill_type = Skill.SkillType.DAMAGE
+	slash.attack_type = Skill.AttackType.STRIKE
 	slash.element = ElementalSystem.Element.ARCANE
 	slash.power = 1.2
 	slash.mp_cost = 0
@@ -149,7 +150,8 @@ func _start_test_battle():
 	var frost = Skill.new()
 	frost.skill_name = "Frost Bolt"
 	frost.description = "A bolt of ice that slows the target."
-	frost.skill_type = Skill.SkillType.MAGIC
+	frost.skill_type = Skill.SkillType.DAMAGE
+	frost.attack_type = Skill.AttackType.MAGIC
 	frost.element = ElementalSystem.Element.ICE
 	frost.power = 1.5
 	frost.mp_cost = 12
@@ -158,7 +160,8 @@ func _start_test_battle():
 	var dark_pulse = Skill.new()
 	dark_pulse.skill_name = "Dark Pulse"
 	dark_pulse.description = "A wave of dark energy hitting all enemies."
-	dark_pulse.skill_type = Skill.SkillType.MAGIC
+	dark_pulse.skill_type = Skill.SkillType.DAMAGE
+	dark_pulse.attack_type = Skill.AttackType.MAGIC
 	dark_pulse.element = ElementalSystem.Element.DARK
 	dark_pulse.power = 1.0
 	dark_pulse.mp_cost = 18
@@ -177,7 +180,8 @@ func _start_test_battle():
 	var requiem = Skill.new()
 	requiem.skill_name = "Amethyst Requiem"
 	requiem.description = "Aria's ultimate — a burst of pure amethyst energy."
-	requiem.skill_type = Skill.SkillType.MAGIC
+	requiem.skill_type = Skill.SkillType.DAMAGE
+	requiem.attack_type = Skill.AttackType.MAGIC
 	requiem.element = ElementalSystem.Element.ARCANE
 	requiem.power = 3.5
 	requiem.mp_cost = 40
@@ -186,7 +190,8 @@ func _start_test_battle():
 	var void_strike = Skill.new()
 	void_strike.skill_name = "Void Strike"
 	void_strike.description = "Strikes through defenses with void energy."
-	void_strike.skill_type = Skill.SkillType.MAGIC
+	void_strike.skill_type = Skill.SkillType.DAMAGE
+	void_strike.attack_type = Skill.AttackType.MAGIC
 	void_strike.element = ElementalSystem.Element.DARK
 	void_strike.power = 2.5
 	void_strike.mp_cost = 25
@@ -234,7 +239,8 @@ func _start_test_battle():
 	var flame_strike = Skill.new()
 	flame_strike.skill_name = "Flame Strike"
 	flame_strike.description = "A powerful strike wreathed in fire."
-	flame_strike.skill_type = Skill.SkillType.PHYSICAL
+	flame_strike.skill_type = Skill.SkillType.DAMAGE
+	flame_strike.attack_type = Skill.AttackType.STRIKE
 	flame_strike.element = ElementalSystem.Element.FIRE
 	flame_strike.power = 1.4
 	flame_strike.mp_cost = 0
@@ -243,7 +249,8 @@ func _start_test_battle():
 	var shield_bash = Skill.new()
 	shield_bash.skill_name = "Shield Bash"
 	shield_bash.description = "Stuns the enemy with a powerful bash."
-	shield_bash.skill_type = Skill.SkillType.PHYSICAL
+	shield_bash.skill_type = Skill.SkillType.DAMAGE
+	shield_bash.attack_type = Skill.AttackType.STRIKE
 	shield_bash.element = ElementalSystem.Element.NONE
 	shield_bash.power = 1.0
 	shield_bash.mp_cost = 8
@@ -263,7 +270,8 @@ func _start_test_battle():
 	var inferno = Skill.new()
 	inferno.skill_name = "Inferno"
 	inferno.description = "Engulfs all enemies in roaring flames."
-	inferno.skill_type = Skill.SkillType.MAGIC
+	inferno.skill_type = Skill.SkillType.DAMAGE
+	inferno.attack_type = Skill.AttackType.MAGIC
 	inferno.element = ElementalSystem.Element.FIRE
 	inferno.power = 1.2
 	inferno.mp_cost = 20
@@ -273,7 +281,8 @@ func _start_test_battle():
 	var phoenix = Skill.new()
 	phoenix.skill_name = "Phoenix Fury"
 	phoenix.description = "Kael's ultimate — unleashes the fury of a phoenix."
-	phoenix.skill_type = Skill.SkillType.MAGIC
+	phoenix.skill_type = Skill.SkillType.DAMAGE
+	phoenix.attack_type = Skill.AttackType.MAGIC
 	phoenix.element = ElementalSystem.Element.FIRE
 	phoenix.power = 4.0
 	phoenix.mp_cost = 45
@@ -282,7 +291,8 @@ func _start_test_battle():
 	var molten = Skill.new()
 	molten.skill_name = "Molten Blade"
 	molten.description = "A blade heated to molten temperatures."
-	molten.skill_type = Skill.SkillType.PHYSICAL
+	molten.skill_type = Skill.SkillType.DAMAGE
+	molten.attack_type = Skill.AttackType.STRIKE
 	molten.element = ElementalSystem.Element.FIRE
 	molten.power = 2.8
 	molten.mp_cost = 28
@@ -300,7 +310,8 @@ func _start_test_battle():
 	var flame_wall = Skill.new()
 	flame_wall.skill_name = "Flame Wall"
 	flame_wall.description = "Creates a wall of fire that poisons enemies."
-	flame_wall.skill_type = Skill.SkillType.MAGIC
+	flame_wall.skill_type = Skill.SkillType.DAMAGE
+	flame_wall.attack_type = Skill.AttackType.MAGIC
 	flame_wall.element = ElementalSystem.Element.FIRE
 	flame_wall.power = 1.8
 	flame_wall.mp_cost = 32
@@ -325,7 +336,8 @@ func _start_test_battle():
 	# Ice Golem skills
 	var ice_shard = Skill.new()
 	ice_shard.skill_name = "Ice Shard"
-	ice_shard.skill_type = Skill.SkillType.MAGIC
+	ice_shard.skill_type = Skill.SkillType.DAMAGE
+	ice_shard.attack_type = Skill.AttackType.MAGIC
 	ice_shard.element = ElementalSystem.Element.ICE
 	ice_shard.power = 1.2
 	ice_shard.mp_cost = 0
@@ -333,7 +345,8 @@ func _start_test_battle():
 
 	var blizzard = Skill.new()
 	blizzard.skill_name = "Blizzard"
-	blizzard.skill_type = Skill.SkillType.MAGIC
+	blizzard.skill_type = Skill.SkillType.DAMAGE
+	blizzard.attack_type = Skill.AttackType.MAGIC
 	blizzard.element = ElementalSystem.Element.ICE
 	blizzard.power = 1.8
 	blizzard.mp_cost = 15
@@ -364,7 +377,8 @@ func _start_test_battle():
 	# Fire Drake skills
 	var flame_breath = Skill.new()
 	flame_breath.skill_name = "Flame Breath"
-	flame_breath.skill_type = Skill.SkillType.MAGIC
+	flame_breath.skill_type = Skill.SkillType.DAMAGE
+	flame_breath.attack_type = Skill.AttackType.MAGIC
 	flame_breath.element = ElementalSystem.Element.FIRE
 	flame_breath.power = 1.4
 	flame_breath.mp_cost = 0
@@ -372,7 +386,8 @@ func _start_test_battle():
 
 	var inferno_roar = Skill.new()
 	inferno_roar.skill_name = "Inferno Roar"
-	inferno_roar.skill_type = Skill.SkillType.MAGIC
+	inferno_roar.skill_type = Skill.SkillType.DAMAGE
+	inferno_roar.attack_type = Skill.AttackType.MAGIC
 	inferno_roar.element = ElementalSystem.Element.FIRE
 	inferno_roar.power = 2.0
 	inferno_roar.mp_cost = 20
@@ -380,7 +395,8 @@ func _start_test_battle():
 
 	var ember_bite = Skill.new()
 	ember_bite.skill_name = "Ember Bite"
-	ember_bite.skill_type = Skill.SkillType.PHYSICAL
+	ember_bite.skill_type = Skill.SkillType.DAMAGE
+	ember_bite.attack_type = Skill.AttackType.STRIKE
 	ember_bite.element = ElementalSystem.Element.FIRE
 	ember_bite.power = 1.0
 	ember_bite.mp_cost = 0
@@ -425,7 +441,8 @@ func _start_test_battle():
 	var lyra_wind_slash = Skill.new()
 	lyra_wind_slash.skill_name = "Wind Slash"
 	lyra_wind_slash.description = "A sharp gust of wind that cuts through enemies."
-	lyra_wind_slash.skill_type = Skill.SkillType.PHYSICAL
+	lyra_wind_slash.skill_type = Skill.SkillType.DAMAGE
+	lyra_wind_slash.attack_type = Skill.AttackType.STRIKE
 	lyra_wind_slash.element = ElementalSystem.Element.WIND
 	lyra_wind_slash.power = 1.1
 	lyra_wind_slash.mp_cost = 0
@@ -443,7 +460,8 @@ func _start_test_battle():
 	var lyra_gust = Skill.new()
 	lyra_gust.skill_name = "Gust"
 	lyra_gust.description = "Blows wind at all enemies dealing light damage."
-	lyra_gust.skill_type = Skill.SkillType.MAGIC
+	lyra_gust.skill_type = Skill.SkillType.DAMAGE
+	lyra_gust.attack_type = Skill.AttackType.MAGIC
 	lyra_gust.element = ElementalSystem.Element.WIND
 	lyra_gust.power = 0.9
 	lyra_gust.mp_cost = 10
@@ -462,7 +480,8 @@ func _start_test_battle():
 	var lyra_gale = Skill.new()
 	lyra_gale.skill_name = "Gale Requiem"
 	lyra_gale.description = "Lyra's ultimate — heals all allies and damages all enemies with wild winds."
-	lyra_gale.skill_type = Skill.SkillType.MAGIC
+	lyra_gale.skill_type = Skill.SkillType.DAMAGE
+	lyra_gale.attack_type = Skill.AttackType.MAGIC
 	lyra_gale.element = ElementalSystem.Element.WIND
 	lyra_gale.power = 3.0
 	lyra_gale.mp_cost = 40
@@ -471,7 +490,8 @@ func _start_test_battle():
 	var lyra_cyclone = Skill.new()
 	lyra_cyclone.skill_name = "Cyclone"
 	lyra_cyclone.description = "A massive cyclone that strikes all enemies twice."
-	lyra_cyclone.skill_type = Skill.SkillType.MAGIC
+	lyra_cyclone.skill_type = Skill.SkillType.DAMAGE
+	lyra_cyclone.attack_type = Skill.AttackType.MAGIC
 	lyra_cyclone.element = ElementalSystem.Element.WIND
 	lyra_cyclone.power = 2.2
 	lyra_cyclone.mp_cost = 28
@@ -930,16 +950,18 @@ func _on_action_performed(result: Dictionary):
 				_spawn_heal_number(result.get("value", 0), spawn_pos)
 			"dodge":
 				_spawn_dodge_text(spawn_pos)
-	if result.has("actor") and battle_manager.party.has(result["actor"]):
+	# Resonance hooks — ONLY grant on first target so AoE doesn't compound
+	if result.get("is_first_target", false) and result.has("actor") and battle_manager.party.has(result["actor"]):
+		var actor: Character = result["actor"]
+		var skill_ref: Skill = result.get("skill")
 		match result.get("action", ""):
 			"attack":
-				resonance_system.on_attack(result["actor"])
-			"skill_magic", "skill_physical":
-				resonance_system.on_skill_used(result["actor"])
-			"heal":
-				resonance_system.on_heal(result["actor"])
+				resonance_system.on_attack(actor)
+			"skill_magic", "skill_physical", "status":
+				resonance_system.on_skill_used(actor, skill_ref)
+	# Taking damage builds resonance for heroes on receiving end (once per hit)
 	if result.has("target") and battle_manager.party.has(result["target"]):
-		if result.get("action") == "attack":
+		if result.get("action") in ["attack", "skill_magic", "skill_physical"]:
 			resonance_system.on_damage_taken(result["target"])
 
 func _on_character_defeated(character: Character):
@@ -1329,7 +1351,8 @@ func _generate_enemy_skills(enemy: Character) -> Array[Skill]:
 	var basic = Skill.new()
 	basic.skill_name = "%s Strike" % elem_name
 	basic.description = "A basic elemental strike."
-	basic.skill_type = Skill.SkillType.PHYSICAL
+	basic.skill_type = Skill.SkillType.DAMAGE
+	basic.attack_type = Skill.AttackType.STRIKE
 	basic.element = elem
 	basic.power = 1.0
 	basic.mp_cost = 0
@@ -1340,7 +1363,8 @@ func _generate_enemy_skills(enemy: Character) -> Array[Skill]:
 	var magic = Skill.new()
 	magic.skill_name = "%s Bolt" % elem_name
 	magic.description = "A focused burst of elemental energy."
-	magic.skill_type = Skill.SkillType.MAGIC
+	magic.skill_type = Skill.SkillType.DAMAGE
+	magic.attack_type = Skill.AttackType.MAGIC
 	magic.element = elem
 	magic.power = 1.4
 	magic.mp_cost = 10
@@ -1351,7 +1375,8 @@ func _generate_enemy_skills(enemy: Character) -> Array[Skill]:
 	var aoe = Skill.new()
 	aoe.skill_name = "%s Wave" % elem_name
 	aoe.description = "A wave of elemental energy hitting all heroes."
-	aoe.skill_type = Skill.SkillType.MAGIC
+	aoe.skill_type = Skill.SkillType.DAMAGE
+	aoe.attack_type = Skill.AttackType.MAGIC
 	aoe.element = elem
 	aoe.power = 1.0
 	aoe.mp_cost = 18
@@ -1374,7 +1399,8 @@ func _generate_enemy_skills(enemy: Character) -> Array[Skill]:
 	var status = Skill.new()
 	status.skill_name = "%s Curse" % elem_name
 	status.description = "Inflicts a status condition on one hero."
-	status.skill_type = Skill.SkillType.MAGIC
+	status.skill_type = Skill.SkillType.DAMAGE
+	status.attack_type = Skill.AttackType.MAGIC
 	status.element = elem
 	status.power = 0.8
 	status.mp_cost = 8
@@ -1539,22 +1565,26 @@ func _on_resonance_action(action_type: String, heroes: Array, targets: Array):
 	var resonance_skill = Skill.new()
 	resonance_skill.element = ElementalSystem.Element.ARCANE
 	resonance_skill.mp_cost = 0
+	resonance_skill.resonance_gain_override = 0.0  # Don't give resonance for ultimates
 
 	if action_type == "solo":
 		resonance_skill.skill_name = "%s Ultimate" % heroes[0].character_name
-		resonance_skill.skill_type = Skill.SkillType.MAGIC
+		resonance_skill.skill_type = Skill.SkillType.DAMAGE
+		resonance_skill.attack_type = Skill.AttackType.MAGIC
 		resonance_skill.power = 3.5
 		resonance_skill.target_type = Skill.TargetType.ALL_ENEMIES
 		battle_manager.player_use_skill(heroes[0], resonance_skill, typed_targets)
 	elif action_type == "triple":
 		resonance_skill.skill_name = "Amethyst Requiem"
-		resonance_skill.skill_type = Skill.SkillType.MAGIC
+		resonance_skill.skill_type = Skill.SkillType.DAMAGE
+		resonance_skill.attack_type = Skill.AttackType.MAGIC
 		resonance_skill.power = 8.0
 		resonance_skill.target_type = Skill.TargetType.ALL_ENEMIES
 		battle_manager.player_use_skill(heroes[0], resonance_skill, typed_targets)
 	else:
 		resonance_skill.skill_name = "Combined Resonance"
-		resonance_skill.skill_type = Skill.SkillType.MAGIC
+		resonance_skill.skill_type = Skill.SkillType.DAMAGE
+		resonance_skill.attack_type = Skill.AttackType.MAGIC
 		resonance_skill.power = 5.0
 		resonance_skill.target_type = Skill.TargetType.ALL_ENEMIES
 		battle_manager.player_use_skill(heroes[0], resonance_skill, typed_targets)

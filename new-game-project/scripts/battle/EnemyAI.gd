@@ -95,7 +95,7 @@ static func _choose_skill(enemy: Character, alive_party: Array, echo_tier: int, 
 	# Enraged — always pick highest power damaging skill
 	if is_enraged:
 		var dmg_skills = usable.filter(func(s):
-			return s.skill_type == Skill.SkillType.PHYSICAL or s.skill_type == Skill.SkillType.MAGIC
+			return s.skill_type == Skill.SkillType.DAMAGE
 		)
 		if not dmg_skills.is_empty():
 			dmg_skills.sort_custom(func(a, b): return a.power > b.power)
@@ -117,7 +117,7 @@ static func _choose_skill(enemy: Character, alive_party: Array, echo_tier: int, 
 	# Echo tier 1 — slightly prefer damaging skills
 	if echo_tier >= 1:
 		var damage_skills = usable.filter(func(s):
-			return s.skill_type == Skill.SkillType.PHYSICAL or s.skill_type == Skill.SkillType.MAGIC
+			return s.skill_type == Skill.SkillType.DAMAGE
 		)
 		if not damage_skills.is_empty() and randf() < 0.5:
 			return damage_skills[randi() % damage_skills.size()]

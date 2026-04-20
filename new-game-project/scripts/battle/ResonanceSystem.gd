@@ -3,7 +3,9 @@ extends Node
 
 ## ResonanceSystem.gd
 ## Manages the Amethyst Resonance meter for all party members
-## Add as a child of BattleManager
+## Default: every damage skill grants 10% resonance (once per use, not per target)
+## Skills can override via Skill.resonance_gain_override
+## Taking damage also grants resonance to the target
 
 signal resonance_changed(character: Character, new_value: float)
 signal resonance_full(character: Character)
@@ -12,11 +14,10 @@ signal combined_resonance_ready(characters: Array)
 
 const MAX_RESONANCE = 100.0
 
-# How much resonance each action gives
-const RESONANCE_PER_ATTACK = 12.0
-const RESONANCE_PER_SKILL  = 20.0
-const RESONANCE_PER_DAMAGE_TAKEN = 8.0
-const RESONANCE_PER_HEAL = 10.0
+# Default gain per damage skill / attack
+const RESONANCE_PER_ATTACK = 10.0
+# Resonance gained from taking damage (receiving side)
+const RESONANCE_PER_DAMAGE_TAKEN = 10.0
 
 var resonance_values: Dictionary = {}  # character -> float
 var party: Array[Character] = []
@@ -30,8 +31,9 @@ func add_resonance(character: Character, amount: float):
 	if not resonance_values.has(character):
 		return
 	var was_full = is_full(character)
-	resonance_values[character] = minf(resonance_values[character] + amount, MAX_RESONANCE)
-	emit_signal("resonance_changed", character, resonance_values[character])
+	var new_val = clampf(resonance_values[character] + amount, 0.0, MAX_RESONANCE)
+	resonance_values[character] = new_val
+	emit_signal("resonance_changed", character, new_val)
 	if not was_full and is_full(character):
 		emit_signal("resonance_full", character)
 		print("%s Resonance is FULL!" % character.character_name)
@@ -51,21 +53,23 @@ func can_combine(characters: Array[Character]) -> bool:
 			return false
 	return characters.size() >= 2
 
-# Called when a character attacks
+# Called once per basic attack — 10% default
 func on_attack(attacker: Character):
 	add_resonance(attacker, RESONANCE_PER_ATTACK)
 
-# Called when a character uses a skill
-func on_skill_used(user: Character):
-	add_resonance(user, RESONANCE_PER_SKILL)
+# Called ONCE per skill use (regardless of target count)
+# Uses the skill's resonance_gain_override if set, else default 10%
+func on_skill_used(user: Character, skill: Skill):
+	if skill == null:
+		add_resonance(user, RESONANCE_PER_ATTACK)
+		return
+	var amount = skill.get_resonance_gain()
+	if amount != 0.0:
+		add_resonance(user, amount)
 
 # Called when a character takes damage
 func on_damage_taken(character: Character):
 	add_resonance(character, RESONANCE_PER_DAMAGE_TAKEN)
-
-# Called when a character heals
-func on_heal(healer: Character):
-	add_resonance(healer, RESONANCE_PER_HEAL)
 
 # Spend one character's resonance for their ultimate
 func spend_solo_ultimate(character: Character) -> bool:
@@ -97,7 +101,6 @@ func get_full_resonance_characters() -> Array[Character]:
 
 # Get the name of a combined attack for a pair
 func get_combined_attack_name(characters: Array[Character]) -> String:
-	# This can be expanded with a lookup table per character pair
 	var names = characters.map(func(c): return c.character_name)
 	names.sort()
 	return " & ".join(names) + " — Amethyst Requiem"

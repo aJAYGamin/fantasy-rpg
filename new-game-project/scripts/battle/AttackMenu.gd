@@ -282,10 +282,10 @@ func _on_skill_selected(skill: Skill):
 			close()
 
 func _get_attack_type(skill: Skill) -> String:
+	# Use the skill's own attack type display for damage skills
+	if skill.skill_type == Skill.SkillType.DAMAGE:
+		return skill.get_attack_type_display()
 	match skill.skill_type:
-		Skill.SkillType.PHYSICAL: return "Strike"
-		Skill.SkillType.MAGIC:    return "Magic"
-		Skill.SkillType.HEAL:     return "Magic"
-		Skill.SkillType.BUFF:     return "Status"
-		Skill.SkillType.DEBUFF:   return "Status"
+		Skill.SkillType.HEAL: return "Heal"
+		Skill.SkillType.BUFF: return "Buff"
 	return "Strike"
