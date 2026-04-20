@@ -10,10 +10,12 @@ signal menu_closed
 # Combined attack names — key is sorted hero names joined with "+"
 # Add your hero pairs here as you create more characters
 const COMBINED_ATTACK_NAMES = {
-	"Aria+Kael":   "Celestial Pyre",
-	"Aria+Lyra":   "Moonlit Requiem",
-	"Kael+Lyra":   "Ember Dawn",
-	# Add more pairs here as needed
+	"Aria+Kael":        "Celestial Pyre",
+	"Aria+Lyra":        "Moonlit Requiem",
+	"Kael+Lyra":        "Ember Dawn",
+	# Triple resonance names
+	"Aria+Kael+Lyra":   "Amethyst Requiem",
+	# Add more pairs/triples here as needed
 }
 
 var _current_hero: Character = null
@@ -123,6 +125,9 @@ func _build_menu():
 			combined_row.get_meta("main_btn").pressed.connect(_on_combined_resonance.bind(partner))
 			vbox.add_child(combined_row)
 
+	# Triple resonance — always check regardless of combined resonance availability
+	_add_triple_resonance(vbox, cinzel, cinzel_bold)
+
 func _create_resonance_btn(title: String, subtitle: String, color: Color, cinzel, cinzel_bold) -> HBoxContainer:
 	# Outer row: button + ? button side by side
 	var row = HBoxContainer.new()
@@ -191,8 +196,47 @@ func _show_description(desc: String, attack_name: String):
 		lbl.text = new_text
 		desc_panel.visible = true
 
+func _add_triple_resonance(vbox: VBoxContainer, cinzel, cinzel_bold):
+	var all_heroes = _battle_manager.party
+	if all_heroes.size() < 3:
+		return
+	for hero in all_heroes:
+		if not _resonance_system.is_full(hero):
+			return
+	var triple_key = _get_triple_key(all_heroes)
+	var triple_name = COMBINED_ATTACK_NAMES.get(triple_key, "United Resonance")
+	var triple_desc = "All heroes unleash their resonance together!"
+
+	var sep = HSeparator.new()
+	vbox.add_child(sep)
+
+	var triple_row = _create_resonance_btn(
+		"✦✦ %s" % triple_name,
+		triple_desc,
+		Color(1.0, 0.95, 0.4),
+		cinzel, cinzel_bold
+	)
+	triple_row.get_meta("main_btn").pressed.connect(_on_triple_resonance.bind(all_heroes))
+	vbox.add_child(triple_row)
+
+func _on_triple_resonance(heroes: Array):
+	var typed_heroes: Array[Character] = []
+	for h in heroes:
+		typed_heroes.append(h)
+	if not _resonance_system.spend_combined_resonance(typed_heroes):
+		return
+	var targets = _battle_manager.get_alive_enemies()
+	emit_signal("resonance_action_selected", "triple", Array(typed_heroes), Array(targets))
+	close()
+
+func _get_triple_key(heroes: Array) -> String:
+	var names = []
+	for h in heroes:
+		names.append(h.character_name)
+	names.sort()
+	return "+".join(names)
+
 func _get_pair_key(hero_a: Character, hero_b: Character) -> String:
-	# Always sort alphabetically so Aria+Kael == Kael+Aria in the lookup
 	var names = [hero_a.character_name, hero_b.character_name]
 	names.sort()
 	return "+".join(names)

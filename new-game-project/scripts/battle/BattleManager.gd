@@ -108,6 +108,9 @@ func player_use_skill(user: Character, skill: Skill, targets: Array[Character]):
 	user.use_mp(skill.mp_cost)
 
 	for target in targets:
+		# Skip already defeated targets
+		if not target.is_alive():
+			continue
 		var value = skill.calculate_value(user)
 		var result = {"actor": user, "target": target, "skill": skill}
 

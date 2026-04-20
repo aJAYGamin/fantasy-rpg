@@ -29,8 +29,17 @@ extends Node2D
 var battle_manager: BattleManager
 var resonance_system: ResonanceSystem
 
+# Enemy portrait layout options
+enum EnemyLayout {
+	ROW,        # All in one horizontal row
+	GRID_2COL,  # 2 columns grid
+	GRID_3COL,  # 3 columns grid
+	DIAGONAL,   # Slight diagonal stagger
+}
+
 # --- State ---
 var current_actor: Character = null
+var _enemy_layout: EnemyLayout = EnemyLayout.GRID_2COL
 var _max_hp: Dictionary = {}   # character -> max hp at battle start
 var _max_mp: Dictionary = {}   # character -> max mp at battle start
 var _enemy_hp_bars: Dictionary = {}   # character -> ProgressBar
@@ -79,7 +88,8 @@ func set_background(area: String):
 		if texture:
 			background.texture = texture
 
-func start_battle(party: Array[Character], enemies: Array[Character], area: String = "fallster_plains"):
+func start_battle(party: Array[Character], enemies: Array[Character], area: String = "fallster_plains", enemy_layout: EnemyLayout = EnemyLayout.GRID_2COL):
+	_enemy_layout = enemy_layout
 	set_background(area)
 	resonance_system.setup(party)
 	# Store max values at battle start so bars don't change mid-battle
@@ -92,6 +102,7 @@ func start_battle(party: Array[Character], enemies: Array[Character], area: Stri
 	_setup_hero_panels(party)
 	_setup_enemy_cards(enemies)
 	turn_order_indicator.setup(party, enemies)
+	_setup_portraits(party, enemies)
 	attack_menu.setup(battle_manager, resonance_system)
 	attack_menu.move_selected.connect(_on_move_selected)
 	attack_menu.menu_closed.connect(_on_attack_menu_closed)
@@ -181,14 +192,14 @@ func _start_test_battle():
 	void_strike.mp_cost = 25
 	void_strike.target_type = Skill.TargetType.SINGLE_ENEMY
 
-	var barrier = Skill.new()
-	barrier.skill_name = "Arcane Barrier"
-	barrier.description = "Shields all allies with an arcane field."
-	barrier.skill_type = Skill.SkillType.BUFF
-	barrier.element = ElementalSystem.Element.ARCANE
-	barrier.power = 1.0
-	barrier.mp_cost = 20
-	barrier.target_type = Skill.TargetType.ALL_ALLIES
+	var aria_barrier = Skill.new()
+	aria_barrier.skill_name = "Arcane Barrier"
+	aria_barrier.description = "Shields all allies with an arcane field."
+	aria_barrier.skill_type = Skill.SkillType.BUFF
+	aria_barrier.element = ElementalSystem.Element.ARCANE
+	aria_barrier.power = 1.0
+	aria_barrier.mp_cost = 20
+	aria_barrier.target_type = Skill.TargetType.ALL_ALLIES
 
 	var mass_heal = Skill.new()
 	mass_heal.skill_name = "Grand Mend"
@@ -199,7 +210,7 @@ func _start_test_battle():
 	mass_heal.mp_cost = 30
 	mass_heal.target_type = Skill.TargetType.ALL_ALLIES
 
-	var h1_skills: Array[Skill] = [slash, frost, dark_pulse, heal_spell, requiem, void_strike, barrier, mass_heal]
+	var h1_skills: Array[Skill] = [slash, frost, dark_pulse, heal_spell, requiem, void_strike, aria_barrier, mass_heal]
 	hero1.skills = h1_skills
 
 	var hero2 = Character.new()
@@ -392,9 +403,229 @@ func _start_test_battle():
 	# Start with 50 gold to verify gold addition on victory screen
 	GameManager.gold = 50
 
-	var party: Array[Character] = [hero1, hero2]
-	var enemies: Array[Character] = [enemy1, enemy2]
-	start_battle(party, enemies, "fallster_plains")
+	# Hero 3: Lyra (Wind healer)
+	var hero3 = Character.new()
+	hero3.character_name = "Lyra"
+	hero3.character_class = "Healer"
+	hero3.element = ElementalSystem.Element.WIND
+	hero3.base_hp = 220
+	hero3.base_mp = 100
+	hero3.base_attack = 7
+	hero3.base_defense = 8
+	hero3.base_magic = 16
+	hero3.base_speed = 14
+	hero3.experience = 0
+	hero3.experience_to_next = 100
+	hero3.current_hp = hero3.max_hp()
+	hero3.current_mp = hero3.max_mp()
+	hero3.set_meta("ultimate_name", "Gale Requiem")
+	hero3.set_meta("ultimate_desc", "Lyra calls upon the winds to heal all allies and damage all enemies.")
+
+	# Lyra's attacks (index 0-3)
+	var lyra_wind_slash = Skill.new()
+	lyra_wind_slash.skill_name = "Wind Slash"
+	lyra_wind_slash.description = "A sharp gust of wind that cuts through enemies."
+	lyra_wind_slash.skill_type = Skill.SkillType.PHYSICAL
+	lyra_wind_slash.element = ElementalSystem.Element.WIND
+	lyra_wind_slash.power = 1.1
+	lyra_wind_slash.mp_cost = 0
+	lyra_wind_slash.target_type = Skill.TargetType.SINGLE_ENEMY
+
+	var lyra_mend = Skill.new()
+	lyra_mend.skill_name = "Mend"
+	lyra_mend.description = "Restores HP to a single ally."
+	lyra_mend.skill_type = Skill.SkillType.HEAL
+	lyra_mend.element = ElementalSystem.Element.WIND
+	lyra_mend.power = 1.8
+	lyra_mend.mp_cost = 12
+	lyra_mend.target_type = Skill.TargetType.SINGLE_ALLY
+
+	var lyra_gust = Skill.new()
+	lyra_gust.skill_name = "Gust"
+	lyra_gust.description = "Blows wind at all enemies dealing light damage."
+	lyra_gust.skill_type = Skill.SkillType.MAGIC
+	lyra_gust.element = ElementalSystem.Element.WIND
+	lyra_gust.power = 0.9
+	lyra_gust.mp_cost = 10
+	lyra_gust.target_type = Skill.TargetType.ALL_ENEMIES
+
+	var lyra_barrier = Skill.new()
+	lyra_barrier.skill_name = "Wind Barrier"
+	lyra_barrier.description = "Surrounds an ally with wind, boosting their defense."
+	lyra_barrier.skill_type = Skill.SkillType.BUFF
+	lyra_barrier.element = ElementalSystem.Element.WIND
+	lyra_barrier.power = 1.0
+	lyra_barrier.mp_cost = 8
+	lyra_barrier.target_type = Skill.TargetType.SINGLE_ALLY
+
+	# Lyra's specials (index 4-7)
+	var lyra_gale = Skill.new()
+	lyra_gale.skill_name = "Gale Requiem"
+	lyra_gale.description = "Lyra's ultimate — heals all allies and damages all enemies with wild winds."
+	lyra_gale.skill_type = Skill.SkillType.MAGIC
+	lyra_gale.element = ElementalSystem.Element.WIND
+	lyra_gale.power = 3.0
+	lyra_gale.mp_cost = 40
+	lyra_gale.target_type = Skill.TargetType.ALL_ENEMIES
+
+	var lyra_cyclone = Skill.new()
+	lyra_cyclone.skill_name = "Cyclone"
+	lyra_cyclone.description = "A massive cyclone that strikes all enemies twice."
+	lyra_cyclone.skill_type = Skill.SkillType.MAGIC
+	lyra_cyclone.element = ElementalSystem.Element.WIND
+	lyra_cyclone.power = 2.2
+	lyra_cyclone.mp_cost = 28
+	lyra_cyclone.target_type = Skill.TargetType.ALL_ENEMIES
+
+	var lyra_grand_mend = Skill.new()
+	lyra_grand_mend.skill_name = "Grand Mend"
+	lyra_grand_mend.description = "Restores HP to all allies."
+	lyra_grand_mend.skill_type = Skill.SkillType.HEAL
+	lyra_grand_mend.element = ElementalSystem.Element.WIND
+	lyra_grand_mend.power = 1.5
+	lyra_grand_mend.mp_cost = 30
+	lyra_grand_mend.target_type = Skill.TargetType.ALL_ALLIES
+
+	var lyra_tailwind = Skill.new()
+	lyra_tailwind.skill_name = "Tailwind"
+	lyra_tailwind.description = "Boosts the speed and attack of all allies."
+	lyra_tailwind.skill_type = Skill.SkillType.BUFF
+	lyra_tailwind.element = ElementalSystem.Element.WIND
+	lyra_tailwind.power = 1.0
+	lyra_tailwind.mp_cost = 22
+	lyra_tailwind.target_type = Skill.TargetType.ALL_ALLIES
+
+	var h3_skills: Array[Skill] = [lyra_wind_slash, lyra_mend, lyra_gust, lyra_barrier, lyra_gale, lyra_cyclone, lyra_grand_mend, lyra_tailwind]
+	hero3.skills = h3_skills
+
+	# 10 enemies of varying types
+	var enemy_defs = [
+		{"name": "Ice Golem",    "element": ElementalSystem.Element.ICE,        "hp": 60,  "atk": 8,  "mag": 10},
+		{"name": "Fire Drake",   "element": ElementalSystem.Element.FIRE,       "hp": 50,  "atk": 10, "mag": 12},
+		{"name": "Dark Wraith",  "element": ElementalSystem.Element.DARK,       "hp": 45,  "atk": 12, "mag": 8},
+		{"name": "Storm Eagle",  "element": ElementalSystem.Element.LIGHTNING,  "hp": 40,  "atk": 9,  "mag": 14},
+		{"name": "Earth Golem",  "element": ElementalSystem.Element.EARTH,      "hp": 80,  "atk": 7,  "mag": 6},
+		{"name": "Sea Serpent",  "element": ElementalSystem.Element.WATER,      "hp": 55,  "atk": 11, "mag": 10},
+		{"name": "Wind Sprite",  "element": ElementalSystem.Element.WIND,       "hp": 35,  "atk": 8,  "mag": 15},
+		{"name": "Light Golem",  "element": ElementalSystem.Element.LIGHT,      "hp": 65,  "atk": 9,  "mag": 11},
+		{"name": "Void Shade",   "element": ElementalSystem.Element.ARCANE,     "hp": 42,  "atk": 13, "mag": 13},
+		{"name": "Frost Wyrm",   "element": ElementalSystem.Element.ICE,        "hp": 70,  "atk": 10, "mag": 9},
+	]
+	var enemies: Array[Character] = []
+	for def in enemy_defs:
+		var e = Character.new()
+		e.character_name = def["name"]
+		e.element = def["element"]
+		e.base_hp = def["hp"]
+		e.base_attack = def["atk"]
+		e.base_defense = 5
+		e.base_magic = def["mag"]
+		e.base_speed = randi_range(6, 12)
+		e.current_hp = e.max_hp()
+		e.skills = _generate_enemy_skills(e)
+		enemies.append(e)
+
+	# Start with 50 gold to verify gold addition on victory screen
+	GameManager.gold = 50
+
+	var party: Array[Character] = [hero1, hero2, hero3]
+	start_battle(party, enemies, "fallster_plains", EnemyLayout.GRID_2COL)
+
+func _make_skill(skill_name: String, desc: String, type: Skill.SkillType,
+	elem: ElementalSystem.Element, power: float, mp: int,
+	target: Skill.TargetType, status: String = "", chance: float = 0.0) -> Skill:
+	var s = Skill.new()
+	s.skill_name = skill_name
+	s.description = desc
+	s.skill_type = type
+	s.element = elem
+	s.power = power
+	s.mp_cost = mp
+	s.target_type = target
+	s.status_to_apply = status
+	s.status_chance = chance
+	return s
+
+func _get_enemy_unique_skills(enemy_name: String, elem: ElementalSystem.Element) -> Array[Skill]:
+	var S = Skill.SkillType
+	var T = Skill.TargetType
+	var E = ElementalSystem.Element
+	var skills: Array[Skill] = []
+	match enemy_name:
+		"Ice Golem":
+			skills = [
+				_make_skill("Glacial Fist",   "A frozen punch that chills to the bone.",          S.PHYSICAL, E.ICE,       1.1, 0,  T.SINGLE_ENEMY),
+				_make_skill("Frost Breath",   "Exhales a cone of freezing air.",                  S.MAGIC,    E.ICE,       1.4, 10, T.SINGLE_ENEMY, "freeze", 0.35),
+				_make_skill("Blizzard",       "Summons a blizzard hitting all heroes.",            S.MAGIC,    E.ICE,       1.0, 18, T.ALL_ENEMIES),
+				_make_skill("Ice Armor",      "Encases itself in ice, restoring some HP.",         S.HEAL,     E.ICE,       1.2, 12, T.SELF),
+			]
+		"Fire Drake":
+			skills = [
+				_make_skill("Flame Bite",     "A savage bite that burns on contact.",             S.PHYSICAL, E.FIRE,      1.1, 0,  T.SINGLE_ENEMY, "burn", 0.4),
+				_make_skill("Inferno Breath", "A torrent of fire from its maw.",                  S.MAGIC,    E.FIRE,      1.5, 12, T.SINGLE_ENEMY),
+				_make_skill("Dragon Roar",    "A terrifying roar that scorches all heroes.",       S.MAGIC,    E.FIRE,      1.0, 20, T.ALL_ENEMIES),
+				_make_skill("Fire Scales",    "Channels fire energy to regenerate HP.",            S.HEAL,     E.FIRE,      1.2, 12, T.SELF),
+			]
+		"Dark Wraith":
+			skills = [
+				_make_skill("Shadow Claw",    "A claw strike infused with dark energy.",          S.PHYSICAL, E.DARK,      1.2, 0,  T.SINGLE_ENEMY),
+				_make_skill("Soul Drain",     "Drains the life force of a hero.",                 S.MAGIC,    E.DARK,      1.4, 10, T.SINGLE_ENEMY, "poison", 0.5),
+				_make_skill("Dark Pulse",     "A wave of dark energy that corrupts all heroes.",  S.MAGIC,    E.DARK,      1.0, 18, T.ALL_ENEMIES),
+				_make_skill("Void Shroud",    "Wraps itself in darkness, healing its wounds.",    S.HEAL,     E.DARK,      1.1, 10, T.SELF),
+			]
+		"Storm Eagle":
+			skills = [
+				_make_skill("Talon Strike",   "A lightning-fast talon attack.",                   S.PHYSICAL, E.LIGHTNING, 1.2, 0,  T.SINGLE_ENEMY),
+				_make_skill("Thunder Beak",   "Strikes with a beak charged with lightning.",      S.MAGIC,    E.LIGHTNING, 1.4, 10, T.SINGLE_ENEMY, "stun", 0.3),
+				_make_skill("Storm Dive",     "Dives through the party trailing lightning.",       S.MAGIC,    E.LIGHTNING, 1.0, 18, T.ALL_ENEMIES),
+				_make_skill("Wind Ride",      "Rides an updraft to recover HP.",                  S.HEAL,     E.LIGHTNING, 1.0, 10, T.SELF),
+			]
+		"Earth Golem":
+			skills = [
+				_make_skill("Boulder Smash",  "Slams a massive fist into one hero.",              S.PHYSICAL, E.EARTH,     1.3, 0,  T.SINGLE_ENEMY),
+				_make_skill("Stone Spike",    "Drives a spike of rock into a hero.",              S.MAGIC,    E.EARTH,     1.3, 10, T.SINGLE_ENEMY),
+				_make_skill("Earthquake",     "Shakes the ground beneath all heroes.",            S.MAGIC,    E.EARTH,     1.0, 20, T.ALL_ENEMIES),
+				_make_skill("Earth Mend",     "Draws energy from the earth to heal.",             S.HEAL,     E.EARTH,     1.4, 14, T.SELF),
+			]
+		"Sea Serpent":
+			skills = [
+				_make_skill("Coil Crush",     "Wraps around and crushes a hero.",                 S.PHYSICAL, E.WATER,     1.2, 0,  T.SINGLE_ENEMY),
+				_make_skill("Tidal Wave",     "Crashes water over one hero.",                     S.MAGIC,    E.WATER,     1.4, 10, T.SINGLE_ENEMY),
+				_make_skill("Whirlpool",      "Creates a whirlpool that pulls all heroes in.",    S.MAGIC,    E.WATER,     1.0, 18, T.ALL_ENEMIES),
+				_make_skill("Sea Foam",       "Uses ocean energy to restore HP.",                 S.HEAL,     E.WATER,     1.2, 12, T.SELF),
+			]
+		"Wind Sprite":
+			skills = [
+				_make_skill("Gust Slash",     "A razor-sharp wind that cuts deep.",               S.PHYSICAL, E.WIND,      1.1, 0,  T.SINGLE_ENEMY),
+				_make_skill("Cyclone Dart",   "Launches a spinning dart of wind.",                S.MAGIC,    E.WIND,      1.3, 8,  T.SINGLE_ENEMY),
+				_make_skill("Tempest",        "Unleashes a tempest on all heroes.",               S.MAGIC,    E.WIND,      0.9, 15, T.ALL_ENEMIES),
+				_make_skill("Zephyr Veil",    "Rides the wind to recover HP.",                    S.HEAL,     E.WIND,      1.0, 8,  T.SELF),
+			]
+		"Light Golem":
+			skills = [
+				_make_skill("Radiant Punch",  "A punch that burns with holy light.",              S.PHYSICAL, E.LIGHT,     1.1, 0,  T.SINGLE_ENEMY),
+				_make_skill("Holy Beam",      "Fires a concentrated beam of light.",              S.MAGIC,    E.LIGHT,     1.5, 12, T.SINGLE_ENEMY),
+				_make_skill("Sacred Flash",   "A blinding flash that hits all heroes.",           S.MAGIC,    E.LIGHT,     1.0, 20, T.ALL_ENEMIES),
+				_make_skill("Mending Light",  "Heals wounds using radiant energy.",               S.HEAL,     E.LIGHT,     1.3, 12, T.SELF),
+			]
+		"Void Shade":
+			skills = [
+				_make_skill("Null Strike",    "A strike from the void that drains energy.",       S.PHYSICAL, E.ARCANE,    1.2, 0,  T.SINGLE_ENEMY, "poison", 0.35),
+				_make_skill("Arcane Bolt",    "A bolt of pure arcane energy.",                    S.MAGIC,    E.ARCANE,    1.4, 10, T.SINGLE_ENEMY),
+				_make_skill("Void Burst",     "An explosion of void energy hitting all heroes.",  S.MAGIC,    E.ARCANE,    1.1, 20, T.ALL_ENEMIES),
+				_make_skill("Void Mend",      "Absorbs void energy to restore HP.",               S.HEAL,     E.ARCANE,    1.1, 10, T.SELF),
+			]
+		"Frost Wyrm":
+			skills = [
+				_make_skill("Frozen Bite",    "A bite so cold it freezes solid.",                 S.PHYSICAL, E.ICE,       1.2, 0,  T.SINGLE_ENEMY, "freeze", 0.4),
+				_make_skill("Ice Lance",      "Hurls a lance of pure ice.",                       S.MAGIC,    E.ICE,       1.5, 12, T.SINGLE_ENEMY),
+				_make_skill("Frozen Gale",    "Breathes a freezing gale over all heroes.",        S.MAGIC,    E.ICE,       1.1, 20, T.ALL_ENEMIES),
+				_make_skill("Wyrm Regen",     "Scales shimmer as HP is slowly restored.",         S.HEAL,     E.ICE,       1.3, 14, T.SELF),
+			]
+		_:
+			# Fallback generic skills
+			skills = _generate_enemy_skills(Character.new())
+	return skills
 
 # --- UI Setup ---
 func _setup_hero_panels(party: Array[Character]):
@@ -471,13 +702,19 @@ func _setup_enemy_cards(enemies: Array[Character]):
 	for child in enemy_info_row.get_children():
 		child.queue_free()
 
-	# Always center enemies regardless of count (up to 10)
-	# Use a CenterContainer wrapper so HBoxContainer centers naturally
-	enemy_info_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	enemy_info_row.alignment = BoxContainer.ALIGNMENT_BEGIN
 
+	var screen_w = get_viewport().get_visible_rect().size.x
 	var count = mini(enemies.size(), 10)
+	# Leave 16px margin on each side and 2px spacing between cards
+	var margin = 32
+	var spacing = 2 * (count - 1)
+	var card_width = max(60.0, (screen_w - margin - spacing) / count)
+
 	for i in range(count):
 		var card = _create_enemy_card(enemies[i])
+		card.custom_minimum_size = Vector2(card_width, 0)
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		enemy_info_row.add_child(card)
 
 func _create_enemy_card(enemy: Character) -> PanelContainer:
@@ -709,25 +946,46 @@ func _on_character_defeated(character: Character):
 	print("%s was defeated!" % character.character_name)
 	_refresh_all_panels()
 	turn_order_indicator.remove_character(character)
+	_remove_portrait(character)
 	# Remove enemy card if an enemy was defeated
 	if battle_manager.enemies.has(character):
 		_remove_enemy_card(character)
 
-func _remove_enemy_card(enemy: Character):
+var _card_rebuild_queued: bool = false
+
+func _remove_enemy_card(_enemy: Character):
+	# Queue a rebuild instead of rebuilding immediately
+	# This handles multiple enemies dying in one turn
+	if _card_rebuild_queued:
+		return
+	_card_rebuild_queued = true
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_rebuild_enemy_cards()
+	_card_rebuild_queued = false
+
+func _rebuild_enemy_cards():
 	var alive_enemies = battle_manager.get_alive_enemies()
-	# Rebuild enemy cards showing only alive enemies
 	for card in enemy_info_row.get_children():
 		card.queue_free()
-	await get_tree().process_frame
+	if alive_enemies.is_empty():
+		return
+	var screen_w = get_viewport().get_visible_rect().size.x
+	var count = alive_enemies.size()
+	var margin = 32
+	var spacing = 2 * (count - 1)
+	var card_width = max(60.0, (screen_w - margin - spacing) / count)
+	enemy_info_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	for e in alive_enemies:
-		if e != enemy:
-			var card = _create_enemy_card(e)
-			enemy_info_row.add_child(card)
+		var card = _create_enemy_card(e)
+		card.custom_minimum_size = Vector2(card_width, 0)
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		enemy_info_row.add_child(card)
 
 func _on_battle_ended(player_won: bool, rewards: Dictionary):
 	_battle_over = true
 	_toggle_action_menu(false)
-	# Hide battle UI elements
+	# Hide battle UI elements immediately
 	enemy_info_row.visible = false
 	party_status_bar.visible = false
 	turn_order_indicator.visible = false
@@ -928,6 +1186,220 @@ func _on_attack_menu_closed():
 	if not _battle_over and current_actor != null and battle_manager.party.has(current_actor):
 		action_menu.visible = true
 
+# Hero colors by element
+const HERO_COLORS = {
+	"FIRE":      Color(0.9, 0.3, 0.15),
+	"ICE":       Color(0.4, 0.75, 1.0),
+	"LIGHTNING": Color(0.95, 0.85, 0.1),
+	"WATER":     Color(0.2, 0.5, 0.9),
+	"EARTH":     Color(0.5, 0.35, 0.15),
+	"WIND":      Color(0.5, 0.9, 0.4),
+	"LIGHT":     Color(1.0, 0.95, 0.6),
+	"DARK":      Color(0.4, 0.2, 0.6),
+	"ARCANE":    Color(0.65, 0.3, 0.9),
+	"NONE":      Color(0.5, 0.5, 0.55),
+}
+
+func _setup_portraits(party: Array[Character], enemies: Array[Character]):
+	# Clear existing portraits
+	for child in party_positions.get_children():
+		child.queue_free()
+	for child in enemy_positions.get_children():
+		child.queue_free()
+
+	var cinzel = load("res://fonts/Cinzel-Regular.ttf")
+	var screen = get_viewport().get_visible_rect().size
+
+	# Portrait size
+	var pw = 32.0
+	var ph = 48.0
+
+	# --- Hero portraits ---
+	# VBoxContainer at x:50, y:200 — portraits stack vertically with diagonal offset
+	# We use a Control wrapper per hero and offset it horizontally for the diagonal
+	for i in range(party.size()):
+		var hero = party[i]
+		var wrapper = Control.new()
+		wrapper.custom_minimum_size = Vector2(pw + i * 30, ph + 20)
+		party_positions.add_child(wrapper)
+
+		var portrait = _create_portrait(hero, cinzel, false)
+		portrait.name = "HeroPortrait_%s" % hero.character_name
+		# Each successive hero shifts right to create front-to-back diagonal
+		# Hero 1 (i=0): leftmost/back, last hero: rightmost/front
+		portrait.position = Vector2((party.size() - 1 - i) * 30, 0)
+		wrapper.add_child(portrait)
+
+	# --- Enemy portraits ---
+	var enemy_grid = Control.new()
+	enemy_grid.name = "EnemyGrid"
+	enemy_positions.add_child(enemy_grid)
+
+	var count = enemies.size()
+	for i in range(count):
+		var enemy = enemies[i]
+		var portrait = _create_portrait(enemy, cinzel, true)
+		portrait.name = "EnemyPortrait_%s" % enemy.character_name
+		portrait.position = _get_enemy_portrait_pos(i, count)
+		enemy_grid.add_child(portrait)
+
+func _get_enemy_portrait_pos(index: int, total: int) -> Vector2:
+	var cell_w = 52.0
+	var cell_h = 65.0
+	match _enemy_layout:
+		EnemyLayout.ROW:
+			return Vector2(index * cell_w, 0)
+		EnemyLayout.GRID_2COL:
+			return Vector2((index % 2) * cell_w, (index / 2) * cell_h)
+		EnemyLayout.GRID_3COL:
+			return Vector2((index % 3) * cell_w, (index / 3) * cell_h)
+		EnemyLayout.DIAGONAL:
+			return Vector2(index * 20.0, index * 30.0)
+	return Vector2(index * cell_w, 0)
+
+func _create_portrait(character: Character, cinzel, is_enemy: bool) -> VBoxContainer:
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 4)
+
+	# Colored rectangle
+	var rect = ColorRect.new()
+	rect.custom_minimum_size = Vector2(32, 48)
+	var elem_key = ElementalSystem.get_element_name(character.element).to_upper()
+	rect.color = HERO_COLORS.get(elem_key, Color(0.5, 0.5, 0.55))
+	# Add slight dark overlay for enemies
+	if is_enemy:
+		rect.color = rect.color.darkened(0.15)
+	vbox.add_child(rect)
+
+	# First letter initial centered on portrait
+	var initial_lbl = Label.new()
+	initial_lbl.text = character.character_name.substr(0, 1).to_upper()
+	initial_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	initial_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	initial_lbl.set_anchors_preset(Control.PRESET_FULL_RECT)
+	initial_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if cinzel: initial_lbl.add_theme_font_override("font", cinzel)
+	initial_lbl.add_theme_font_size_override("font_size", 18)
+	initial_lbl.add_theme_color_override("font_color", Color(1, 1, 1, 0.25))
+	rect.add_child(initial_lbl)
+
+	# Name label underneath
+	var name_lbl = Label.new()
+	name_lbl.text = character.character_name
+	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	if cinzel: name_lbl.add_theme_font_override("font", cinzel)
+	name_lbl.add_theme_font_size_override("font_size", 8)
+	name_lbl.add_theme_color_override("font_color", Color(0.88, 0.78, 1.0))
+	vbox.add_child(name_lbl)
+
+	return vbox
+
+func _remove_portrait(character: Character):
+	# Check hero portraits in party_positions
+	var hero_portrait = _find_portrait_in(party_positions, "HeroPortrait_%s" % character.character_name)
+	# Check enemy portraits inside EnemyGrid
+	var enemy_grid = enemy_positions.get_node_or_null("EnemyGrid")
+	var enemy_portrait = _find_portrait_in(enemy_grid, "EnemyPortrait_%s" % character.character_name) if enemy_grid else null
+	var portrait = hero_portrait if hero_portrait != null else enemy_portrait
+	if portrait == null:
+		return
+	var tween = create_tween()
+	tween.tween_property(portrait, "modulate:a", 0.0, 0.4)
+	await tween.finished
+	portrait.queue_free()
+
+func _find_portrait_in(container: Node, portrait_name: String) -> Node:
+	if container == null:
+		return null
+	for child in container.get_children():
+		if child.name == portrait_name:
+			return child
+		# Check wrappers
+		var found = child.get_node_or_null(portrait_name)
+		if found:
+			return found
+	return null
+
+func _generate_enemy_skills(enemy: Character) -> Array[Skill]:
+	var skills: Array[Skill] = []
+	var elem = enemy.element
+	var elem_name = ElementalSystem.get_element_name(elem)
+
+	# Basic attack — always free, single target
+	var basic = Skill.new()
+	basic.skill_name = "%s Strike" % elem_name
+	basic.description = "A basic elemental strike."
+	basic.skill_type = Skill.SkillType.PHYSICAL
+	basic.element = elem
+	basic.power = 1.0
+	basic.mp_cost = 0
+	basic.target_type = Skill.TargetType.SINGLE_ENEMY
+	skills.append(basic)
+
+	# Magic attack — costs MP, single target
+	var magic = Skill.new()
+	magic.skill_name = "%s Bolt" % elem_name
+	magic.description = "A focused burst of elemental energy."
+	magic.skill_type = Skill.SkillType.MAGIC
+	magic.element = elem
+	magic.power = 1.4
+	magic.mp_cost = 10
+	magic.target_type = Skill.TargetType.SINGLE_ENEMY
+	skills.append(magic)
+
+	# AoE attack — costs more MP, hits all heroes
+	var aoe = Skill.new()
+	aoe.skill_name = "%s Wave" % elem_name
+	aoe.description = "A wave of elemental energy hitting all heroes."
+	aoe.skill_type = Skill.SkillType.MAGIC
+	aoe.element = elem
+	aoe.power = 1.0
+	aoe.mp_cost = 18
+	aoe.target_type = Skill.TargetType.ALL_ENEMIES
+	skills.append(aoe)
+
+	# Self heal — available to tougher enemies
+	if enemy.base_hp >= 60:
+		var heal = Skill.new()
+		heal.skill_name = "%s Mend" % elem_name
+		heal.description = "Channels elemental energy to restore HP."
+		heal.skill_type = Skill.SkillType.HEAL
+		heal.element = elem
+		heal.power = 1.2
+		heal.mp_cost = 12
+		heal.target_type = Skill.TargetType.SELF
+		skills.append(heal)
+
+	# Status attack — chance to apply a status effect
+	var status = Skill.new()
+	status.skill_name = "%s Curse" % elem_name
+	status.description = "Inflicts a status condition on one hero."
+	status.skill_type = Skill.SkillType.MAGIC
+	status.element = elem
+	status.power = 0.8
+	status.mp_cost = 8
+	status.target_type = Skill.TargetType.SINGLE_ENEMY
+	# Assign status based on element
+	match elem:
+		ElementalSystem.Element.FIRE:
+			status.status_to_apply = "burn"
+			status.status_chance = 0.5
+		ElementalSystem.Element.ICE:
+			status.status_to_apply = "freeze"
+			status.status_chance = 0.4
+		ElementalSystem.Element.LIGHTNING:
+			status.status_to_apply = "stun"
+			status.status_chance = 0.35
+		ElementalSystem.Element.DARK:
+			status.status_to_apply = "poison"
+			status.status_chance = 0.5
+		_:
+			status.status_to_apply = "poison"
+			status.status_chance = 0.3
+	skills.append(status)
+
+	return skills
+
 func _create_test_items() -> Array[Item]:
 	var items: Array[Item] = []
 
@@ -1074,12 +1546,17 @@ func _on_resonance_action(action_type: String, heroes: Array, targets: Array):
 		resonance_skill.power = 3.5
 		resonance_skill.target_type = Skill.TargetType.ALL_ENEMIES
 		battle_manager.player_use_skill(heroes[0], resonance_skill, typed_targets)
+	elif action_type == "triple":
+		resonance_skill.skill_name = "Amethyst Requiem"
+		resonance_skill.skill_type = Skill.SkillType.MAGIC
+		resonance_skill.power = 8.0
+		resonance_skill.target_type = Skill.TargetType.ALL_ENEMIES
+		battle_manager.player_use_skill(heroes[0], resonance_skill, typed_targets)
 	else:
 		resonance_skill.skill_name = "Combined Resonance"
 		resonance_skill.skill_type = Skill.SkillType.MAGIC
 		resonance_skill.power = 5.0
 		resonance_skill.target_type = Skill.TargetType.ALL_ENEMIES
-		# Use first hero to execute but damage scales with both
 		battle_manager.player_use_skill(heroes[0], resonance_skill, typed_targets)
 
 	_refresh_all_panels()
