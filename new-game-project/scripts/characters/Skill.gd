@@ -23,12 +23,17 @@ enum AttackType {
 
 # SkillType — high-level category for behavior
 # DAMAGE: deals damage — builds resonance when used
-# HEAL:   restores HP — does NOT build resonance
-# BUFF:   enhances allies — does NOT build resonance
+# STATUS: heals, buffs, or debuffs — sub-category set via status_type — does NOT build resonance
 enum SkillType {
 	DAMAGE,
+	STATUS
+}
+
+# StatusType — sub-category for SkillType.STATUS skills
+enum StatusType {
 	HEAL,
-	BUFF
+	BUFF,
+	DEBUFF
 }
 
 @export var skill_name: String = "Attack"
@@ -36,6 +41,7 @@ enum SkillType {
 @export var mp_cost: int = 0
 @export var skill_type: SkillType = SkillType.DAMAGE
 @export var attack_type: AttackType = AttackType.STRIKE
+@export var status_type: StatusType = StatusType.HEAL
 @export var target_type: TargetType = TargetType.SINGLE_ENEMY
 @export var power: float = 1.0
 @export var element: ElementalSystem.Element = ElementalSystem.Element.NONE
@@ -55,10 +61,10 @@ func calculate_value(user: Character) -> int:
 					return int(user.magic_power() * power)
 				AttackType.STATUS:
 					return 0
-		SkillType.HEAL:
-			return int(user.magic_power() * power)
-		SkillType.BUFF:
-			return int(user.magic_power() * power)
+		SkillType.STATUS:
+			if status_type == StatusType.HEAL:
+				return int(user.magic_power() * power)
+			return 0
 	return 0
 
 func can_use(user: Character) -> bool:
@@ -101,10 +107,11 @@ func get_skill_type_display() -> String:
 	match skill_type:
 		SkillType.DAMAGE:
 			return get_attack_type_display()
-		SkillType.HEAL:
-			return "Heal"
-		SkillType.BUFF:
-			return "Buff"
+		SkillType.STATUS:
+			match status_type:
+				StatusType.HEAL: return "Heal"
+				StatusType.BUFF: return "Buff"
+				StatusType.DEBUFF: return "Debuff"
 	return ""
 
 func get_element_display() -> String:
