@@ -170,7 +170,8 @@ func _start_test_battle():
 	var heal_spell = Skill.new()
 	heal_spell.skill_name = "Mend"
 	heal_spell.description = "Restores HP to a single ally."
-	heal_spell.skill_type = Skill.SkillType.HEAL
+	heal_spell.skill_type = Skill.SkillType.STATUS
+	heal_spell.status_type = Skill.StatusType.HEAL
 	heal_spell.element = ElementalSystem.Element.LIGHT
 	heal_spell.power = 1.8
 	heal_spell.mp_cost = 15
@@ -200,7 +201,8 @@ func _start_test_battle():
 	var aria_barrier = Skill.new()
 	aria_barrier.skill_name = "Arcane Barrier"
 	aria_barrier.description = "Shields all allies with an arcane field."
-	aria_barrier.skill_type = Skill.SkillType.BUFF
+	aria_barrier.skill_type = Skill.SkillType.STATUS
+	aria_barrier.status_type = Skill.StatusType.BUFF
 	aria_barrier.element = ElementalSystem.Element.ARCANE
 	aria_barrier.power = 1.0
 	aria_barrier.mp_cost = 20
@@ -209,7 +211,8 @@ func _start_test_battle():
 	var mass_heal = Skill.new()
 	mass_heal.skill_name = "Grand Mend"
 	mass_heal.description = "Restores HP to all allies."
-	mass_heal.skill_type = Skill.SkillType.HEAL
+	mass_heal.skill_type = Skill.SkillType.STATUS
+	mass_heal.status_type = Skill.StatusType.HEAL
 	mass_heal.element = ElementalSystem.Element.LIGHT
 	mass_heal.power = 1.5
 	mass_heal.mp_cost = 30
@@ -261,7 +264,8 @@ func _start_test_battle():
 	var war_cry = Skill.new()
 	war_cry.skill_name = "War Cry"
 	war_cry.description = "Boosts the party's fighting spirit."
-	war_cry.skill_type = Skill.SkillType.BUFF
+	war_cry.skill_type = Skill.SkillType.STATUS
+	war_cry.status_type = Skill.StatusType.BUFF
 	war_cry.element = ElementalSystem.Element.NONE
 	war_cry.power = 1.0
 	war_cry.mp_cost = 10
@@ -301,7 +305,8 @@ func _start_test_battle():
 	var iron_will = Skill.new()
 	iron_will.skill_name = "Iron Will"
 	iron_will.description = "Regenerates HP each turn for the party."
-	iron_will.skill_type = Skill.SkillType.BUFF
+	iron_will.skill_type = Skill.SkillType.STATUS
+	iron_will.status_type = Skill.StatusType.BUFF
 	iron_will.element = ElementalSystem.Element.NONE
 	iron_will.power = 1.0
 	iron_will.mp_cost = 22
@@ -354,7 +359,8 @@ func _start_test_battle():
 
 	var frost_armor = Skill.new()
 	frost_armor.skill_name = "Frost Armor"
-	frost_armor.skill_type = Skill.SkillType.BUFF
+	frost_armor.skill_type = Skill.SkillType.STATUS
+	frost_armor.status_type = Skill.StatusType.BUFF
 	frost_armor.element = ElementalSystem.Element.ICE
 	frost_armor.power = 1.0
 	frost_armor.mp_cost = 10
@@ -407,7 +413,8 @@ func _start_test_battle():
 	var dragon_regen = Skill.new()
 	dragon_regen.skill_name = "Dragon Regen"
 	dragon_regen.description = "The Fire Drake regenerates its scales."
-	dragon_regen.skill_type = Skill.SkillType.HEAL
+	dragon_regen.skill_type = Skill.SkillType.STATUS
+	dragon_regen.status_type = Skill.StatusType.HEAL
 	dragon_regen.element = ElementalSystem.Element.FIRE
 	dragon_regen.power = 1.5
 	dragon_regen.mp_cost = 10
@@ -451,7 +458,8 @@ func _start_test_battle():
 	var lyra_mend = Skill.new()
 	lyra_mend.skill_name = "Mend"
 	lyra_mend.description = "Restores HP to a single ally."
-	lyra_mend.skill_type = Skill.SkillType.HEAL
+	lyra_mend.skill_type = Skill.SkillType.STATUS
+	lyra_mend.status_type = Skill.StatusType.HEAL
 	lyra_mend.element = ElementalSystem.Element.WIND
 	lyra_mend.power = 1.8
 	lyra_mend.mp_cost = 12
@@ -470,7 +478,8 @@ func _start_test_battle():
 	var lyra_barrier = Skill.new()
 	lyra_barrier.skill_name = "Wind Barrier"
 	lyra_barrier.description = "Surrounds an ally with wind, boosting their defense."
-	lyra_barrier.skill_type = Skill.SkillType.BUFF
+	lyra_barrier.skill_type = Skill.SkillType.STATUS
+	lyra_barrier.status_type = Skill.StatusType.BUFF
 	lyra_barrier.element = ElementalSystem.Element.WIND
 	lyra_barrier.power = 1.0
 	lyra_barrier.mp_cost = 8
@@ -500,7 +509,8 @@ func _start_test_battle():
 	var lyra_grand_mend = Skill.new()
 	lyra_grand_mend.skill_name = "Grand Mend"
 	lyra_grand_mend.description = "Restores HP to all allies."
-	lyra_grand_mend.skill_type = Skill.SkillType.HEAL
+	lyra_grand_mend.skill_type = Skill.SkillType.STATUS
+	lyra_grand_mend.status_type = Skill.StatusType.HEAL
 	lyra_grand_mend.element = ElementalSystem.Element.WIND
 	lyra_grand_mend.power = 1.5
 	lyra_grand_mend.mp_cost = 30
@@ -509,7 +519,8 @@ func _start_test_battle():
 	var lyra_tailwind = Skill.new()
 	lyra_tailwind.skill_name = "Tailwind"
 	lyra_tailwind.description = "Boosts the speed and attack of all allies."
-	lyra_tailwind.skill_type = Skill.SkillType.BUFF
+	lyra_tailwind.skill_type = Skill.SkillType.STATUS
+	lyra_tailwind.status_type = Skill.StatusType.BUFF
 	lyra_tailwind.element = ElementalSystem.Element.WIND
 	lyra_tailwind.power = 1.0
 	lyra_tailwind.mp_cost = 22
@@ -551,96 +562,114 @@ func _start_test_battle():
 	var party: Array[Character] = [hero1, hero2, hero3]
 	start_battle(party, enemies, "fallster_plains", EnemyLayout.GRID_2COL)
 
-func _make_skill(skill_name: String, desc: String, type: Skill.SkillType,
+func _make_skill(skill_name: String, desc: String, type_str: String,
 	elem: ElementalSystem.Element, power: float, mp: int,
 	target: Skill.TargetType, status: String = "", chance: float = 0.0) -> Skill:
 	var s = Skill.new()
 	s.skill_name = skill_name
 	s.description = desc
-	s.skill_type = type
 	s.element = elem
 	s.power = power
 	s.mp_cost = mp
 	s.target_type = target
 	s.status_to_apply = status
 	s.status_chance = chance
+	# Map type string to new SkillType + AttackType/StatusType
+	match type_str:
+		"STRIKE":
+			s.skill_type = Skill.SkillType.DAMAGE
+			s.attack_type = Skill.AttackType.STRIKE
+		"RANGED":
+			s.skill_type = Skill.SkillType.DAMAGE
+			s.attack_type = Skill.AttackType.RANGED
+		"MAGIC":
+			s.skill_type = Skill.SkillType.DAMAGE
+			s.attack_type = Skill.AttackType.MAGIC
+		"HEAL":
+			s.skill_type = Skill.SkillType.STATUS
+			s.status_type = Skill.StatusType.HEAL
+		"BUFF":
+			s.skill_type = Skill.SkillType.STATUS
+			s.status_type = Skill.StatusType.BUFF
+		"DEBUFF":
+			s.skill_type = Skill.SkillType.STATUS
+			s.status_type = Skill.StatusType.DEBUFF
 	return s
 
 func _get_enemy_unique_skills(enemy_name: String, elem: ElementalSystem.Element) -> Array[Skill]:
-	var S = Skill.SkillType
 	var T = Skill.TargetType
 	var E = ElementalSystem.Element
 	var skills: Array[Skill] = []
 	match enemy_name:
 		"Ice Golem":
 			skills = [
-				_make_skill("Glacial Fist",   "A frozen punch that chills to the bone.",          S.PHYSICAL, E.ICE,       1.1, 0,  T.SINGLE_ENEMY),
-				_make_skill("Frost Breath",   "Exhales a cone of freezing air.",                  S.MAGIC,    E.ICE,       1.4, 10, T.SINGLE_ENEMY, "freeze", 0.35),
-				_make_skill("Blizzard",       "Summons a blizzard hitting all heroes.",            S.MAGIC,    E.ICE,       1.0, 18, T.ALL_ENEMIES),
-				_make_skill("Ice Armor",      "Encases itself in ice, restoring some HP.",         S.HEAL,     E.ICE,       1.2, 12, T.SELF),
+				_make_skill("Glacial Fist",   "A frozen punch that chills to the bone.",          "STRIKE", E.ICE,       1.1, 0,  T.SINGLE_ENEMY),
+				_make_skill("Frost Breath",   "Exhales a cone of freezing air.",                  "MAGIC",    E.ICE,       1.4, 10, T.SINGLE_ENEMY, "freeze", 0.35),
+				_make_skill("Blizzard",       "Summons a blizzard hitting all heroes.",            "MAGIC",    E.ICE,       1.0, 18, T.ALL_ENEMIES),
+				_make_skill("Ice Armor",      "Encases itself in ice, restoring some HP.",         "HEAL",     E.ICE,       1.2, 12, T.SELF),
 			]
 		"Fire Drake":
 			skills = [
-				_make_skill("Flame Bite",     "A savage bite that burns on contact.",             S.PHYSICAL, E.FIRE,      1.1, 0,  T.SINGLE_ENEMY, "burn", 0.4),
-				_make_skill("Inferno Breath", "A torrent of fire from its maw.",                  S.MAGIC,    E.FIRE,      1.5, 12, T.SINGLE_ENEMY),
-				_make_skill("Dragon Roar",    "A terrifying roar that scorches all heroes.",       S.MAGIC,    E.FIRE,      1.0, 20, T.ALL_ENEMIES),
-				_make_skill("Fire Scales",    "Channels fire energy to regenerate HP.",            S.HEAL,     E.FIRE,      1.2, 12, T.SELF),
+				_make_skill("Flame Bite",     "A savage bite that burns on contact.",             "STRIKE", E.FIRE,      1.1, 0,  T.SINGLE_ENEMY, "burn", 0.4),
+				_make_skill("Inferno Breath", "A torrent of fire from its maw.",                  "MAGIC",    E.FIRE,      1.5, 12, T.SINGLE_ENEMY),
+				_make_skill("Dragon Roar",    "A terrifying roar that scorches all heroes.",       "MAGIC",    E.FIRE,      1.0, 20, T.ALL_ENEMIES),
+				_make_skill("Fire Scales",    "Channels fire energy to regenerate HP.",            "HEAL",     E.FIRE,      1.2, 12, T.SELF),
 			]
 		"Dark Wraith":
 			skills = [
-				_make_skill("Shadow Claw",    "A claw strike infused with dark energy.",          S.PHYSICAL, E.DARK,      1.2, 0,  T.SINGLE_ENEMY),
-				_make_skill("Soul Drain",     "Drains the life force of a hero.",                 S.MAGIC,    E.DARK,      1.4, 10, T.SINGLE_ENEMY, "poison", 0.5),
-				_make_skill("Dark Pulse",     "A wave of dark energy that corrupts all heroes.",  S.MAGIC,    E.DARK,      1.0, 18, T.ALL_ENEMIES),
-				_make_skill("Void Shroud",    "Wraps itself in darkness, healing its wounds.",    S.HEAL,     E.DARK,      1.1, 10, T.SELF),
+				_make_skill("Shadow Claw",    "A claw strike infused with dark energy.",          "STRIKE", E.DARK,      1.2, 0,  T.SINGLE_ENEMY),
+				_make_skill("Soul Drain",     "Drains the life force of a hero.",                 "MAGIC",    E.DARK,      1.4, 10, T.SINGLE_ENEMY, "poison", 0.5),
+				_make_skill("Dark Pulse",     "A wave of dark energy that corrupts all heroes.",  "MAGIC",    E.DARK,      1.0, 18, T.ALL_ENEMIES),
+				_make_skill("Void Shroud",    "Wraps itself in darkness, healing its wounds.",    "HEAL",     E.DARK,      1.1, 10, T.SELF),
 			]
 		"Storm Eagle":
 			skills = [
-				_make_skill("Talon Strike",   "A lightning-fast talon attack.",                   S.PHYSICAL, E.LIGHTNING, 1.2, 0,  T.SINGLE_ENEMY),
-				_make_skill("Thunder Beak",   "Strikes with a beak charged with lightning.",      S.MAGIC,    E.LIGHTNING, 1.4, 10, T.SINGLE_ENEMY, "stun", 0.3),
-				_make_skill("Storm Dive",     "Dives through the party trailing lightning.",       S.MAGIC,    E.LIGHTNING, 1.0, 18, T.ALL_ENEMIES),
-				_make_skill("Wind Ride",      "Rides an updraft to recover HP.",                  S.HEAL,     E.LIGHTNING, 1.0, 10, T.SELF),
+				_make_skill("Talon Strike",   "A lightning-fast talon attack.",                   "STRIKE", E.LIGHTNING, 1.2, 0,  T.SINGLE_ENEMY),
+				_make_skill("Thunder Beak",   "Strikes with a beak charged with lightning.",      "MAGIC",    E.LIGHTNING, 1.4, 10, T.SINGLE_ENEMY, "stun", 0.3),
+				_make_skill("Storm Dive",     "Dives through the party trailing lightning.",       "MAGIC",    E.LIGHTNING, 1.0, 18, T.ALL_ENEMIES),
+				_make_skill("Wind Ride",      "Rides an updraft to recover HP.",                  "HEAL",     E.LIGHTNING, 1.0, 10, T.SELF),
 			]
 		"Earth Golem":
 			skills = [
-				_make_skill("Boulder Smash",  "Slams a massive fist into one hero.",              S.PHYSICAL, E.EARTH,     1.3, 0,  T.SINGLE_ENEMY),
-				_make_skill("Stone Spike",    "Drives a spike of rock into a hero.",              S.MAGIC,    E.EARTH,     1.3, 10, T.SINGLE_ENEMY),
-				_make_skill("Earthquake",     "Shakes the ground beneath all heroes.",            S.MAGIC,    E.EARTH,     1.0, 20, T.ALL_ENEMIES),
-				_make_skill("Earth Mend",     "Draws energy from the earth to heal.",             S.HEAL,     E.EARTH,     1.4, 14, T.SELF),
+				_make_skill("Boulder Smash",  "Slams a massive fist into one hero.",              "STRIKE", E.EARTH,     1.3, 0,  T.SINGLE_ENEMY),
+				_make_skill("Stone Spike",    "Drives a spike of rock into a hero.",              "MAGIC",    E.EARTH,     1.3, 10, T.SINGLE_ENEMY),
+				_make_skill("Earthquake",     "Shakes the ground beneath all heroes.",            "MAGIC",    E.EARTH,     1.0, 20, T.ALL_ENEMIES),
+				_make_skill("Earth Mend",     "Draws energy from the earth to heal.",             "HEAL",     E.EARTH,     1.4, 14, T.SELF),
 			]
 		"Sea Serpent":
 			skills = [
-				_make_skill("Coil Crush",     "Wraps around and crushes a hero.",                 S.PHYSICAL, E.WATER,     1.2, 0,  T.SINGLE_ENEMY),
-				_make_skill("Tidal Wave",     "Crashes water over one hero.",                     S.MAGIC,    E.WATER,     1.4, 10, T.SINGLE_ENEMY),
-				_make_skill("Whirlpool",      "Creates a whirlpool that pulls all heroes in.",    S.MAGIC,    E.WATER,     1.0, 18, T.ALL_ENEMIES),
-				_make_skill("Sea Foam",       "Uses ocean energy to restore HP.",                 S.HEAL,     E.WATER,     1.2, 12, T.SELF),
+				_make_skill("Coil Crush",     "Wraps around and crushes a hero.",                 "STRIKE", E.WATER,     1.2, 0,  T.SINGLE_ENEMY),
+				_make_skill("Tidal Wave",     "Crashes water over one hero.",                     "MAGIC",    E.WATER,     1.4, 10, T.SINGLE_ENEMY),
+				_make_skill("Whirlpool",      "Creates a whirlpool that pulls all heroes in.",    "MAGIC",    E.WATER,     1.0, 18, T.ALL_ENEMIES),
+				_make_skill("Sea Foam",       "Uses ocean energy to restore HP.",                 "HEAL",     E.WATER,     1.2, 12, T.SELF),
 			]
 		"Wind Sprite":
 			skills = [
-				_make_skill("Gust Slash",     "A razor-sharp wind that cuts deep.",               S.PHYSICAL, E.WIND,      1.1, 0,  T.SINGLE_ENEMY),
-				_make_skill("Cyclone Dart",   "Launches a spinning dart of wind.",                S.MAGIC,    E.WIND,      1.3, 8,  T.SINGLE_ENEMY),
-				_make_skill("Tempest",        "Unleashes a tempest on all heroes.",               S.MAGIC,    E.WIND,      0.9, 15, T.ALL_ENEMIES),
-				_make_skill("Zephyr Veil",    "Rides the wind to recover HP.",                    S.HEAL,     E.WIND,      1.0, 8,  T.SELF),
+				_make_skill("Gust Slash",     "A razor-sharp wind that cuts deep.",               "STRIKE", E.WIND,      1.1, 0,  T.SINGLE_ENEMY),
+				_make_skill("Cyclone Dart",   "Launches a spinning dart of wind.",                "MAGIC",    E.WIND,      1.3, 8,  T.SINGLE_ENEMY),
+				_make_skill("Tempest",        "Unleashes a tempest on all heroes.",               "MAGIC",    E.WIND,      0.9, 15, T.ALL_ENEMIES),
+				_make_skill("Zephyr Veil",    "Rides the wind to recover HP.",                    "HEAL",     E.WIND,      1.0, 8,  T.SELF),
 			]
 		"Light Golem":
 			skills = [
-				_make_skill("Radiant Punch",  "A punch that burns with holy light.",              S.PHYSICAL, E.LIGHT,     1.1, 0,  T.SINGLE_ENEMY),
-				_make_skill("Holy Beam",      "Fires a concentrated beam of light.",              S.MAGIC,    E.LIGHT,     1.5, 12, T.SINGLE_ENEMY),
-				_make_skill("Sacred Flash",   "A blinding flash that hits all heroes.",           S.MAGIC,    E.LIGHT,     1.0, 20, T.ALL_ENEMIES),
-				_make_skill("Mending Light",  "Heals wounds using radiant energy.",               S.HEAL,     E.LIGHT,     1.3, 12, T.SELF),
+				_make_skill("Radiant Punch",  "A punch that burns with holy light.",              "STRIKE", E.LIGHT,     1.1, 0,  T.SINGLE_ENEMY),
+				_make_skill("Holy Beam",      "Fires a concentrated beam of light.",              "MAGIC",    E.LIGHT,     1.5, 12, T.SINGLE_ENEMY),
+				_make_skill("Sacred Flash",   "A blinding flash that hits all heroes.",           "MAGIC",    E.LIGHT,     1.0, 20, T.ALL_ENEMIES),
+				_make_skill("Mending Light",  "Heals wounds using radiant energy.",               "HEAL",     E.LIGHT,     1.3, 12, T.SELF),
 			]
 		"Void Shade":
 			skills = [
-				_make_skill("Null Strike",    "A strike from the void that drains energy.",       S.PHYSICAL, E.ARCANE,    1.2, 0,  T.SINGLE_ENEMY, "poison", 0.35),
-				_make_skill("Arcane Bolt",    "A bolt of pure arcane energy.",                    S.MAGIC,    E.ARCANE,    1.4, 10, T.SINGLE_ENEMY),
-				_make_skill("Void Burst",     "An explosion of void energy hitting all heroes.",  S.MAGIC,    E.ARCANE,    1.1, 20, T.ALL_ENEMIES),
-				_make_skill("Void Mend",      "Absorbs void energy to restore HP.",               S.HEAL,     E.ARCANE,    1.1, 10, T.SELF),
+				_make_skill("Null Strike",    "A strike from the void that drains energy.",       "STRIKE", E.ARCANE,    1.2, 0,  T.SINGLE_ENEMY, "poison", 0.35),
+				_make_skill("Arcane Bolt",    "A bolt of pure arcane energy.",                    "MAGIC",    E.ARCANE,    1.4, 10, T.SINGLE_ENEMY),
+				_make_skill("Void Burst",     "An explosion of void energy hitting all heroes.",  "MAGIC",    E.ARCANE,    1.1, 20, T.ALL_ENEMIES),
+				_make_skill("Void Mend",      "Absorbs void energy to restore HP.",               "HEAL",     E.ARCANE,    1.1, 10, T.SELF),
 			]
 		"Frost Wyrm":
 			skills = [
-				_make_skill("Frozen Bite",    "A bite so cold it freezes solid.",                 S.PHYSICAL, E.ICE,       1.2, 0,  T.SINGLE_ENEMY, "freeze", 0.4),
-				_make_skill("Ice Lance",      "Hurls a lance of pure ice.",                       S.MAGIC,    E.ICE,       1.5, 12, T.SINGLE_ENEMY),
-				_make_skill("Frozen Gale",    "Breathes a freezing gale over all heroes.",        S.MAGIC,    E.ICE,       1.1, 20, T.ALL_ENEMIES),
-				_make_skill("Wyrm Regen",     "Scales shimmer as HP is slowly restored.",         S.HEAL,     E.ICE,       1.3, 14, T.SELF),
+				_make_skill("Frozen Bite",    "A bite so cold it freezes solid.",                 "STRIKE", E.ICE,       1.2, 0,  T.SINGLE_ENEMY, "freeze", 0.4),
+				_make_skill("Ice Lance",      "Hurls a lance of pure ice.",                       "MAGIC",    E.ICE,       1.5, 12, T.SINGLE_ENEMY),
+				_make_skill("Frozen Gale",    "Breathes a freezing gale over all heroes.",        "MAGIC",    E.ICE,       1.1, 20, T.ALL_ENEMIES),
+				_make_skill("Wyrm Regen",     "Scales shimmer as HP is slowly restored.",         "HEAL",     E.ICE,       1.3, 14, T.SELF),
 			]
 		_:
 			# Fallback generic skills
@@ -1388,21 +1417,22 @@ func _generate_enemy_skills(enemy: Character) -> Array[Skill]:
 		var heal = Skill.new()
 		heal.skill_name = "%s Mend" % elem_name
 		heal.description = "Channels elemental energy to restore HP."
-		heal.skill_type = Skill.SkillType.HEAL
+		heal.skill_type = Skill.SkillType.STATUS
+		heal.status_type = Skill.StatusType.HEAL
 		heal.element = elem
 		heal.power = 1.2
 		heal.mp_cost = 12
 		heal.target_type = Skill.TargetType.SELF
 		skills.append(heal)
 
-	# Status attack — chance to apply a status effect
+	# Status attack — applies status effect, no damage
 	var status = Skill.new()
 	status.skill_name = "%s Curse" % elem_name
 	status.description = "Inflicts a status condition on one hero."
-	status.skill_type = Skill.SkillType.DAMAGE
-	status.attack_type = Skill.AttackType.MAGIC
+	status.skill_type = Skill.SkillType.STATUS
+	status.status_type = Skill.StatusType.DEBUFF
 	status.element = elem
-	status.power = 0.8
+	status.power = 0.0
 	status.mp_cost = 8
 	status.target_type = Skill.TargetType.SINGLE_ENEMY
 	# Assign status based on element

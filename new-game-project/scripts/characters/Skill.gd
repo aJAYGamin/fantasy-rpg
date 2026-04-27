@@ -31,10 +31,6 @@ enum SkillType {
 	BUFF
 }
 
-# Legacy compatibility — old code references PHYSICAL/MAGIC/DEBUFF on SkillType
-# We keep these as aliases pointing at DAMAGE so old code doesn't crash
-# New skills should use attack_type instead
-
 @export var skill_name: String = "Attack"
 @export var description: String = ""
 @export var mp_cost: int = 0
@@ -98,6 +94,17 @@ func get_attack_type_display() -> String:
 		AttackType.RANGED: return "Ranged"
 		AttackType.MAGIC:  return "Magic"
 		AttackType.STATUS: return "Status"
+	return ""
+
+# Returns a display string for the skill's high-level type
+func get_skill_type_display() -> String:
+	match skill_type:
+		SkillType.DAMAGE:
+			return get_attack_type_display()
+		SkillType.HEAL:
+			return "Heal"
+		SkillType.BUFF:
+			return "Buff"
 	return ""
 
 func get_element_display() -> String:

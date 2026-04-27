@@ -83,7 +83,7 @@ static func _choose_skill(enemy: Character, alive_party: Array, echo_tier: int, 
 	var hp_pct = float(enemy.current_hp) / float(enemy.max_hp())
 
 	# Consider healing only if below 75% HP
-	var heal_skills = usable.filter(func(s): return s.skill_type == Skill.SkillType.HEAL)
+	var heal_skills = usable.filter(func(s): return s.is_heal())
 	if not heal_skills.is_empty() and hp_pct < 0.75:
 		# Below 30% HP — 50% chance to heal (max odds)
 		if hp_pct < 0.3 and randf() < 0.5:
@@ -104,7 +104,7 @@ static func _choose_skill(enemy: Character, alive_party: Array, echo_tier: int, 
 	# Echo tier 2+ — prefer super effective skills
 	if echo_tier >= 2:
 		var effective_skills = usable.filter(func(s):
-			if s.skill_type == Skill.SkillType.HEAL or s.skill_type == Skill.SkillType.BUFF:
+			if s.skill_type == Skill.SkillType.STATUS:
 				return false
 			for hero in alive_party:
 				if ElementalSystem.get_multiplier(s.element, hero.element) >= 2.0:
@@ -128,7 +128,7 @@ static func _choose_skill(enemy: Character, alive_party: Array, echo_tier: int, 
 static func _choose_target(enemy: Character, alive_party: Array, enemies: Array, skill: Skill, echo_tier: int) -> Character:
 	# Heal/buff skills — target self or lowest HP ally
 	if skill != null:
-		if skill.skill_type == Skill.SkillType.HEAL:
+		if skill.is_heal():
 			if skill.target_type == Skill.TargetType.SELF:
 				return enemy
 			# Target most wounded ally
@@ -136,7 +136,7 @@ static func _choose_target(enemy: Character, alive_party: Array, enemies: Array,
 			if not alive_enemies.is_empty():
 				alive_enemies.sort_custom(func(a, b): return a.current_hp < b.current_hp)
 				return alive_enemies[0]
-		elif skill.skill_type == Skill.SkillType.BUFF:
+		elif skill.is_buff():
 			if skill.target_type == Skill.TargetType.SELF:
 				return enemy
 			var alive_enemies = enemies.filter(func(e): return e.is_alive())

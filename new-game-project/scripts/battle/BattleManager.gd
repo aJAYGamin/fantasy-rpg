@@ -117,37 +117,40 @@ func player_use_skill(user: Character, skill: Skill, targets: Array[Character]):
 		var result = {"actor": user, "target": target, "skill": skill, "is_first_target": first_target}
 		first_target = false
 
-		match skill.skill_type:
-			Skill.SkillType.DAMAGE:
-				# STRIKE/RANGED use physical damage, MAGIC uses magic damage, STATUS deals none
-				match skill.attack_type:
-					Skill.AttackType.STRIKE, Skill.AttackType.RANGED:
-						var dmg_result = target.take_damage(value, skill.element)
-						result["action"] = "skill_physical"
-						result["value"] = dmg_result.get("damage", 0)
-						result["multiplier"] = dmg_result.get("multiplier", 1.0)
-						result["effectiveness"] = dmg_result.get("effectiveness", "")
-						result["effectiveness_color"] = dmg_result.get("effectiveness_color", Color.WHITE)
-					Skill.AttackType.MAGIC:
-						var dmg_result = target.take_magic_damage(value, skill.element)
-						result["action"] = "skill_magic"
-						result["value"] = dmg_result.get("damage", 0)
-						result["multiplier"] = dmg_result.get("multiplier", 1.0)
-						result["effectiveness"] = dmg_result.get("effectiveness", "")
-						result["effectiveness_color"] = dmg_result.get("effectiveness_color", Color.WHITE)
-					Skill.AttackType.STATUS:
-						result["action"] = "status"
-						result["value"] = 0
-			Skill.SkillType.HEAL:
-				var healed = target.heal(value)
-				result["action"] = "heal"
-				result["value"] = healed
-			Skill.SkillType.BUFF:
-				target.add_status("regenerate")
-				result["action"] = "buff"
-				result["value"] = 0
+		if skill.skill_type == Skill.SkillType.DAMAGE:
+			match skill.attack_type:
+				Skill.AttackType.STRIKE, Skill.AttackType.RANGED:
+					var dmg_result = target.take_damage(value, skill.element)
+					result["action"] = "skill_physical"
+					result["value"] = dmg_result.get("damage", 0)
+					result["multiplier"] = dmg_result.get("multiplier", 1.0)
+					result["effectiveness"] = dmg_result.get("effectiveness", "")
+					result["effectiveness_color"] = dmg_result.get("effectiveness_color", Color.WHITE)
+				Skill.AttackType.MAGIC:
+					var dmg_result = target.take_magic_damage(value, skill.element)
+					result["action"] = "skill_magic"
+					result["value"] = dmg_result.get("damage", 0)
+					result["multiplier"] = dmg_result.get("multiplier", 1.0)
+					result["effectiveness"] = dmg_result.get("effectiveness", "")
+					result["effectiveness_color"] = dmg_result.get("effectiveness_color", Color.WHITE)
+		elif skill.skill_type == Skill.SkillType.STATUS:
+			match skill.status_type:
+				Skill.StatusType.HEAL:
+					var healed = target.heal(value)
+					result["action"] = "heal"
+					result["value"] = healed
+				Skill.StatusType.BUFF:
+					target.add_status("regenerate")
+					result["action"] = "buff"
+					result["value"] = 0
+				Skill.StatusType.DEBUFF:
+					if skill.status_to_apply != "":
+						target.add_status(skill.status_to_apply)
+					result["action"] = "debuff"
+					result["value"] = 0
 
-		if skill.status_to_apply != "" and randf() < skill.status_chance:
+		# Status chance only applies on damage skills
+		if skill.skill_type == Skill.SkillType.DAMAGE and skill.status_to_apply != "" and randf() < skill.status_chance:
 			target.add_status(skill.status_to_apply)
 
 		result["target_alive"] = target.is_alive()
@@ -180,35 +183,38 @@ func enemy_use_skill(enemy: Character, skill: Skill, targets: Array[Character]):
 		var value = skill.calculate_value(enemy)
 		var result = {"actor": enemy, "target": target, "skill": skill, "is_first_target": first_target}
 		first_target = false
-		match skill.skill_type:
-			Skill.SkillType.DAMAGE:
-				match skill.attack_type:
-					Skill.AttackType.STRIKE, Skill.AttackType.RANGED:
-						var dmg_result = target.take_damage(value, skill.element)
-						result["action"] = "attack"
-						result["value"] = dmg_result.get("damage", 0)
-						result["multiplier"] = dmg_result.get("multiplier", 1.0)
-						result["effectiveness"] = dmg_result.get("effectiveness", "")
-						result["effectiveness_color"] = dmg_result.get("effectiveness_color", Color.WHITE)
-					Skill.AttackType.MAGIC:
-						var dmg_result = target.take_magic_damage(value, skill.element)
-						result["action"] = "skill_magic"
-						result["value"] = dmg_result.get("damage", 0)
-						result["multiplier"] = dmg_result.get("multiplier", 1.0)
-						result["effectiveness"] = dmg_result.get("effectiveness", "")
-						result["effectiveness_color"] = dmg_result.get("effectiveness_color", Color.WHITE)
-					Skill.AttackType.STATUS:
-						result["action"] = "status"
-						result["value"] = 0
-			Skill.SkillType.HEAL:
-				var healed = target.heal(value)
-				result["action"] = "heal"
-				result["value"] = healed
-			Skill.SkillType.BUFF:
-				target.add_status("regenerate")
-				result["action"] = "buff"
-				result["value"] = 0
-		if skill.status_to_apply != "" and randf() < skill.status_chance:
+		if skill.skill_type == Skill.SkillType.DAMAGE:
+			match skill.attack_type:
+				Skill.AttackType.STRIKE, Skill.AttackType.RANGED:
+					var dmg_result = target.take_damage(value, skill.element)
+					result["action"] = "attack"
+					result["value"] = dmg_result.get("damage", 0)
+					result["multiplier"] = dmg_result.get("multiplier", 1.0)
+					result["effectiveness"] = dmg_result.get("effectiveness", "")
+					result["effectiveness_color"] = dmg_result.get("effectiveness_color", Color.WHITE)
+				Skill.AttackType.MAGIC:
+					var dmg_result = target.take_magic_damage(value, skill.element)
+					result["action"] = "skill_magic"
+					result["value"] = dmg_result.get("damage", 0)
+					result["multiplier"] = dmg_result.get("multiplier", 1.0)
+					result["effectiveness"] = dmg_result.get("effectiveness", "")
+					result["effectiveness_color"] = dmg_result.get("effectiveness_color", Color.WHITE)
+		elif skill.skill_type == Skill.SkillType.STATUS:
+			match skill.status_type:
+				Skill.StatusType.HEAL:
+					var healed = target.heal(value)
+					result["action"] = "heal"
+					result["value"] = healed
+				Skill.StatusType.BUFF:
+					target.add_status("regenerate")
+					result["action"] = "buff"
+					result["value"] = 0
+				Skill.StatusType.DEBUFF:
+					if skill.status_to_apply != "":
+						target.add_status(skill.status_to_apply)
+					result["action"] = "debuff"
+					result["value"] = 0
+		if skill.skill_type == Skill.SkillType.DAMAGE and skill.status_to_apply != "" and randf() < skill.status_chance:
 			target.add_status(skill.status_to_apply)
 		result["target_alive"] = target.is_alive()
 		emit_signal("action_performed", result)
