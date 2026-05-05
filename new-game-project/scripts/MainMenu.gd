@@ -7,7 +7,7 @@ extends Control
 @onready var music_player = $MusicPlayer
 @onready var hover_sound  = $HoverSound
 
-const GAME_SCENE = "res://scenes/BattleScene.tscn"
+const GAME_SCENE = "res://scenes/OverworldScene.tscn"
 
 func _ready():
 	modulate.a = 0.0

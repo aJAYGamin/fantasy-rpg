@@ -82,6 +82,18 @@ func _start_new_round():
 func player_attack(attacker: Character, target: Character):
 	if state != BattleState.CHOOSING_ACTION and state != BattleState.CHOOSING_TARGET:
 		return
+	# Memory Echo: enemies with high species memory may dodge.
+	if EnemyAI.try_dodge(target):
+		emit_signal("action_performed", {
+			"action": "dodge",
+			"actor": attacker,
+			"target": target,
+			"is_first_target": true,
+			"value": 0,
+			"target_alive": target.is_alive(),
+		})
+		end_player_turn()
+		return
 	# take_damage now returns a Dictionary with damage, multiplier, effectiveness
 	var dmg_result = target.take_damage(attacker.attack_power(), attacker.element)
 	var result = {
@@ -118,6 +130,13 @@ func player_use_skill(user: Character, skill: Skill, targets: Array[Character]):
 		first_target = false
 
 		if skill.skill_type == Skill.SkillType.DAMAGE:
+			# Memory Echo: enemies with high species memory may dodge damage skills.
+			if EnemyAI.try_dodge(target):
+				result["action"] = "dodge"
+				result["value"] = 0
+				result["target_alive"] = target.is_alive()
+				emit_signal("action_performed", result)
+				continue
 			match skill.attack_type:
 				Skill.AttackType.STRIKE, Skill.AttackType.RANGED:
 					var dmg_result = target.take_damage(value, skill.element)

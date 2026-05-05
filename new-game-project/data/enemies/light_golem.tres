@@ -1,0 +1,84 @@
+[gd_resource type="Resource" script_class="Enemy" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+[ext_resource type="Script" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
+
+[sub_resource type="Resource" id="Skill_radiant_punch"]
+script = ExtResource("1_skill")
+skill_name = "Radiant Punch"
+description = "A punch that burns with holy light."
+mp_cost = 0
+skill_type = 0
+attack_type = 0
+status_type = 0
+target_type = 0
+power = 1.1
+element = 7
+status_to_apply = ""
+status_chance = 0.0
+resonance_gain_override = -1.0
+
+[sub_resource type="Resource" id="Skill_holy_beam"]
+script = ExtResource("1_skill")
+skill_name = "Holy Beam"
+description = "Fires a concentrated beam of light."
+mp_cost = 12
+skill_type = 0
+attack_type = 2
+status_type = 0
+target_type = 0
+power = 1.5
+element = 7
+status_to_apply = ""
+status_chance = 0.0
+resonance_gain_override = -1.0
+
+[sub_resource type="Resource" id="Skill_sacred_flash"]
+script = ExtResource("1_skill")
+skill_name = "Sacred Flash"
+description = "A blinding flash that hits all heroes."
+mp_cost = 20
+skill_type = 0
+attack_type = 2
+status_type = 0
+target_type = 1
+power = 1.0
+element = 7
+status_to_apply = ""
+status_chance = 0.0
+resonance_gain_override = -1.0
+
+[sub_resource type="Resource" id="Skill_mending_light"]
+script = ExtResource("1_skill")
+skill_name = "Mending Light"
+description = "Heals wounds using radiant energy."
+mp_cost = 12
+skill_type = 1
+attack_type = 0
+status_type = 0
+target_type = 4
+power = 1.3
+element = 7
+status_to_apply = ""
+status_chance = 0.0
+resonance_gain_override = -1.0
+
+[resource]
+script = ExtResource("2_enemy")
+character_name = "Light Golem"
+character_class = "Warrior"
+base_hp = 65
+base_mp = 50
+base_attack = 9
+base_defense = 7
+base_magic = 11
+base_speed = 7
+element = 7
+extra_weakness = 0
+extra_resistance = 0
+skills = Array[Skill]([SubResource("Skill_radiant_punch"), SubResource("Skill_holy_beam"), SubResource("Skill_sacred_flash"), SubResource("Skill_mending_light")])
+species = "Light Golem"
+rarity = 2
+base_exp_reward = 40
+base_gold_reward = 20
+drop_table = []

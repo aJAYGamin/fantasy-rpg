@@ -1,0 +1,84 @@
+[gd_resource type="Resource" script_class="Enemy" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+[ext_resource type="Script" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
+
+[sub_resource type="Resource" id="Skill_coil_crush"]
+script = ExtResource("1_skill")
+skill_name = "Coil Crush"
+description = "Wraps around and crushes a hero."
+mp_cost = 0
+skill_type = 0
+attack_type = 0
+status_type = 0
+target_type = 0
+power = 1.2
+element = 6
+status_to_apply = ""
+status_chance = 0.0
+resonance_gain_override = -1.0
+
+[sub_resource type="Resource" id="Skill_tidal_wave"]
+script = ExtResource("1_skill")
+skill_name = "Tidal Wave"
+description = "Crashes water over one hero."
+mp_cost = 10
+skill_type = 0
+attack_type = 2
+status_type = 0
+target_type = 0
+power = 1.4
+element = 6
+status_to_apply = ""
+status_chance = 0.0
+resonance_gain_override = -1.0
+
+[sub_resource type="Resource" id="Skill_whirlpool"]
+script = ExtResource("1_skill")
+skill_name = "Whirlpool"
+description = "Creates a whirlpool that pulls all heroes in."
+mp_cost = 18
+skill_type = 0
+attack_type = 2
+status_type = 0
+target_type = 1
+power = 1.0
+element = 6
+status_to_apply = ""
+status_chance = 0.0
+resonance_gain_override = -1.0
+
+[sub_resource type="Resource" id="Skill_sea_foam"]
+script = ExtResource("1_skill")
+skill_name = "Sea Foam"
+description = "Uses ocean energy to restore HP."
+mp_cost = 12
+skill_type = 1
+attack_type = 0
+status_type = 0
+target_type = 4
+power = 1.2
+element = 6
+status_to_apply = ""
+status_chance = 0.0
+resonance_gain_override = -1.0
+
+[resource]
+script = ExtResource("2_enemy")
+character_name = "Sea Serpent"
+character_class = "Mage"
+base_hp = 55
+base_mp = 50
+base_attack = 11
+base_defense = 5
+base_magic = 10
+base_speed = 9
+element = 6
+extra_weakness = 0
+extra_resistance = 0
+skills = Array[Skill]([SubResource("Skill_coil_crush"), SubResource("Skill_tidal_wave"), SubResource("Skill_whirlpool"), SubResource("Skill_sea_foam")])
+species = "Sea Serpent"
+rarity = 1
+base_exp_reward = 25
+base_gold_reward = 12
+drop_table = []

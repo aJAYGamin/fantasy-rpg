@@ -1,0 +1,84 @@
+[gd_resource type="Resource" script_class="Enemy" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+[ext_resource type="Script" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
+
+[sub_resource type="Resource" id="Skill_boulder_smash"]
+script = ExtResource("1_skill")
+skill_name = "Boulder Smash"
+description = "Slams a massive fist into one hero."
+mp_cost = 0
+skill_type = 0
+attack_type = 0
+status_type = 0
+target_type = 0
+power = 1.3
+element = 4
+status_to_apply = ""
+status_chance = 0.0
+resonance_gain_override = -1.0
+
+[sub_resource type="Resource" id="Skill_stone_spike"]
+script = ExtResource("1_skill")
+skill_name = "Stone Spike"
+description = "Drives a spike of rock into a hero."
+mp_cost = 10
+skill_type = 0
+attack_type = 2
+status_type = 0
+target_type = 0
+power = 1.3
+element = 4
+status_to_apply = ""
+status_chance = 0.0
+resonance_gain_override = -1.0
+
+[sub_resource type="Resource" id="Skill_earthquake"]
+script = ExtResource("1_skill")
+skill_name = "Earthquake"
+description = "Shakes the ground beneath all heroes."
+mp_cost = 20
+skill_type = 0
+attack_type = 2
+status_type = 0
+target_type = 1
+power = 1.0
+element = 4
+status_to_apply = ""
+status_chance = 0.0
+resonance_gain_override = -1.0
+
+[sub_resource type="Resource" id="Skill_earth_mend"]
+script = ExtResource("1_skill")
+skill_name = "Earth Mend"
+description = "Draws energy from the earth to heal."
+mp_cost = 14
+skill_type = 1
+attack_type = 0
+status_type = 0
+target_type = 4
+power = 1.4
+element = 4
+status_to_apply = ""
+status_chance = 0.0
+resonance_gain_override = -1.0
+
+[resource]
+script = ExtResource("2_enemy")
+character_name = "Earth Golem"
+character_class = "Warrior"
+base_hp = 80
+base_mp = 50
+base_attack = 7
+base_defense = 8
+base_magic = 6
+base_speed = 6
+element = 4
+extra_weakness = 0
+extra_resistance = 0
+skills = Array[Skill]([SubResource("Skill_boulder_smash"), SubResource("Skill_stone_spike"), SubResource("Skill_earthquake"), SubResource("Skill_earth_mend")])
+species = "Earth Golem"
+rarity = 2
+base_exp_reward = 40
+base_gold_reward = 20
+drop_table = []

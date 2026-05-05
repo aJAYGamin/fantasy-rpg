@@ -5,10 +5,10 @@ extends RefCounted
 ## Handles enemy decision making with Memory Echo integration
 ## Dodge system applies to both heroes and enemies
 
-# Memory Echo thresholds
-const ECHO_TIER_1 = 10   # Notices patterns — 5% dodge
-const ECHO_TIER_2 = 15   # Adapting — 10% dodge
-const ECHO_TIER_3 = 20   # Fully adapted — 15% dodge
+# Memory Echo thresholds — must match Enemy.gd's MEMORY_THRESHOLD_* values
+const ECHO_TIER_1 = 3    # Notices patterns — 5% dodge
+const ECHO_TIER_2 = 7    # Adapting — 10% dodge
+const ECHO_TIER_3 = 15   # Fully adapted — 15% dodge
 
 const DODGE_CHANCE_T1 = 0.05
 const DODGE_CHANCE_T2 = 0.10

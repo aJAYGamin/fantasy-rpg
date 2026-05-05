@@ -1,0 +1,84 @@
+[gd_resource type="Resource" script_class="Enemy" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+[ext_resource type="Script" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
+
+[sub_resource type="Resource" id="Skill_flame_bite"]
+script = ExtResource("1_skill")
+skill_name = "Flame Bite"
+description = "A savage bite that burns on contact."
+mp_cost = 0
+skill_type = 0
+attack_type = 0
+status_type = 0
+target_type = 0
+power = 1.1
+element = 1
+status_to_apply = "burn"
+status_chance = 0.4
+resonance_gain_override = -1.0
+
+[sub_resource type="Resource" id="Skill_inferno_breath"]
+script = ExtResource("1_skill")
+skill_name = "Inferno Breath"
+description = "A torrent of fire from its maw."
+mp_cost = 12
+skill_type = 0
+attack_type = 2
+status_type = 0
+target_type = 0
+power = 1.5
+element = 1
+status_to_apply = ""
+status_chance = 0.0
+resonance_gain_override = -1.0
+
+[sub_resource type="Resource" id="Skill_dragon_roar"]
+script = ExtResource("1_skill")
+skill_name = "Dragon Roar"
+description = "A terrifying roar that scorches all heroes."
+mp_cost = 20
+skill_type = 0
+attack_type = 2
+status_type = 0
+target_type = 1
+power = 1.0
+element = 1
+status_to_apply = ""
+status_chance = 0.0
+resonance_gain_override = -1.0
+
+[sub_resource type="Resource" id="Skill_fire_scales"]
+script = ExtResource("1_skill")
+skill_name = "Fire Scales"
+description = "Channels fire energy to regenerate HP."
+mp_cost = 12
+skill_type = 1
+attack_type = 0
+status_type = 0
+target_type = 4
+power = 1.2
+element = 1
+status_to_apply = ""
+status_chance = 0.0
+resonance_gain_override = -1.0
+
+[resource]
+script = ExtResource("2_enemy")
+character_name = "Fire Drake"
+character_class = "Warrior"
+base_hp = 50
+base_mp = 50
+base_attack = 10
+base_defense = 5
+base_magic = 12
+base_speed = 9
+element = 1
+extra_weakness = 0
+extra_resistance = 0
+skills = Array[Skill]([SubResource("Skill_flame_bite"), SubResource("Skill_inferno_breath"), SubResource("Skill_dragon_roar"), SubResource("Skill_fire_scales")])
+species = "Fire Drake"
+rarity = 1
+base_exp_reward = 25
+base_gold_reward = 12
+drop_table = []

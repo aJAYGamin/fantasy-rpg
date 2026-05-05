@@ -1,0 +1,84 @@
+[gd_resource type="Resource" script_class="Enemy" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+[ext_resource type="Script" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
+
+[sub_resource type="Resource" id="Skill_gust_slash"]
+script = ExtResource("1_skill")
+skill_name = "Gust Slash"
+description = "A razor-sharp wind that cuts deep."
+mp_cost = 0
+skill_type = 0
+attack_type = 0
+status_type = 0
+target_type = 0
+power = 1.1
+element = 5
+status_to_apply = ""
+status_chance = 0.0
+resonance_gain_override = -1.0
+
+[sub_resource type="Resource" id="Skill_cyclone_dart"]
+script = ExtResource("1_skill")
+skill_name = "Cyclone Dart"
+description = "Launches a spinning dart of wind."
+mp_cost = 8
+skill_type = 0
+attack_type = 2
+status_type = 0
+target_type = 0
+power = 1.3
+element = 5
+status_to_apply = ""
+status_chance = 0.0
+resonance_gain_override = -1.0
+
+[sub_resource type="Resource" id="Skill_tempest"]
+script = ExtResource("1_skill")
+skill_name = "Tempest"
+description = "Unleashes a tempest on all heroes."
+mp_cost = 15
+skill_type = 0
+attack_type = 2
+status_type = 0
+target_type = 1
+power = 0.9
+element = 5
+status_to_apply = ""
+status_chance = 0.0
+resonance_gain_override = -1.0
+
+[sub_resource type="Resource" id="Skill_zephyr_veil"]
+script = ExtResource("1_skill")
+skill_name = "Zephyr Veil"
+description = "Rides the wind to recover HP."
+mp_cost = 8
+skill_type = 1
+attack_type = 0
+status_type = 0
+target_type = 4
+power = 1.0
+element = 5
+status_to_apply = ""
+status_chance = 0.0
+resonance_gain_override = -1.0
+
+[resource]
+script = ExtResource("2_enemy")
+character_name = "Wind Sprite"
+character_class = "Mage"
+base_hp = 35
+base_mp = 60
+base_attack = 8
+base_defense = 4
+base_magic = 15
+base_speed = 14
+element = 5
+extra_weakness = 0
+extra_resistance = 0
+skills = Array[Skill]([SubResource("Skill_gust_slash"), SubResource("Skill_cyclone_dart"), SubResource("Skill_tempest"), SubResource("Skill_zephyr_veil")])
+species = "Wind Sprite"
+rarity = 0
+base_exp_reward = 15
+base_gold_reward = 8
+drop_table = []

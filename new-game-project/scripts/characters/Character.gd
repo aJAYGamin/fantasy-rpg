@@ -23,7 +23,7 @@ extends Resource
 # --- Runtime State ---
 var current_hp: int
 var current_mp: int
-var level: int = 1
+@export var level: int = 1
 var experience: int = 0
 var experience_to_next: int = 100
 
@@ -31,7 +31,7 @@ var experience_to_next: int = 100
 var inventory: Inventory
 
 # --- Skills ---
-var skills: Array[Skill] = []
+@export var skills: Array[Skill] = []
 
 # --- Status Effects ---
 var status_effects: Array[String] = []
@@ -160,9 +160,7 @@ func level_up():
 	experience -= experience_to_next
 	# Scale EXP requirement — each level needs 50% more than the last
 	experience_to_next = int(experience_to_next * 1.5)
-	# Restore HP/MP on level up
-	current_hp = max_hp()
-	current_mp = max_mp()
+	# Current HP/MP intentionally NOT restored — leveling raises max but keeps current.
 	_learn_skills_at_level()
 
 func _learn_skills_at_level():

@@ -43,6 +43,8 @@ var _enemy_layout: EnemyLayout = EnemyLayout.GRID_2COL
 var _max_hp: Dictionary = {}   # character -> max hp at battle start
 var _max_mp: Dictionary = {}   # character -> max mp at battle start
 var _enemy_hp_bars: Dictionary = {}   # character -> ProgressBar
+var _bar_tweens: Dictionary = {}      # ProgressBar -> Tween (so we can cancel/restart on rapid updates)
+const BAR_TWEEN_DURATION: float = 0.3
 var _enemy_hp_labels: Dictionary = {} # character -> Label
 
 # --- Backgrounds per area ---
@@ -80,7 +82,10 @@ func _ready():
 	victory_screen.victory_closed.connect(_on_victory_closed)
 	victory_screen.setup_level_up_screen(level_up_screen)
 
-	_start_test_battle()
+	if GameManager.in_overworld_battle:
+		_start_overworld_battle()
+	else:
+		_start_test_battle()
 
 func set_background(area: String):
 	if BACKGROUNDS.has(area):
@@ -119,562 +124,51 @@ func start_battle(party: Array[Character], enemies: Array[Character], area: Stri
 func _start_test_battle():
 	await get_tree().process_frame
 	await get_tree().process_frame
-	var hero1 = Character.new()
-	hero1.character_name = "Aria"
-	hero1.character_class = "Mage"
-	hero1.element = ElementalSystem.Element.ARCANE
-	hero1.base_hp = 200
-	hero1.base_mp = 120
-	hero1.base_attack = 8    # Mages have low but non-zero physical attack
-	hero1.base_defense = 6
-	hero1.base_magic = 18
-	hero1.base_speed = 12
-	hero1.experience = 85
-	hero1.experience_to_next = 100
-	hero1.current_hp = hero1.max_hp()
-	hero1.current_mp = hero1.max_mp()
-	hero1.set_meta("ultimate_name", "Void Requiem")
-	hero1.set_meta("ultimate_desc", "Aria tears open the void, unleashing pure amethyst energy on all enemies.")
 
-	# Aria's attacks (index 0-3)
-	var slash = Skill.new()
-	slash.skill_name = "Arcane Slash"
-	slash.description = "A swift slash imbued with arcane energy."
-	slash.skill_type = Skill.SkillType.DAMAGE
-	slash.attack_type = Skill.AttackType.STRIKE
-	slash.element = ElementalSystem.Element.ARCANE
-	slash.power = 1.2
-	slash.mp_cost = 0
-	slash.target_type = Skill.TargetType.SINGLE_ENEMY
+	# Test seed for victory-screen gold animation; only on the first battle of a session.
+	if GameManager.party.is_empty():
+		GameManager.gold = 50
+	GameManager.ensure_default_party()
 
-	var frost = Skill.new()
-	frost.skill_name = "Frost Bolt"
-	frost.description = "A bolt of ice that slows the target."
-	frost.skill_type = Skill.SkillType.DAMAGE
-	frost.attack_type = Skill.AttackType.MAGIC
-	frost.element = ElementalSystem.Element.ICE
-	frost.power = 1.5
-	frost.mp_cost = 12
-	frost.target_type = Skill.TargetType.SINGLE_ENEMY
+	var party: Array[Character] = []
+	for c in GameManager.party:
+		party.append(c)
 
-	var dark_pulse = Skill.new()
-	dark_pulse.skill_name = "Dark Pulse"
-	dark_pulse.description = "A wave of dark energy hitting all enemies."
-	dark_pulse.skill_type = Skill.SkillType.DAMAGE
-	dark_pulse.attack_type = Skill.AttackType.MAGIC
-	dark_pulse.element = ElementalSystem.Element.DARK
-	dark_pulse.power = 1.0
-	dark_pulse.mp_cost = 18
-	dark_pulse.target_type = Skill.TargetType.ALL_ENEMIES
-
-	var heal_spell = Skill.new()
-	heal_spell.skill_name = "Mend"
-	heal_spell.description = "Restores HP to a single ally."
-	heal_spell.skill_type = Skill.SkillType.STATUS
-	heal_spell.status_type = Skill.StatusType.HEAL
-	heal_spell.element = ElementalSystem.Element.LIGHT
-	heal_spell.power = 1.8
-	heal_spell.mp_cost = 15
-	heal_spell.target_type = Skill.TargetType.SINGLE_ALLY
-
-	# Aria's specials (index 4-7)
-	var requiem = Skill.new()
-	requiem.skill_name = "Amethyst Requiem"
-	requiem.description = "Aria's ultimate — a burst of pure amethyst energy."
-	requiem.skill_type = Skill.SkillType.DAMAGE
-	requiem.attack_type = Skill.AttackType.MAGIC
-	requiem.element = ElementalSystem.Element.ARCANE
-	requiem.power = 3.5
-	requiem.mp_cost = 40
-	requiem.target_type = Skill.TargetType.ALL_ENEMIES
-
-	var void_strike = Skill.new()
-	void_strike.skill_name = "Void Strike"
-	void_strike.description = "Strikes through defenses with void energy."
-	void_strike.skill_type = Skill.SkillType.DAMAGE
-	void_strike.attack_type = Skill.AttackType.MAGIC
-	void_strike.element = ElementalSystem.Element.DARK
-	void_strike.power = 2.5
-	void_strike.mp_cost = 25
-	void_strike.target_type = Skill.TargetType.SINGLE_ENEMY
-
-	var aria_barrier = Skill.new()
-	aria_barrier.skill_name = "Arcane Barrier"
-	aria_barrier.description = "Shields all allies with an arcane field."
-	aria_barrier.skill_type = Skill.SkillType.STATUS
-	aria_barrier.status_type = Skill.StatusType.BUFF
-	aria_barrier.element = ElementalSystem.Element.ARCANE
-	aria_barrier.power = 1.0
-	aria_barrier.mp_cost = 20
-	aria_barrier.target_type = Skill.TargetType.ALL_ALLIES
-
-	var mass_heal = Skill.new()
-	mass_heal.skill_name = "Grand Mend"
-	mass_heal.description = "Restores HP to all allies."
-	mass_heal.skill_type = Skill.SkillType.STATUS
-	mass_heal.status_type = Skill.StatusType.HEAL
-	mass_heal.element = ElementalSystem.Element.LIGHT
-	mass_heal.power = 1.5
-	mass_heal.mp_cost = 30
-	mass_heal.target_type = Skill.TargetType.ALL_ALLIES
-
-	var h1_skills: Array[Skill] = [slash, frost, dark_pulse, heal_spell, requiem, void_strike, aria_barrier, mass_heal]
-	hero1.skills = h1_skills
-
-	var hero2 = Character.new()
-	hero2.character_name = "Kael"
-	hero2.character_class = "Warrior"
-	hero2.element = ElementalSystem.Element.FIRE
-	hero2.base_hp = 280
-	hero2.base_mp = 60
-	hero2.base_attack = 20
-	hero2.base_defense = 14
-	hero2.base_magic = 6     # Warriors have low but non-zero magic
-	hero2.base_speed = 8
-	hero2.experience = 0
-	hero2.experience_to_next = 100
-	hero2.current_hp = hero2.max_hp()
-	hero2.current_mp = hero2.max_mp()
-	hero2.set_meta("ultimate_name", "Phoenix Inferno")
-	hero2.set_meta("ultimate_desc", "Kael becomes one with the phoenix, raining fire on all enemies.")
-
-	# Kael's attacks (index 0-3)
-	var flame_strike = Skill.new()
-	flame_strike.skill_name = "Flame Strike"
-	flame_strike.description = "A powerful strike wreathed in fire."
-	flame_strike.skill_type = Skill.SkillType.DAMAGE
-	flame_strike.attack_type = Skill.AttackType.STRIKE
-	flame_strike.element = ElementalSystem.Element.FIRE
-	flame_strike.power = 1.4
-	flame_strike.mp_cost = 0
-	flame_strike.target_type = Skill.TargetType.SINGLE_ENEMY
-
-	var shield_bash = Skill.new()
-	shield_bash.skill_name = "Shield Bash"
-	shield_bash.description = "Stuns the enemy with a powerful bash."
-	shield_bash.skill_type = Skill.SkillType.DAMAGE
-	shield_bash.attack_type = Skill.AttackType.STRIKE
-	shield_bash.element = ElementalSystem.Element.NONE
-	shield_bash.power = 1.0
-	shield_bash.mp_cost = 8
-	shield_bash.status_to_apply = "stun"
-	shield_bash.status_chance = 0.5
-	shield_bash.target_type = Skill.TargetType.SINGLE_ENEMY
-
-	var war_cry = Skill.new()
-	war_cry.skill_name = "War Cry"
-	war_cry.description = "Boosts the party's fighting spirit."
-	war_cry.skill_type = Skill.SkillType.STATUS
-	war_cry.status_type = Skill.StatusType.BUFF
-	war_cry.element = ElementalSystem.Element.NONE
-	war_cry.power = 1.0
-	war_cry.mp_cost = 10
-	war_cry.target_type = Skill.TargetType.ALL_ALLIES
-
-	var inferno = Skill.new()
-	inferno.skill_name = "Inferno"
-	inferno.description = "Engulfs all enemies in roaring flames."
-	inferno.skill_type = Skill.SkillType.DAMAGE
-	inferno.attack_type = Skill.AttackType.MAGIC
-	inferno.element = ElementalSystem.Element.FIRE
-	inferno.power = 1.2
-	inferno.mp_cost = 20
-	inferno.target_type = Skill.TargetType.ALL_ENEMIES
-
-	# Kael's specials (index 4-7)
-	var phoenix = Skill.new()
-	phoenix.skill_name = "Phoenix Fury"
-	phoenix.description = "Kael's ultimate — unleashes the fury of a phoenix."
-	phoenix.skill_type = Skill.SkillType.DAMAGE
-	phoenix.attack_type = Skill.AttackType.MAGIC
-	phoenix.element = ElementalSystem.Element.FIRE
-	phoenix.power = 4.0
-	phoenix.mp_cost = 45
-	phoenix.target_type = Skill.TargetType.ALL_ENEMIES
-
-	var molten = Skill.new()
-	molten.skill_name = "Molten Blade"
-	molten.description = "A blade heated to molten temperatures."
-	molten.skill_type = Skill.SkillType.DAMAGE
-	molten.attack_type = Skill.AttackType.STRIKE
-	molten.element = ElementalSystem.Element.FIRE
-	molten.power = 2.8
-	molten.mp_cost = 28
-	molten.target_type = Skill.TargetType.SINGLE_ENEMY
-
-	var iron_will = Skill.new()
-	iron_will.skill_name = "Iron Will"
-	iron_will.description = "Regenerates HP each turn for the party."
-	iron_will.skill_type = Skill.SkillType.STATUS
-	iron_will.status_type = Skill.StatusType.BUFF
-	iron_will.element = ElementalSystem.Element.NONE
-	iron_will.power = 1.0
-	iron_will.mp_cost = 22
-	iron_will.target_type = Skill.TargetType.ALL_ALLIES
-
-	var flame_wall = Skill.new()
-	flame_wall.skill_name = "Flame Wall"
-	flame_wall.description = "Creates a wall of fire that poisons enemies."
-	flame_wall.skill_type = Skill.SkillType.DAMAGE
-	flame_wall.attack_type = Skill.AttackType.MAGIC
-	flame_wall.element = ElementalSystem.Element.FIRE
-	flame_wall.power = 1.8
-	flame_wall.mp_cost = 32
-	flame_wall.status_to_apply = "burn"
-	flame_wall.status_chance = 0.7
-	flame_wall.target_type = Skill.TargetType.ALL_ENEMIES
-
-	var h2_skills: Array[Skill] = [flame_strike, shield_bash, war_cry, inferno, phoenix, molten, iron_will, flame_wall]
-	hero2.skills = h2_skills
-
-	# Ice Golem — weak to Fire (Kael will do 2x damage)
-	var enemy1 = Character.new()
-	enemy1.character_name = "Ice Golem"
-	enemy1.element = ElementalSystem.Element.ICE
-	enemy1.base_hp = 60
-	enemy1.base_attack = 8
-	enemy1.base_defense = 6
-	enemy1.base_magic = 10
-	enemy1.base_speed = 7
-	enemy1.current_hp = enemy1.max_hp()
-
-	# Ice Golem skills
-	var ice_shard = Skill.new()
-	ice_shard.skill_name = "Ice Shard"
-	ice_shard.skill_type = Skill.SkillType.DAMAGE
-	ice_shard.attack_type = Skill.AttackType.MAGIC
-	ice_shard.element = ElementalSystem.Element.ICE
-	ice_shard.power = 1.2
-	ice_shard.mp_cost = 0
-	ice_shard.target_type = Skill.TargetType.SINGLE_ENEMY
-
-	var blizzard = Skill.new()
-	blizzard.skill_name = "Blizzard"
-	blizzard.skill_type = Skill.SkillType.DAMAGE
-	blizzard.attack_type = Skill.AttackType.MAGIC
-	blizzard.element = ElementalSystem.Element.ICE
-	blizzard.power = 1.8
-	blizzard.mp_cost = 15
-	blizzard.target_type = Skill.TargetType.ALL_ENEMIES
-
-	var frost_armor = Skill.new()
-	frost_armor.skill_name = "Frost Armor"
-	frost_armor.skill_type = Skill.SkillType.STATUS
-	frost_armor.status_type = Skill.StatusType.BUFF
-	frost_armor.element = ElementalSystem.Element.ICE
-	frost_armor.power = 1.0
-	frost_armor.mp_cost = 10
-	frost_armor.target_type = Skill.TargetType.SELF
-
-	var e1_skills: Array[Skill] = [ice_shard, blizzard, frost_armor]
-	enemy1.skills = e1_skills
-
-	# Fire Drake — resists Fire (Kael does 0.5x), weak to Ice
-	var enemy2 = Character.new()
-	enemy2.character_name = "Fire Drake"
-	enemy2.element = ElementalSystem.Element.FIRE
-	enemy2.base_hp = 50
-	enemy2.base_attack = 10
-	enemy2.base_defense = 5
-	enemy2.base_magic = 12
-	enemy2.base_speed = 9
-	enemy2.current_hp = enemy2.max_hp()
-
-	# Fire Drake skills
-	var flame_breath = Skill.new()
-	flame_breath.skill_name = "Flame Breath"
-	flame_breath.skill_type = Skill.SkillType.DAMAGE
-	flame_breath.attack_type = Skill.AttackType.MAGIC
-	flame_breath.element = ElementalSystem.Element.FIRE
-	flame_breath.power = 1.4
-	flame_breath.mp_cost = 0
-	flame_breath.target_type = Skill.TargetType.SINGLE_ENEMY
-
-	var inferno_roar = Skill.new()
-	inferno_roar.skill_name = "Inferno Roar"
-	inferno_roar.skill_type = Skill.SkillType.DAMAGE
-	inferno_roar.attack_type = Skill.AttackType.MAGIC
-	inferno_roar.element = ElementalSystem.Element.FIRE
-	inferno_roar.power = 2.0
-	inferno_roar.mp_cost = 20
-	inferno_roar.target_type = Skill.TargetType.ALL_ENEMIES
-
-	var ember_bite = Skill.new()
-	ember_bite.skill_name = "Ember Bite"
-	ember_bite.skill_type = Skill.SkillType.DAMAGE
-	ember_bite.attack_type = Skill.AttackType.STRIKE
-	ember_bite.element = ElementalSystem.Element.FIRE
-	ember_bite.power = 1.0
-	ember_bite.mp_cost = 0
-	ember_bite.status_to_apply = "burn"
-	ember_bite.status_chance = 0.4
-	ember_bite.target_type = Skill.TargetType.SINGLE_ENEMY
-
-	var dragon_regen = Skill.new()
-	dragon_regen.skill_name = "Dragon Regen"
-	dragon_regen.description = "The Fire Drake regenerates its scales."
-	dragon_regen.skill_type = Skill.SkillType.STATUS
-	dragon_regen.status_type = Skill.StatusType.HEAL
-	dragon_regen.element = ElementalSystem.Element.FIRE
-	dragon_regen.power = 1.5
-	dragon_regen.mp_cost = 10
-	dragon_regen.target_type = Skill.TargetType.SELF
-
-	var e2_skills: Array[Skill] = [flame_breath, inferno_roar, ember_bite, dragon_regen]
-	enemy2.skills = e2_skills
-
-	# Start with 50 gold to verify gold addition on victory screen
-	GameManager.gold = 50
-
-	# Hero 3: Lyra (Wind healer)
-	var hero3 = Character.new()
-	hero3.character_name = "Lyra"
-	hero3.character_class = "Healer"
-	hero3.element = ElementalSystem.Element.WIND
-	hero3.base_hp = 220
-	hero3.base_mp = 100
-	hero3.base_attack = 7
-	hero3.base_defense = 8
-	hero3.base_magic = 16
-	hero3.base_speed = 14
-	hero3.experience = 0
-	hero3.experience_to_next = 100
-	hero3.current_hp = hero3.max_hp()
-	hero3.current_mp = hero3.max_mp()
-	hero3.set_meta("ultimate_name", "Gale Requiem")
-	hero3.set_meta("ultimate_desc", "Lyra calls upon the winds to heal all allies and damage all enemies.")
-
-	# Lyra's attacks (index 0-3)
-	var lyra_wind_slash = Skill.new()
-	lyra_wind_slash.skill_name = "Wind Slash"
-	lyra_wind_slash.description = "A sharp gust of wind that cuts through enemies."
-	lyra_wind_slash.skill_type = Skill.SkillType.DAMAGE
-	lyra_wind_slash.attack_type = Skill.AttackType.STRIKE
-	lyra_wind_slash.element = ElementalSystem.Element.WIND
-	lyra_wind_slash.power = 1.1
-	lyra_wind_slash.mp_cost = 0
-	lyra_wind_slash.target_type = Skill.TargetType.SINGLE_ENEMY
-
-	var lyra_mend = Skill.new()
-	lyra_mend.skill_name = "Mend"
-	lyra_mend.description = "Restores HP to a single ally."
-	lyra_mend.skill_type = Skill.SkillType.STATUS
-	lyra_mend.status_type = Skill.StatusType.HEAL
-	lyra_mend.element = ElementalSystem.Element.WIND
-	lyra_mend.power = 1.8
-	lyra_mend.mp_cost = 12
-	lyra_mend.target_type = Skill.TargetType.SINGLE_ALLY
-
-	var lyra_gust = Skill.new()
-	lyra_gust.skill_name = "Gust"
-	lyra_gust.description = "Blows wind at all enemies dealing light damage."
-	lyra_gust.skill_type = Skill.SkillType.DAMAGE
-	lyra_gust.attack_type = Skill.AttackType.MAGIC
-	lyra_gust.element = ElementalSystem.Element.WIND
-	lyra_gust.power = 0.9
-	lyra_gust.mp_cost = 10
-	lyra_gust.target_type = Skill.TargetType.ALL_ENEMIES
-
-	var lyra_barrier = Skill.new()
-	lyra_barrier.skill_name = "Wind Barrier"
-	lyra_barrier.description = "Surrounds an ally with wind, boosting their defense."
-	lyra_barrier.skill_type = Skill.SkillType.STATUS
-	lyra_barrier.status_type = Skill.StatusType.BUFF
-	lyra_barrier.element = ElementalSystem.Element.WIND
-	lyra_barrier.power = 1.0
-	lyra_barrier.mp_cost = 8
-	lyra_barrier.target_type = Skill.TargetType.SINGLE_ALLY
-
-	# Lyra's specials (index 4-7)
-	var lyra_gale = Skill.new()
-	lyra_gale.skill_name = "Gale Requiem"
-	lyra_gale.description = "Lyra's ultimate — heals all allies and damages all enemies with wild winds."
-	lyra_gale.skill_type = Skill.SkillType.DAMAGE
-	lyra_gale.attack_type = Skill.AttackType.MAGIC
-	lyra_gale.element = ElementalSystem.Element.WIND
-	lyra_gale.power = 3.0
-	lyra_gale.mp_cost = 40
-	lyra_gale.target_type = Skill.TargetType.ALL_ENEMIES
-
-	var lyra_cyclone = Skill.new()
-	lyra_cyclone.skill_name = "Cyclone"
-	lyra_cyclone.description = "A massive cyclone that strikes all enemies twice."
-	lyra_cyclone.skill_type = Skill.SkillType.DAMAGE
-	lyra_cyclone.attack_type = Skill.AttackType.MAGIC
-	lyra_cyclone.element = ElementalSystem.Element.WIND
-	lyra_cyclone.power = 2.2
-	lyra_cyclone.mp_cost = 28
-	lyra_cyclone.target_type = Skill.TargetType.ALL_ENEMIES
-
-	var lyra_grand_mend = Skill.new()
-	lyra_grand_mend.skill_name = "Grand Mend"
-	lyra_grand_mend.description = "Restores HP to all allies."
-	lyra_grand_mend.skill_type = Skill.SkillType.STATUS
-	lyra_grand_mend.status_type = Skill.StatusType.HEAL
-	lyra_grand_mend.element = ElementalSystem.Element.WIND
-	lyra_grand_mend.power = 1.5
-	lyra_grand_mend.mp_cost = 30
-	lyra_grand_mend.target_type = Skill.TargetType.ALL_ALLIES
-
-	var lyra_tailwind = Skill.new()
-	lyra_tailwind.skill_name = "Tailwind"
-	lyra_tailwind.description = "Boosts the speed and attack of all allies."
-	lyra_tailwind.skill_type = Skill.SkillType.STATUS
-	lyra_tailwind.status_type = Skill.StatusType.BUFF
-	lyra_tailwind.element = ElementalSystem.Element.WIND
-	lyra_tailwind.power = 1.0
-	lyra_tailwind.mp_cost = 22
-	lyra_tailwind.target_type = Skill.TargetType.ALL_ALLIES
-
-	var h3_skills: Array[Skill] = [lyra_wind_slash, lyra_mend, lyra_gust, lyra_barrier, lyra_gale, lyra_cyclone, lyra_grand_mend, lyra_tailwind]
-	hero3.skills = h3_skills
-
-	# 10 enemies of varying types
-	var enemy_defs = [
-		{"name": "Ice Golem",    "element": ElementalSystem.Element.ICE,        "hp": 60,  "atk": 8,  "mag": 10},
-		{"name": "Fire Drake",   "element": ElementalSystem.Element.FIRE,       "hp": 50,  "atk": 10, "mag": 12},
-		{"name": "Dark Wraith",  "element": ElementalSystem.Element.DARK,       "hp": 45,  "atk": 12, "mag": 8},
-		{"name": "Storm Eagle",  "element": ElementalSystem.Element.LIGHTNING,  "hp": 40,  "atk": 9,  "mag": 14},
-		{"name": "Earth Golem",  "element": ElementalSystem.Element.EARTH,      "hp": 80,  "atk": 7,  "mag": 6},
-		{"name": "Sea Serpent",  "element": ElementalSystem.Element.WATER,      "hp": 55,  "atk": 11, "mag": 10},
-		{"name": "Wind Sprite",  "element": ElementalSystem.Element.WIND,       "hp": 35,  "atk": 8,  "mag": 15},
-		{"name": "Light Golem",  "element": ElementalSystem.Element.LIGHT,      "hp": 65,  "atk": 9,  "mag": 11},
-		{"name": "Void Shade",   "element": ElementalSystem.Element.ARCANE,     "hp": 42,  "atk": 13, "mag": 13},
-		{"name": "Frost Wyrm",   "element": ElementalSystem.Element.ICE,        "hp": 70,  "atk": 10, "mag": 9},
+	# 10 enemies loaded from data/enemies/*.tres
+	var enemy_files = [
+		"ice_golem", "fire_drake", "dark_wraith", "storm_eagle", "earth_golem",
+		"sea_serpent", "wind_sprite", "light_golem", "void_shade", "frost_wyrm",
 	]
 	var enemies: Array[Character] = []
-	for def in enemy_defs:
-		var e = Character.new()
-		e.character_name = def["name"]
-		e.element = def["element"]
-		e.base_hp = def["hp"]
-		e.base_attack = def["atk"]
-		e.base_defense = 5
-		e.base_magic = def["mag"]
-		e.base_speed = randi_range(6, 12)
-		e.current_hp = e.max_hp()
-		e.skills = _generate_enemy_skills(e)
-		enemies.append(e)
+	for file_name in enemy_files:
+		enemies.append(_load_enemy(file_name))
 
-	# Start with 50 gold to verify gold addition on victory screen
-	GameManager.gold = 50
-
-	var party: Array[Character] = [hero1, hero2, hero3]
 	start_battle(party, enemies, "fallster_plains", EnemyLayout.GRID_2COL)
 
-func _make_skill(skill_name: String, desc: String, type_str: String,
-	elem: ElementalSystem.Element, power: float, mp: int,
-	target: Skill.TargetType, status: String = "", chance: float = 0.0) -> Skill:
-	var s = Skill.new()
-	s.skill_name = skill_name
-	s.description = desc
-	s.element = elem
-	s.power = power
-	s.mp_cost = mp
-	s.target_type = target
-	s.status_to_apply = status
-	s.status_chance = chance
-	# Map type string to new SkillType + AttackType/StatusType
-	match type_str:
-		"STRIKE":
-			s.skill_type = Skill.SkillType.DAMAGE
-			s.attack_type = Skill.AttackType.STRIKE
-		"RANGED":
-			s.skill_type = Skill.SkillType.DAMAGE
-			s.attack_type = Skill.AttackType.RANGED
-		"MAGIC":
-			s.skill_type = Skill.SkillType.DAMAGE
-			s.attack_type = Skill.AttackType.MAGIC
-		"HEAL":
-			s.skill_type = Skill.SkillType.STATUS
-			s.status_type = Skill.StatusType.HEAL
-		"BUFF":
-			s.skill_type = Skill.SkillType.STATUS
-			s.status_type = Skill.StatusType.BUFF
-		"DEBUFF":
-			s.skill_type = Skill.SkillType.STATUS
-			s.status_type = Skill.StatusType.DEBUFF
-	return s
+func _start_overworld_battle():
+	await get_tree().process_frame
+	await get_tree().process_frame
 
-func _get_enemy_unique_skills(enemy_name: String, elem: ElementalSystem.Element) -> Array[Skill]:
-	var T = Skill.TargetType
-	var E = ElementalSystem.Element
-	var skills: Array[Skill] = []
-	match enemy_name:
-		"Ice Golem":
-			skills = [
-				_make_skill("Glacial Fist",   "A frozen punch that chills to the bone.",          "STRIKE", E.ICE,       1.1, 0,  T.SINGLE_ENEMY),
-				_make_skill("Frost Breath",   "Exhales a cone of freezing air.",                  "MAGIC",    E.ICE,       1.4, 10, T.SINGLE_ENEMY, "freeze", 0.35),
-				_make_skill("Blizzard",       "Summons a blizzard hitting all heroes.",            "MAGIC",    E.ICE,       1.0, 18, T.ALL_ENEMIES),
-				_make_skill("Ice Armor",      "Encases itself in ice, restoring some HP.",         "HEAL",     E.ICE,       1.2, 12, T.SELF),
-			]
-		"Fire Drake":
-			skills = [
-				_make_skill("Flame Bite",     "A savage bite that burns on contact.",             "STRIKE", E.FIRE,      1.1, 0,  T.SINGLE_ENEMY, "burn", 0.4),
-				_make_skill("Inferno Breath", "A torrent of fire from its maw.",                  "MAGIC",    E.FIRE,      1.5, 12, T.SINGLE_ENEMY),
-				_make_skill("Dragon Roar",    "A terrifying roar that scorches all heroes.",       "MAGIC",    E.FIRE,      1.0, 20, T.ALL_ENEMIES),
-				_make_skill("Fire Scales",    "Channels fire energy to regenerate HP.",            "HEAL",     E.FIRE,      1.2, 12, T.SELF),
-			]
-		"Dark Wraith":
-			skills = [
-				_make_skill("Shadow Claw",    "A claw strike infused with dark energy.",          "STRIKE", E.DARK,      1.2, 0,  T.SINGLE_ENEMY),
-				_make_skill("Soul Drain",     "Drains the life force of a hero.",                 "MAGIC",    E.DARK,      1.4, 10, T.SINGLE_ENEMY, "poison", 0.5),
-				_make_skill("Dark Pulse",     "A wave of dark energy that corrupts all heroes.",  "MAGIC",    E.DARK,      1.0, 18, T.ALL_ENEMIES),
-				_make_skill("Void Shroud",    "Wraps itself in darkness, healing its wounds.",    "HEAL",     E.DARK,      1.1, 10, T.SELF),
-			]
-		"Storm Eagle":
-			skills = [
-				_make_skill("Talon Strike",   "A lightning-fast talon attack.",                   "STRIKE", E.LIGHTNING, 1.2, 0,  T.SINGLE_ENEMY),
-				_make_skill("Thunder Beak",   "Strikes with a beak charged with lightning.",      "MAGIC",    E.LIGHTNING, 1.4, 10, T.SINGLE_ENEMY, "stun", 0.3),
-				_make_skill("Storm Dive",     "Dives through the party trailing lightning.",       "MAGIC",    E.LIGHTNING, 1.0, 18, T.ALL_ENEMIES),
-				_make_skill("Wind Ride",      "Rides an updraft to recover HP.",                  "HEAL",     E.LIGHTNING, 1.0, 10, T.SELF),
-			]
-		"Earth Golem":
-			skills = [
-				_make_skill("Boulder Smash",  "Slams a massive fist into one hero.",              "STRIKE", E.EARTH,     1.3, 0,  T.SINGLE_ENEMY),
-				_make_skill("Stone Spike",    "Drives a spike of rock into a hero.",              "MAGIC",    E.EARTH,     1.3, 10, T.SINGLE_ENEMY),
-				_make_skill("Earthquake",     "Shakes the ground beneath all heroes.",            "MAGIC",    E.EARTH,     1.0, 20, T.ALL_ENEMIES),
-				_make_skill("Earth Mend",     "Draws energy from the earth to heal.",             "HEAL",     E.EARTH,     1.4, 14, T.SELF),
-			]
-		"Sea Serpent":
-			skills = [
-				_make_skill("Coil Crush",     "Wraps around and crushes a hero.",                 "STRIKE", E.WATER,     1.2, 0,  T.SINGLE_ENEMY),
-				_make_skill("Tidal Wave",     "Crashes water over one hero.",                     "MAGIC",    E.WATER,     1.4, 10, T.SINGLE_ENEMY),
-				_make_skill("Whirlpool",      "Creates a whirlpool that pulls all heroes in.",    "MAGIC",    E.WATER,     1.0, 18, T.ALL_ENEMIES),
-				_make_skill("Sea Foam",       "Uses ocean energy to restore HP.",                 "HEAL",     E.WATER,     1.2, 12, T.SELF),
-			]
-		"Wind Sprite":
-			skills = [
-				_make_skill("Gust Slash",     "A razor-sharp wind that cuts deep.",               "STRIKE", E.WIND,      1.1, 0,  T.SINGLE_ENEMY),
-				_make_skill("Cyclone Dart",   "Launches a spinning dart of wind.",                "MAGIC",    E.WIND,      1.3, 8,  T.SINGLE_ENEMY),
-				_make_skill("Tempest",        "Unleashes a tempest on all heroes.",               "MAGIC",    E.WIND,      0.9, 15, T.ALL_ENEMIES),
-				_make_skill("Zephyr Veil",    "Rides the wind to recover HP.",                    "HEAL",     E.WIND,      1.0, 8,  T.SELF),
-			]
-		"Light Golem":
-			skills = [
-				_make_skill("Radiant Punch",  "A punch that burns with holy light.",              "STRIKE", E.LIGHT,     1.1, 0,  T.SINGLE_ENEMY),
-				_make_skill("Holy Beam",      "Fires a concentrated beam of light.",              "MAGIC",    E.LIGHT,     1.5, 12, T.SINGLE_ENEMY),
-				_make_skill("Sacred Flash",   "A blinding flash that hits all heroes.",           "MAGIC",    E.LIGHT,     1.0, 20, T.ALL_ENEMIES),
-				_make_skill("Mending Light",  "Heals wounds using radiant energy.",               "HEAL",     E.LIGHT,     1.3, 12, T.SELF),
-			]
-		"Void Shade":
-			skills = [
-				_make_skill("Null Strike",    "A strike from the void that drains energy.",       "STRIKE", E.ARCANE,    1.2, 0,  T.SINGLE_ENEMY, "poison", 0.35),
-				_make_skill("Arcane Bolt",    "A bolt of pure arcane energy.",                    "MAGIC",    E.ARCANE,    1.4, 10, T.SINGLE_ENEMY),
-				_make_skill("Void Burst",     "An explosion of void energy hitting all heroes.",  "MAGIC",    E.ARCANE,    1.1, 20, T.ALL_ENEMIES),
-				_make_skill("Void Mend",      "Absorbs void energy to restore HP.",               "HEAL",     E.ARCANE,    1.1, 10, T.SELF),
-			]
-		"Frost Wyrm":
-			skills = [
-				_make_skill("Frozen Bite",    "A bite so cold it freezes solid.",                 "STRIKE", E.ICE,       1.2, 0,  T.SINGLE_ENEMY, "freeze", 0.4),
-				_make_skill("Ice Lance",      "Hurls a lance of pure ice.",                       "MAGIC",    E.ICE,       1.5, 12, T.SINGLE_ENEMY),
-				_make_skill("Frozen Gale",    "Breathes a freezing gale over all heroes.",        "MAGIC",    E.ICE,       1.1, 20, T.ALL_ENEMIES),
-				_make_skill("Wyrm Regen",     "Scales shimmer as HP is slowly restored.",         "HEAL",     E.ICE,       1.3, 14, T.SELF),
-			]
-		_:
-			# Fallback generic skills
-			skills = _generate_enemy_skills(Character.new())
-	return skills
+	# Party must already exist — overworld populates it before this scene runs.
+	var party: Array[Character] = []
+	for c in GameManager.party:
+		party.append(c)
+
+	var enemies: Array[Character] = []
+	for file_name in GameManager.pending_battle_enemies:
+		enemies.append(_load_enemy(file_name))
+
+	start_battle(party, enemies, "fallster_plains", EnemyLayout.GRID_2COL)
+
+# Loads an enemy resource and prepares it for battle.
+# duplicate(true) gives each spawn its own HP/state — without it all spawns share one Resource.
+func _load_enemy(file_name: String) -> Enemy:
+	var enemy: Enemy = load("res://data/enemies/%s.tres" % file_name).duplicate(true)
+	enemy.current_hp = enemy.max_hp()
+	enemy.current_mp = enemy.max_mp()
+	if enemy.inventory == null:
+		enemy.inventory = Inventory.new()
+	return enemy
 
 # --- UI Setup ---
 func _setup_hero_panels(party: Array[Character]):
@@ -682,11 +176,41 @@ func _setup_hero_panels(party: Array[Character]):
 	for i in range(panels.size()):
 		if i < party.size():
 			panels[i].visible = true
-			_update_hero_panel(panels[i], party[i])
+			# animate=false so bars show their starting values instantly at battle setup
+			_update_hero_panel(panels[i], party[i], false)
 		else:
 			panels[i].visible = false
 
-func _update_hero_panel(panel: PanelContainer, hero: Character):
+# Smoothly tweens a ProgressBar's value and updates its label text in lockstep.
+# label_fn receives the interpolated value each frame and returns the text to display.
+# Cancels any in-progress tween on the same bar so rapid updates don't fight each other.
+func _animate_bar(bar: ProgressBar, label: Label, target: float, label_fn: Callable, duration: float = BAR_TWEEN_DURATION) -> void:
+	if not is_instance_valid(bar):
+		return
+	if _bar_tweens.has(bar):
+		var old = _bar_tweens[bar]
+		if old != null and old.is_valid():
+			old.kill()
+		_bar_tweens.erase(bar)
+
+	var start_val: float = bar.value
+	if is_equal_approx(start_val, target):
+		if label != null and is_instance_valid(label):
+			label.text = label_fn.call(target)
+		return
+
+	var tween = create_tween().set_parallel(true)
+	tween.tween_property(bar, "value", target, duration)
+	if label != null and is_instance_valid(label):
+		tween.tween_method(
+			func(v: float):
+				if is_instance_valid(label):
+					label.text = label_fn.call(v),
+			start_val, target, duration
+		)
+	_bar_tweens[bar] = tween
+
+func _update_hero_panel(panel: PanelContainer, hero: Character, animate: bool = true):
 	var layout = panel.get_node("HeroLayout")
 	layout.get_node("HeroNameLabel").text = "  %s · Lv%d" % [hero.character_name, hero.level]
 
@@ -702,10 +226,14 @@ func _update_hero_panel(panel: PanelContainer, hero: Character):
 
 	# --- HP ---
 	hp_bar.max_value = hero.max_hp()
-	hp_bar.value = hero.current_hp
-	hp_val.text = "%d/%d" % [hero.current_hp, hero.max_hp()]
+	var hp_label_fn := func(v: float) -> String: return "%d/%d" % [int(v), hero.max_hp()]
+	if animate:
+		_animate_bar(hp_bar, hp_val, hero.current_hp, hp_label_fn)
+	else:
+		hp_bar.value = hero.current_hp
+		hp_val.text = hp_label_fn.call(hero.current_hp)
 
-	# HP color based on percentage
+	# HP color based on percentage (instant — modulate isn't worth tweening)
 	var hp_pct = float(hero.current_hp) / float(hero.max_hp())
 	var hp_color: Color
 	if hp_pct >= 0.5:
@@ -723,8 +251,12 @@ func _update_hero_panel(panel: PanelContainer, hero: Character):
 
 	# --- MP ---
 	mp_bar.max_value = hero.max_mp()
-	mp_bar.value = hero.current_mp
-	mp_val.text = "%d/%d" % [hero.current_mp, hero.max_mp()]
+	var mp_label_fn := func(v: float) -> String: return "%d/%d" % [int(v), hero.max_mp()]
+	if animate:
+		_animate_bar(mp_bar, mp_val, hero.current_mp, mp_label_fn)
+	else:
+		mp_bar.value = hero.current_mp
+		mp_val.text = mp_label_fn.call(hero.current_mp)
 
 	var mp_color = Color(0.3, 0.65, 1.0)        # Light blue
 	mp_bar.modulate = mp_color
@@ -734,44 +266,42 @@ func _update_hero_panel(panel: PanelContainer, hero: Character):
 	# --- Resonance ---
 	var res_pct = resonance_system.get_resonance_percent(hero) * 100
 	res_bar.max_value = 100
-	res_bar.value = res_pct
+	var res_label_fn := func(v: float) -> String:
+		if v >= 100.0:
+			return "FULL ✦"
+		return "%d%%" % int(v)
+	if animate:
+		_animate_bar(res_bar, res_val, res_pct, res_label_fn)
+	else:
+		res_bar.value = res_pct
+		res_val.text = res_label_fn.call(res_pct)
 
 	var res_color = Color(0.72, 0.55, 1.0)      # Light purple
 	res_bar.modulate = res_color
 	res_lbl.add_theme_color_override("font_color", res_color)
-
 	if resonance_system.is_full(hero):
-		res_val.text = "FULL ✦"
 		res_val.add_theme_color_override("font_color", Color(0.88, 0.69, 1.0))
 	else:
-		res_val.text = "%d%%" % int(res_pct)
 		res_val.add_theme_color_override("font_color", res_color)
 
 func _setup_enemy_cards(enemies: Array[Character]):
 	for child in enemy_info_row.get_children():
 		child.queue_free()
 
-	enemy_info_row.alignment = BoxContainer.ALIGNMENT_BEGIN
+	# Cards are fixed-width and centered. 10 enemies fill the row; fewer cluster in the middle.
+	# Bosses/key enemies will later flag as "is_boss" to use SIZE_EXPAND_FILL instead.
+	enemy_info_row.alignment = BoxContainer.ALIGNMENT_CENTER
 
-	var screen_w = get_viewport().get_visible_rect().size.x
 	var count = mini(enemies.size(), 10)
-	# Leave 16px margin on each side and 2px spacing between cards
-	var margin = 32
-	var spacing = 2 * (count - 1)
-	var card_width = max(60.0, (screen_w - margin - spacing) / count)
-
 	for i in range(count):
 		var card = _create_enemy_card(enemies[i])
-		card.custom_minimum_size = Vector2(card_width, 0)
-		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		enemy_info_row.add_child(card)
 
 func _create_enemy_card(enemy: Character) -> PanelContainer:
 	var card = PanelContainer.new()
-	# Scale card width based on enemy count — fewer enemies = wider cards
-	var enemy_count = mini(battle_manager.enemies.size(), 10)
-	var card_width = clamp(1280.0 / enemy_count - 8, 80, 260)
-	card.custom_minimum_size = Vector2(card_width, 70)
+	# Fixed width — cards no longer stretch when there are few enemies.
+	# 10 cards × 124 + 9 × 2 spacing = 1258, fits comfortably in the 1280-wide viewport.
+	card.custom_minimum_size = Vector2(124, 70)
 
 	var vbox = VBoxContainer.new()
 	card.add_child(vbox)
@@ -796,9 +326,9 @@ func _create_enemy_card(enemy: Character) -> PanelContainer:
 		gem.texture = icon_texture
 	name_row.add_child(gem)
 
-	# Name label
+	# Name label — includes level indicator (matches hero panel format)
 	var name_lbl = Label.new()
-	name_lbl.text = enemy.character_name
+	name_lbl.text = "%s · Lv%d" % [enemy.character_name, enemy.level]
 	name_lbl.add_theme_font_size_override("font_size", 11)
 	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -923,6 +453,12 @@ func _on_enemy_move_preview(enemy: Character, move_name: String):
 		# Position below the card using its global position
 		$BattleUI/UIRoot.add_child(panel)
 		await get_tree().process_frame
+		# Card may have been freed by an enemy-card rebuild during the yield (e.g. an enemy
+		# died on the previous turn and the 0.4s delayed rebuild fired). Bail out cleanly.
+		if not is_instance_valid(card) or not is_instance_valid(panel):
+			if is_instance_valid(panel):
+				panel.queue_free()
+			return
 		var card_pos = card.global_position
 		var ui_pos = $BattleUI/UIRoot.global_position
 		panel.position = Vector2(
@@ -940,7 +476,10 @@ func _refresh_enemy_card(enemy: Character):
 	if not is_instance_valid(hp_bar):
 		return
 	var enemy_max_hp = _max_hp.get(enemy, enemy.max_hp())
-	hp_bar.value = enemy.current_hp
+
+	var hp_label_fn := func(v: float) -> String: return "%d/%d" % [int(v), enemy_max_hp]
+	_animate_bar(hp_bar, hp_lbl, enemy.current_hp, hp_label_fn)
+
 	var hp_pct = float(enemy.current_hp) / float(enemy_max_hp)
 	var hp_color: Color
 	if hp_pct >= 0.5:
@@ -953,7 +492,6 @@ func _refresh_enemy_card(enemy: Character):
 		hp_color = Color(0.9, 0.15, 0.15)
 	hp_bar.modulate = hp_color
 	if hp_lbl and is_instance_valid(hp_lbl):
-		hp_lbl.text = "%d/%d" % [enemy.current_hp, enemy_max_hp]
 		hp_lbl.add_theme_color_override("font_color", hp_color)
 
 func _on_action_performed(result: Dictionary):
@@ -1005,13 +543,13 @@ func _on_character_defeated(character: Character):
 var _card_rebuild_queued: bool = false
 
 func _remove_enemy_card(_enemy: Character):
-	# Queue a rebuild instead of rebuilding immediately
-	# This handles multiple enemies dying in one turn
+	# Queue a rebuild instead of rebuilding immediately.
+	# Waits for the HP-drain tween to finish so the bar doesn't snap to 0 visually.
+	# Multiple enemies dying in one turn (AoE) all collapse into one rebuild via the queue flag.
 	if _card_rebuild_queued:
 		return
 	_card_rebuild_queued = true
-	await get_tree().process_frame
-	await get_tree().process_frame
+	await get_tree().create_timer(BAR_TWEEN_DURATION + 0.1).timeout
 	_rebuild_enemy_cards()
 	_card_rebuild_queued = false
 
@@ -1021,29 +559,25 @@ func _rebuild_enemy_cards():
 		card.queue_free()
 	if alive_enemies.is_empty():
 		return
-	var screen_w = get_viewport().get_visible_rect().size.x
-	var count = alive_enemies.size()
-	var margin = 32
-	var spacing = 2 * (count - 1)
-	var card_width = max(60.0, (screen_w - margin - spacing) / count)
+	# Match _setup_enemy_cards: fixed-width cards, centered. No SIZE_EXPAND_FILL.
 	enemy_info_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	for e in alive_enemies:
 		var card = _create_enemy_card(e)
-		card.custom_minimum_size = Vector2(card_width, 0)
-		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		enemy_info_row.add_child(card)
 
 func _on_battle_ended(player_won: bool, rewards: Dictionary):
 	_battle_over = true
 	_toggle_action_menu(false)
-	# Hide battle UI elements immediately
-	enemy_info_row.visible = false
-	party_status_bar.visible = false
-	turn_order_indicator.visible = false
+	# Hide menus immediately (no animations on these), but let HP/MP/Resonance bars
+	# finish their tween so the killing blow's drain is visible to the player.
 	attack_menu.visible = false
 	action_menu.visible = false
 	resonance_menu.visible = false
 	items_menu.visible = false
+	await get_tree().create_timer(BAR_TWEEN_DURATION + 0.1).timeout
+	enemy_info_row.visible = false
+	party_status_bar.visible = false
+	turn_order_indicator.visible = false
 	if player_won:
 		GameManager.award_rewards(rewards)
 		for enemy in battle_manager.enemies:
@@ -1054,8 +588,18 @@ func _on_battle_ended(player_won: bool, rewards: Dictionary):
 		defeat_screen.show_defeat()
 
 func _on_victory_closed():
-	# Return to game — for now go back to main menu until world map is built
-	get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")
+	if GameManager.in_overworld_battle:
+		_return_to_overworld()
+	else:
+		get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")
+
+# Returns the player to the overworld scene at their pre-encounter position.
+# OverworldScene._ready handles the position restore and clears in_overworld_battle.
+func _return_to_overworld():
+	var path: String = GameManager.pending_overworld_scene_path
+	if path == "":
+		path = "res://scenes/OverworldScene.tscn"
+	get_tree().change_scene_to_file(path)
 
 func _on_status_triggered(character: Character, result: Dictionary):
 	print("%s: %s %d" % [character.character_name, result["type"], result["value"]])
@@ -1371,91 +915,6 @@ func _find_portrait_in(container: Node, portrait_name: String) -> Node:
 			return found
 	return null
 
-func _generate_enemy_skills(enemy: Character) -> Array[Skill]:
-	var skills: Array[Skill] = []
-	var elem = enemy.element
-	var elem_name = ElementalSystem.get_element_name(elem)
-
-	# Basic attack — always free, single target
-	var basic = Skill.new()
-	basic.skill_name = "%s Strike" % elem_name
-	basic.description = "A basic elemental strike."
-	basic.skill_type = Skill.SkillType.DAMAGE
-	basic.attack_type = Skill.AttackType.STRIKE
-	basic.element = elem
-	basic.power = 1.0
-	basic.mp_cost = 0
-	basic.target_type = Skill.TargetType.SINGLE_ENEMY
-	skills.append(basic)
-
-	# Magic attack — costs MP, single target
-	var magic = Skill.new()
-	magic.skill_name = "%s Bolt" % elem_name
-	magic.description = "A focused burst of elemental energy."
-	magic.skill_type = Skill.SkillType.DAMAGE
-	magic.attack_type = Skill.AttackType.MAGIC
-	magic.element = elem
-	magic.power = 1.4
-	magic.mp_cost = 10
-	magic.target_type = Skill.TargetType.SINGLE_ENEMY
-	skills.append(magic)
-
-	# AoE attack — costs more MP, hits all heroes
-	var aoe = Skill.new()
-	aoe.skill_name = "%s Wave" % elem_name
-	aoe.description = "A wave of elemental energy hitting all heroes."
-	aoe.skill_type = Skill.SkillType.DAMAGE
-	aoe.attack_type = Skill.AttackType.MAGIC
-	aoe.element = elem
-	aoe.power = 1.0
-	aoe.mp_cost = 18
-	aoe.target_type = Skill.TargetType.ALL_ENEMIES
-	skills.append(aoe)
-
-	# Self heal — available to tougher enemies
-	if enemy.base_hp >= 60:
-		var heal = Skill.new()
-		heal.skill_name = "%s Mend" % elem_name
-		heal.description = "Channels elemental energy to restore HP."
-		heal.skill_type = Skill.SkillType.STATUS
-		heal.status_type = Skill.StatusType.HEAL
-		heal.element = elem
-		heal.power = 1.2
-		heal.mp_cost = 12
-		heal.target_type = Skill.TargetType.SELF
-		skills.append(heal)
-
-	# Status attack — applies status effect, no damage
-	var status = Skill.new()
-	status.skill_name = "%s Curse" % elem_name
-	status.description = "Inflicts a status condition on one hero."
-	status.skill_type = Skill.SkillType.STATUS
-	status.status_type = Skill.StatusType.DEBUFF
-	status.element = elem
-	status.power = 0.0
-	status.mp_cost = 8
-	status.target_type = Skill.TargetType.SINGLE_ENEMY
-	# Assign status based on element
-	match elem:
-		ElementalSystem.Element.FIRE:
-			status.status_to_apply = "burn"
-			status.status_chance = 0.5
-		ElementalSystem.Element.ICE:
-			status.status_to_apply = "freeze"
-			status.status_chance = 0.4
-		ElementalSystem.Element.LIGHTNING:
-			status.status_to_apply = "stun"
-			status.status_chance = 0.35
-		ElementalSystem.Element.DARK:
-			status.status_to_apply = "poison"
-			status.status_chance = 0.5
-		_:
-			status.status_to_apply = "poison"
-			status.status_chance = 0.3
-	skills.append(status)
-
-	return skills
-
 func _create_test_items() -> Array[Item]:
 	var items: Array[Item] = []
 
@@ -1572,7 +1031,10 @@ func _handle_item_result(result: Dictionary):
 
 func _on_run_pressed():
 	action_menu.visible = false
-	get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")
+	if GameManager.in_overworld_battle:
+		_return_to_overworld()
+	else:
+		get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")
 
 func _on_resonance_pressed():
 	if current_actor == null:
@@ -1635,7 +1097,7 @@ func _update_resonance_button():
 		return
 	var is_full = resonance_system.is_full(current_actor)
 	resonance_btn.disabled = not is_full
-	resonance_btn.text = "💜 Resonance — READY" if is_full else "💜 Resonance"
+	resonance_btn.text = "✦ Resonance — READY" if is_full else "✦ Resonance"
 	resonance_btn.modulate = Color(1.0, 0.9, 1.0) if is_full else Color(0.6, 0.5, 0.7)
 
 # --- Helpers ---

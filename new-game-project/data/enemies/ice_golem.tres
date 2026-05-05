@@ -1,0 +1,49 @@
+[gd_resource type="Resource" script_class="Enemy" format=3 uid="uid://dde6fq4k6qscu"]
+
+[ext_resource type="Script" uid="uid://cjbcaorle0k6n" path="res://scripts/characters/Skill.gd" id="1_skill"]
+[ext_resource type="Script" uid="uid://bc8mpswi1cxid" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
+[ext_resource type="Resource" uid="uid://bdbqhpryylbig" path="res://data/skills/Skill_blizzard.tres" id="3_tilns"]
+
+[sub_resource type="Resource" id="Skill_glacial_fist"]
+script = ExtResource("1_skill")
+skill_name = "Glacial Fist"
+description = "A frozen punch that chills to the bone."
+power = 1.1
+element = 2
+
+[sub_resource type="Resource" id="Skill_frost_breath"]
+script = ExtResource("1_skill")
+skill_name = "Frost Breath"
+description = "Exhales a cone of freezing air."
+mp_cost = 10
+attack_type = 2
+power = 1.4
+element = 2
+status_to_apply = "freeze"
+status_chance = 0.35
+
+[sub_resource type="Resource" id="Skill_ice_armor"]
+script = ExtResource("1_skill")
+skill_name = "Ice Armor"
+description = "Encases itself in ice, restoring some HP."
+mp_cost = 12
+skill_type = 1
+target_type = 4
+power = 1.2
+element = 2
+
+[resource]
+script = ExtResource("2_enemy")
+species = "Ice Golem"
+rarity = 1
+base_exp_reward = 25
+base_gold_reward = 12
+character_name = "Ice Golem"
+base_hp = 60
+base_attack = 8
+base_defense = 6
+base_magic = 10
+base_speed = 7
+element = 2
+extra_weakness = 1
+skills = Array[ExtResource("1_skill")]([SubResource("Skill_glacial_fist"), SubResource("Skill_frost_breath"), ExtResource("3_tilns"), SubResource("Skill_ice_armor")])

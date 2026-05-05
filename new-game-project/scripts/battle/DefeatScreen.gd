@@ -31,7 +31,15 @@ func show_defeat():
 
 func _on_continue():
 	emit_signal("continue_from_save")
-	if GameManager.load_game():
+	if GameManager.in_overworld_battle:
+		# Phase 2c: revive party at 50% HP and return to overworld at saved position.
+		# Proper game-over with save-reload flow comes once save points exist.
+		GameManager.revive_party()
+		var path: String = GameManager.pending_overworld_scene_path
+		if path == "":
+			path = "res://scenes/OverworldScene.tscn"
+		get_tree().change_scene_to_file(path)
+	elif GameManager.load_game():
 		get_tree().change_scene_to_file("res://scenes/BattleScene.tscn")
 	else:
 		get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")

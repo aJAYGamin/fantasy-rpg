@@ -1,0 +1,84 @@
+[gd_resource type="Resource" script_class="Enemy" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+[ext_resource type="Script" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
+
+[sub_resource type="Resource" id="Skill_null_strike"]
+script = ExtResource("1_skill")
+skill_name = "Null Strike"
+description = "A strike from the void that drains energy."
+mp_cost = 0
+skill_type = 0
+attack_type = 0
+status_type = 0
+target_type = 0
+power = 1.2
+element = 9
+status_to_apply = "poison"
+status_chance = 0.35
+resonance_gain_override = -1.0
+
+[sub_resource type="Resource" id="Skill_arcane_bolt"]
+script = ExtResource("1_skill")
+skill_name = "Arcane Bolt"
+description = "A bolt of pure arcane energy."
+mp_cost = 10
+skill_type = 0
+attack_type = 2
+status_type = 0
+target_type = 0
+power = 1.4
+element = 9
+status_to_apply = ""
+status_chance = 0.0
+resonance_gain_override = -1.0
+
+[sub_resource type="Resource" id="Skill_void_burst"]
+script = ExtResource("1_skill")
+skill_name = "Void Burst"
+description = "An explosion of void energy hitting all heroes."
+mp_cost = 20
+skill_type = 0
+attack_type = 2
+status_type = 0
+target_type = 1
+power = 1.1
+element = 9
+status_to_apply = ""
+status_chance = 0.0
+resonance_gain_override = -1.0
+
+[sub_resource type="Resource" id="Skill_void_mend"]
+script = ExtResource("1_skill")
+skill_name = "Void Mend"
+description = "Absorbs void energy to restore HP."
+mp_cost = 10
+skill_type = 1
+attack_type = 0
+status_type = 0
+target_type = 4
+power = 1.1
+element = 9
+status_to_apply = ""
+status_chance = 0.0
+resonance_gain_override = -1.0
+
+[resource]
+script = ExtResource("2_enemy")
+character_name = "Void Shade"
+character_class = "Mage"
+base_hp = 42
+base_mp = 60
+base_attack = 13
+base_defense = 5
+base_magic = 13
+base_speed = 10
+element = 9
+extra_weakness = 0
+extra_resistance = 0
+skills = Array[Skill]([SubResource("Skill_null_strike"), SubResource("Skill_arcane_bolt"), SubResource("Skill_void_burst"), SubResource("Skill_void_mend")])
+species = "Void Shade"
+rarity = 2
+base_exp_reward = 40
+base_gold_reward = 20
+drop_table = []

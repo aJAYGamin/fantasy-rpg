@@ -24,6 +24,14 @@ var completed_quests: Array[String] = []
 var story_flags: Dictionary = {}   # e.g. {"met_elder": true, "darkwood_cleared": false}
 var play_time_seconds: float = 0.0
 
+# ─── Overworld ↔ Battle Handoff ──────────────────────────
+# Set by overworld when an encounter triggers; consumed by BattleScene.
+# pending_overworld_scene_path is also used by battle screens to know where to return.
+var in_overworld_battle: bool = false
+var pending_battle_enemies: Array[String] = []
+var pending_overworld_scene_path: String = ""
+var pending_overworld_return_position: Vector2 = Vector2.ZERO
+
 # ─── Save/Load ───────────────────────────────────────────
 const SAVE_PATH = "user://savegame.json"
 
@@ -31,6 +39,11 @@ func _process(delta):
 	play_time_seconds += delta
 
 # ─── Party Management ────────────────────────────────────
+func ensure_default_party():
+	if party.is_empty():
+		for hero in PartyFactory.create_default_party():
+			party.append(hero)
+
 func add_to_party(character: Character) -> bool:
 	if party.size() >= MAX_PARTY_SIZE:
 		print("Party is full!")
@@ -81,17 +94,12 @@ func get_flag(flag: String, default = false):
 	return story_flags.get(flag, default)
 
 # ─── Award battle rewards to party ───────────────────────
+# Note: EXP is intentionally NOT applied here. VictoryScreen owns the EXP+level-up
+# animation/UX and calls Character.gain_experience() itself. Applying it here too
+# would double-count the EXP and silently level heroes past the LevelUpScreen.
 func award_rewards(rewards: Dictionary):
 	if rewards.has("gold"):
 		earn_gold(rewards["gold"])
-
-	if rewards.has("exp") and rewards["exp"] > 0:
-		var exp_share = int(rewards["exp"] / max(1, party.size()))
-		for character in party:
-			if character.is_alive():
-				var leveled = character.gain_experience(exp_share)
-				if leveled:
-					print("%s leveled up to %d!" % [character.character_name, character.level])
 
 	if rewards.has("items"):
 		for item in rewards["items"]:

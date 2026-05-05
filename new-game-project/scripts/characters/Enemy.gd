@@ -19,7 +19,7 @@ const MEMORY_THRESHOLD_2 = 7   # Actively adapts
 const MEMORY_THRESHOLD_3 = 15  # Fully adapted
 
 # --- Drop table ---
-var drop_table: Array[Dictionary] = []
+@export var drop_table: Array[Dictionary] = []
 # Format: [{"item_name": "Health Potion", "chance": 0.3, "quantity": 1}]
 
 func _init():

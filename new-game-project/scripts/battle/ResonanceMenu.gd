@@ -90,7 +90,7 @@ func _build_menu():
 	if _current_hero.has_meta("ultimate_desc"):
 		solo_desc = _current_hero.get_meta("ultimate_desc")
 	var solo_row = _create_resonance_btn(
-		"💜 %s" % solo_name,
+		"✦ %s" % solo_name,
 		solo_desc,
 		Color(0.75, 0.4, 1.0),
 		cinzel, cinzel_bold
@@ -117,7 +117,7 @@ func _build_menu():
 			var combined_name = COMBINED_ATTACK_NAMES.get(pair_key, "Resonance Strike")
 			var combined_desc = "%s and %s combine their resonance!" % [_current_hero.character_name, partner.character_name]
 			var combined_row = _create_resonance_btn(
-				"✦ %s" % combined_name,
+				"✦✦ %s" % combined_name,
 				combined_desc,
 				Color(1.0, 0.75, 0.3),
 				cinzel, cinzel_bold
@@ -211,7 +211,7 @@ func _add_triple_resonance(vbox: VBoxContainer, cinzel, cinzel_bold):
 	vbox.add_child(sep)
 
 	var triple_row = _create_resonance_btn(
-		"✦✦ %s" % triple_name,
+		"✦✦✦ %s" % triple_name,
 		triple_desc,
 		Color(1.0, 0.95, 0.4),
 		cinzel, cinzel_bold
