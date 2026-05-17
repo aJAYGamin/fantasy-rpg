@@ -250,8 +250,8 @@ BattleScene (Node2D)
 
 ## Permissions / Settings
 - Project allowlist: `<repo-root>/.claude/settings.json` (`permissions.allow`).
-- Allowlisted = safe read-only Bash (`cat`, `grep`, `rg`, `ls`, `find`, `wc`,
-  `head`, `tail`, `echo`, `git status/diff/log/branch/show`).
+- Allowlisted = safe read-only Bash (`cd`, `cat`, `grep`, `rg`, `ls`, `find`,
+  `wc`, `head`, `tail`, `echo`, `git status/diff/log/branch/show`).
 - `Edit`/`Write`/`MultiEdit` are allowed **repo-wide without prompting**, scoped
   to the repo root path (`Edit(//.../fantasy-rpg/**)` etc). Edits *outside* the
   repo still prompt — keep that boundary; don't broaden to a blanket tool grant.
