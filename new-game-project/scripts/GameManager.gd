@@ -27,8 +27,11 @@ var play_time_seconds: float = 0.0
 # ─── Overworld ↔ Battle Handoff ──────────────────────────
 # Set by overworld when an encounter triggers; consumed by BattleScene.
 # pending_overworld_scene_path is also used by battle screens to know where to return.
+# Enemies are pre-instantiated (deep-copied templates with level/HP/MP set) so
+# BattleScene doesn't need to know about EncounterGroup or MapArea details.
 var in_overworld_battle: bool = false
-var pending_battle_enemies: Array[String] = []
+var pending_battle_enemies: Array[Enemy] = []
+var pending_battle_background: String = "fallster_plains"
 var pending_overworld_scene_path: String = ""
 var pending_overworld_return_position: Vector2 = Vector2.ZERO
 

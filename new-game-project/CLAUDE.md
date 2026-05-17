@@ -19,8 +19,14 @@ polishing UI, and expanding content (maps, enemies, items, story).
 ## File Structure
 ```
 scripts/
-  GameManager.gd              # Autoload: party, gold, saves, species memory
+  GameManager.gd              # Autoload: party, gold, saves, species memory, overworld↔battle handoff
+  PartyFactory.gd             # Static: builds the default party (Aria/Kael/Lyra) with skills
   GradientDivider.gd          # Visual utility node
+  overworld/
+    OverworldScene.gd         # Free-roam controller; step-based encounter rolls
+    Player.gd                 # CharacterBody2D, 8-dir arrow/controller movement
+    MapArea.gd                # Resource: area metadata + encounter group list
+    EncounterGroup.gd         # Resource: weighted encounter (pool + count range + level gate)
   battle/
     BattleScene.gd            # Main battle controller & UI wiring
     BattleManager.gd          # Turn logic, state machine, action dispatch
@@ -48,6 +54,16 @@ scripts/
 scenes/
   BattleScene.tscn
   MainMenu.tscn
+  OverworldScene.tscn         # has a MapArea (Fallster Plains) assigned via @export
+data/                         # data-driven content (.tres resources)
+  enemies/                    # one .tres per enemy (stats + skills, some shared)
+  skills/                     # shared skill .tres files (referenced by enemies)
+  encounters/                 # EncounterGroup .tres files
+  maps/                       # MapArea .tres files (fallster_plains.tres)
+tests/                        # unit tests (see Testing Policy)
+  TestRunner.tscn/.gd         # run this scene (F6) to execute all suites
+  TestSuite.gd                # base class with assert_* helpers
+  suites/                     # one test_<feature>.gd per system
 assets/
   backgrounds/
     FallsterPlains.png
@@ -73,17 +89,21 @@ Base class for all heroes and enemies.
 - Inventory: per-character `Inventory` resource
 
 ### Skill (Resource)
-- `SkillType`: `DAMAGE`, `HEAL`, `BUFF`
+- `SkillType`: `DAMAGE`, `STATUS`  ⚠️ (refactored — was `DAMAGE/HEAL/BUFF`)
+- `StatusType`: `HEAL`, `BUFF`, `DEBUFF` — sub-category used when `skill_type == STATUS`
 - `AttackType`: `STRIKE`, `RANGED`, `MAGIC`, `STATUS`
 - `TargetType`: `SINGLE_ENEMY`, `ALL_ENEMIES`, `SINGLE_ALLY`, `ALL_ALLIES`, `SELF`
 - Key methods:
   - `calculate_value(user)` — damage/heal amount based on stats × power
   - `can_use(user)` — checks MP and stun status
+  - `is_heal()` / `is_buff()` / `is_debuff()` — true when STATUS + matching status_type
+  - `is_physical()` / `is_magic()`
   - `get_attack_type_display()` → "Strike" / "Ranged" / "Magic" / "Status"
-  - `get_skill_type_display()` → delegates to attack type for DAMAGE, else "Heal"/"Buff"
+  - `get_skill_type_display()` → attack type for DAMAGE, else "Heal"/"Buff"/"Debuff"
   - `get_target_description()` → human-readable target string
-  - `get_resonance_gain()` → float (default 10.0 for DAMAGE skills)
+  - `get_resonance_gain()` → float (default 10.0 for DAMAGE skills, 0 for STATUS)
   - `get_element_display()` → icon + name string
+- `skills` is `@export` on Character — enemies define skills in `.tres` files
 - Hero skills: indices 0–3 = attacks, 4–7 = specials
 - `resonance_gain_override`: set ≥ 0.0 to override default resonance per use
 
@@ -112,17 +132,42 @@ Base class for all heroes and enemies.
 - Signals: `battle_started`, `turn_started`, `action_performed`, `character_defeated`, `battle_ended`, `status_effect_triggered`
 
 ### EnemyAI
-- Static class. `choose_action(enemy, party, enemies)` → `{skill, targets}`
-- Memory Echo: the more times a species is fought, the higher their dodge chance (Tier 1: 5%, Tier 2: 10%, Tier 3: 15%)
-- `try_dodge(target, is_resonance, can_miss)` — resonance attacks always hit
+- Static class. `choose_action(enemy, party, enemies)` → `{skill, target, is_enraged, echo_tier}`
+- Memory Echo dodge thresholds (`ECHO_TIER_*`, must match `Enemy.MEMORY_THRESHOLD_*`):
+  - Tier 1 = 3 encounters → 5% dodge
+  - Tier 2 = 7 encounters → 10% dodge
+  - Tier 3 = 15 encounters → 15% dodge
+- `try_dodge(target, is_resonance, can_miss)` — resonance/can't-miss always hit
+- Dodge is checked in BattleManager for **both** enemy→hero and hero→enemy attacks
 
 ### GameManager (Autoload)
-- `party: Array[Character]` (max 4)
+- `party: Array[Character]` (max 4) — source of truth; persists across battles
+- `ensure_default_party()` — populates via `PartyFactory` if empty
 - `gold: int` with setter (clamps to ≥0, emits `gold_changed`)
 - `species_memory: Dictionary` — species name → encounter count
-- `award_rewards(rewards)` — distributes EXP (shared) + gold + items
+- `award_rewards(rewards)` — gold + items only. **EXP is NOT applied here** —
+  VictoryScreen owns the EXP/level-up flow (applying it both places double-counts).
+- `revive_party()` — dead members → 50% HP
+- Overworld↔battle handoff: `in_overworld_battle`, `pending_battle_enemies: Array[Enemy]`,
+  `pending_battle_background`, `pending_overworld_scene_path`, `pending_overworld_return_position`
 - Save/load to `user://savegame.json`
 - `record_battle_against(species)`, `get_species_memory(species)`
+
+### Overworld & Encounter System
+- `OverworldScene.gd` reads an `@export var area: MapArea` (assigned per scene)
+- Movement: 8-dir, `ui_*` actions (arrow keys + gamepad auto-bound for future controller)
+- Encounters: every 32px = 1 "step"; encounter chance += 1%/step, resets on encounter
+- On encounter: weighted-random pick among `area.encounter_groups` filtered by
+  `min_party_level` (vs party's max level); group instantiates deep-copied enemies
+  (with optional `enemy_level_override`) into `GameManager.pending_battle_enemies`
+- Battle exits (victory continue / run / defeat continue) return to the overworld
+  at `pending_overworld_return_position`; defeat revives party at 50% HP
+- `BattleScene._ready()` branches: `in_overworld_battle` → `_start_overworld_battle()`,
+  else `_start_test_battle()` (10-enemy debug battle via F5/F6 on BattleScene)
+- **EncounterGroup**: `weight`, `min_party_level`, `enemy_pool: Array[Enemy]`,
+  `min_enemies`/`max_enemies`, `enemy_level_override` (0 = keep template level).
+  Fixed-composition mode (tutorials/story) is a planned future flag.
+- **MapArea**: `area_name`, `battle_background_id`, `default_spawn`, `encounter_groups`
 
 ---
 
@@ -173,11 +218,13 @@ BattleScene (Node2D)
 
 ---
 
-## Test Battle Setup (in BattleScene._start_test_battle)
-Heroes: **Aria** (Mage/Arcane), **Kael** (Warrior/Fire), **Lyra** (Ranger/Wind)
-- Aria: Arcane Slash, Frost Bolt, Dark Pulse, Arcane Storm | Specials: index 4–7
-- Each hero has `set_meta("ultimate_name", ...)` and `set_meta("ultimate_desc", ...)`
-- Enemies: currently spawned inline; use `EnemyLayout.GRID_2COL` by default
+## Party / Enemy Setup
+- Heroes built by `PartyFactory.create_default_party()` → Aria (Mage/Arcane),
+  Kael (Warrior/Fire), Lyra (Healer/Wind); each 8 skills + ultimate meta.
+  Stored in `GameManager.party`, persists across battles.
+- Enemies are `.tres` files in `data/enemies/`, loaded + `.duplicate(true)`'d.
+  Shared skills live in `data/skills/` and are referenced by multiple enemies.
+- `_start_test_battle()` = 10-enemy debug battle (F5/F6 on BattleScene directly).
 
 ---
 
@@ -191,18 +238,48 @@ Heroes: **Aria** (Mage/Arcane), **Kael** (Warrior/Fire), **Lyra** (Ranger/Wind)
 
 ---
 
-## Recent Bug Fixed
-**Error:** `Invalid call. Nonexistent function 'get_skill_type_display' in base 'Resource (Skill)'`
-**Location:** `AttackMenu.gd:285`
-**Fix:** Added `get_skill_type_display()` to `Skill.gd`. For DAMAGE skills it delegates to
-`get_attack_type_display()`; for HEAL/BUFF it returns the type name directly.
+## Testing Policy (IMPORTANT)
+- **Every new feature must ship with a unit test**, no matter how small.
+- Tests live in `tests/suites/test_<feature>.gd`, `extends TestSuite`, methods
+  prefixed `test_`, using `assert_*` helpers from `tests/TestSuite.gd`.
+- Register new suites in `TestRunner.gd`'s `SUITE_PATHS`.
+- Run: open `tests/TestRunner.tscn` → F6 (Run Current Scene) → read the Output panel.
+  GameManager autoload is available because the runner runs in the scene tree.
+- Tests touching autoload/global state (GameManager) must snapshot & restore it.
+- When fixing a bug, add a regression test that fails before the fix.
+
+## Permissions / Settings
+- Project allowlist: `<repo-root>/.claude/settings.json` (`permissions.allow`).
+- Allowlisted = safe read-only Bash (`cat`, `grep`, `rg`, `ls`, `find`, `wc`,
+  `head`, `tail`, `echo`, `git status/diff/log/branch/show`).
+- `Edit`/`Write`/`MultiEdit` are allowed **repo-wide without prompting**, scoped
+  to the repo root path (`Edit(//.../fantasy-rpg/**)` etc). Edits *outside* the
+  repo still prompt — keep that boundary; don't broaden to a blanket tool grant.
+- Intentionally NOT allowlisted: `mkdir`/`rm` (mutating), `python3`/`node`/shells
+  (arbitrary code execution). Don't add these without explicit user consent.
+- Work directly on `main` (not in worktrees) unless the user asks for a branch.
 
 ---
 
+## Recent Changes (most recent first)
+- **Phase 3:** `MapArea` + `EncounterGroup` resources; data-driven weighted
+  encounters with party-level gating; enemy level override per group.
+- **Phase 2:** Overworld scene, step-based encounters, battle round-trip,
+  `PartyFactory`, party persistence in `GameManager`.
+- **UI:** animated HP/MP/Resonance bars (`_animate_bar`, 0.3s tween); fixed-width
+  centered enemy cards (bosses will use full-width later); enemy level indicator.
+- **Bug fixes:** level-up no longer restores HP/MP; EXP applied once (VictoryScreen
+  only); Memory Echo dodge wired into hero→enemy attacks + thresholds lowered to 3/7/15.
+- **Skill refactor:** `SkillType` is `DAMAGE/STATUS`; `StatusType` added;
+  `is_heal/is_buff/is_debuff` added; `Character.skills` is `@export`.
+- Enemy roster moved to `data/enemies/*.tres`; shared skills in `data/skills/`.
+
 ## Next Steps / Open Tasks
-- Fix any remaining errors in AttackMenu or related scripts
-- Expand enemy roster with `.tres` resource files
-- Build overworld / map scene
-- Add equipment system (Inventory.get_weapon_attack / get_armor_defense currently return 0)
-- Implement `_learn_skills_at_level()` per hero subclass
-- Save/load for party characters (currently only gold/flags/memory are saved)
+- Save/load: 3 save slots, fixed save points, toggleable auto-save after battles
+- Settings menu (auto-save toggle, etc.)
+- Save status indicator (placeholder, bottom-right)
+- More overworld areas (MapArea files) + map-to-map connections
+- Equipment system (Inventory.get_weapon_attack / get_armor_defense return 0)
+- Implement `_learn_skills_at_level()` per hero
+- Real art: player sprite, overworld map, enemy/hero portraits
+- Fixed-composition encounters for tutorial/story battles

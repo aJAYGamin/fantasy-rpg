@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(wc:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(echo:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git branch:*)",
+      "Bash(git show:*)",
+      "Edit(//Users/jayakondapavuluri/GitHub Workspaces/fantasy-rpg/**)",
+      "Write(//Users/jayakondapavuluri/GitHub Workspaces/fantasy-rpg/**)",
+      "MultiEdit(//Users/jayakondapavuluri/GitHub Workspaces/fantasy-rpg/**)"
+    ]
+  }
+}

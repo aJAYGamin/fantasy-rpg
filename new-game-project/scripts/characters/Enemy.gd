@@ -37,7 +37,7 @@ func get_rarity_color() -> Color:
 	return Rarity.get_color(rarity)
 
 func get_rarity_name() -> String:
-	return Rarity.get_name(rarity)
+	return Rarity.tier_name(rarity)
 
 # --- Memory Echo ---
 func load_memory():

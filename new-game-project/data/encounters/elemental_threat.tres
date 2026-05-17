@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="EncounterGroup" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/overworld/EncounterGroup.gd" id="1_eg"]
+[ext_resource type="Resource" path="res://data/enemies/ice_golem.tres" id="2_ig"]
+[ext_resource type="Resource" path="res://data/enemies/fire_drake.tres" id="3_fd"]
+[ext_resource type="Resource" path="res://data/enemies/sea_serpent.tres" id="4_ss"]
+
+[resource]
+script = ExtResource("1_eg")
+group_name = "Elemental Threat"
+weight = 1.0
+min_party_level = 5
+enemy_pool = Array[Enemy]([ExtResource("2_ig"), ExtResource("3_fd"), ExtResource("4_ss")])
+min_enemies = 1
+max_enemies = 2
+enemy_level_override = 0

@@ -154,11 +154,16 @@ func _start_overworld_battle():
 	for c in GameManager.party:
 		party.append(c)
 
+	# Enemies are already deep-copied + level-overridden + HP/MP-set by the
+	# EncounterGroup, so we just consume them as-is.
 	var enemies: Array[Character] = []
-	for file_name in GameManager.pending_battle_enemies:
-		enemies.append(_load_enemy(file_name))
+	for enemy in GameManager.pending_battle_enemies:
+		enemies.append(enemy)
 
-	start_battle(party, enemies, "fallster_plains", EnemyLayout.GRID_2COL)
+	var bg_id: String = GameManager.pending_battle_background
+	if bg_id == "":
+		bg_id = "fallster_plains"
+	start_battle(party, enemies, bg_id, EnemyLayout.GRID_2COL)
 
 # Loads an enemy resource and prepares it for battle.
 # duplicate(true) gives each spawn its own HP/state — without it all spawns share one Resource.

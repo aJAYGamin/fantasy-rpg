@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="MapArea" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/overworld/MapArea.gd" id="1_ma"]
+[ext_resource type="Resource" path="res://data/encounters/plains_stragglers.tres" id="2_ps"]
+[ext_resource type="Resource" path="res://data/encounters/lone_wraith.tres" id="3_lw"]
+[ext_resource type="Resource" path="res://data/encounters/hunting_pack.tres" id="4_hp"]
+[ext_resource type="Resource" path="res://data/encounters/elemental_threat.tres" id="5_et"]
+
+[resource]
+script = ExtResource("1_ma")
+area_name = "Fallster Plains"
+battle_background_id = "fallster_plains"
+default_spawn = Vector2(2000, 1500)
+encounter_groups = Array[EncounterGroup]([ExtResource("2_ps"), ExtResource("3_lw"), ExtResource("4_hp"), ExtResource("5_et")])

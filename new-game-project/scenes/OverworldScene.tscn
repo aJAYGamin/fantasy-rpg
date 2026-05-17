@@ -1,7 +1,8 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/overworld/OverworldScene.gd" id="1_scene"]
 [ext_resource type="Script" path="res://scripts/overworld/Player.gd" id="2_player"]
+[ext_resource type="Resource" path="res://data/maps/fallster_plains.tres" id="3_area"]
 
 [sub_resource type="RectangleShape2D" id="Shape_player"]
 size = Vector2(28, 28)
@@ -14,6 +15,7 @@ size = Vector2(100, 3200)
 
 [node name="OverworldScene" type="Node2D"]
 script = ExtResource("1_scene")
+area = ExtResource("3_area")
 
 [node name="Background" type="ColorRect" parent="."]
 offset_right = 4000.0

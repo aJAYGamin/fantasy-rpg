@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="EncounterGroup" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/overworld/EncounterGroup.gd" id="1_eg"]
+[ext_resource type="Resource" path="res://data/enemies/wind_sprite.tres" id="2_ws"]
+[ext_resource type="Resource" path="res://data/enemies/storm_eagle.tres" id="3_se"]
+[ext_resource type="Resource" path="res://data/enemies/dark_wraith.tres" id="4_dw"]
+
+[resource]
+script = ExtResource("1_eg")
+group_name = "Hunting Pack"
+weight = 1.0
+min_party_level = 3
+enemy_pool = Array[Enemy]([ExtResource("2_ws"), ExtResource("3_se"), ExtResource("4_dw")])
+min_enemies = 2
+max_enemies = 3
+enemy_level_override = 0

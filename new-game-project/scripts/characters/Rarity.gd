@@ -22,7 +22,7 @@ static func get_color(tier: Tier) -> Color:
 		Tier.CELESTIAL: return Color(0.95, 0.95, 1.00)  # White/Silver
 	return Color.WHITE
 
-static func get_name(tier: Tier) -> String:
+static func tier_name(tier: Tier) -> String:
 	match tier:
 		Tier.COMMON:    return "Common"
 		Tier.UNCOMMON:  return "Uncommon"
