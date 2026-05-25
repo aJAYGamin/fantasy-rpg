@@ -22,6 +22,7 @@ const SUITE_PATHS := [
 	"res://tests/suites/test_enemy_ai.gd",
 	"res://tests/suites/test_game_manager.gd",
 	"res://tests/suites/test_party_factory.gd",
+	"res://tests/suites/test_save_serializer.gd",
 ]
 
 func _ready() -> void:

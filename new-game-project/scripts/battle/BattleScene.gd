@@ -46,6 +46,10 @@ var _enemy_hp_bars: Dictionary = {}   # character -> ProgressBar
 var _bar_tweens: Dictionary = {}      # ProgressBar -> Tween (so we can cancel/restart on rapid updates)
 const BAR_TWEEN_DURATION: float = 0.3
 var _enemy_hp_labels: Dictionary = {} # character -> Label
+# Keyed by Character ref so duplicate-named enemies (e.g. two Wind Sprites)
+# each have their own portrait lookup. Avoids relying on Godot's auto-rename suffixes.
+var _enemy_portraits: Dictionary = {} # character -> portrait Node
+var _hero_portraits: Dictionary = {}  # character -> portrait Node
 
 # --- Backgrounds per area ---
 const BACKGROUNDS = {
@@ -806,6 +810,8 @@ func _setup_portraits(party: Array[Character], enemies: Array[Character]):
 		child.queue_free()
 	for child in enemy_positions.get_children():
 		child.queue_free()
+	_enemy_portraits.clear()
+	_hero_portraits.clear()
 
 	var cinzel = load("res://fonts/Cinzel-Regular.ttf")
 	var screen = get_viewport().get_visible_rect().size
@@ -829,6 +835,7 @@ func _setup_portraits(party: Array[Character], enemies: Array[Character]):
 		# Hero 1 (i=0): leftmost/back, last hero: rightmost/front
 		portrait.position = Vector2((party.size() - 1 - i) * 30, 0)
 		wrapper.add_child(portrait)
+		_hero_portraits[hero] = portrait
 
 	# --- Enemy portraits ---
 	var enemy_grid = Control.new()
@@ -842,6 +849,7 @@ func _setup_portraits(party: Array[Character], enemies: Array[Character]):
 		portrait.name = "EnemyPortrait_%s" % enemy.character_name
 		portrait.position = _get_enemy_portrait_pos(i, count)
 		enemy_grid.add_child(portrait)
+		_enemy_portraits[enemy] = portrait
 
 func _get_enemy_portrait_pos(index: int, total: int) -> Vector2:
 	var cell_w = 52.0
@@ -895,18 +903,21 @@ func _create_portrait(character: Character, cinzel, is_enemy: bool) -> VBoxConta
 	return vbox
 
 func _remove_portrait(character: Character):
-	# Check hero portraits in party_positions
-	var hero_portrait = _find_portrait_in(party_positions, "HeroPortrait_%s" % character.character_name)
-	# Check enemy portraits inside EnemyGrid
-	var enemy_grid = enemy_positions.get_node_or_null("EnemyGrid")
-	var enemy_portrait = _find_portrait_in(enemy_grid, "EnemyPortrait_%s" % character.character_name) if enemy_grid else null
-	var portrait = hero_portrait if hero_portrait != null else enemy_portrait
-	if portrait == null:
+	# Look up by Character ref so duplicate-named enemies each find their own portrait.
+	var portrait: Node = null
+	if _enemy_portraits.has(character):
+		portrait = _enemy_portraits[character]
+		_enemy_portraits.erase(character)
+	elif _hero_portraits.has(character):
+		portrait = _hero_portraits[character]
+		_hero_portraits.erase(character)
+	if portrait == null or not is_instance_valid(portrait):
 		return
 	var tween = create_tween()
 	tween.tween_property(portrait, "modulate:a", 0.0, 0.4)
 	await tween.finished
-	portrait.queue_free()
+	if is_instance_valid(portrait):
+		portrait.queue_free()
 
 func _find_portrait_in(container: Node, portrait_name: String) -> Node:
 	if container == null:

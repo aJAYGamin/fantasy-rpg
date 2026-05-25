@@ -36,16 +36,75 @@ var pending_overworld_scene_path: String = ""
 var pending_overworld_return_position: Vector2 = Vector2.ZERO
 
 # ─── Save/Load ───────────────────────────────────────────
-const SAVE_PATH = "user://savegame.json"
+const SAVE_PATH = "user://savegame.json"  # legacy single-file save (still used by old Continue path)
+
+# Phase S1: 3-slot save system.
+# Slot files live at user://save_slot_{0,1,2}.json with full party serialization.
+const SAVE_SLOT_COUNT: int = 3
+const SAVE_VERSION: int = 1
+const SAVE_PATH_FORMAT: String = "user://save_slot_%d.json"
+const USER_CONFIG_PATH: String = "user://config.cfg"
+
+# active_slot persists across game restarts via USER_CONFIG_PATH.
+# Setter writes the config so Continue always knows which slot to resume.
+var active_slot: int = -1:
+	set(value):
+		active_slot = value
+		_save_user_config()
+
+var save_overworld_scene_path: String = ""
+var save_overworld_position: Vector2 = Vector2.ZERO
+# Set true by the Continue/Load flow so OverworldScene._ready spawns at the
+# saved position instead of the area's default_spawn.
+var resuming_from_save: bool = false
+
+func _ready():
+	_load_user_config()
 
 func _process(delta):
 	play_time_seconds += delta
+
+# ─── User Config (persists last-used slot) ───────────────
+func _load_user_config():
+	var cfg = ConfigFile.new()
+	if cfg.load(USER_CONFIG_PATH) != OK:
+		return
+	# Use the backing var directly to avoid triggering setter -> save (cycle is safe but noisy).
+	var saved_slot: int = int(cfg.get_value("save", "last_slot", -1))
+	if saved_slot >= 0 and saved_slot < SAVE_SLOT_COUNT and FileAccess.file_exists(SAVE_PATH_FORMAT % saved_slot):
+		active_slot = saved_slot
+	else:
+		active_slot = -1
+
+func _save_user_config():
+	var cfg = ConfigFile.new()
+	# Re-load existing to preserve other future keys
+	cfg.load(USER_CONFIG_PATH)
+	cfg.set_value("save", "last_slot", active_slot)
+	cfg.save(USER_CONFIG_PATH)
 
 # ─── Party Management ────────────────────────────────────
 func ensure_default_party():
 	if party.is_empty():
 		for hero in PartyFactory.create_default_party():
 			party.append(hero)
+
+# Resets per-playthrough state and binds the given slot as active.
+# Called from the New Game flow before transitioning to the overworld.
+func start_new_game(slot: int):
+	party = [] as Array[Character]
+	gold = 100
+	species_memory = {}
+	completed_quests = [] as Array[String]
+	story_flags = {}
+	play_time_seconds = 0.0
+	save_overworld_scene_path = ""
+	save_overworld_position = Vector2.ZERO
+	resuming_from_save = false
+	in_overworld_battle = false
+	pending_battle_enemies = [] as Array[Enemy]
+	active_slot = slot  # setter persists last_slot to config
+	ensure_default_party()
 
 func add_to_party(character: Character) -> bool:
 	if party.size() >= MAX_PARTY_SIZE:
@@ -160,6 +219,151 @@ func load_game() -> bool:
 func delete_save():
 	if FileAccess.file_exists(SAVE_PATH):
 		DirAccess.remove_absolute(SAVE_PATH)
+
+# ─── Slot Save System (Phase S1) ─────────────────────────
+func _slot_path(slot: int) -> String:
+	return SAVE_PATH_FORMAT % slot
+
+func _is_valid_slot(slot: int) -> bool:
+	return slot >= 0 and slot < SAVE_SLOT_COUNT
+
+func slot_exists(slot: int) -> bool:
+	if not _is_valid_slot(slot):
+		return false
+	return FileAccess.file_exists(_slot_path(slot))
+
+# Builds the full save payload for the current GameManager state.
+# Separated from save_to_slot so tests/UI previews can introspect without writing.
+func _build_save_dict() -> Dictionary:
+	var max_lv: int = 1
+	var heroes_meta: Array = []
+	for c in party:
+		if c.level > max_lv:
+			max_lv = c.level
+		heroes_meta.append({
+			"name": c.character_name,
+			"class": c.character_class,
+			"level": c.level,
+		})
+	var area_name: String = ""
+	if save_overworld_scene_path != "":
+		area_name = save_overworld_scene_path.get_file().get_basename()
+	return {
+		"version": SAVE_VERSION,
+		"timestamp": Time.get_datetime_string_from_system(),
+		"metadata": {
+			"playtime_seconds": play_time_seconds,
+			"max_party_level": max_lv,
+			"party_size": party.size(),
+			"area_name": area_name,
+			"heroes": heroes_meta,
+		},
+		"gold": gold,
+		"party": SaveSerializer.serialize_party(party),
+		"species_memory": species_memory,
+		"completed_quests": completed_quests,
+		"story_flags": story_flags,
+		"current_map": current_map,
+		"overworld_scene_path": save_overworld_scene_path,
+		"overworld_position": {
+			"x": save_overworld_position.x,
+			"y": save_overworld_position.y,
+		},
+	}
+
+func save_to_slot(slot: int) -> bool:
+	if not _is_valid_slot(slot):
+		push_error("Invalid save slot: %d" % slot)
+		return false
+	var data = _build_save_dict()
+	var file = FileAccess.open(_slot_path(slot), FileAccess.WRITE)
+	if file == null:
+		push_error("Failed to open save slot %d for write" % slot)
+		return false
+	file.store_string(JSON.stringify(data, "\t"))
+	file.close()
+	active_slot = slot
+	print("Game saved to slot %d." % slot)
+	return true
+
+func load_from_slot(slot: int) -> bool:
+	if not slot_exists(slot):
+		return false
+	var file = FileAccess.open(_slot_path(slot), FileAccess.READ)
+	if file == null:
+		return false
+	var json = JSON.new()
+	var err = json.parse(file.get_as_text())
+	file.close()
+	if err != OK:
+		push_error("Failed to parse save slot %d" % slot)
+		return false
+	var data = json.data
+	gold = int(data.get("gold", 100))
+	species_memory = data.get("species_memory", {})
+	# JSON.parse returns untyped Array, so quests must be re-typed before assignment.
+	var typed_quests: Array[String] = []
+	for q in data.get("completed_quests", []):
+		typed_quests.append(str(q))
+	completed_quests = typed_quests
+	story_flags = data.get("story_flags", {})
+	current_map = data.get("current_map", "world_map")
+	play_time_seconds = float(data.get("metadata", {}).get("playtime_seconds", 0.0))
+	save_overworld_scene_path = data.get("overworld_scene_path", "")
+	var pos_data = data.get("overworld_position", {"x": 0, "y": 0})
+	save_overworld_position = Vector2(float(pos_data.get("x", 0)), float(pos_data.get("y", 0)))
+	party = SaveSerializer.deserialize_party(data.get("party", []))
+	active_slot = slot
+	emit_signal("party_updated")
+	emit_signal("gold_changed", gold)
+	print("Game loaded from slot %d." % slot)
+	return true
+
+# Reads just the metadata block (cheap — no party deserialization) for slot pickers.
+# Returns {} if the slot is empty/invalid/unparseable.
+func get_slot_metadata(slot: int) -> Dictionary:
+	if not slot_exists(slot):
+		return {}
+	var file = FileAccess.open(_slot_path(slot), FileAccess.READ)
+	if file == null:
+		return {}
+	var json = JSON.new()
+	var err = json.parse(file.get_as_text())
+	file.close()
+	if err != OK:
+		return {}
+	var data = json.data
+	var meta: Dictionary = data.get("metadata", {}).duplicate()
+	meta["timestamp"] = data.get("timestamp", "")
+	return meta
+
+func delete_slot(slot: int) -> bool:
+	if not slot_exists(slot):
+		return false
+	DirAccess.remove_absolute(_slot_path(slot))
+	if active_slot == slot:
+		active_slot = -1
+	return true
+
+# Copies an existing slot's file to another slot index. Overwrites destination.
+func copy_slot(from_slot: int, to_slot: int) -> bool:
+	if from_slot == to_slot:
+		return false
+	if not _is_valid_slot(from_slot) or not _is_valid_slot(to_slot):
+		return false
+	if not slot_exists(from_slot):
+		return false
+	var src = FileAccess.open(_slot_path(from_slot), FileAccess.READ)
+	if src == null:
+		return false
+	var bytes = src.get_buffer(src.get_length())
+	src.close()
+	var dst = FileAccess.open(_slot_path(to_slot), FileAccess.WRITE)
+	if dst == null:
+		return false
+	dst.store_buffer(bytes)
+	dst.close()
+	return true
 
 func get_formatted_playtime() -> String:
 	var hours = int(play_time_seconds / 3600)

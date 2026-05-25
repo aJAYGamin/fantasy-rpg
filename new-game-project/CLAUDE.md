@@ -27,6 +27,8 @@ scripts/
     Player.gd                 # CharacterBody2D, 8-dir arrow/controller movement
     MapArea.gd                # Resource: area metadata + encounter group list
     EncounterGroup.gd         # Resource: weighted encounter (pool + count range + level gate)
+  save/
+    SaveSerializer.gd         # Pure static: Character/Skill/Item/Inventory ↔ Dictionary (full, option 1B)
   battle/
     BattleScene.gd            # Main battle controller & UI wiring
     BattleManager.gd          # Turn logic, state machine, action dispatch
@@ -248,6 +250,16 @@ BattleScene (Node2D)
 - Tests touching autoload/global state (GameManager) must snapshot & restore it.
 - When fixing a bug, add a regression test that fails before the fix.
 
+## Working in the Godot Editor
+- **Any step that the user must perform in the Godot editor must be given as
+  numbered, step-by-step instructions.** Do not assume the user knows where
+  menus/buttons live. Include: which scene/file to open, the exact path through
+  panels (e.g. "Inspector → Resource → New EncounterGroup"), what to type, and
+  what to expect to see when it worked.
+- Prefer code/data changes you can make directly. Editor steps are only for
+  things that genuinely cannot be done via files (scene-tree edits the user
+  must trigger, importing assets, running scenes, etc.).
+
 ## Permissions / Settings
 - Project allowlist: `<repo-root>/.claude/settings.json` (`permissions.allow`).
 - Allowlisted = safe read-only Bash (`cd`, `cat`, `grep`, `rg`, `ls`, `find`,
@@ -260,6 +272,27 @@ BattleScene (Node2D)
 - Work directly on `main` (not in worktrees) unless the user asks for a branch.
 
 ---
+
+## Save System Design Decisions (Phase S series — in progress)
+- **Full serialization (option 1B)** — every Character/Skill/Item field saved as
+  JSON dict. Reconstructs Resources without depending on PartyFactory at load time.
+- **3 slots** at `user://save_slot_{0,1,2}.json`. `GameManager.active_slot`
+  tracks the current slot (-1 = none); persisted to `user://config.cfg`.
+- **Continue behavior:** if exactly one save exists, Continue loads it directly.
+  If multiple exist, Continue opens `SaveSlotMenu` in load mode (occupied slots
+  show "Load" + Copy; empty slots are non-interactive). Delete is hidden in
+  load mode so a player choosing what to continue can't accidentally erase a
+  save — deletion lives only in the New Game picker. Disabled if zero saves.
+- **Save UX is pause-menu driven, not save points.** Esc in the overworld opens
+  `PauseMenu` (Resume / Save / Stats / Items / Equipment / Settings / Quit).
+  Save writes to `active_slot` (the slot the player chose at New Game / Continue);
+  no slot picker mid-game. Quit to Main Menu prompts a confirm, then transitions.
+- **Auto-save triggers (planned, Phase S7):** entering a town/city/village
+  (`MapArea.auto_save_on_enter`), and explicit story-cutscene calls.
+  Player-toggleable in Settings (planned, Phase S6).
+- **Defeat flow** (planned): party defeated → Continue / Quit screen.
+  Continue = load from active slot; Quit = MainMenu. (Currently defeat still
+  revives at 50% and returns to overworld — gets replaced once slots are wired.)
 
 ## Recent Changes (most recent first)
 - **Phase 3:** `MapArea` + `EncounterGroup` resources; data-driven weighted
