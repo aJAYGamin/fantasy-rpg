@@ -66,6 +66,32 @@ func test_can_use_checks_mp_and_stun() -> void:
 	user.add_status("stun")
 	assert_false(s.can_use(user), "stunned -> cannot use")
 
+func test_enemies_ignore_mp_cost() -> void:
+	# Enemies have no MP pool — can_use() must return true regardless of mp_cost
+	# so EnemyAI can pick any skill the enemy owns.
+	var foe = Enemy.new()
+	foe.level = 1
+	foe.current_mp = 0  # would normally block a costed skill
+	var s = _dmg(1.0, Skill.AttackType.MAGIC)
+	s.mp_cost = 999
+	assert_true(s.can_use(foe), "Enemy with 0 MP can still use a 999-cost skill")
+	# Stun still blocks enemies — MP bypass is not a status bypass.
+	foe.add_status("stun")
+	assert_false(s.can_use(foe), "Stunned enemy still cannot act")
+
+func test_heroes_still_pay_mp() -> void:
+	# Regression guard for the enemy-bypass change above: Characters (heroes)
+	# must still be gated by MP cost.
+	var hero = Character.new()
+	hero.base_mp = 50
+	hero.level = 1
+	hero.current_mp = 5
+	var s = _dmg(1.0, Skill.AttackType.MAGIC)
+	s.mp_cost = 20
+	assert_false(s.can_use(hero), "Hero without enough MP cannot use skill")
+	hero.current_mp = 30
+	assert_true(s.can_use(hero), "Hero with enough MP can use skill")
+
 func test_resonance_gain() -> void:
 	var dmg = _dmg(1.0, Skill.AttackType.STRIKE)
 	assert_near(dmg.get_resonance_gain(), 10.0, 0.01, "DAMAGE default resonance = 10")

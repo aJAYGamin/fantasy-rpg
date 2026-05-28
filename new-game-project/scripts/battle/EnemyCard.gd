@@ -51,31 +51,10 @@ func _update_display():
 	_update_status_icons()
 
 func _update_status_icons():
-	# Clear existing icons
-	for child in status_row.get_children():
-		child.queue_free()
-
-	if enemy.status_effects.is_empty():
-		status_row.hide()
-		return
-
-	status_row.show()
-	for effect in enemy.status_effects:
-		var icon = Label.new()
-		icon.text = _get_status_icon(effect)
-		icon.tooltip_text = effect.capitalize()
-		icon.add_theme_font_size_override("font_size", 12)
-		status_row.add_child(icon)
-
-func _get_status_icon(effect: String) -> String:
-	match effect:
-		"poison":      return "☠"
-		"burn":        return "🔥"
-		"freeze":      return "❄"
-		"stun":        return "⚡"
-		"regenerate":  return "💚"
-		"defending":   return "🛡"
-		_:             return "?"
+	# Delegates to StatusChipFactory so HeroCard + EnemyCard render identically.
+	# Shows: at most one mutex-status chip + one buff/debuff chip per non-cancelled
+	# stat. Row auto-hides when nothing is active.
+	StatusChipFactory.populate_row(status_row, enemy)
 
 func refresh():
 	_update_display()

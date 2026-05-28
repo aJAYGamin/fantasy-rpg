@@ -17,7 +17,10 @@ func setup(amount: int, multiplier: float = 1.0):
 	add_theme_constant_override("shadow_offset_y", 2)
 	add_theme_constant_override("shadow_outline_size", 4)
 
-	if multiplier >= 2.0:
+	# Super-effective hits now happen at WEAKNESS_MULTIPLIER (1.5x). Anything
+	# above 1.0 but below that band is treated as "above normal" (e.g. when
+	# combined with the per-character extra_weakness/resistance modifiers).
+	if multiplier >= ElementalSystem.WEAKNESS_MULTIPLIER:
 		text = "%d\nCritical!" % amount
 		add_theme_color_override("font_color", Color(0.2, 0.9, 0.9))
 		add_theme_font_size_override("font_size", 20)

@@ -9,7 +9,7 @@ signal menu_closed
 
 # Color by hero name — matches the colored letter cards on the battlefield.
 const HERO_COLORS: Dictionary = {
-	"Aria": Color(0.72, 0.45, 1.0),    # mage / arcane
+	"Aria": Color(0.30, 0.65, 1.00),   # mage / water
 	"Kael": Color(0.95, 0.35, 0.25),   # warrior / fire
 	"Lyra": Color(0.45, 0.85, 0.55),   # healer / wind
 }

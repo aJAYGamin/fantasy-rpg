@@ -2,8 +2,13 @@ extends Control
 
 signal level_up_complete
 
-const STAT_NAMES = ["HP", "MP", "ATK", "DEF", "MAG", "SPD"]
+const STAT_NAMES = ["HP", "MP", "ATK", "DEF", "MAG", "ARC", "SPD"]
 const ANIM_DURATION = 0.6
+
+# Per-hero palette is now centralized in HeroPalette so the in-battle hero
+# panels and any future hero-themed UI share the same colors.
+static func _palette_for(hero_name: String) -> Dictionary:
+	return HeroPalette.for_hero(hero_name)
 
 # Slot machine weighted values
 # 2-5: 40%, 6-8: 30%, 9-10: 30%
@@ -74,74 +79,112 @@ func _build_panels():
 		_animate_stats(panel, heroes_to_show[i])
 
 func _create_hero_panel(hero: Character, cinzel: FontFile, cinzel_bold: FontFile) -> PanelContainer:
+	var palette = _palette_for(hero.character_name)
+
+	# Themed panel — colors derived from the hero's accent.
 	var panel = PanelContainer.new()
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	panel.custom_minimum_size = Vector2(220, 0)
+	panel.custom_minimum_size = Vector2(240, 0)
+	var panel_style = StyleBoxFlat.new()
+	panel_style.bg_color = palette["panel_bg"]
+	panel_style.border_color = palette["accent"]
+	panel_style.set_border_width_all(2)
+	panel_style.set_corner_radius_all(8)
+	panel_style.content_margin_left = 18
+	panel_style.content_margin_right = 18
+	panel_style.content_margin_top = 16
+	panel_style.content_margin_bottom = 16
+	panel.add_theme_stylebox_override("panel", panel_style)
 
 	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 6)
+	vbox.add_theme_constant_override("separation", 8)
 	panel.add_child(vbox)
 
-	# Hero name
+	# Banner: small "LEVEL UP" line above the hero name for celebratory framing.
+	var banner = Label.new()
+	banner.text = "✦  LEVEL UP  ✦"
+	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	if cinzel: banner.add_theme_font_override("font", cinzel)
+	banner.add_theme_font_size_override("font_size", 11)
+	banner.add_theme_color_override("font_color", palette["accent"])
+	vbox.add_child(banner)
+
+	# Hero name — larger, accent color, bold.
 	var name_lbl = Label.new()
 	name_lbl.text = hero.character_name
 	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	if cinzel_bold: name_lbl.add_theme_font_override("font", cinzel_bold)
-	name_lbl.add_theme_font_size_override("font_size", 16)
-	name_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	name_lbl.add_theme_font_size_override("font_size", 22)
+	name_lbl.add_theme_color_override("font_color", palette["accent"])
 	vbox.add_child(name_lbl)
 
+	# New level subtitle.
 	var lvl_lbl = Label.new()
-	lvl_lbl.text = "Level Up!  Lv %d" % hero.level
+	lvl_lbl.text = "Reached Level %d" % hero.level
 	lvl_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	if cinzel: lvl_lbl.add_theme_font_override("font", cinzel)
 	lvl_lbl.add_theme_font_size_override("font_size", 12)
-	lvl_lbl.add_theme_color_override("font_color", Color(0.88, 0.78, 1.0))
+	lvl_lbl.add_theme_color_override("font_color", palette["subtitle"])
 	vbox.add_child(lvl_lbl)
 
-	var sep = HSeparator.new()
-	vbox.add_child(sep)
+	# Themed separator — hero-tinted thin line.
+	var sep_wrap = MarginContainer.new()
+	sep_wrap.add_theme_constant_override("margin_top", 4)
+	sep_wrap.add_theme_constant_override("margin_bottom", 4)
+	vbox.add_child(sep_wrap)
+	var sep_line = ColorRect.new()
+	sep_line.color = palette["separator"]
+	sep_line.custom_minimum_size = Vector2(0, 1)
+	sep_wrap.add_child(sep_line)
 
-	# Stat rows
+	# Stat rows — one independent HBoxContainer per stat. Using a single
+	# GridContainer made the rows fragile: any time a child got freed (or its
+	# index changed), every row after it would shift sideways. Independent rows
+	# can't influence each other's column alignment.
 	var old_stats = _get_old_stats(hero)
 	var new_stats = _get_new_stats(hero)
 
+	var stat_rows = VBoxContainer.new()
+	stat_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	stat_rows.add_theme_constant_override("separation", 4)
+	vbox.add_child(stat_rows)
+
 	for stat in STAT_NAMES:
 		var row = HBoxContainer.new()
-		row.add_theme_constant_override("separation", 4)
-		vbox.add_child(row)
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_theme_constant_override("separation", 8)
+		stat_rows.add_child(row)
 
 		var stat_lbl = Label.new()
 		stat_lbl.text = stat
-		stat_lbl.custom_minimum_size = Vector2(32, 0)
+		stat_lbl.custom_minimum_size = Vector2(40, 0)
 		if cinzel: stat_lbl.add_theme_font_override("font", cinzel)
-		stat_lbl.add_theme_font_size_override("font_size", 11)
-		stat_lbl.add_theme_color_override("font_color", Color(0.7, 0.65, 0.85))
+		stat_lbl.add_theme_font_size_override("font_size", 12)
+		stat_lbl.add_theme_color_override("font_color", palette["label"])
 		row.add_child(stat_lbl)
 
 		var val_lbl = Label.new()
 		val_lbl.name = "Val_%s_%s" % [hero.character_name, stat]
 		val_lbl.text = str(old_stats[stat])
-		val_lbl.custom_minimum_size = Vector2(28, 0)
-		if cinzel: val_lbl.add_theme_font_override("font", cinzel)
-		val_lbl.add_theme_font_size_override("font_size", 12)
-		val_lbl.add_theme_color_override("font_color", Color.WHITE)
+		val_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		val_lbl.custom_minimum_size = Vector2(42, 0)
+		val_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		if cinzel_bold: val_lbl.add_theme_font_override("font", cinzel_bold)
+		val_lbl.add_theme_font_size_override("font_size", 13)
+		val_lbl.add_theme_color_override("font_color", palette["value"])
 		row.add_child(val_lbl)
 
 		var diff = new_stats[stat] - old_stats[stat]
 		var inc_lbl = Label.new()
 		inc_lbl.name = "Inc_%s_%s" % [hero.character_name, stat]
 		inc_lbl.text = "+%d" % diff
+		inc_lbl.custom_minimum_size = Vector2(34, 0)
+		inc_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		inc_lbl.modulate.a = 0.0
-		if cinzel: inc_lbl.add_theme_font_override("font", cinzel)
-		inc_lbl.add_theme_font_size_override("font_size", 10)
-		inc_lbl.add_theme_color_override("font_color", Color(0.4, 1.0, 0.5))
+		if cinzel_bold: inc_lbl.add_theme_font_override("font", cinzel_bold)
+		inc_lbl.add_theme_font_size_override("font_size", 12)
+		inc_lbl.add_theme_color_override("font_color", palette["increment"])
 		row.add_child(inc_lbl)
-
-		# Spacer
-		var spacer = Control.new()
-		spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(spacer)
 
 	return panel
 
@@ -175,12 +218,12 @@ func _animate_stats(panel: PanelContainer, hero: Character):
 		)
 		await tween.finished
 
-		# Fade out increment
+		# Fade out increment — keep the node in the grid (just invisible) so the
+		# row layout stays aligned. queue_free here would collapse subsequent cells.
 		if inc_lbl:
 			var fade = create_tween()
 			fade.tween_property(inc_lbl, "modulate:a", 0.0, 0.3)
 			await fade.finished
-			inc_lbl.queue_free()
 
 	# All stats done — show bonus picker after delay
 	await get_tree().create_timer(0.5).timeout
@@ -188,35 +231,58 @@ func _animate_stats(panel: PanelContainer, hero: Character):
 
 func _show_bonus_picker(panel: PanelContainer, hero: Character, cinzel):
 	var vbox = panel.get_child(0)
+	var palette = _palette_for(hero.character_name)
 
-	var sep2 = HSeparator.new()
-	vbox.add_child(sep2)
+	# Themed separator (matches the one above the stat grid).
+	var sep_wrap = MarginContainer.new()
+	sep_wrap.add_theme_constant_override("margin_top", 6)
+	sep_wrap.add_theme_constant_override("margin_bottom", 4)
+	vbox.add_child(sep_wrap)
+	var sep_line = ColorRect.new()
+	sep_line.color = palette["separator"]
+	sep_line.custom_minimum_size = Vector2(0, 1)
+	sep_wrap.add_child(sep_line)
 
 	var pick_lbl = Label.new()
 	pick_lbl.name = "PickLabel_%s" % hero.character_name
-	pick_lbl.text = "Choose a stat to upgrade:"
+	pick_lbl.text = "Choose a Stat to Upgrade"
 	pick_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	if cinzel: pick_lbl.add_theme_font_override("font", cinzel)
-	pick_lbl.add_theme_font_size_override("font_size", 11)
-	pick_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	pick_lbl.add_theme_font_size_override("font_size", 13)
+	pick_lbl.add_theme_color_override("font_color", palette["accent"])
 	vbox.add_child(pick_lbl)
 
-	var btn_grid = GridContainer.new()
-	btn_grid.name = "BtnGrid_%s" % hero.character_name
-	btn_grid.columns = 3
-	btn_grid.add_theme_constant_override("h_separation", 6)
-	btn_grid.add_theme_constant_override("v_separation", 6)
-	vbox.add_child(btn_grid)
+	# Two centered HBox rows so the second (incomplete) row stays centered.
+	# A GridContainer would left-align the trailing row of buttons.
+	var rows_container = VBoxContainer.new()
+	rows_container.name = "BtnGrid_%s" % hero.character_name
+	rows_container.add_theme_constant_override("separation", 8)
+	rows_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_child(rows_container)
 
 	_stat_buttons[hero.character_name] = {}
 
-	for stat in STAT_NAMES:
-		var btn = Button.new()
-		btn.text = stat
+	# Split into halves: top row gets the first half (rounded up), bottom row the rest.
+	# For 7 stats → 4 on top, 3 on bottom; both rows are independently centered.
+	var split: int = int(ceil(STAT_NAMES.size() / 2.0))
+	var top_row = HBoxContainer.new()
+	top_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	top_row.add_theme_constant_override("separation", 6)
+	rows_container.add_child(top_row)
+
+	var bottom_row = HBoxContainer.new()
+	bottom_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	bottom_row.add_theme_constant_override("separation", 6)
+	rows_container.add_child(bottom_row)
+
+	for i in range(STAT_NAMES.size()):
+		var stat = STAT_NAMES[i]
+		var btn = _make_themed_button(stat, cinzel, false, palette)
 		btn.custom_minimum_size = Vector2(60, 28)
-		if cinzel: btn.add_theme_font_override("font", cinzel)
-		btn.add_theme_font_size_override("font_size", 10)
-		btn_grid.add_child(btn)
+		if i < split:
+			top_row.add_child(btn)
+		else:
+			bottom_row.add_child(btn)
 		_stat_buttons[hero.character_name][stat] = btn
 		btn.pressed.connect(_on_stat_selected.bind(hero, stat, panel, cinzel))
 
@@ -235,12 +301,12 @@ func _update_confirmation(hero: Character, stat: String, panel: PanelContainer, 
 	# Find existing confirm button or create it once
 	var confirm_btn = _find_node("ConfirmBtn_%s" % hero.character_name, panel)
 	if confirm_btn == null:
-		# First time — create the button
-		confirm_btn = Button.new()
+		# First time — create the themed, centered confirm button using the hero palette.
+		var palette = _palette_for(hero.character_name)
+		confirm_btn = _make_themed_button("", cinzel, true, palette)
 		confirm_btn.name = "ConfirmBtn_%s" % hero.character_name
-		confirm_btn.custom_minimum_size = Vector2(160, 30)
-		if cinzel: confirm_btn.add_theme_font_override("font", cinzel)
-		confirm_btn.add_theme_font_size_override("font_size", 10)
+		confirm_btn.custom_minimum_size = Vector2(200, 34)
+		confirm_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		vbox.add_child(confirm_btn)
 		# Connect once
 		confirm_btn.pressed.connect(func():
@@ -361,6 +427,7 @@ func _apply_bonus(hero: Character, stat: String, panel: PanelContainer, cinzel):
 		"ATK": hero.base_attack += bonus
 		"DEF": hero.base_defense += bonus
 		"MAG": hero.base_magic += bonus
+		"ARC": hero.base_arcane += bonus
 		"SPD": hero.base_speed += bonus
 
 	# Find the stat value label and animate the increase
@@ -369,23 +436,17 @@ func _apply_bonus(hero: Character, stat: String, panel: PanelContainer, cinzel):
 	if val_lbl:
 		old_val = int(val_lbl.text)
 
-	# Show increment label next to stat
+	# Reuse the existing increment label (the one created in _create_hero_panel
+	# and faded out after the stat animation). Inserting a new Label here would
+	# shift every subsequent grid cell, breaking SPD's row alignment.
 	if val_lbl:
-		var row = val_lbl.get_parent()
-		var inc = Label.new()
-		inc.text = "+%d" % bonus
-		inc.modulate.a = 0.0
-		if cinzel: inc.add_theme_font_override("font", cinzel)
-		inc.add_theme_font_size_override("font_size", 10)
-		inc.add_theme_color_override("font_color", Color(0.4, 1.0, 0.5))
-		# Insert right after val_lbl (index + 1) so it sits next to the value
-		row.add_child(inc)
-		row.move_child(inc, val_lbl.get_index() + 1)
-
-		# Fade in increment
-		var t1 = create_tween()
-		t1.tween_property(inc, "modulate:a", 1.0, 0.3)
-		await t1.finished
+		var inc = _find_node("Inc_%s_%s" % [hero.character_name, stat], panel)
+		if inc:
+			inc.text = "+%d" % bonus
+			inc.modulate.a = 0.0
+			var t1 = create_tween()
+			t1.tween_property(inc, "modulate:a", 1.0, 0.3)
+			await t1.finished
 
 		# Count up stat value
 		var new_val = old_val + bonus
@@ -396,11 +457,14 @@ func _apply_bonus(hero: Character, stat: String, panel: PanelContainer, cinzel):
 		)
 		await tween.finished
 
-		# Fade out increment
-		var fade = create_tween()
-		fade.tween_property(inc, "modulate:a", 0.0, 0.3)
-		await fade.finished
-		inc.queue_free()
+		# Fade out increment but DON'T free it — the inc_lbl reserves the right-hand
+		# column width. Removing the node lets val_lbl (SIZE_EXPAND_FILL) eat that
+		# space and shifts its right-aligned text to the row's right edge, breaking
+		# alignment with the other (un-upgraded) rows.
+		if inc:
+			var fade = create_tween()
+			fade.tween_property(inc, "modulate:a", 0.0, 0.3)
+			await fade.finished
 
 	# Done — increment choices made
 	choices_made += 1
@@ -428,6 +492,7 @@ func _get_old_stats(hero: Character) -> Dictionary:
 		"ATK": hero.base_attack + (hero.level - 2) * 2,
 		"DEF": hero.base_defense + (hero.level - 2) * 1,
 		"MAG": hero.base_magic + (hero.level - 2) * 2,
+		"ARC": hero.base_arcane + (hero.level - 2) * 1,
 		"SPD": hero.base_speed + (hero.level - 2) * 1,
 	}
 
@@ -438,6 +503,7 @@ func _get_new_stats(hero: Character) -> Dictionary:
 		"ATK": hero.attack_power(),
 		"DEF": hero.defense_power(),
 		"MAG": hero.magic_power(),
+		"ARC": hero.arcane_power(),
 		"SPD": hero.speed(),
 	}
 
@@ -456,3 +522,36 @@ func _find_node(node_name: String, parent: Node) -> Node:
 		if found:
 			return found
 	return null
+
+# Themed button using a hero palette. `accent` = highlighted (confirm button) —
+# uses the brighter accent color for text so the primary action pops.
+func _make_themed_button(text: String, font: FontFile, accent: bool, palette: Dictionary) -> Button:
+	var b = Button.new()
+	b.text = text
+	if font: b.add_theme_font_override("font", font)
+	b.add_theme_font_size_override("font_size", 11)
+	b.add_theme_color_override("font_color", palette["accent"] if accent else palette["subtitle"])
+	b.add_theme_color_override("font_hover_color", palette["accent"])
+	b.add_theme_color_override("font_pressed_color", palette["accent"])
+
+	var normal = StyleBoxFlat.new()
+	normal.bg_color = palette["button_bg"]
+	normal.border_color = palette["border"]
+	normal.set_border_width_all(1)
+	normal.set_corner_radius_all(4)
+	normal.content_margin_left = 10
+	normal.content_margin_right = 10
+	normal.content_margin_top = 4
+	normal.content_margin_bottom = 4
+	b.add_theme_stylebox_override("normal", normal)
+
+	var hover = normal.duplicate()
+	hover.bg_color = palette["button_hover_bg"]
+	hover.border_color = palette["accent"]
+	b.add_theme_stylebox_override("hover", hover)
+
+	var pressed = normal.duplicate()
+	pressed.bg_color = palette["button_pressed_bg"]
+	pressed.border_color = palette["accent"]
+	b.add_theme_stylebox_override("pressed", pressed)
+	return b

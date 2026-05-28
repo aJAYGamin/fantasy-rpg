@@ -18,6 +18,7 @@ static func serialize_skill(s: Skill) -> Dictionary:
 		"target_type": int(s.target_type),
 		"power": s.power,
 		"element": int(s.element),
+		"secondary_element": int(s.secondary_element),
 		"status_to_apply": s.status_to_apply,
 		"status_chance": s.status_chance,
 		"resonance_gain_override": s.resonance_gain_override,
@@ -34,6 +35,7 @@ static func deserialize_skill(d: Dictionary) -> Skill:
 	s.target_type = int(d.get("target_type", 0))
 	s.power = float(d.get("power", 1.0))
 	s.element = int(d.get("element", 0))
+	s.secondary_element = int(d.get("secondary_element", 0))
 	s.status_to_apply = d.get("status_to_apply", "")
 	s.status_chance = float(d.get("status_chance", 0.0))
 	s.resonance_gain_override = float(d.get("resonance_gain_override", -1.0))
@@ -94,13 +96,16 @@ static func serialize_character(c: Character) -> Dictionary:
 		"base_attack": c.base_attack,
 		"base_defense": c.base_defense,
 		"base_magic": c.base_magic,
+		"base_arcane": c.base_arcane,
 		"base_speed": c.base_speed,
 		"element": int(c.element),
+		"secondary_element": int(c.secondary_element),
 		"extra_weakness": int(c.extra_weakness),
 		"extra_resistance": int(c.extra_resistance),
 		"level": c.level,
 		"current_hp": c.current_hp,
 		"current_mp": c.current_mp,
+		"resonance_meter": c.resonance_meter,
 		"experience": c.experience,
 		"experience_to_next": c.experience_to_next,
 		"status_effects": status_data,
@@ -123,14 +128,17 @@ static func deserialize_character(d: Dictionary) -> Character:
 	c.base_attack = int(d.get("base_attack", 10))
 	c.base_defense = int(d.get("base_defense", 5))
 	c.base_magic = int(d.get("base_magic", 5))
+	c.base_arcane = int(d.get("base_arcane", 5))
 	c.base_speed = int(d.get("base_speed", 10))
 	c.element = int(d.get("element", 0))
+	c.secondary_element = int(d.get("secondary_element", 0))
 	c.extra_weakness = int(d.get("extra_weakness", 0))
 	c.extra_resistance = int(d.get("extra_resistance", 0))
 	c.level = int(d.get("level", 1))
 	# current_hp/mp default to max if missing; they're NOT @export so survive level set
 	c.current_hp = int(d.get("current_hp", c.max_hp()))
 	c.current_mp = int(d.get("current_mp", c.max_mp()))
+	c.resonance_meter = float(d.get("resonance_meter", 0.0))
 	c.experience = int(d.get("experience", 0))
 	c.experience_to_next = int(d.get("experience_to_next", 100))
 

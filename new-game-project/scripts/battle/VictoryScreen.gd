@@ -16,11 +16,58 @@ var pending_exp: int = 0
 var pending_gold: int = 0
 var level_up_screen: Control = null
 var _pending_level_up_heroes: Array[Character] = []
+var _card: Control = null  # themed card wrapping Content (set in _apply_theme)
 
 func _ready():
 	hide()
 	continue_btn.pressed.connect(_on_continue)
 	continue_btn.visible = false
+	_apply_theme()
+
+# Wraps the centered content in a themed gold-bordered card and styles the
+# title + button to match the rest of the battle UI (resonance/action menus).
+func _apply_theme():
+	var accent := Color(1.00, 0.84, 0.25)  # victory gold
+
+	# Darken the overlay a touch more for contrast against the card.
+	overlay.color = Color(0.02, 0.02, 0.05, 0.72)
+
+	# Center + themed card wrapping the content.
+	var center := CenterContainer.new()
+	center.name = "CardCenter"
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(center)
+
+	var card := PanelContainer.new()
+	card.name = "ThemedCard"
+	var style := BattleUITheme.panel_style(accent, BattleUITheme.PANEL_BG, 3, 16)
+	style.content_margin_left = 32
+	style.content_margin_right = 32
+	style.content_margin_top = 22
+	style.content_margin_bottom = 22
+	style.shadow_size = 10
+	card.add_theme_stylebox_override("panel", style)
+	center.add_child(card)
+	_card = card
+
+	# Reparent the existing Content VBox into the card (cached @onready refs
+	# stay valid through the reparent).
+	if content.get_parent() != null:
+		content.get_parent().remove_child(content)
+	card.add_child(content)
+
+	# Title — gold with a drop shadow + decorative stars.
+	victory_label.text = "✦  Victory  ✦"
+	victory_label.add_theme_color_override("font_color", accent)
+	victory_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.6))
+	victory_label.add_theme_constant_override("shadow_offset_x", 2)
+	victory_label.add_theme_constant_override("shadow_offset_y", 2)
+
+	# Continue button — themed, gold-tinted, comfortable size.
+	BattleUITheme.style_button(continue_btn, 15)
+	continue_btn.custom_minimum_size = Vector2(240, 42)
+	continue_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 
 func setup_level_up_screen(lus: Control):
 	level_up_screen = lus
@@ -37,11 +84,12 @@ func show_victory(battle_rewards: Dictionary, battle_party: Array[Character], re
 	show()
 
 	overlay.modulate.a = 0.0
-	content.modulate.a = 0.0
+	var fade_target = _card if _card != null else content
+	fade_target.modulate.a = 0.0
 	var tween = create_tween()
 	tween.set_parallel(true)
 	tween.tween_property(overlay, "modulate:a", 1.0, 0.5)
-	tween.tween_property(content, "modulate:a", 1.0, 0.8)
+	tween.tween_property(fade_target, "modulate:a", 1.0, 0.8)
 	await tween.finished
 
 	_build_party_list()
@@ -105,7 +153,9 @@ func _build_rewards_label():
 func _animate_gold(cinzel):
 	var start_gold = GameManager.gold - pending_gold
 	var end_gold = GameManager.gold
-	var content_vbox = $Content
+	# Use the cached `content` ref, not $Content — the node was reparented into
+	# the themed card in _apply_theme, so the $Content path no longer resolves.
+	var content_vbox = content
 
 	# Add gold label
 	var gold_title = Label.new()

@@ -4,6 +4,9 @@ extends Node
 signal battle_started(party: Array, enemies: Array)
 signal enemy_move_preview(enemy: Character, move_name: String)
 signal turn_started(character: Character)
+# Fires AFTER skip/wake resolution — UI uses this to show the action menu so
+# it doesn't flash visible during stun/sleep/paralysis skip animations.
+signal turn_ready_for_action(character: Character)
 signal action_performed(result: Dictionary)
 signal character_defeated(character: Character)
 signal battle_ended(player_won: bool, rewards: Dictionary)
@@ -67,6 +70,46 @@ func _next_turn():
 
 	emit_signal("turn_started", current_actor)
 
+	# Skip-turn resolution. StatusSystem owns the rules:
+	#   stun       -> always skip + auto-clear
+	#   sleep      -> probabilistic skip (100% -> 75% -> ...) or wake-and-act
+	#   paralysis  -> 25% skip per turn (does NOT clear; persists until healed)
+	# Returns { skip: <name or "">, woke_up: bool }.
+	# Note: turn_ready_for_action (and therefore the action menu) is deliberately
+	# NOT emitted until skip/wake banners finish — keeps the menu from flashing
+	# visible during the skip animation.
+	var skip_result: Dictionary = StatusSystem.resolve_turn_skip(current_actor)
+
+	# Wake-up banner: sleep was active and resolved to "wake", actor will act
+	# THIS same turn after the banner finishes. Wait long enough for the banner
+	# to play fully (BattleScene.BANNER_DURATION_WAKE = 1.55) plus a small
+	# buffer so the action menu doesn't appear mid-fade.
+	if skip_result.get("woke_up", false):
+		emit_signal("status_effect_triggered", current_actor, {
+			"type": "woke_up",
+			"value": 0,
+			"name": current_actor.character_name,
+		})
+		await get_tree().create_timer(1.75).timeout
+
+	# Skip banner: actor cannot act this turn. Wait for the banner to finish
+	# (BattleScene.BANNER_DURATION_SKIP = 1.70) before advancing to next actor.
+	var skip_status: String = skip_result.get("skip", "")
+	if skip_status != "":
+		emit_signal("status_effect_triggered", current_actor, {
+			"type": skip_status,
+			"value": 0,
+			"skipped": true,
+			"name": current_actor.character_name,
+		})
+		await get_tree().create_timer(1.90).timeout
+		current_turn_index += 1
+		_next_turn()
+		return
+
+	# Actor is ready — UI shows action menu / starts enemy AI.
+	emit_signal("turn_ready_for_action", current_actor)
+
 	if current_actor in party:
 		state = BattleState.CHOOSING_ACTION
 	else:
@@ -95,7 +138,7 @@ func player_attack(attacker: Character, target: Character):
 		end_player_turn()
 		return
 	# take_damage now returns a Dictionary with damage, multiplier, effectiveness
-	var dmg_result = target.take_damage(attacker.attack_power(), attacker.element)
+	var dmg_result = target.take_damage(attacker.attack_power(), attacker.element, attacker.secondary_element)
 	var result = {
 		"action": "attack",
 		"actor": attacker,
@@ -139,14 +182,14 @@ func player_use_skill(user: Character, skill: Skill, targets: Array[Character]):
 				continue
 			match skill.attack_type:
 				Skill.AttackType.STRIKE, Skill.AttackType.RANGED:
-					var dmg_result = target.take_damage(value, skill.element)
+					var dmg_result = target.take_damage(value, skill.element, skill.secondary_element)
 					result["action"] = "skill_physical"
 					result["value"] = dmg_result.get("damage", 0)
 					result["multiplier"] = dmg_result.get("multiplier", 1.0)
 					result["effectiveness"] = dmg_result.get("effectiveness", "")
 					result["effectiveness_color"] = dmg_result.get("effectiveness_color", Color.WHITE)
 				Skill.AttackType.MAGIC:
-					var dmg_result = target.take_magic_damage(value, skill.element)
+					var dmg_result = target.take_magic_damage(value, skill.element, skill.secondary_element)
 					result["action"] = "skill_magic"
 					result["value"] = dmg_result.get("damage", 0)
 					result["multiplier"] = dmg_result.get("multiplier", 1.0)
@@ -159,18 +202,22 @@ func player_use_skill(user: Character, skill: Skill, targets: Array[Character]):
 					result["action"] = "heal"
 					result["value"] = healed
 				Skill.StatusType.BUFF:
-					target.add_status("regenerate")
+					# A skill's status_to_apply token can be a stat-buff ("attack_buff"),
+					# a stat-debuff ("magic_debuff"), or a legacy named status
+					# ("regenerate"). Default to "regenerate" if no token specified.
+					var token: String = skill.status_to_apply if skill.status_to_apply != "" else StatusSystem.REGENERATE
+					_apply_skill_status(target, token)
 					result["action"] = "buff"
 					result["value"] = 0
 				Skill.StatusType.DEBUFF:
 					if skill.status_to_apply != "":
-						target.add_status(skill.status_to_apply)
+						_apply_skill_status(target, skill.status_to_apply)
 					result["action"] = "debuff"
 					result["value"] = 0
 
 		# Status chance only applies on damage skills
 		if skill.skill_type == Skill.SkillType.DAMAGE and skill.status_to_apply != "" and randf() < skill.status_chance:
-			target.add_status(skill.status_to_apply)
+			_apply_skill_status(target, skill.status_to_apply)
 
 		result["target_alive"] = target.is_alive()
 		emit_signal("action_performed", result)
@@ -190,7 +237,8 @@ func player_use_item(user: Character, item: Item, target: Character):
 func enemy_use_skill(enemy: Character, skill: Skill, targets: Array[Character]):
 	if not skill.can_use(enemy):
 		return
-	enemy.use_mp(skill.mp_cost)
+	# Enemies have no MP pool — skip the deduction. Skill.can_use() already
+	# short-circuits MP cost for Enemy instances.
 	# Override target for SELF skills
 	var actual_targets = targets
 	if skill.target_type == Skill.TargetType.SELF:
@@ -205,14 +253,14 @@ func enemy_use_skill(enemy: Character, skill: Skill, targets: Array[Character]):
 		if skill.skill_type == Skill.SkillType.DAMAGE:
 			match skill.attack_type:
 				Skill.AttackType.STRIKE, Skill.AttackType.RANGED:
-					var dmg_result = target.take_damage(value, skill.element)
+					var dmg_result = target.take_damage(value, skill.element, skill.secondary_element)
 					result["action"] = "attack"
 					result["value"] = dmg_result.get("damage", 0)
 					result["multiplier"] = dmg_result.get("multiplier", 1.0)
 					result["effectiveness"] = dmg_result.get("effectiveness", "")
 					result["effectiveness_color"] = dmg_result.get("effectiveness_color", Color.WHITE)
 				Skill.AttackType.MAGIC:
-					var dmg_result = target.take_magic_damage(value, skill.element)
+					var dmg_result = target.take_magic_damage(value, skill.element, skill.secondary_element)
 					result["action"] = "skill_magic"
 					result["value"] = dmg_result.get("damage", 0)
 					result["multiplier"] = dmg_result.get("multiplier", 1.0)
@@ -225,16 +273,17 @@ func enemy_use_skill(enemy: Character, skill: Skill, targets: Array[Character]):
 					result["action"] = "heal"
 					result["value"] = healed
 				Skill.StatusType.BUFF:
-					target.add_status("regenerate")
+					var token: String = skill.status_to_apply if skill.status_to_apply != "" else StatusSystem.REGENERATE
+					_apply_skill_status(target, token)
 					result["action"] = "buff"
 					result["value"] = 0
 				Skill.StatusType.DEBUFF:
 					if skill.status_to_apply != "":
-						target.add_status(skill.status_to_apply)
+						_apply_skill_status(target, skill.status_to_apply)
 					result["action"] = "debuff"
 					result["value"] = 0
 		if skill.skill_type == Skill.SkillType.DAMAGE and skill.status_to_apply != "" and randf() < skill.status_chance:
-			target.add_status(skill.status_to_apply)
+			_apply_skill_status(target, skill.status_to_apply)
 		result["target_alive"] = target.is_alive()
 		emit_signal("action_performed", result)
 		if not target.is_alive():
@@ -300,7 +349,7 @@ func _execute_enemy_turn():
 			}
 			emit_signal("action_performed", dodge_result)
 		else:
-			var dmg_result = target.take_damage(enemy.attack_power(), enemy.element)
+			var dmg_result = target.take_damage(enemy.attack_power(), enemy.element, enemy.secondary_element)
 			var result = {
 				"action": "attack",
 				"actor": enemy,
@@ -353,3 +402,35 @@ func get_alive_party() -> Array[Character]:
 
 func get_alive_enemies() -> Array[Character]:
 	return enemies.filter(func(c): return c.is_alive())
+
+# Resolves a Skill.status_to_apply token against a target. Buff/debuff tokens
+# (e.g. "attack_buff", "magic_debuff") route to apply_buff/apply_debuff so the
+# cancel-on-opposite rule fires; everything else falls through to add_status
+# which handles the mutex-first-come-first-served rule.
+# When a mutex status actually LANDS (target had no prior mutex status, no
+# duplicate), we emit status_effect_triggered with applied=true so the UI can
+# banner "[Name] was Poisoned!" etc.
+func _apply_skill_status(target: Character, token: String):
+	if token == "":
+		return
+	var parsed = StatusSystem.parse_apply_token(token)
+	match parsed["kind"]:
+		"buff":
+			target.apply_buff(parsed["value"])
+		"debuff":
+			target.apply_debuff(parsed["value"])
+		_:
+			var status_name: String = parsed["value"]
+			var was_active: bool = target.is_status(status_name)
+			target.add_status(status_name)
+			# Banner only when this call is what actually put the status on the
+			# target. Re-applying a duplicate, or mutex-blocked attempts, stay
+			# silent.
+			if not was_active and target.is_status(status_name) \
+					and status_name in StatusSystem.MUTEX_STATUSES:
+				emit_signal("status_effect_triggered", target, {
+					"type": status_name,
+					"value": 0,
+					"applied": true,
+					"name": target.character_name,
+				})

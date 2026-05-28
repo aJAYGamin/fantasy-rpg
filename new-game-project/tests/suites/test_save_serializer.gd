@@ -34,6 +34,7 @@ func _make_character() -> Character:
 	c.base_attack = 9
 	c.base_defense = 6
 	c.base_magic = 14
+	c.base_arcane = 9
 	c.base_speed = 11
 	c.element = ElementalSystem.Element.WATER
 	c.level = 3
@@ -90,7 +91,13 @@ func test_inventory_roundtrip() -> void:
 # --- Character ---
 func test_character_roundtrip() -> void:
 	var c = _make_character()
+	# Give the test character a secondary element to verify dual-type round-trip.
+	c.secondary_element = ElementalSystem.Element.DRAGON
+	c.resonance_meter = 47.5
 	var back = SaveSerializer.deserialize_character(SaveSerializer.serialize_character(c))
+	assert_eq(back.secondary_element, c.secondary_element, "secondary_element preserved")
+	assert_eq(back.base_arcane, 9, "base_arcane preserved")
+	assert_near(back.resonance_meter, 47.5, 0.01, "resonance_meter preserved")
 	assert_eq(back.character_name, c.character_name, "name preserved")
 	assert_eq(back.level, c.level, "level preserved")
 	assert_eq(back.experience, c.experience, "exp preserved")

@@ -8,16 +8,16 @@ script = ExtResource("1_skill")
 skill_name = "Shadow Claw"
 description = "A claw strike infused with dark energy."
 power = 1.2
-element = 8
+element = 14
 
 [sub_resource type="Resource" id="Skill_soul_drain"]
 script = ExtResource("1_skill")
 skill_name = "Soul Drain"
 description = "Drains the life force of a hero."
-mp_cost = 10
+mp_cost = 0
 attack_type = 2
 power = 1.4
-element = 8
+element = 14
 status_to_apply = "poison"
 status_chance = 0.5
 
@@ -25,20 +25,20 @@ status_chance = 0.5
 script = ExtResource("1_skill")
 skill_name = "Dark Pulse"
 description = "A wave of dark energy that corrupts all heroes."
-mp_cost = 18
+mp_cost = 0
 attack_type = 2
 target_type = 1
-element = 8
+element = 14
 
 [sub_resource type="Resource" id="Skill_void_shroud"]
 script = ExtResource("1_skill")
 skill_name = "Void Shroud"
 description = "Wraps itself in darkness, healing its wounds."
-mp_cost = 10
+mp_cost = 0
 skill_type = 1
 target_type = 4
 power = 1.1
-element = 8
+element = 14
 
 [resource]
 script = ExtResource("2_enemy")
@@ -49,9 +49,10 @@ base_gold_reward = 12
 character_name = "Dark Wraith"
 character_class = "Mage"
 base_hp = 45
-base_mp = 60
 base_attack = 12
 base_magic = 8
+base_arcane = 10
 base_speed = 9
-element = 8
+element = 14
+secondary_element = 10
 skills = Array[ExtResource("1_skill")]([SubResource("Skill_shadow_claw"), SubResource("Skill_soul_drain"), SubResource("Skill_dark_pulse"), SubResource("Skill_void_shroud")])

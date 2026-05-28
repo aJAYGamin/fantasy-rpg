@@ -10,10 +10,25 @@ func _make() -> Character:
 	c.base_attack = 10
 	c.base_defense = 5
 	c.base_magic = 8
+	c.base_arcane = 4
 	c.level = 1
 	c.current_hp = c.max_hp()
 	c.current_mp = c.max_mp()
 	return c
+
+func test_arcane_power_scales_with_level() -> void:
+	var c = _make()
+	assert_eq(c.arcane_power(), 4, "Lv1 arcane_power = base_arcane")
+	c.level = 5
+	assert_eq(c.arcane_power(), 4 + 4, "Lv5 arcane_power adds (level-1)")
+
+func test_take_magic_damage_subtracts_arcane() -> void:
+	var c = _make()
+	c.base_arcane = 4
+	# Magic damage subtracts arcane_power (4 at Lv1), then applies element multiplier.
+	# 30 - 4 = 26, normal multiplier → 26 damage.
+	var r = c.take_magic_damage(30, ElementalSystem.Element.NORMAL)
+	assert_eq(r["damage"], 26, "magic damage = 30 - arcane(4) at neutral element")
 
 func test_max_hp_scales_with_level() -> void:
 	var c = _make()
@@ -34,13 +49,13 @@ func test_is_alive() -> void:
 
 func test_take_damage_subtracts_defense() -> void:
 	var c = _make()  # defense_power = 5 at Lv1
-	var r = c.take_damage(20, ElementalSystem.Element.NONE)
+	var r = c.take_damage(20, ElementalSystem.Element.NORMAL)
 	assert_eq(r["damage"], 15, "20 dmg - 5 def = 15")
 	assert_eq(c.current_hp, 85, "HP reduced by 15")
 
 func test_take_damage_minimum_one() -> void:
 	var c = _make()
-	var r = c.take_damage(1, ElementalSystem.Element.NONE)
+	var r = c.take_damage(1, ElementalSystem.Element.NORMAL)
 	assert_eq(r["damage"], 1, "damage floors at 1 even when below defense")
 
 func test_heal_caps_at_max() -> void:

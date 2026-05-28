@@ -43,8 +43,20 @@ var _enemy_layout: EnemyLayout = EnemyLayout.GRID_2COL
 var _max_hp: Dictionary = {}   # character -> max hp at battle start
 var _max_mp: Dictionary = {}   # character -> max mp at battle start
 var _enemy_hp_bars: Dictionary = {}   # character -> ProgressBar
+# Status chip rows (mutex status + per-stat buff/debuff chips). Injected into
+# the existing panel layouts on first encounter so we don't have to edit .tscn.
+# Refreshed via StatusChipFactory on every _update_hero_panel / _refresh_enemy_card.
+var _enemy_status_rows: Dictionary = {} # character -> HBoxContainer
 var _bar_tweens: Dictionary = {}      # ProgressBar -> Tween (so we can cancel/restart on rapid updates)
 const BAR_TWEEN_DURATION: float = 0.3
+
+# Status banner display times (total visible time, including fade in/out).
+# Fade-in is 0.22, fade-out is 0.30, so hold time = duration - 0.52s.
+# BattleManager's skip-turn await must match BANNER_DURATION_SKIP + small buffer
+# so the next turn does NOT start before the banner finishes.
+const BANNER_DURATION_APPLIED: float = 1.55
+const BANNER_DURATION_SKIP: float    = 1.70
+const BANNER_DURATION_WAKE: float    = 1.55
 var _enemy_hp_labels: Dictionary = {} # character -> Label
 # Keyed by Character ref so duplicate-named enemies (e.g. two Wind Sprites)
 # each have their own portrait lookup. Avoids relying on Godot's auto-rename suffixes.
@@ -67,6 +79,7 @@ func _ready():
 
 	battle_manager.battle_started.connect(_on_battle_started)
 	battle_manager.turn_started.connect(_on_turn_started)
+	battle_manager.turn_ready_for_action.connect(_on_turn_ready_for_action)
 	battle_manager.action_performed.connect(_on_action_performed)
 	battle_manager.character_defeated.connect(_on_character_defeated)
 	battle_manager.battle_ended.connect(_on_battle_ended)
@@ -78,6 +91,26 @@ func _ready():
 	items_btn.pressed.connect(_on_items_pressed)
 	run_btn.pressed.connect(_on_run_pressed)
 	resonance_btn.pressed.connect(_on_resonance_pressed)
+
+	# Apply the shared battle UI theme to the scene-built action menu buttons
+	# so they match the resonance menu / hero panels visually.
+	BattleUITheme.style_button(attack_btn, 12)
+	BattleUITheme.style_button(special_btn, 12)
+	BattleUITheme.style_button(items_btn, 12)
+	BattleUITheme.style_button(run_btn, 12)
+	BattleUITheme.style_button(resonance_btn, 12)
+	# Theme the outer action menu panel container too.
+	var action_panel_style := BattleUITheme.panel_style()
+	action_panel_style.content_margin_left = 10
+	action_panel_style.content_margin_right = 10
+	action_panel_style.content_margin_top = 8
+	action_panel_style.content_margin_bottom = 8
+	action_menu.add_theme_stylebox_override("panel", action_panel_style)
+	# Title label color/font for consistency.
+	if action_title:
+		var f := BattleUITheme.font_bold()
+		if f: action_title.add_theme_font_override("font", f)
+		action_title.add_theme_color_override("font_color", BattleUITheme.TEXT_SUBTITLE)
 
 	resonance_system.resonance_changed.connect(_on_resonance_changed)
 	resonance_system.resonance_full.connect(_on_resonance_full)
@@ -107,7 +140,7 @@ func start_battle(party: Array[Character], enemies: Array[Character], area: Stri
 		_max_mp[c] = c.max_mp()
 	for e in enemies:
 		_max_hp[e] = e.max_hp()
-		_max_mp[e] = e.max_mp()
+		# Enemies have no MP pool — skip _max_mp caching for them.
 	_setup_hero_panels(party)
 	_setup_enemy_cards(enemies)
 	turn_order_indicator.setup(party, enemies)
@@ -174,7 +207,7 @@ func _start_overworld_battle():
 func _load_enemy(file_name: String) -> Enemy:
 	var enemy: Enemy = load("res://data/enemies/%s.tres" % file_name).duplicate(true)
 	enemy.current_hp = enemy.max_hp()
-	enemy.current_mp = enemy.max_mp()
+	# Enemies don't have an MP pool — skip current_mp init.
 	if enemy.inventory == null:
 		enemy.inventory = Inventory.new()
 	return enemy
@@ -221,7 +254,37 @@ func _animate_bar(bar: ProgressBar, label: Label, target: float, label_fn: Calla
 
 func _update_hero_panel(panel: PanelContainer, hero: Character, animate: bool = true):
 	var layout = panel.get_node("HeroLayout")
-	layout.get_node("HeroNameLabel").text = "  %s · Lv%d" % [hero.character_name, hero.level]
+	var name_lbl: Label = layout.get_node("HeroNameLabel")
+	name_lbl.text = "  %s · Lv%d" % [hero.character_name, hero.level]
+
+	# --- Hero-themed panel chrome ---
+	# Tint the panel border / bg with the hero's accent so each party slot is
+	# visually distinct (Aria blue, Kael red, Lyra green). The HP/MP/Resonance
+	# bars keep their semantic colors so readability isn't sacrificed — the
+	# tint is only on the chrome and the name.
+	var palette: Dictionary = HeroPalette.for_hero(hero.character_name)
+	# Tinted panel chrome — rebuilt every refresh so tweaks (margins, border)
+	# always reflect current code. (The `themed` meta was previously used to
+	# avoid rebuilding but it meant later style tweaks didn't apply.)
+	var styled := StyleBoxFlat.new()
+	styled.bg_color = palette["panel_bg"]
+	styled.border_color = palette["accent"]
+	styled.set_border_width_all(2)
+	styled.set_corner_radius_all(10)
+	styled.shadow_color = Color(0, 0, 0, 0.5)
+	styled.shadow_size = 4
+	# Generous top padding so the hero name doesn't kiss the border + room at
+	# the bottom for the status chip row that the layout grows into.
+	styled.content_margin_left = 10
+	styled.content_margin_right = 10
+	styled.content_margin_top = 10
+	styled.content_margin_bottom = 8
+	panel.add_theme_stylebox_override("panel", styled)
+	# Name label always gets the accent color + drop shadow for legibility.
+	name_lbl.add_theme_color_override("font_color", palette["accent"])
+	name_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.6))
+	name_lbl.add_theme_constant_override("shadow_offset_x", 1)
+	name_lbl.add_theme_constant_override("shadow_offset_y", 1)
 
 	var hp_bar   = layout.get_node("HPRow/HPBar")
 	var hp_lbl   = layout.get_node("HPRow/HPLabel")
@@ -293,6 +356,18 @@ func _update_hero_panel(panel: PanelContainer, hero: Character, animate: bool = 
 	else:
 		res_val.add_theme_color_override("font_color", res_color)
 
+	# --- Status / Buff / Debuff chip row (beneath ResonanceRow) ---
+	# Lazily inject the row the first time we see this panel — keeps scene files
+	# untouched and means new heroes added later get the row for free.
+	var status_row: HBoxContainer = layout.get_node_or_null("StatusRow")
+	if status_row == null:
+		status_row = HBoxContainer.new()
+		status_row.name = "StatusRow"
+		status_row.add_theme_constant_override("separation", 4)
+		status_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		layout.add_child(status_row)
+	StatusChipFactory.populate_row(status_row, hero)
+
 func _setup_enemy_cards(enemies: Array[Character]):
 	for child in enemy_info_row.get_children():
 		child.queue_free()
@@ -311,8 +386,16 @@ func _create_enemy_card(enemy: Character) -> PanelContainer:
 	# Fixed width — cards no longer stretch when there are few enemies.
 	# 10 cards × 124 + 9 × 2 spacing = 1258, fits comfortably in the 1280-wide viewport.
 	card.custom_minimum_size = Vector2(124, 70)
+	# Themed chrome — border colored by the enemy's RARITY (common=grey,
+	# uncommon=green, rare=blue, epic=purple, mythic=red, legendary=gold,
+	# celestial=white) so the player can read an enemy's tier at a glance.
+	# Dark plum bg matches the action/resonance menus.
+	var enemy_border: Color = enemy.get_rarity_color() if enemy is Enemy else BattleUITheme.PANEL_BORDER
+	card.add_theme_stylebox_override("panel",
+			BattleUITheme.panel_style(enemy_border, BattleUITheme.PANEL_BG, 2, 8))
 
 	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 3)
 	card.add_child(vbox)
 
 	# Load Cinzel font for enemy cards
@@ -390,6 +473,17 @@ func _create_enemy_card(enemy: Character) -> PanelContainer:
 	# Store label reference for live updates
 	_enemy_hp_labels[enemy] = hp_lbl
 
+	# Status chip row beneath the HP label. Built empty and shown only when
+	# the enemy actually has effects (StatusChipFactory auto-hides if none).
+	var status_row = HBoxContainer.new()
+	status_row.name = "StatusRow"
+	status_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	status_row.add_theme_constant_override("separation", 3)
+	status_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_child(status_row)
+	_enemy_status_rows[enemy] = status_row
+	StatusChipFactory.populate_row(status_row, enemy)
+
 	return card
 
 # --- Battle Signals ---
@@ -397,10 +491,13 @@ func _on_battle_started(_party, _enemies):
 	_toggle_action_menu(false)
 
 func _on_turn_started(character: Character):
+	# Fires the moment a new turn begins, BEFORE stun/sleep/paralysis is
+	# resolved. We use it for: turn-order highlight, target-selection cleanup,
+	# and force-hiding the action menu so it can't flash visible while a
+	# skip-turn banner plays. The menu re-appears via _on_turn_ready_for_action
+	# only if the actor actually gets to act.
 	current_actor = character
-	var is_player = battle_manager.party.has(character)
 
-	# Always clean up target selection state on any new turn
 	_pending_action = ""
 	_clear_target_buttons()
 	var action_layout = action_menu.get_node_or_null("ActionLayout")
@@ -411,14 +508,32 @@ func _on_turn_started(character: Character):
 		for child in action_layout.get_children():
 			child.visible = true
 
+	# Always hide the menu at turn start — _on_turn_ready_for_action will show
+	# it again iff the actor is a player and not skipping.
+	action_menu.visible = false
+
+	# General refresh at turn boundary so any inter-turn state (HP drain
+	# animations finishing, etc.) is visible. The sleep-wake chip clear is
+	# handled separately: BattleManager fires status_effect_triggered with
+	# type="woke_up" right after resolve_turn_skip, and _on_status_triggered
+	# refreshes there — at which point Character has already lost the Sleep
+	# status, so the chip disappears together with the wake banner.
+	_refresh_all_panels()
+	if battle_manager.enemies.has(character):
+		_refresh_enemy_card(character)
+
+	_update_resonance_button()
+	turn_order_indicator.set_active(character)
+
+func _on_turn_ready_for_action(character: Character):
+	# Fires AFTER skip/wake banners finish, only when the actor will actually
+	# act this turn. Safe point to reveal the action menu for the player.
+	var is_player = battle_manager.party.has(character)
 	if is_player:
 		action_title.text = "— %s's Turn —" % character.character_name
 		action_menu.visible = not _battle_over
 	else:
 		action_menu.visible = false
-
-	_update_resonance_button()
-	turn_order_indicator.set_active(character)
 
 func _on_enemy_move_preview(enemy: Character, move_name: String):
 	# Remove any existing preview panel
@@ -503,13 +618,24 @@ func _refresh_enemy_card(enemy: Character):
 	if hp_lbl and is_instance_valid(hp_lbl):
 		hp_lbl.add_theme_color_override("font_color", hp_color)
 
+	# Refresh status chips — buff/debuff/poison/etc may have changed this turn.
+	var status_row = _enemy_status_rows.get(enemy)
+	if status_row != null and is_instance_valid(status_row):
+		StatusChipFactory.populate_row(status_row, enemy)
+
 func _on_action_performed(result: Dictionary):
 	_refresh_all_panels()
-	# Refresh enemy card if enemy took damage
+	# Refresh enemy card if an enemy was the target (took damage / got debuffed)
 	if result.has("target"):
 		var target = result["target"]
 		if battle_manager.enemies.has(target):
 			_refresh_enemy_card(target)
+	# Also refresh the actor's card if the actor is an enemy that buffed itself
+	# or an ally — heroes are covered by _refresh_all_panels above.
+	if result.has("actor"):
+		var actor = result["actor"]
+		if actor != null and battle_manager.enemies.has(actor):
+			_refresh_enemy_card(actor)
 
 	# Spawn damage/heal/dodge numbers
 	if result.has("target"):
@@ -577,6 +703,12 @@ func _rebuild_enemy_cards():
 func _on_battle_ended(player_won: bool, rewards: Dictionary):
 	_battle_over = true
 	_toggle_action_menu(false)
+	# Clear ALL temporary battle effects from the party — mutex statuses
+	# (poison/scorched/frostbite/stun/sleep/paralysis), buffs, debuffs, sleep
+	# counter. Without this they'd leak into the next encounter or overworld.
+	# Enemies are destroyed at battle end so they don't need cleanup.
+	for hero in battle_manager.party:
+		hero.clear_battle_effects()
 	# Hide menus immediately (no animations on these), but let HP/MP/Resonance bars
 	# finish their tween so the killing blow's drain is visible to the player.
 	attack_menu.visible = false
@@ -611,8 +743,129 @@ func _return_to_overworld():
 	get_tree().change_scene_to_file(path)
 
 func _on_status_triggered(character: Character, result: Dictionary):
-	print("%s: %s %d" % [character.character_name, result["type"], result["value"]])
+	var event_type: String = result.get("type", "")
+	print("%s: %s %d" % [character.character_name, event_type, int(result.get("value", 0))])
 	_refresh_all_panels()
+	# Status events fire on enemies too (poison tick, sleep skip, etc.) — refresh
+	# that enemy's card so chips and HP bar stay in sync.
+	if character != null and battle_manager.enemies.has(character):
+		_refresh_enemy_card(character)
+
+	# Banner routing — three event shapes:
+	#   applied=true  -> "[Name] was Poisoned!" / "fell Asleep!" / etc.
+	#   skipped=true  -> "[Name] reoriented themself" (stun) / "is Asleep!" (sleep)
+	#   type=woke_up  -> "[Name] woke up!"
+	var nm: String = character.character_name
+	if event_type == "woke_up":
+		_show_status_banner(
+			StatusSystem.woke_phrase(nm),
+			Color(1.00, 0.95, 0.55),  # warm wake-up yellow
+			BANNER_DURATION_WAKE
+		)
+	elif result.get("skipped", false):
+		# Defensive: force-hide the action menu the moment a skip banner fires
+		# (stun / sleep / paralysis). _on_turn_started already hides it at turn
+		# boundary, but this guards against any race where the menu was set
+		# visible elsewhere between turn_started and resolve_turn_skip.
+		action_menu.visible = false
+		var skip_color: Color = StatusSystem.STATUS_COLORS.get(event_type, Color(0.8, 0.8, 0.9))
+		_show_status_banner(
+			StatusSystem.skipped_phrase(nm, event_type),
+			skip_color,
+			BANNER_DURATION_SKIP
+		)
+	elif result.get("applied", false):
+		var apply_color: Color = StatusSystem.STATUS_COLORS.get(event_type, Color(0.8, 0.8, 0.9))
+		_show_status_banner(
+			StatusSystem.applied_phrase(nm, event_type),
+			apply_color,
+			BANNER_DURATION_APPLIED
+		)
+
+# Shows a large centered banner with a status-colored border for `duration`
+# seconds, then fades out. Safe to call repeatedly — any in-progress banner is
+# replaced. Banner sits above the battle UI on its own CanvasLayer so it
+# doesn't get clipped by panels or the camera.
+func _show_status_banner(text: String, color: Color, duration: float):
+	# Lazily build the banner layer + nodes on first use.
+	var layer: CanvasLayer = get_node_or_null("StatusBannerLayer")
+	if layer == null:
+		layer = CanvasLayer.new()
+		layer.name = "StatusBannerLayer"
+		layer.layer = 50  # above everything else in BattleUI
+		add_child(layer)
+
+	# Centered Control filling the viewport so its child can use anchor presets.
+	var root: Control = layer.get_node_or_null("BannerRoot")
+	if root == null:
+		root = Control.new()
+		root.name = "BannerRoot"
+		root.set_anchors_preset(Control.PRESET_FULL_RECT)
+		root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		layer.add_child(root)
+
+	# Kill any previous banner so we never have two stacked.
+	for child in root.get_children():
+		child.queue_free()
+
+	var panel := PanelContainer.new()
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.modulate.a = 0.0
+
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.06, 0.05, 0.10, 0.92)
+	style.border_color = color
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(8)
+	style.content_margin_left = 16
+	style.content_margin_right = 16
+	style.content_margin_top = 6
+	style.content_margin_bottom = 6
+	style.shadow_color = Color(0, 0, 0, 0.5)
+	style.shadow_size = 4
+	panel.add_theme_stylebox_override("panel", style)
+
+	var label := Label.new()
+	label.text = text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 18)
+	label.add_theme_color_override("font_color", color)
+	# Cinzel for visual consistency with the rest of the battle UI.
+	if ResourceLoader.exists("res://fonts/Cinzel-Bold.ttf"):
+		label.add_theme_font_override("font", load("res://fonts/Cinzel-Bold.ttf"))
+	# Drop shadow for legibility over any background.
+	label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.7))
+	label.add_theme_constant_override("shadow_offset_x", 2)
+	label.add_theme_constant_override("shadow_offset_y", 2)
+	panel.add_child(label)
+
+	root.add_child(panel)
+	# Re-center after layout pass (size depends on label).
+	await get_tree().process_frame
+	if not is_instance_valid(panel):
+		return
+	panel.position = (root.size - panel.size) * 0.5
+	# Drift upward slightly while fading — gives it some life.
+	var start_y := panel.position.y + 10
+	panel.position.y = start_y
+
+	# Fade-in (0.22) -> hold (duration - 0.52) -> fade-out (0.30) + drift up.
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(panel, "modulate:a", 1.0, 0.22)
+	tw.tween_property(panel, "position:y", start_y - 10, 0.22)
+	await tw.finished
+	if not is_instance_valid(panel):
+		return
+	await get_tree().create_timer(max(0.0, duration - 0.52)).timeout
+	if not is_instance_valid(panel):
+		return
+	var out := create_tween().set_parallel(true)
+	out.tween_property(panel, "modulate:a", 0.0, 0.30)
+	out.tween_property(panel, "position:y", start_y - 24, 0.30)
+	await out.finished
+	if is_instance_valid(panel):
+		panel.queue_free()
 
 # --- Target Selection ---
 var _pending_action: String = ""
@@ -790,18 +1043,23 @@ func _on_attack_menu_closed():
 	if not _battle_over and current_actor != null and battle_manager.party.has(current_actor):
 		action_menu.visible = true
 
-# Hero colors by element
+# Hero colors keyed by uppercased element name (lookup is `get_element_name(...).to_upper()`).
 const HERO_COLORS = {
-	"FIRE":      Color(0.9, 0.3, 0.15),
-	"ICE":       Color(0.4, 0.75, 1.0),
-	"LIGHTNING": Color(0.95, 0.85, 0.1),
-	"WATER":     Color(0.2, 0.5, 0.9),
-	"EARTH":     Color(0.5, 0.35, 0.15),
-	"WIND":      Color(0.5, 0.9, 0.4),
-	"LIGHT":     Color(1.0, 0.95, 0.6),
-	"DARK":      Color(0.4, 0.2, 0.6),
-	"ARCANE":    Color(0.65, 0.3, 0.9),
-	"NONE":      Color(0.5, 0.5, 0.55),
+	"FIRE":      Color(0.90, 0.30, 0.15),
+	"WATER":     Color(0.20, 0.50, 0.90),
+	"NATURE":    Color(0.40, 0.85, 0.40),
+	"ICE":       Color(0.40, 0.75, 1.00),
+	"LIGHTNING": Color(0.95, 0.85, 0.10),
+	"EARTH":     Color(0.50, 0.35, 0.15),
+	"WIND":      Color(0.50, 0.90, 0.40),
+	"SOUND":     Color(0.95, 0.85, 0.45),
+	"PSYCHIC":   Color(0.90, 0.40, 0.85),
+	"SPIRIT":    Color(0.78, 0.78, 1.00),
+	"DRAGON":    Color(0.85, 0.50, 0.20),
+	"METAL":     Color(0.70, 0.72, 0.78),
+	"LIGHT":     Color(1.00, 0.95, 0.60),
+	"DARK":      Color(0.40, 0.20, 0.60),
+	"NORMAL":    Color(0.50, 0.50, 0.55),
 }
 
 func _setup_portraits(party: Array[Character], enemies: Array[Character]):
@@ -816,17 +1074,24 @@ func _setup_portraits(party: Array[Character], enemies: Array[Character]):
 	var cinzel = load("res://fonts/Cinzel-Regular.ttf")
 	var screen = get_viewport().get_visible_rect().size
 
-	# Portrait size
+	# Portrait size — smaller than before to keep the diagonal stack from
+	# overlapping the (now-taller) hero info bar. Real character sprites will
+	# slot in here later; the placeholder rect just needs enough room for the
+	# letter initial.
 	var pw = 32.0
-	var ph = 48.0
+	var ph = 40.0
+
+	# Tighter VBox stacking so the bottom hero clears the info panel.
+	party_positions.add_theme_constant_override("separation", 0)
 
 	# --- Hero portraits ---
-	# VBoxContainer at x:50, y:200 — portraits stack vertically with diagonal offset
-	# We use a Control wrapper per hero and offset it horizontally for the diagonal
+	# VBoxContainer at x:50, y:320 — portraits stack vertically with diagonal offset.
+	# Each Control wrapper has just enough height for its portrait + name label
+	# so the whole stack fits above the PartyStatusBar (top at scene y=508).
 	for i in range(party.size()):
 		var hero = party[i]
 		var wrapper = Control.new()
-		wrapper.custom_minimum_size = Vector2(pw + i * 30, ph + 20)
+		wrapper.custom_minimum_size = Vector2(pw + i * 30, ph + 12)
 		party_positions.add_child(wrapper)
 
 		var portrait = _create_portrait(hero, cinzel, false)
@@ -867,36 +1132,50 @@ func _get_enemy_portrait_pos(index: int, total: int) -> Vector2:
 
 func _create_portrait(character: Character, cinzel, is_enemy: bool) -> VBoxContainer:
 	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 4)
+	vbox.add_theme_constant_override("separation", 2)
 
-	# Colored rectangle
-	var rect = ColorRect.new()
-	rect.custom_minimum_size = Vector2(32, 48)
+	# Themed portrait placeholder — a PanelContainer with a rounded
+	# accent-tinted border, so portraits match the rest of the battle UI
+	# instead of looking like flat colored rects. Slimmer than before so the
+	# diagonal stack fits comfortably above the (now-taller) hero info bar.
+	var portrait_panel := PanelContainer.new()
+	portrait_panel.custom_minimum_size = Vector2(32, 40)
 	var elem_key = ElementalSystem.get_element_name(character.element).to_upper()
-	rect.color = HERO_COLORS.get(elem_key, Color(0.5, 0.5, 0.55))
-	# Add slight dark overlay for enemies
+	var fill: Color = HERO_COLORS.get(elem_key, Color(0.5, 0.5, 0.55))
+	# Heroes use HeroPalette accent for the border (matches their info panel);
+	# enemies use the element color so distinct enemy types are scannable.
+	var border_color: Color
 	if is_enemy:
-		rect.color = rect.color.darkened(0.15)
-	vbox.add_child(rect)
+		fill = fill.darkened(0.15)
+		border_color = ElementalSystem.get_element_color(character.element).lerp(BattleUITheme.PANEL_BORDER, 0.40)
+	else:
+		border_color = HeroPalette.accent_for(character.character_name)
+	var portrait_style := BattleUITheme.panel_style(border_color, fill, 2, 6)
+	portrait_style.content_margin_left = 0
+	portrait_style.content_margin_right = 0
+	portrait_style.content_margin_top = 0
+	portrait_style.content_margin_bottom = 0
+	portrait_style.shadow_size = 3
+	portrait_panel.add_theme_stylebox_override("panel", portrait_style)
+	vbox.add_child(portrait_panel)
 
 	# First letter initial centered on portrait
 	var initial_lbl = Label.new()
 	initial_lbl.text = character.character_name.substr(0, 1).to_upper()
 	initial_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	initial_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	initial_lbl.set_anchors_preset(Control.PRESET_FULL_RECT)
 	initial_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if cinzel: initial_lbl.add_theme_font_override("font", cinzel)
-	initial_lbl.add_theme_font_size_override("font_size", 18)
-	initial_lbl.add_theme_color_override("font_color", Color(1, 1, 1, 0.25))
-	rect.add_child(initial_lbl)
+	initial_lbl.add_theme_font_size_override("font_size", 16)
+	initial_lbl.add_theme_color_override("font_color", Color(1, 1, 1, 0.30))
+	portrait_panel.add_child(initial_lbl)
 
-	# Name label underneath
+	# Name label underneath (compact font so the wrapper height stays tight)
 	var name_lbl = Label.new()
 	name_lbl.text = character.character_name
 	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	if cinzel: name_lbl.add_theme_font_override("font", cinzel)
-	name_lbl.add_theme_font_size_override("font_size", 8)
+	name_lbl.add_theme_font_size_override("font_size", 7)
 	name_lbl.add_theme_color_override("font_color", Color(0.88, 0.78, 1.0))
 	vbox.add_child(name_lbl)
 
@@ -1047,6 +1326,11 @@ func _handle_item_result(result: Dictionary):
 
 func _on_run_pressed():
 	action_menu.visible = false
+	# Running bypasses the battle_ended signal, so we have to clear temporary
+	# battle effects (statuses, buffs, debuffs, sleep counter) explicitly here
+	# — otherwise a hero who ran with Poison still has Poison in the next fight.
+	for hero in battle_manager.party:
+		hero.clear_battle_effects()
 	if GameManager.in_overworld_battle:
 		_return_to_overworld()
 	else:
@@ -1071,33 +1355,56 @@ func _on_resonance_action(action_type: String, heroes: Array, targets: Array):
 		total_magic += h.magic_power()
 
 	var resonance_skill = Skill.new()
-	resonance_skill.element = ElementalSystem.Element.ARCANE
 	resonance_skill.mp_cost = 0
 	resonance_skill.resonance_gain_override = 0.0  # Don't give resonance for ultimates
+	resonance_skill.skill_type = Skill.SkillType.DAMAGE
+	resonance_skill.attack_type = Skill.AttackType.MAGIC
+	resonance_skill.target_type = Skill.TargetType.ALL_ENEMIES
 
 	if action_type == "solo":
 		resonance_skill.skill_name = "%s Ultimate" % heroes[0].character_name
-		resonance_skill.skill_type = Skill.SkillType.DAMAGE
-		resonance_skill.attack_type = Skill.AttackType.MAGIC
 		resonance_skill.power = 3.5
-		resonance_skill.target_type = Skill.TargetType.ALL_ENEMIES
+		# Solo ultimate uses the hero's own element pair.
+		resonance_skill.element = heroes[0].element
+		resonance_skill.secondary_element = heroes[0].secondary_element
 		battle_manager.player_use_skill(heroes[0], resonance_skill, typed_targets)
 	elif action_type == "triple":
 		resonance_skill.skill_name = "Amethyst Requiem"
-		resonance_skill.skill_type = Skill.SkillType.DAMAGE
-		resonance_skill.attack_type = Skill.AttackType.MAGIC
 		resonance_skill.power = 8.0
-		resonance_skill.target_type = Skill.TargetType.ALL_ENEMIES
+		# Triple resonance is pure Amethyst — universally super-effective via the chart.
+		resonance_skill.element = ElementalSystem.Element.AMETHYST
+		resonance_skill.secondary_element = ElementalSystem.Element.NORMAL
 		battle_manager.player_use_skill(heroes[0], resonance_skill, typed_targets)
 	else:
-		resonance_skill.skill_name = "Combined Resonance"
-		resonance_skill.skill_type = Skill.SkillType.DAMAGE
-		resonance_skill.attack_type = Skill.AttackType.MAGIC
+		# Combined (duo) resonance — element pair depends on which two heroes.
+		var info = _combined_resonance_info(heroes)
+		resonance_skill.skill_name = info["name"]
+		resonance_skill.element = info["element"]
+		resonance_skill.secondary_element = info["secondary"]
 		resonance_skill.power = 5.0
-		resonance_skill.target_type = Skill.TargetType.ALL_ENEMIES
 		battle_manager.player_use_skill(heroes[0], resonance_skill, typed_targets)
 
 	_refresh_all_panels()
+
+# Resolves the duo-resonance attack name + element pair for a 2-hero combination.
+# Elements are derived from the heroes' own primary elements (works for any
+# future heroes added). The flavorful name is looked up by the sorted
+# hero-name key in ResonanceMenu.COMBINED_ATTACK_NAMES.
+func _combined_resonance_info(heroes: Array) -> Dictionary:
+	var E = ElementalSystem.Element
+	var names: Array = []
+	for h in heroes:
+		names.append(h.character_name)
+	names.sort()
+	var key: String = "+".join(names)
+	var attack_name: String = "Combined Resonance"
+	if resonance_menu != null and resonance_menu.COMBINED_ATTACK_NAMES.has(key):
+		attack_name = resonance_menu.COMBINED_ATTACK_NAMES[key]
+	# Elements = each hero's primary. Order of attacker elements doesn't change
+	# damage under the multiply-all formula, so heroes[0]/heroes[1] is fine.
+	var primary: int = heroes[0].element if heroes.size() > 0 else E.NORMAL
+	var secondary: int = heroes[1].element if heroes.size() > 1 else E.NORMAL
+	return {"name": attack_name, "element": primary, "secondary": secondary}
 
 # --- Resonance Callbacks ---
 func _on_resonance_changed(character: Character, _value: float):

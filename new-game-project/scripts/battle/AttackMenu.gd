@@ -67,39 +67,50 @@ func _build_menu(title: String):
 	var cinzel = load("res://fonts/Cinzel-Regular.ttf")
 	var cinzel_bold = load("res://fonts/Cinzel-Bold.ttf")
 
-	# Dark background
-	var bg = ColorRect.new()
-	bg.color = Color(0.04, 0.02, 0.10, 0.92)
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	# Themed background — uses Panel (NOT PanelContainer) so the bg doesn't
+	# auto-shrink to its content. PanelContainer is a Container that collapses
+	# to its child's combined_minimum_size, which can make the menu render
+	# smaller than the action menu it replaces. Panel's size is purely
+	# anchor-driven, so PRESET_FULL_RECT reliably fills the menu rect.
+	var bg := Panel.new()
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bg.add_theme_stylebox_override("panel", BattleUITheme.panel_style())
 	add_child(bg)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
-	# Main layout
+	# Content layer — MarginContainer provides the panel's inner padding,
+	# anchored FULL_RECT to self so it fills the menu independently of the bg.
+	var content := MarginContainer.new()
+	content.add_theme_constant_override("margin_left", 8)
+	content.add_theme_constant_override("margin_right", 8)
+	content.add_theme_constant_override("margin_top", 6)
+	content.add_theme_constant_override("margin_bottom", 6)
+	add_child(content)
+	content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	# Main layout inside the margin container.
 	var vbox = VBoxContainer.new()
-	vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
 	vbox.add_theme_constant_override("separation", 4)
-	add_child(vbox)
+	content.add_child(vbox)
 
-	# Title row with back button
+	# Title row with themed back button + centered title.
 	var title_row = HBoxContainer.new()
+	title_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	vbox.add_child(title_row)
-
-	var back_btn = Button.new()
-	back_btn.text = "← Back"
-	back_btn.custom_minimum_size = Vector2(70, 24)
-	if cinzel: back_btn.add_theme_font_override("font", cinzel)
-	back_btn.add_theme_font_size_override("font_size", 10)
-	back_btn.pressed.connect(close)
-	title_row.add_child(back_btn)
 
 	var title_lbl = Label.new()
 	title_lbl.text = title
 	title_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	if cinzel: title_lbl.add_theme_font_override("font", cinzel)
-	title_lbl.add_theme_font_size_override("font_size", 11)
-	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 1.0))
+	if cinzel_bold: title_lbl.add_theme_font_override("font", cinzel_bold)
+	title_lbl.add_theme_font_size_override("font_size", 12)
+	title_lbl.add_theme_color_override("font_color", BattleUITheme.TEXT_SUBTITLE)
 	title_row.add_child(title_lbl)
+
+	var back_btn := BattleUITheme.make_button("← Back", 10)
+	back_btn.custom_minimum_size = Vector2(58, 22)
+	back_btn.pressed.connect(close)
+	title_row.add_child(back_btn)
 
 	# 2x2 grid
 	var grid = GridContainer.new()
@@ -122,11 +133,21 @@ func _create_skill_slot(skill: Skill, cinzel, cinzel_bold) -> PanelContainer:
 	var slot = PanelContainer.new()
 	slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	slot.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	slot.custom_minimum_size = Vector2(0, 36)
+	slot.custom_minimum_size = Vector2(0, 38)
 
 	var can_use = skill.can_use(_current_hero)
 	if not can_use:
 		slot.modulate.a = 0.5
+
+	# Themed inner panel — element-tinted border so skills are scannable by
+	# element at a glance, on the shared dark plum bg.
+	var slot_border := ElementalSystem.get_element_color(skill.element).lerp(BattleUITheme.PANEL_BORDER, 0.5)
+	var slot_style := BattleUITheme.panel_style(slot_border, BattleUITheme.SUBPANEL_BG, 1, 6)
+	slot_style.content_margin_left = 6
+	slot_style.content_margin_right = 6
+	slot_style.content_margin_top = 4
+	slot_style.content_margin_bottom = 4
+	slot.add_theme_stylebox_override("panel", slot_style)
 
 	var vbox = VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 1)
@@ -136,23 +157,37 @@ func _create_skill_slot(skill: Skill, cinzel, cinzel_bold) -> PanelContainer:
 	var top_row = HBoxContainer.new()
 	vbox.add_child(top_row)
 
-	var skill_btn = Button.new()
-	skill_btn.text = skill.skill_name
-	skill_btn.flat = true
+	# Skill name as a themed button with fully flat normal/hover/pressed so it
+	# doesn't draw an inner border inside the slot's panel. The slot itself
+	# (with its element-tinted border) is the visible "box"; hover/press just
+	# paint a subtle wash so the row still feels interactive.
+	var skill_btn := BattleUITheme.make_button(skill.skill_name, 11)
 	skill_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	if cinzel_bold: skill_btn.add_theme_font_override("font", cinzel_bold)
-	skill_btn.add_theme_font_size_override("font_size", 11)
-	skill_btn.add_theme_color_override("font_color", Color(0.95, 0.88, 1.0))
+	var flat_normal := StyleBoxFlat.new()
+	flat_normal.bg_color = Color(0, 0, 0, 0)
+	flat_normal.content_margin_left = 4
+	flat_normal.content_margin_right = 4
+	flat_normal.content_margin_top = 2
+	flat_normal.content_margin_bottom = 2
+	skill_btn.add_theme_stylebox_override("normal", flat_normal)
+	# Clearly visible hover wash — alpha 0.18 reads on the dark plum slot bg
+	# without drawing a competing border (slot panel is the visible outline).
+	var flat_hover := flat_normal.duplicate()
+	flat_hover.bg_color = Color(1.0, 0.95, 1.0, 0.18)
+	flat_hover.set_corner_radius_all(5)
+	skill_btn.add_theme_stylebox_override("hover", flat_hover)
+	var flat_pressed := flat_normal.duplicate()
+	flat_pressed.bg_color = Color(1.0, 0.95, 1.0, 0.30)
+	flat_pressed.set_corner_radius_all(5)
+	skill_btn.add_theme_stylebox_override("pressed", flat_pressed)
+	var flat_disabled := flat_normal.duplicate()
+	flat_disabled.bg_color = Color(0, 0, 0, 0)
+	skill_btn.add_theme_stylebox_override("disabled", flat_disabled)
 	skill_btn.disabled = not can_use
 	top_row.add_child(skill_btn)
 
-	var desc_btn = Button.new()
-	desc_btn.text = "?"
-	desc_btn.custom_minimum_size = Vector2(18, 18)
-	desc_btn.flat = true
-	if cinzel: desc_btn.add_theme_font_override("font", cinzel)
-	desc_btn.add_theme_font_size_override("font_size", 10)
-	desc_btn.add_theme_color_override("font_color", Color(0.7, 0.7, 0.9))
+	var desc_btn := BattleUITheme.make_button("?", 10)
+	desc_btn.custom_minimum_size = Vector2(22, 20)
 	top_row.add_child(desc_btn)
 
 	# Row 2: use GridContainer with 3 equal columns so all slots align perfectly
@@ -165,7 +200,7 @@ func _create_skill_slot(skill: Skill, cinzel, cinzel_bold) -> PanelContainer:
 	# Column 1: Element
 	var elem_name = ElementalSystem.get_element_name(skill.element)
 	var elem_lbl = Label.new()
-	elem_lbl.text = elem_name if elem_name != "None" else "—"
+	elem_lbl.text = elem_name if elem_name != "Normal" else "—"
 	elem_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	elem_lbl.clip_text = true
 	if cinzel: elem_lbl.add_theme_font_override("font", cinzel)
@@ -214,16 +249,23 @@ func _show_description_above(skill: Skill):
 		desc_panel = PanelContainer.new()
 		desc_panel.name = "DescriptionPanel"
 		desc_panel.set_anchors_preset(Control.PRESET_TOP_WIDE)
-		# Position above the menu
 		desc_panel.position = Vector2(0, -70)
 		desc_panel.custom_minimum_size = Vector2(0, 60)
+		# Themed description panel — matches the resonance menu's description popup.
+		var desc_style := BattleUITheme.panel_style()
+		desc_style.content_margin_left = 10
+		desc_style.content_margin_right = 10
+		desc_style.content_margin_top = 6
+		desc_style.content_margin_bottom = 6
+		desc_panel.add_theme_stylebox_override("panel", desc_style)
 		var cinzel = load("res://fonts/Cinzel-Regular.ttf")
 		var lbl = Label.new()
 		lbl.name = "DescLabel"
 		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		if cinzel: lbl.add_theme_font_override("font", cinzel)
 		lbl.add_theme_font_size_override("font_size", 10)
-		lbl.add_theme_color_override("font_color", Color(0.88, 0.82, 1.0))
+		lbl.add_theme_color_override("font_color", BattleUITheme.TEXT_PRIMARY)
 		desc_panel.add_child(lbl)
 		add_child(desc_panel)
 
@@ -238,12 +280,20 @@ func _show_description_above(skill: Skill):
 
 func _create_empty_slot(cinzel) -> PanelContainer:
 	var slot = PanelContainer.new()
-	slot.custom_minimum_size = Vector2(0, 36)
-	slot.modulate.a = 0.3
+	slot.custom_minimum_size = Vector2(0, 38)
+	slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slot.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# Faint placeholder slot — same shape as real slots but dimmer.
+	var empty_style := BattleUITheme.panel_style(BattleUITheme.BUTTON_BORDER, BattleUITheme.SUBPANEL_BG, 1, 6)
+	empty_style.bg_color.a = 0.45
+	empty_style.border_color.a = 0.35
+	slot.add_theme_stylebox_override("panel", empty_style)
+	slot.modulate.a = 0.5
 	var lbl = Label.new()
 	lbl.text = "—"
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl.add_theme_color_override("font_color", BattleUITheme.TEXT_SUBTITLE)
 	if cinzel: lbl.add_theme_font_override("font", cinzel)
 	slot.add_child(lbl)
 	return slot

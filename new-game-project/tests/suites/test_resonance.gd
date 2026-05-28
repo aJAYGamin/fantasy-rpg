@@ -60,6 +60,15 @@ func test_can_combine_requires_two_full() -> void:
 		rs.on_attack(p[1])
 	assert_true(rs.can_combine(p), "can combine when both full")
 
+func test_setup_preserves_existing_resonance() -> void:
+	# Resonance persists across battles — setup must NOT zero existing values.
+	var p = _party()
+	p[0].resonance_meter = 60.0
+	p[1].resonance_meter = 30.0
+	var rs = _system(p)  # calls setup
+	assert_near(rs.get_resonance(p[0]), 60.0, 0.01, "hero 0 resonance preserved through setup")
+	assert_near(rs.get_resonance(p[1]), 30.0, 0.01, "hero 1 resonance preserved through setup")
+
 func test_spend_solo_and_combined() -> void:
 	var p = _party()
 	var rs = _system(p)

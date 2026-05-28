@@ -75,30 +75,10 @@ func _on_resonance_full(character: Character):
 		tween.tween_property(resonance_bar, "modulate", Color(0.78, 0.5, 1.0), 0.2)
 
 func _update_status_icons():
-	for child in status_row.get_children():
-		child.queue_free()
-
-	if hero.status_effects.is_empty():
-		status_row.hide()
-		return
-
-	status_row.show()
-	for effect in hero.status_effects:
-		var icon = Label.new()
-		icon.add_theme_font_size_override("font_size", 12)
-		icon.text = _get_status_icon(effect)
-		icon.tooltip_text = effect.capitalize()
-		status_row.add_child(icon)
-
-func _get_status_icon(effect: String) -> String:
-	match effect:
-		"poison":     return "☠"
-		"burn":       return "🔥"
-		"freeze":     return "❄"
-		"stun":       return "⚡"
-		"regenerate": return "💚"
-		"defending":  return "🛡"
-		_:            return "?"
+	# Delegates to StatusChipFactory so HeroCard + EnemyCard render identically.
+	# Shows: at most one mutex-status chip + one buff/debuff chip per non-cancelled
+	# stat. Row auto-hides when nothing is active.
+	StatusChipFactory.populate_row(status_row, hero)
 
 func refresh():
 	_update_display()

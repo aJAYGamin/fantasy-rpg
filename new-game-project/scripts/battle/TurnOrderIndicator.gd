@@ -8,9 +8,11 @@ const SLOT_HEIGHT = 70.0
 const SLOT_WIDTH = 72.0
 const SCROLL_DURATION = 0.35
 
-const HERO_COLOR  = Color(0.25, 0.15, 0.50, 0.85)
-const ENEMY_COLOR = Color(0.45, 0.08, 0.08, 0.85)
-const BG_COLOR    = Color(0.05, 0.05, 0.08, 0.75)
+# Fallback when the actor has no hero-palette / element color. Per-slot color
+# is derived from HeroPalette (heroes) or ElementalSystem (enemies) below.
+const FALLBACK_HERO_TINT  = Color(0.25, 0.15, 0.50, 0.85)
+const FALLBACK_ENEMY_TINT = Color(0.45, 0.08, 0.08, 0.85)
+const BG_COLOR    = Color(0.05, 0.04, 0.10, 0.85)
 const ACTIVE_BORDER   = Color(1.0, 0.85, 0.2, 1.0)
 const INACTIVE_BORDER = Color(0.35, 0.30, 0.45, 0.7)
 
@@ -24,12 +26,11 @@ func _ready():
 	custom_minimum_size = Vector2(SLOT_WIDTH + 4, SLOT_HEIGHT * 3 + 8)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	# Semi-transparent background panel
-	var bg = ColorRect.new()
-	bg.color = BG_COLOR
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(bg)
+	# No bg wrapper — each slot has its own themed panel + border, so an
+	# enclosing bg would just show through above/below the slots (the rounded
+	# corners don't align with rectangular slot tops). Slots float directly
+	# on the battle background; they're still visually grouped by their
+	# vertical stack and matching styling.
 
 	# Container that scrolls
 	_slot_container = Control.new()
@@ -73,13 +74,35 @@ func _create_slot(character: Character, cinzel, is_active: bool) -> Control:
 	var slot = PanelContainer.new()
 	slot.custom_minimum_size = Vector2(SLOT_WIDTH, SLOT_HEIGHT - 4)
 
-	# Style
+	# Style — heroes get a tint derived from HeroPalette (matches their info
+	# panel); enemies get their primary element color. Active slot's border
+	# pops to the yellow active accent.
 	var style = StyleBoxFlat.new()
 	var is_hero = _party.has(character)
-	style.bg_color = HERO_COLOR if is_hero else ENEMY_COLOR
-	style.border_color = ACTIVE_BORDER if is_active else INACTIVE_BORDER
-	style.set_border_width_all(2 if is_active else 1)
-	style.set_corner_radius_all(4)
+	var slot_bg: Color
+	if is_hero:
+		var pal := HeroPalette.for_hero(character.character_name)
+		slot_bg = pal["panel_bg"]
+		slot_bg.a = 0.88
+	else:
+		slot_bg = ElementalSystem.get_element_color(character.element)
+		slot_bg = slot_bg.lerp(Color(0.05, 0.04, 0.10), 0.72)
+		slot_bg.a = 0.88
+	style.bg_color = slot_bg
+	# Inactive border softens; active border is the yellow accent so the
+	# current actor jumps out even at a glance.
+	if is_active:
+		style.border_color = ACTIVE_BORDER
+		style.set_border_width_all(2)
+	else:
+		var hint: Color
+		if is_hero:
+			hint = HeroPalette.accent_for(character.character_name)
+		else:
+			hint = ElementalSystem.get_element_color(character.element)
+		style.border_color = hint.lerp(INACTIVE_BORDER, 0.55)
+		style.set_border_width_all(1)
+	style.set_corner_radius_all(6)
 	slot.add_theme_stylebox_override("panel", style)
 
 	# Dim inactive slots

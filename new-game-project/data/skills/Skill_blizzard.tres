@@ -9,4 +9,4 @@ description = "Summons a blizzard hitting all heroes."
 mp_cost = 18
 attack_type = 2
 target_type = 1
-element = 2
+element = 4

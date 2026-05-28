@@ -11,53 +11,57 @@ static func _create_aria() -> Character:
 	var hero = Character.new()
 	hero.character_name = "Aria"
 	hero.character_class = "Mage"
-	hero.element = ElementalSystem.Element.ARCANE
+	hero.element = ElementalSystem.Element.WATER
 	hero.base_hp = 200
 	hero.base_mp = 120
 	hero.base_attack = 8
 	hero.base_defense = 6
 	hero.base_magic = 18
+	hero.base_arcane = 14   # high magic resistance — Aria is the magic specialist
 	hero.base_speed = 12
 	hero.experience = 85
 	hero.experience_to_next = 100
 	hero.current_hp = hero.max_hp()
 	hero.current_mp = hero.max_mp()
-	hero.set_meta("ultimate_name", "Void Requiem")
-	hero.set_meta("ultimate_desc", "Aria tears open the void, unleashing pure amethyst energy on all enemies.")
+	hero.set_meta("ultimate_name", "Tidal Requiem")
+	hero.set_meta("ultimate_desc", "Aria calls forth a crushing tide, drowning all enemies in pure aquatic fury.")
 
-	var slash = _make_skill("Arcane Slash", "A swift slash imbued with arcane energy.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.STRIKE, ElementalSystem.Element.ARCANE,
+	# Attacks (indices 0–3)
+	var slash = _make_skill("Aqua Slash", "A swift slash trailing arcing water.",
+		Skill.SkillType.DAMAGE, Skill.AttackType.STRIKE, ElementalSystem.Element.WATER,
 		1.2, 0, Skill.TargetType.SINGLE_ENEMY)
 
 	var frost = _make_skill("Frost Bolt", "A bolt of ice that slows the target.",
 		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.ICE,
 		1.5, 12, Skill.TargetType.SINGLE_ENEMY)
 
-	var dark_pulse = _make_skill("Dark Pulse", "A wave of dark energy hitting all enemies.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.DARK,
+	var tide_pulse = _make_skill("Tide Pulse", "A wave of crashing water hitting all enemies.",
+		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.WATER,
 		1.0, 18, Skill.TargetType.ALL_ENEMIES)
 
 	var heal_spell = _make_status_skill("Mend", "Restores HP to a single ally.",
 		Skill.StatusType.HEAL, ElementalSystem.Element.LIGHT,
 		1.8, 15, Skill.TargetType.SINGLE_ALLY)
 
-	var requiem = _make_skill("Amethyst Requiem", "Aria's ultimate — a burst of pure amethyst energy.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.ARCANE,
+	# Specials (indices 4–7)
+	var requiem = _make_skill("Tidal Requiem", "Aria's ultimate — a torrent of pure aquatic energy.",
+		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.WATER,
 		3.5, 40, Skill.TargetType.ALL_ENEMIES)
 
-	var void_strike = _make_skill("Void Strike", "Strikes through defenses with void energy.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.DARK,
+	var hydro_pierce = _make_skill("Hydro Pierce", "Pierces through defenses with a high-pressure water spike.",
+		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.WATER,
 		2.5, 25, Skill.TargetType.SINGLE_ENEMY)
 
-	var aria_barrier = _make_status_skill("Arcane Barrier", "Shields all allies with an arcane field.",
-		Skill.StatusType.BUFF, ElementalSystem.Element.ARCANE,
-		1.0, 20, Skill.TargetType.ALL_ALLIES)
+	# "Shields" -> DEF buff. Target ALL_ALLIES so the whole party gets a chip.
+	var aria_barrier = _make_status_skill("Tidal Barrier", "Shields all allies with a swirling tide.",
+		Skill.StatusType.BUFF, ElementalSystem.Element.WATER,
+		1.0, 20, Skill.TargetType.ALL_ALLIES, "defense_buff")
 
 	var mass_heal = _make_status_skill("Grand Mend", "Restores HP to all allies.",
 		Skill.StatusType.HEAL, ElementalSystem.Element.LIGHT,
 		1.5, 30, Skill.TargetType.ALL_ALLIES)
 
-	hero.skills = [slash, frost, dark_pulse, heal_spell, requiem, void_strike, aria_barrier, mass_heal] as Array[Skill]
+	hero.skills = [slash, frost, tide_pulse, heal_spell, requiem, hydro_pierce, aria_barrier, mass_heal] as Array[Skill]
 	return hero
 
 static func _create_kael() -> Character:
@@ -70,8 +74,9 @@ static func _create_kael() -> Character:
 	hero.base_attack = 20
 	hero.base_defense = 14
 	hero.base_magic = 6
+	hero.base_arcane = 5    # low magic resistance — Kael is a physical bruiser
 	hero.base_speed = 8
-	hero.experience = 0
+	hero.experience = 85
 	hero.experience_to_next = 100
 	hero.current_hp = hero.max_hp()
 	hero.current_mp = hero.max_mp()
@@ -83,12 +88,13 @@ static func _create_kael() -> Character:
 		1.4, 0, Skill.TargetType.SINGLE_ENEMY)
 
 	var shield_bash = _make_skill("Shield Bash", "Stuns the enemy with a powerful bash.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.STRIKE, ElementalSystem.Element.NONE,
+		Skill.SkillType.DAMAGE, Skill.AttackType.STRIKE, ElementalSystem.Element.NORMAL,
 		1.0, 8, Skill.TargetType.SINGLE_ENEMY, "stun", 0.5)
 
+	# "Fighting spirit" -> ATK buff.
 	var war_cry = _make_status_skill("War Cry", "Boosts the party's fighting spirit.",
-		Skill.StatusType.BUFF, ElementalSystem.Element.NONE,
-		1.0, 10, Skill.TargetType.ALL_ALLIES)
+		Skill.StatusType.BUFF, ElementalSystem.Element.SOUND,
+		1.0, 10, Skill.TargetType.ALL_ALLIES, "attack_buff")
 
 	var inferno = _make_skill("Inferno", "Engulfs all enemies in roaring flames.",
 		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.FIRE,
@@ -102,9 +108,10 @@ static func _create_kael() -> Character:
 		Skill.SkillType.DAMAGE, Skill.AttackType.STRIKE, ElementalSystem.Element.FIRE,
 		2.8, 28, Skill.TargetType.SINGLE_ENEMY)
 
+	# Description says "regenerates HP" — keep legacy regenerate status (heals each turn).
 	var iron_will = _make_status_skill("Iron Will", "Regenerates HP each turn for the party.",
-		Skill.StatusType.BUFF, ElementalSystem.Element.NONE,
-		1.0, 22, Skill.TargetType.ALL_ALLIES)
+		Skill.StatusType.BUFF, ElementalSystem.Element.NORMAL,
+		1.0, 22, Skill.TargetType.ALL_ALLIES, "regenerate")
 
 	var flame_wall = _make_skill("Flame Wall", "Creates a wall of fire that poisons enemies.",
 		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.FIRE,
@@ -123,8 +130,9 @@ static func _create_lyra() -> Character:
 	hero.base_attack = 7
 	hero.base_defense = 8
 	hero.base_magic = 16
+	hero.base_arcane = 12   # solid magic resistance — Lyra is a healer/support
 	hero.base_speed = 14
-	hero.experience = 0
+	hero.experience = 85
 	hero.experience_to_next = 100
 	hero.current_hp = hero.max_hp()
 	hero.current_mp = hero.max_mp()
@@ -143,9 +151,10 @@ static func _create_lyra() -> Character:
 		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.WIND,
 		0.9, 10, Skill.TargetType.ALL_ENEMIES)
 
+	# Description literally says "boosting their defense" -> DEF buff on a single ally.
 	var barrier = _make_status_skill("Wind Barrier", "Surrounds an ally with wind, boosting their defense.",
 		Skill.StatusType.BUFF, ElementalSystem.Element.WIND,
-		1.0, 8, Skill.TargetType.SINGLE_ALLY)
+		1.0, 8, Skill.TargetType.SINGLE_ALLY, "defense_buff")
 
 	var gale = _make_skill("Gale Requiem", "Lyra's ultimate — heals all allies and damages all enemies with wild winds.",
 		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.WIND,
@@ -159,9 +168,12 @@ static func _create_lyra() -> Character:
 		Skill.StatusType.HEAL, ElementalSystem.Element.WIND,
 		1.5, 30, Skill.TargetType.ALL_ALLIES)
 
-	var tailwind = _make_status_skill("Tailwind", "Boosts the speed and attack of all allies.",
+	# Description says "speed and attack" — single-token system can apply one. SPD
+	# is the closer fit for "Tailwind". (User: ask me if you'd rather have ATK,
+	# or split this into two skills, one for each buff.)
+	var tailwind = _make_status_skill("Tailwind", "Boosts the speed of all allies.",
 		Skill.StatusType.BUFF, ElementalSystem.Element.WIND,
-		1.0, 22, Skill.TargetType.ALL_ALLIES)
+		1.0, 22, Skill.TargetType.ALL_ALLIES, "speed_buff")
 
 	hero.skills = [wind_slash, mend, gust, barrier, gale, cyclone, grand_mend, tailwind] as Array[Skill]
 	return hero
@@ -186,7 +198,7 @@ static func _make_skill(name: String, desc: String, skill_type: Skill.SkillType,
 
 static func _make_status_skill(name: String, desc: String, status_type: Skill.StatusType,
 		element: ElementalSystem.Element, power: float, mp_cost: int,
-		target: Skill.TargetType) -> Skill:
+		target: Skill.TargetType, status_to_apply: String = "") -> Skill:
 	var s = Skill.new()
 	s.skill_name = name
 	s.description = desc
@@ -196,4 +208,7 @@ static func _make_status_skill(name: String, desc: String, status_type: Skill.St
 	s.power = power
 	s.mp_cost = mp_cost
 	s.target_type = target
+	# Token can be a stat-buff ("attack_buff"), stat-debuff ("magic_debuff"),
+	# or a legacy named status ("regenerate"). Empty -> regenerate by default.
+	s.status_to_apply = status_to_apply
 	return s

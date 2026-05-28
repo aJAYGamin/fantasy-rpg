@@ -34,9 +34,9 @@ func instantiate_encounter() -> Array[Enemy]:
 		var enemy: Enemy = template.duplicate(true)
 		if enemy_level_override > 0:
 			enemy.level = enemy_level_override
-		# Recompute HP/MP after level override, since max_hp() depends on level.
+		# Recompute HP after level override, since max_hp() depends on level.
+		# Enemies have no MP pool — skip current_mp init.
 		enemy.current_hp = enemy.max_hp()
-		enemy.current_mp = enemy.max_mp()
 		if enemy.inventory == null:
 			enemy.inventory = Inventory.new()
 		instances.append(enemy)

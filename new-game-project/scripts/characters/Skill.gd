@@ -44,7 +44,10 @@ enum StatusType {
 @export var status_type: StatusType = StatusType.HEAL
 @export var target_type: TargetType = TargetType.SINGLE_ENEMY
 @export var power: float = 1.0
-@export var element: ElementalSystem.Element = ElementalSystem.Element.NONE
+@export var element: ElementalSystem.Element = ElementalSystem.Element.NORMAL
+# Optional second element for dual-element skills (e.g. combined resonance attacks
+# like Aquatic Pyre = Fire + Water). NORMAL means "single-typed".
+@export var secondary_element: ElementalSystem.Element = ElementalSystem.Element.NORMAL
 @export var status_to_apply: String = ""
 @export var status_chance: float = 0.0
 # Resonance override — -1.0 means "use default 10% per damage skill"
@@ -68,7 +71,13 @@ func calculate_value(user: Character) -> int:
 	return 0
 
 func can_use(user: Character) -> bool:
-	return user.current_mp >= mp_cost and not user.is_status("stun")
+	if user.is_status("stun"):
+		return false
+	# Enemies ignore MP cost entirely — they have no MP pool and may use any skill
+	# they own without restriction. Only heroes pay MP.
+	if user is Enemy:
+		return true
+	return user.current_mp >= mp_cost
 
 # Returns the resonance percentage this skill grants on use
 # 10% default for damage skills, 0% for heal/buff, override if set
@@ -124,7 +133,7 @@ func get_skill_type_display() -> String:
 	return ""
 
 func get_element_display() -> String:
-	if element == ElementalSystem.Element.NONE:
+	if element == ElementalSystem.Element.NORMAL:
 		return ""
 	return "%s %s" % [
 		ElementalSystem.get_element_icon(element),

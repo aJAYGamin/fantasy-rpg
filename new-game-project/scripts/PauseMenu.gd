@@ -18,6 +18,12 @@ const TEXT_DANGER := Color(0.95, 0.6, 0.55)
 var _cinzel: Font
 var _cinzel_bold: Font
 var _toast: Label = null
+# Wrapper holding the main pause menu (dim + panel). Hidden while a confirm
+# prompt / sub-menu is shown so they don't visually stack, then restored.
+var _main_content: Control = null
+# Active confirm prompt, if any. Lets Esc back out of the prompt to the pause
+# menu rather than closing the whole pause menu.
+var _confirm_modal: Control = null
 
 func _ready() -> void:
 	_cinzel = load("res://fonts/Cinzel-Regular.ttf")
@@ -37,31 +43,56 @@ func close() -> void:
 	if _toast and is_instance_valid(_toast):
 		_toast.queue_free()
 		_toast = null
+	if _confirm_modal and is_instance_valid(_confirm_modal):
+		_confirm_modal.queue_free()
+	_confirm_modal = null
 
 func _input(event: InputEvent) -> void:
 	if not visible:
 		return
 	if event.is_action_pressed("ui_cancel"):
-		close()
+		# If a confirm prompt is open, Esc backs out of it to the pause menu
+		# instead of closing the whole pause menu.
+		if _confirm_modal != null and is_instance_valid(_confirm_modal):
+			_dismiss_confirm()
+		else:
+			close()
 		get_viewport().set_input_as_handled()
+
+# Closes the active confirm prompt and restores the main pause menu.
+func _dismiss_confirm() -> void:
+	if _confirm_modal != null and is_instance_valid(_confirm_modal):
+		_confirm_modal.queue_free()
+	_confirm_modal = null
+	if _main_content and is_instance_valid(_main_content):
+		_main_content.show()
 
 # --- Build ---
 func _rebuild() -> void:
 	for c in get_children():
 		c.queue_free()
 	_toast = null
+	_confirm_modal = null
+
+	# Wrapper for the main pause menu so it can be hidden as a unit while a
+	# confirm prompt or (later) sub-menu is shown on top.
+	_main_content = Control.new()
+	_main_content.name = "MainContent"
+	_main_content.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_main_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_main_content)
 
 	# Full-rect dim
 	var dim = ColorRect.new()
 	dim.color = Color(0, 0, 0, 0.55)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(dim)
+	_main_content.add_child(dim)
 
 	# Centered panel
 	var center = CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(center)
+	_main_content.add_child(center)
 
 	var panel = _styled_panel(360, 0)
 	center.add_child(panel)
@@ -179,10 +210,15 @@ func _menu_button(text: String, on_pressed: Callable, danger: bool = false) -> B
 
 # --- Confirm modal (same pattern as SaveSlotMenu) ---
 func _show_confirm(title_text: String, message: String, confirm_text: String, danger: bool, on_confirm: Callable) -> void:
+	# Hide the main pause menu so the prompt replaces it instead of stacking.
+	if _main_content and is_instance_valid(_main_content):
+		_main_content.hide()
+
 	var modal = Control.new()
 	modal.set_anchors_preset(Control.PRESET_FULL_RECT)
 	modal.mouse_filter = Control.MOUSE_FILTER_STOP
 	modal.process_mode = Node.PROCESS_MODE_ALWAYS
+	_confirm_modal = modal
 
 	var dim = ColorRect.new()
 	dim.color = Color(0, 0, 0, 0.55)
@@ -213,12 +249,16 @@ func _show_confirm(title_text: String, message: String, confirm_text: String, da
 
 	var cancel = _styled_button("Cancel", false)
 	cancel.custom_minimum_size = Vector2(120, 30)
-	cancel.pressed.connect(func(): modal.queue_free())
+	# Cancel: dismiss the prompt and bring the main pause menu back.
+	cancel.pressed.connect(_dismiss_confirm)
 	actions.add_child(cancel)
 
 	var ok = _styled_button(confirm_text, danger)
 	ok.custom_minimum_size = Vector2(160, 30)
+	# Confirm: dismiss the prompt and fire the action (e.g. quit). No need to
+	# restore the main content since we're leaving the scene.
 	ok.pressed.connect(func():
+		_confirm_modal = null
 		modal.queue_free()
 		on_confirm.call())
 	actions.add_child(ok)

@@ -107,7 +107,7 @@ static func _choose_skill(enemy: Character, alive_party: Array, echo_tier: int, 
 			if s.skill_type == Skill.SkillType.STATUS:
 				return false
 			for hero in alive_party:
-				if ElementalSystem.get_multiplier(s.element, hero.element) >= 2.0:
+				if ElementalSystem.get_multiplier(s.element, hero.element) >= ElementalSystem.WEAKNESS_MULTIPLIER:
 					return true
 			return false
 		)
@@ -144,9 +144,9 @@ static func _choose_target(enemy: Character, alive_party: Array, enemies: Array,
 				return alive_enemies[randi() % alive_enemies.size()]
 
 	# Echo tier 2+ — target hero weak to skill element
-	if echo_tier >= 2 and skill != null and skill.element != ElementalSystem.Element.NONE:
+	if echo_tier >= 2 and skill != null and skill.element != ElementalSystem.Element.NORMAL:
 		var weak_heroes = alive_party.filter(func(h):
-			return ElementalSystem.get_multiplier(skill.element, h.element) >= 2.0
+			return ElementalSystem.get_multiplier(skill.element, h.element) >= ElementalSystem.WEAKNESS_MULTIPLIER
 		)
 		if not weak_heroes.is_empty() and randf() < 0.7:
 			return weak_heroes[randi() % weak_heroes.size()]

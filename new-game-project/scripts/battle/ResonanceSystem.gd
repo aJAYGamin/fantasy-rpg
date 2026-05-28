@@ -19,27 +19,29 @@ const RESONANCE_PER_ATTACK = 10.0
 # Resonance gained from taking damage (receiving side)
 const RESONANCE_PER_DAMAGE_TAKEN = 10.0
 
-var resonance_values: Dictionary = {}  # character -> float
 var party: Array[Character] = []
 
+# Setup records the party but does NOT zero anyone's meter — resonance persists
+# across battles (only resonance attacks reset it). Emits a refresh signal so
+# the UI shows the loaded values.
 func setup(party_members: Array[Character]):
 	party = party_members
 	for c in party:
-		resonance_values[c] = 0.0
+		emit_signal("resonance_changed", c, c.resonance_meter)
 
 func add_resonance(character: Character, amount: float):
-	if not resonance_values.has(character):
+	if character == null or not party.has(character):
 		return
 	var was_full = is_full(character)
-	var new_val = clampf(resonance_values[character] + amount, 0.0, MAX_RESONANCE)
-	resonance_values[character] = new_val
+	var new_val = clampf(character.resonance_meter + amount, 0.0, MAX_RESONANCE)
+	character.resonance_meter = new_val
 	emit_signal("resonance_changed", character, new_val)
 	if not was_full and is_full(character):
 		emit_signal("resonance_full", character)
 		print("%s Resonance is FULL!" % character.character_name)
 
 func get_resonance(character: Character) -> float:
-	return resonance_values.get(character, 0.0)
+	return character.resonance_meter if character != null else 0.0
 
 func get_resonance_percent(character: Character) -> float:
 	return get_resonance(character) / MAX_RESONANCE
@@ -75,7 +77,7 @@ func on_damage_taken(character: Character):
 func spend_solo_ultimate(character: Character) -> bool:
 	if not is_full(character):
 		return false
-	resonance_values[character] = 0.0
+	character.resonance_meter = 0.0
 	emit_signal("resonance_spent", character)
 	emit_signal("resonance_changed", character, 0.0)
 	return true
@@ -85,7 +87,7 @@ func spend_combined_resonance(characters: Array[Character]) -> bool:
 	if not can_combine(characters):
 		return false
 	for c in characters:
-		resonance_values[c] = 0.0
+		c.resonance_meter = 0.0
 		emit_signal("resonance_spent", c)
 		emit_signal("resonance_changed", c, 0.0)
 	emit_signal("combined_resonance_ready", characters)

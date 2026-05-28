@@ -57,7 +57,7 @@ anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
 offset_left = 10.0
-offset_top = -114.0
+offset_top = -140.0
 offset_right = 739.0
 offset_bottom = -10.0
 grow_vertical = 0
@@ -149,9 +149,6 @@ layout_mode = 2
 theme_override_fonts/font = ExtResource("2_gkmpl")
 theme_override_font_sizes/font_size = 12
 text = "0%"
-
-[node name="StatusRow" type="HBoxContainer" parent="BattleUI/UIRoot/PartyStatusBar/HeroStatus1" unique_id=825323966]
-layout_mode = 2
 
 [node name="HeroStatus2" type="PanelContainer" parent="BattleUI/UIRoot/PartyStatusBar" unique_id=889467684]
 layout_mode = 2
@@ -337,7 +334,7 @@ anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = -404.0
-offset_top = -114.0
+offset_top = -140.0
 offset_right = -10.0
 offset_bottom = -10.0
 grow_horizontal = 0
@@ -345,6 +342,7 @@ grow_vertical = 0
 
 [node name="ActionLayout" type="VBoxContainer" parent="BattleUI/UIRoot/ActionMenu" unique_id=473659937]
 layout_mode = 2
+theme_override_constants/separation = 6
 
 [node name="ActionTitle" type="Label" parent="BattleUI/UIRoot/ActionMenu/ActionLayout" unique_id=1653104244]
 layout_mode = 2
@@ -355,6 +353,8 @@ horizontal_alignment = 1
 
 [node name="ActionGrid" type="GridContainer" parent="BattleUI/UIRoot/ActionMenu/ActionLayout" unique_id=1727205676]
 layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 2.0
 columns = 2
 
 [node name="AttackButton" type="Button" parent="BattleUI/UIRoot/ActionMenu/ActionLayout/ActionGrid" unique_id=796575839]
@@ -391,6 +391,7 @@ text = "Run"
 
 [node name="ResonanceButton" type="Button" parent="BattleUI/UIRoot/ActionMenu/ActionLayout" unique_id=2034856397]
 layout_mode = 2
+size_flags_vertical = 3
 theme_override_fonts/font = ExtResource("2_gkmpl")
 theme_override_font_sizes/font_size = 12
 text = "Resonance"
@@ -550,25 +551,39 @@ anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = -404.0
-offset_top = -139.0
+offset_top = -160.0
 offset_right = -10.0
 offset_bottom = -10.0
 grow_horizontal = 0
 grow_vertical = 0
 script = ExtResource("8_sdfhe")
 
-[node name="ResonanceMenu" type="Control" parent="BattleUI/UIRoot" unique_id=1475732936]
-anchors_preset = 0
-offset_left = 748.0
-offset_top = 450.0
-offset_right = 1142.0
-offset_bottom = 638.0
+[node name="ResonanceMenu" type="PanelContainer" parent="BattleUI/UIRoot" unique_id=1475732936]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -404.0
+offset_top = -10.0
+offset_right = -10.0
+offset_bottom = -10.0
+grow_horizontal = 0
+grow_vertical = 0
 script = ExtResource("9_hrc4b")
 
 [node name="ItemsMenu" type="Control" parent="BattleUI/UIRoot" unique_id=684108618]
-anchors_preset = 0
-offset_left = 748.0
-offset_top = 534.0
-offset_right = 1142.0
-offset_bottom = 638.0
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -404.0
+offset_top = -160.0
+offset_right = -10.0
+offset_bottom = -10.0
+grow_horizontal = 0
+grow_vertical = 0
 script = ExtResource("10_sgm0l")
