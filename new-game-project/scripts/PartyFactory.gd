@@ -25,6 +25,7 @@ static func _create_aria() -> Character:
 	hero.current_mp = hero.max_mp()
 	hero.set_meta("ultimate_name", "Tidal Requiem")
 	hero.set_meta("ultimate_desc", "Aria calls forth a crushing tide, drowning all enemies in pure aquatic fury.")
+	hero.set_meta("bio", "A prodigy of the tidal arts, Aria channels the ocean's calm and its fury in equal measure. She joined the journey to learn why the old water-shrines have fallen silent.")
 
 	# Attacks (indices 0–3)
 	var slash = _make_skill("Aqua Slash", "A swift slash trailing arcing water.",
@@ -82,6 +83,7 @@ static func _create_kael() -> Character:
 	hero.current_mp = hero.max_mp()
 	hero.set_meta("ultimate_name", "Phoenix Inferno")
 	hero.set_meta("ultimate_desc", "Kael becomes one with the phoenix, raining fire on all enemies.")
+	hero.set_meta("bio", "A hot-blooded warrior whose blade burns as fiercely as his temper. Kael fights to shield those who cannot fight for themselves, carrying the ember of a home long lost.")
 
 	var flame_strike = _make_skill("Flame Strike", "A powerful strike wreathed in fire.",
 		Skill.SkillType.DAMAGE, Skill.AttackType.STRIKE, ElementalSystem.Element.FIRE,
@@ -138,6 +140,7 @@ static func _create_lyra() -> Character:
 	hero.current_mp = hero.max_mp()
 	hero.set_meta("ultimate_name", "Gale Requiem")
 	hero.set_meta("ultimate_desc", "Lyra calls upon the winds to heal all allies and damage all enemies.")
+	hero.set_meta("bio", "A gentle healer who hears the whispers of the wind. Lyra mends wounds and spirits alike, searching for the lost melody said to soothe the coming Requiem.")
 
 	var wind_slash = _make_skill("Wind Slash", "A sharp gust of wind that cuts through enemies.",
 		Skill.SkillType.DAMAGE, Skill.AttackType.STRIKE, ElementalSystem.Element.WIND,

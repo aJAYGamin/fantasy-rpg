@@ -24,6 +24,10 @@ var _main_content: Control = null
 # Active confirm prompt, if any. Lets Esc back out of the prompt to the pause
 # menu rather than closing the whole pause menu.
 var _confirm_modal: Control = null
+# Active full sub-screen (e.g. the Stats screen), shown in place of the main
+# menu. Like the confirm prompt, Esc backs out of it to the pause menu instead
+# of closing the whole pause menu.
+var _sub_view: Control = null
 
 func _ready() -> void:
 	_cinzel = load("res://fonts/Cinzel-Regular.ttf")
@@ -46,15 +50,20 @@ func close() -> void:
 	if _confirm_modal and is_instance_valid(_confirm_modal):
 		_confirm_modal.queue_free()
 	_confirm_modal = null
+	if _sub_view and is_instance_valid(_sub_view):
+		_sub_view.queue_free()
+	_sub_view = null
 
 func _input(event: InputEvent) -> void:
 	if not visible:
 		return
 	if event.is_action_pressed("ui_cancel"):
-		# If a confirm prompt is open, Esc backs out of it to the pause menu
-		# instead of closing the whole pause menu.
+		# Esc backs out one layer at a time — a confirm prompt or a sub-screen
+		# returns to the pause menu; only the bare pause menu closes outright.
 		if _confirm_modal != null and is_instance_valid(_confirm_modal):
 			_dismiss_confirm()
+		elif _sub_view != null and is_instance_valid(_sub_view):
+			_dismiss_sub_view()
 		else:
 			close()
 		get_viewport().set_input_as_handled()
@@ -67,12 +76,35 @@ func _dismiss_confirm() -> void:
 	if _main_content and is_instance_valid(_main_content):
 		_main_content.show()
 
+# Closes the active sub-screen and restores the main pause menu.
+func _dismiss_sub_view() -> void:
+	if _sub_view != null and is_instance_valid(_sub_view):
+		_sub_view.queue_free()
+	_sub_view = null
+	if _main_content and is_instance_valid(_main_content):
+		_main_content.show()
+
+# Opens the per-hero Stats screen as a sub-view (replaces the main menu, doesn't
+# stack). Back button / Esc return here via _dismiss_sub_view.
+func _open_stats() -> void:
+	if GameManager.party.is_empty():
+		show_toast("No party yet.", true)
+		return
+	if _main_content and is_instance_valid(_main_content):
+		_main_content.hide()
+	var screen := StatsScreen.new()
+	_sub_view = screen
+	screen.back_requested.connect(_dismiss_sub_view)
+	add_child(screen)
+	screen.setup(GameManager.party)
+
 # --- Build ---
 func _rebuild() -> void:
 	for c in get_children():
 		c.queue_free()
 	_toast = null
 	_confirm_modal = null
+	_sub_view = null
 
 	# Wrapper for the main pause menu so it can be hidden as a unit while a
 	# confirm prompt or (later) sub-menu is shown on top.
@@ -107,7 +139,7 @@ func _rebuild() -> void:
 
 	v.add_child(_menu_button("Resume", _on_resume))
 	v.add_child(_menu_button("Save Game", _on_save))
-	v.add_child(_menu_button("Stats", func(): show_toast("Coming soon")))
+	v.add_child(_menu_button("Stats", _open_stats))
 	v.add_child(_menu_button("Items", func(): show_toast("Coming soon")))
 	v.add_child(_menu_button("Equipment", func(): show_toast("Coming soon")))
 	v.add_child(_menu_button("Settings", func(): show_toast("Coming soon")))

@@ -380,8 +380,17 @@ BattleScene (Node2D)
   (scoped to repo path); edits outside the repo still prompt.
 - Intentionally NOT allowlisted: `mkdir`/`rm`, `python3`/`node`/shells. Don't add
   without explicit user consent.
-- **Work directly on `main`** unless the user asks for a branch. Don't commit/push/merge/
-  delete branches without an explicit request.
+- **Branch-per-task workflow (REQUIRED — never work on `main` directly):**
+  1. At the start of a task/feature, create and switch to a new descriptively-named
+     branch off the latest `main` (e.g. `git checkout main && git pull && git checkout -b p1-stats-screen`).
+  2. Do all work and commits on that branch.
+  3. When the work is complete **and the user has confirmed it's good**, merge the
+     branch into `main` (fast-forward when possible), push `main`, then **delete the
+     branch** (local + remote): `git checkout main && git merge <branch> && git push origin main && git branch -d <branch> && git push origin --delete <branch>`.
+  4. Result after each task: only `main` remains; the task branch is gone.
+- Still ask before the finalize step — don't merge/push/delete until the user says
+  the work is done. Creating the working branch up front is expected and doesn't need
+  a prompt. Never commit straight to `main`.
 
 ---
 

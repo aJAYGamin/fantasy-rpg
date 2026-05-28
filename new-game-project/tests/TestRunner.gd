@@ -25,6 +25,7 @@ const SUITE_PATHS := [
 	"res://tests/suites/test_save_serializer.gd",
 	"res://tests/suites/test_status_system.gd",
 	"res://tests/suites/test_hero_palette.gd",
+	"res://tests/suites/test_stats_screen.gd",
 ]
 
 func _ready() -> void:

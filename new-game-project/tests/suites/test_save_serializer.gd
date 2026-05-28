@@ -46,6 +46,7 @@ func _make_character() -> Character:
 	c.add_status("poison")
 	c.set_meta("ultimate_name", "Test Ult")
 	c.set_meta("ultimate_desc", "test desc")
+	c.set_meta("bio", "A test hero's life story.")
 	return c
 
 # --- Skill ---
@@ -110,6 +111,7 @@ func test_character_roundtrip() -> void:
 	assert_eq(back.skills[0].skill_name, "Test Slash", "skill name preserved")
 	assert_eq(back.get_meta("ultimate_name", ""), "Test Ult", "ultimate_name meta preserved")
 	assert_eq(back.get_meta("ultimate_desc", ""), "test desc", "ultimate_desc meta preserved")
+	assert_eq(back.get_meta("bio", ""), "A test hero's life story.", "bio meta preserved")
 
 func test_party_roundtrip() -> void:
 	var party = [_make_character(), _make_character()]

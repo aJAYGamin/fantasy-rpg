@@ -112,11 +112,13 @@ static func serialize_character(c: Character) -> Dictionary:
 		"skills": skill_data,
 		"inventory": serialize_inventory(c.inventory),
 	}
-	# Hero-specific meta (used by ResonanceMenu)
+	# Hero-specific meta (used by ResonanceMenu / StatsScreen)
 	if c.has_meta("ultimate_name"):
 		dict["ultimate_name"] = c.get_meta("ultimate_name")
 	if c.has_meta("ultimate_desc"):
 		dict["ultimate_desc"] = c.get_meta("ultimate_desc")
+	if c.has_meta("bio"):
+		dict["bio"] = c.get_meta("bio")
 	return dict
 
 static func deserialize_character(d: Dictionary) -> Character:
@@ -162,6 +164,8 @@ static func deserialize_character(d: Dictionary) -> Character:
 		c.set_meta("ultimate_name", d["ultimate_name"])
 	if d.has("ultimate_desc"):
 		c.set_meta("ultimate_desc", d["ultimate_desc"])
+	if d.has("bio"):
+		c.set_meta("bio", d["bio"])
 	return c
 
 # --- Party convenience ---
