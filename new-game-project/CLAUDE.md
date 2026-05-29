@@ -15,7 +15,7 @@ auto-save, more overworld content, and eventually story.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **406 tests, 14 suites**)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **457 tests, 16 suites**)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -30,6 +30,8 @@ scripts/
   ui/
     HeroPalette.gd            # class_name HeroPalette — per-hero accent palette (Aria blue / Kael red / Lyra green)
     BattleUITheme.gd          # class_name BattleUITheme — shared amethyst panel/button styles for battle UI
+    StatsScreen.gd            # class_name StatsScreen — pause-menu per-hero stats page (P1)
+    ItemsScreen.gd            # class_name ItemsScreen — pause-menu Items page, 4 tabs + field-use (P2)
   overworld/
     OverworldScene.gd         # Free-roam controller; step-based encounter rolls; pause menu host
     Player.gd                 # CharacterBody2D, 8-dir arrow/controller movement
@@ -61,7 +63,8 @@ scripts/
     Rarity.gd                 # Enemy rarity tiers (COMMON→CELESTIAL), multipliers, colors
   inventory/
     Inventory.gd              # Per-character item container
-    Item.gd                   # Item resource with use() logic
+    Item.gd                   # Item resource with use() logic + ItemCategory (GENERAL/HEALING/BATTLE/KEY)
+    ItemFactory.gd            # class_name ItemFactory — named item defs + create() + roll_drops() (P2)
 scenes/
   BattleScene.tscn
   MainMenu.tscn
@@ -74,7 +77,7 @@ data/                         # data-driven content (.tres resources)
 tests/
   TestRunner.tscn/.gd         # run this scene (F6) to execute all suites; register suites in SUITE_PATHS
   TestSuite.gd                # base class with assert_* helpers
-  suites/                     # one test_<feature>.gd per system (13 suites)
+  suites/                     # one test_<feature>.gd per system (16 suites)
 assets/  backgrounds/ characters/ enemies/ icons/ ui/
 fonts/   music/
 ```
@@ -355,10 +358,10 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **406 tests / 14 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **457 tests / 16 suites**
   currently (character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
-  stats_screen).
+  stats_screen, items_screen, item_factory).
 - Tests touching GameManager must snapshot & restore global state.
 - When fixing a bug, add a regression test that fails before the fix.
 - **Adding a new `class_name` file:** the headless test runner won't see it until the
@@ -417,10 +420,18 @@ BattleScene (Node2D)
   core-stats list (HP/MP/ATK/DEF/MAG/ARC/SPD). Right: attack/special cards (2-per-row,
   always show element incl. NORMAL "◇"). ←/→ or name tabs cycle heroes. Pure testable
   `build_hero_view_model()` (suite `stats_screen`).
+- **Phase P2 — Pause-menu Items screen** (`scripts/ui/ItemsScreen.gd`, `class_name ItemsScreen`):
+  full-screen 4-tab page (Items / Healing Items / Battle Items / Key Items) opened from
+  PauseMenu (replace-not-stack); ←/→ cycle tabs. Field-use flow: ALL_ALLIES applies to all
+  alive; SINGLE_ALLY opens a hero target picker; battle-only/key items are display-only.
+  Items are now data-driven via **`ItemFactory`** (single source of named defs + `create()`);
+  `PartyFactory` seeds starter items through it. A few enemies have `drop_table`s
+  (dark_wraith/sea_serpent/earth_golem); `BattleManager._calculate_rewards` rolls drops via
+  `ItemFactory.roll_drops`, `GameManager.award_rewards` adds them to the shared party
+  inventory (`party[0].inventory`), and `VictoryScreen` lists drops with counts. Suites
+  `items_screen`, `item_factory`.
 
 ### Planned (next phases)
-- **Phase P2 — Pause-menu Items screen**: Items / Battle Items / Key Items tabs;
-  shared item list UI with the battle ItemsMenu styling.
 - **Phase P3 — Equipment system**: weapons/armor resources; `Inventory.get_weapon_attack()`/
   `get_armor_defense()` currently return 0 — wire them into Character stat getters;
   pause-menu Equipment screen to equip/unequip.

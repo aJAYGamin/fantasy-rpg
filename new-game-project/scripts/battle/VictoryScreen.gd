@@ -114,7 +114,7 @@ func _build_party_list():
 		name_lbl.custom_minimum_size = Vector2(160, 0)
 		if cinzel: name_lbl.add_theme_font_override("font", cinzel)
 		name_lbl.add_theme_font_size_override("font_size", 13)
-		name_lbl.add_theme_color_override("font_color", Color(0.88, 0.78, 1.0))
+		name_lbl.add_theme_color_override("font_color", HeroPalette.accent_for(hero.character_name))
 		row.add_child(name_lbl)
 
 		var exp_bar = ProgressBar.new()
@@ -124,6 +124,7 @@ func _build_party_list():
 		exp_bar.show_percentage = false
 		exp_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		exp_bar.custom_minimum_size = Vector2(160, 14)
+		_style_exp_bar(exp_bar)
 		row.add_child(exp_bar)
 
 		var exp_lbl = Label.new()
@@ -142,10 +143,7 @@ func _build_rewards_label():
 	var item_text = "No items dropped" if items.is_empty() else "Items:"
 	if not items.is_empty():
 		for item in items:
-			if item.quantity > 1:
-				item_text += "\n  %s x%d" % [item.item_name, item.quantity]
-			else:
-				item_text += "\n  %s" % item.item_name
+			item_text += "\n%s  x%d" % [item.item_name, item.quantity]
 	rewards_label.text = item_text
 	if cinzel: rewards_label.add_theme_font_override("font", cinzel)
 	rewards_label.add_theme_font_size_override("font_size", 13)
@@ -286,6 +284,20 @@ func _on_continue():
 	else:
 		emit_signal("victory_closed")
 		hide()
+
+# Matches the resonance meter styling used by the pause-menu Stats screen
+# (StatsScreen._make_meter_row): amethyst fill on a dark, button-bordered track.
+func _style_exp_bar(bar: ProgressBar) -> void:
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0.05, 0.04, 0.09, 0.9)
+	bg.set_corner_radius_all(4)
+	bg.border_color = BattleUITheme.BUTTON_BORDER
+	bg.set_border_width_all(1)
+	bar.add_theme_stylebox_override("background", bg)
+	var fg := StyleBoxFlat.new()
+	fg.bg_color = Color(0.62, 0.40, 0.95)
+	fg.set_corner_radius_all(4)
+	bar.add_theme_stylebox_override("fill", fg)
 
 func _find_node_by_name(node_name: String) -> Node:
 	return _search_children(party_list, node_name)
