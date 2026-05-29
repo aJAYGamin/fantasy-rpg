@@ -168,6 +168,11 @@ func award_rewards(rewards: Dictionary):
 			if not party.is_empty():
 				party[0].inventory.add_item(item)
 
+	if rewards.has("equipment"):
+		for eq in rewards["equipment"]:
+			if not party.is_empty():
+				party[0].inventory.add_equipment(eq)
+
 # ─── Save System ─────────────────────────────────────────
 func save_game():
 	var save_data = {

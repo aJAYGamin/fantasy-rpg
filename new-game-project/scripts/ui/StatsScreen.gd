@@ -70,6 +70,9 @@ static func build_hero_view_model(c: Character) -> Dictionary:
 		"current_mp": c.current_mp,
 		"max_mp": c.max_mp(),
 		"mp_text": "%d / %d" % [c.current_mp, c.max_mp()],
+		# Core stats are final TOTALS (base + level growth + equipment); the
+		# getters already fold in equipment_bonus. The status screen shows just
+		# the total — the per-piece breakdown lives on the Equipment screen.
 		"attack": c.attack_power(),
 		"defense": c.defense_power(),
 		"magic": c.magic_power(),

@@ -33,7 +33,12 @@ var _party: Array = []
 var _selected_tab: int = 0
 var _tab_buttons: Array[Button] = []
 var _content_host: Control = null
+# Target picker is two nodes added directly to this screen (a full-rect dim that
+# blocks clicks + a CenterContainer holding the panel) rather than a wrapped
+# overlay Control: a plain Control wrapper doesn't reliably get a size here, which
+# collapses the CenterContainer and pins the panel to the top-left.
 var _picker: Control = null
+var _picker_dim: Control = null
 
 # --- Pure helpers (testable) --------------------------------------------------
 
@@ -135,6 +140,7 @@ func _build_chrome() -> void:
 		c.queue_free()
 	_tab_buttons.clear()
 	_picker = null
+	_picker_dim = null
 
 	var dim := ColorRect.new()
 	dim.color = Color(0, 0, 0, 0.6)
@@ -306,61 +312,125 @@ func _apply_field_item(item: Item, targets: Array) -> void:
 
 func _open_target_picker(item: Item) -> void:
 	_close_target_picker()
-	var overlay := Control.new()
-	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-	_picker = overlay
+	# This screen's own rect can be (0,0): the chrome only looks full-screen
+	# because its panel's large min-size forces its CenterContainer to fill. A
+	# small picker panel would otherwise collapse to the top-left. So we pin the
+	# dim and the CenterContainer to the viewport size explicitly — they then fill
+	# the screen (dimming everything behind, like the pause menu) and center the
+	# panel regardless of this control's own size.
+	var screen_size := get_viewport_rect().size
 
 	var dim := ColorRect.new()
 	dim.color = Color(0, 0, 0, 0.55)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.custom_minimum_size = screen_size
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
-	overlay.add_child(dim)
+	_picker_dim = dim
+	add_child(dim)
 
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	overlay.add_child(center)
+	center.custom_minimum_size = screen_size
+	center.mouse_filter = Control.MOUSE_FILTER_STOP
+	_picker = center
+	add_child(center)
 
 	var panel := BattleUITheme.make_panel()
-	panel.custom_minimum_size = Vector2(440, 0)
+	panel.custom_minimum_size = Vector2(460, 0)
+	var pstyle := panel.get_theme_stylebox("panel") as StyleBoxFlat
+	if pstyle:
+		pstyle.content_margin_left = 22
+		pstyle.content_margin_right = 22
+		pstyle.content_margin_top = 16
+		pstyle.content_margin_bottom = 16
 	center.add_child(panel)
 
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 8)
+	v.add_theme_constant_override("separation", 10)
 	panel.add_child(v)
-	v.add_child(_label("Use %s on…" % item.item_name, BattleUITheme.font_bold(), 16, BattleUITheme.TEXT_ACCENT, HORIZONTAL_ALIGNMENT_CENTER))
+	# Title tinted with the item's color so it reads as "using <this item>".
+	v.add_child(_label("Use %s on…" % item.item_name, BattleUITheme.font_bold(), 17, item_color(item), HORIZONTAL_ALIGNMENT_CENTER))
+	v.add_child(_divider())
 
 	for hero in _party:
 		v.add_child(_make_target_button(item, hero))
 
 	var cancel := BattleUITheme.make_button("Cancel", 12)
-	cancel.custom_minimum_size = Vector2(0, 30)
+	cancel.custom_minimum_size = Vector2(0, 32)
 	cancel.pressed.connect(_close_target_picker)
 	v.add_child(cancel)
 
-	add_child(overlay)
-
+# A target row themed in the hero's own palette color, with HP/MP shown as
+# distinct colored columns. A plain Button can only tint its whole label one
+# color, so the name/HP/MP live in a mouse-ignored child HBox.
 func _make_target_button(item: Item, hero: Character) -> Button:
-	var b := BattleUITheme.make_button("", 13)
-	b.custom_minimum_size = Vector2(400, 40)
-	var info := "%s    HP %d/%d    MP %d/%d" % [
-		hero.character_name, hero.current_hp, hero.max_hp(), hero.current_mp, hero.max_mp()
-	]
-	if not hero.is_alive():
-		info += "    (KO)"
-	b.text = info
+	var palette := HeroPalette.for_hero(hero.character_name)
+	var accent: Color = palette["accent"]
 	var valid := can_target_hero(item, hero)
+
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(416, 46)
+	b.focus_mode = Control.FOCUS_NONE
 	b.disabled = not valid
+	if not valid:
+		b.modulate = Color(1, 1, 1, 0.45)
+	_style_target_button(b, accent)
 	if valid:
 		b.pressed.connect(func():
 			_apply_field_item(item, [hero])
 			_close_target_picker())
+
+	var row := HBoxContainer.new()
+	row.set_anchors_preset(Control.PRESET_FULL_RECT)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.offset_left = 14
+	row.offset_right = -14
+	row.add_theme_constant_override("separation", 12)
+	b.add_child(row)
+
+	var name_lbl := _label(hero.character_name, BattleUITheme.font_bold(), 15, accent)
+	name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_lbl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(name_lbl)
+
+	if hero.is_alive():
+		var hp_lbl := _label("HP %d/%d" % [hero.current_hp, hero.max_hp()], BattleUITheme.font_regular(), 12, Color(0.55, 0.95, 0.55))
+		hp_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hp_lbl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(hp_lbl)
+		var mp_lbl := _label("MP %d/%d" % [hero.current_mp, hero.max_mp()], BattleUITheme.font_regular(), 12, Color(0.50, 0.70, 1.0))
+		mp_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mp_lbl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(mp_lbl)
+	else:
+		var ko := _label("KO", BattleUITheme.font_bold(), 12, Color(1.0, 0.45, 0.45))
+		ko.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ko.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(ko)
+
 	return b
+
+func _style_target_button(b: Button, accent: Color) -> void:
+	var normal := BattleUITheme.panel_style(accent, accent.lerp(BattleUITheme.SUBPANEL_BG, 0.84), 1, 6)
+	b.add_theme_stylebox_override("normal", normal)
+	var hover := normal.duplicate()
+	hover.bg_color = accent.lerp(BattleUITheme.SUBPANEL_BG, 0.62)
+	hover.set_border_width_all(2)
+	b.add_theme_stylebox_override("hover", hover)
+	b.add_theme_stylebox_override("pressed", hover)
+	var disabled := normal.duplicate()
+	disabled.bg_color = BattleUITheme.SUBPANEL_BG
+	b.add_theme_stylebox_override("disabled", disabled)
+	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 
 func _close_target_picker() -> void:
 	if _picker != null and is_instance_valid(_picker):
 		_picker.queue_free()
 	_picker = null
+	if _picker_dim != null and is_instance_valid(_picker_dim):
+		_picker_dim.queue_free()
+	_picker_dim = null
 
 # --- Tab + primitives ---------------------------------------------------------
 

@@ -138,13 +138,36 @@ func _build_party_list():
 
 func _build_rewards_label():
 	var cinzel = load("res://fonts/Cinzel-Regular.ttf")
-	# Show items only — gold handled separately with animation
+	# Items + equipment drops (gold is handled separately with animation).
 	var items = rewards.get("items", [])
-	var item_text = "No items dropped" if items.is_empty() else "Items:"
+	var equipment = rewards.get("equipment", [])
+
+	var lines: Array[String] = []
 	if not items.is_empty():
+		lines.append("Items:")
 		for item in items:
-			item_text += "\n%s  x%d" % [item.item_name, item.quantity]
-	rewards_label.text = item_text
+			lines.append("%s  x%d" % [item.item_name, item.quantity])
+	if not equipment.is_empty():
+		lines.append("Equipment:")
+		# Aggregate identical pieces by name for a compact list.
+		var counts := {}
+		var order: Array[String] = []
+		for eq in equipment:
+			if not counts.has(eq.equipment_name):
+				counts[eq.equipment_name] = {"count": 0, "rarity": eq.rarity_name()}
+				order.append(eq.equipment_name)
+			counts[eq.equipment_name]["count"] += 1
+		for eq_name in order:
+			var c: int = counts[eq_name]["count"]
+			var rar: String = counts[eq_name]["rarity"]
+			if c > 1:
+				lines.append("%s  x%d  (%s)" % [eq_name, c, rar])
+			else:
+				lines.append("%s  (%s)" % [eq_name, rar])
+	if lines.is_empty():
+		lines.append("No items dropped")
+
+	rewards_label.text = "\n".join(lines)
 	if cinzel: rewards_label.add_theme_font_override("font", cinzel)
 	rewards_label.add_theme_font_size_override("font_size", 13)
 	rewards_label.add_theme_color_override("font_color", Color(0.78, 0.7, 0.95))

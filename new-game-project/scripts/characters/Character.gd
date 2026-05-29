@@ -57,39 +57,43 @@ var debuffs: Dictionary = {}
 var sleep_turn: int = 0
 
 func _init():
+	inventory = Inventory.new()
 	current_hp = max_hp()
 	current_mp = max_mp()
-	inventory = Inventory.new()
 
 # --- Stat Calculations ---
 func max_hp() -> int:
-	return base_hp + (level - 1) * 15
+	return base_hp + (level - 1) * 15 + inventory.equipment_bonus("max_hp")
 
 func max_mp() -> int:
-	return base_mp + (level - 1) * 8
+	return base_mp + (level - 1) * 8 + inventory.equipment_bonus("max_mp")
 
 func attack_power() -> int:
-	var weapon_bonus = inventory.get_weapon_attack()
-	var raw = base_attack + (level - 1) * 2 + weapon_bonus
+	var raw = base_attack + (level - 1) * 2 + inventory.equipment_bonus("attack")
 	return StatusSystem.compose_stat(raw, self, StatusSystem.STAT_ATK)
 
 func defense_power() -> int:
-	var armor_bonus = inventory.get_armor_defense()
-	var raw = base_defense + (level - 1) * 1 + armor_bonus
+	var raw = base_defense + (level - 1) * 1 + inventory.equipment_bonus("defense")
 	return StatusSystem.compose_stat(raw, self, StatusSystem.STAT_DEF)
 
 func magic_power() -> int:
-	var raw = base_magic + (level - 1) * 2
+	var raw = base_magic + (level - 1) * 2 + inventory.equipment_bonus("magic")
 	return StatusSystem.compose_stat(raw, self, StatusSystem.STAT_MAG)
 
 # Magic resistance — analogous to defense_power() but for magic damage.
 func arcane_power() -> int:
-	var raw = base_arcane + (level - 1) * 1
+	var raw = base_arcane + (level - 1) * 1 + inventory.equipment_bonus("arcane")
 	return StatusSystem.compose_stat(raw, self, StatusSystem.STAT_ARC)
 
 func speed() -> int:
-	var raw = base_speed + (level - 1) * 1
+	var raw = base_speed + (level - 1) * 1 + inventory.equipment_bonus("speed")
 	return StatusSystem.compose_stat(raw, self, StatusSystem.STAT_SPD)
+
+# Keep current HP/MP within their (possibly equipment-shifted) maximums. Call
+# after equipping/unequipping gear that changes max_hp / max_mp.
+func clamp_vitals() -> void:
+	current_hp = min(current_hp, max_hp())
+	current_mp = min(current_mp, max_mp())
 
 func is_alive() -> bool:
 	return current_hp > 0

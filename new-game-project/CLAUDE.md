@@ -3,9 +3,9 @@
 ## Project Overview
 A turn-based JRPG built in **Godot 4 (GDScript)**, in active development.
 The core battle system, status-effect system, save system, and a heavily-themed
-battle UI are complete. Focus going forward: building out the pause-menu
-sub-screens (Stats/Items/Equipment/Settings), a main-menu Settings screen,
-auto-save, more overworld content, and eventually story.
+battle UI are complete. The pause-menu Stats/Items/Equipment sub-screens are
+done. Focus going forward: the Settings screen (pause + main menu), auto-save,
+more overworld content, and eventually story.
 
 ---
 
@@ -15,7 +15,7 @@ auto-save, more overworld content, and eventually story.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **457 tests, 16 suites**)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **532 tests, 17 suites**)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -32,6 +32,7 @@ scripts/
     BattleUITheme.gd          # class_name BattleUITheme — shared amethyst panel/button styles for battle UI
     StatsScreen.gd            # class_name StatsScreen — pause-menu per-hero stats page (P1)
     ItemsScreen.gd            # class_name ItemsScreen — pause-menu Items page, 4 tabs + field-use (P2)
+    EquipmentScreen.gd        # class_name EquipmentScreen — pause-menu per-hero equip page, 5 slots (P3)
   overworld/
     OverworldScene.gd         # Free-roam controller; step-based encounter rolls; pause menu host
     Player.gd                 # CharacterBody2D, 8-dir arrow/controller movement
@@ -62,9 +63,11 @@ scripts/
     ElementalSystem.gd        # Element enum, weakness/resistance tables, colors, icons  (NOTE: in characters/, not systems/)
     Rarity.gd                 # Enemy rarity tiers (COMMON→CELESTIAL), multipliers, colors
   inventory/
-    Inventory.gd              # Per-character item container
+    Inventory.gd              # Per-character item + equipment container (pool + equipped slots + equip/unequip)
     Item.gd                   # Item resource with use() logic + ItemCategory (GENERAL/HEALING/BATTLE/KEY)
     ItemFactory.gd            # class_name ItemFactory — named item defs + create() + roll_drops() (P2)
+    Equipment.gd              # class_name Equipment — gear resource: slot/rarity/stat bonuses/class+element restriction (P3)
+    EquipmentFactory.gd       # class_name EquipmentFactory — named gear defs + create() + roll_drops() (P3)
 scenes/
   BattleScene.tscn
   MainMenu.tscn
@@ -77,7 +80,7 @@ data/                         # data-driven content (.tres resources)
 tests/
   TestRunner.tscn/.gd         # run this scene (F6) to execute all suites; register suites in SUITE_PATHS
   TestSuite.gd                # base class with assert_* helpers
-  suites/                     # one test_<feature>.gd per system (16 suites)
+  suites/                     # one test_<feature>.gd per system (17 suites)
 assets/  backgrounds/ characters/ enemies/ icons/ ui/
 fonts/   music/
 ```
@@ -187,6 +190,32 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   Legendary=gold, Celestial=white/silver. **Enemy card borders use this color.**
 - `get_color(tier)`, **`tier_name(tier)`** (⚠️ not `get_name` — that collided with
   a built-in), `get_exp_multiplier`, `get_loot_multiplier`.
+
+### Equipment — `scripts/inventory/Equipment.gd` (`class_name Equipment`)  (P3)
+- A piece of gear (Resource). `slot` (WEAPON/ARMOR/ACCESSORY), `rarity`
+  (Rarity.Tier — cosmetic, NOT a gate), `stat_bonuses` (dict of any of
+  attack/defense/magic/arcane/speed/max_hp/max_mp → int, may be negative),
+  `class_restriction: Array[String]` (empty = any), `element_restriction: Array[int]`
+  (ElementalSystem ints; empty = any). `can_equip(c)` ANDs class + element checks
+  (class case-insensitive; element matches primary OR secondary). UI helpers:
+  `rarity_color/rarity_name/slot_name/restriction_text/bonus_text`.
+- **EquipmentFactory** (`class_name`, mirrors ItemFactory): `DEFS` of 18 named pieces;
+  `create(name)` builds a fresh distinct instance (gear never stacks), `has_equipment`,
+  `roll_drops(table)` (each successful roll yields `quantity` distinct pieces).
+- **Slots per hero: 5** = 1 Weapon, 1 Armor, 3 Accessory.
+- **Storage convention:** unequipped pool is shared on `party[0].inventory.equipment`
+  (like items); equipped pieces live PER-HERO on each `hero.inventory`
+  (`equipped_weapon`/`equipped_armor`/`equipped_accessories[3]`).
+- `Inventory.equipment_bonus(stat)` sums `eq.bonus(stat)` over `equipped_list()`; the
+  **Character stat getters add this in** (max_hp/max_mp/attack/defense/magic/arcane/speed).
+- Cross-inventory moves go through STATIC `Inventory.equip_from_pool(hero, pool, eq,
+  accessory_index=-1)` (honors can_equip; auto-picks first empty accessory when idx<0;
+  returns displaced piece to pool) and `Inventory.unequip_to_pool(hero, pool, slot,
+  accessory_index=0)`. Both call `hero.clamp_vitals()` since max HP/MP can change.
+- Acquisition: starter loadouts seeded by `PartyFactory._seed_starter_equipment`; enemy
+  drops via the unified drop pipeline (BattleManager routes each rolled name to
+  ItemFactory vs EquipmentFactory; `GameManager.award_rewards` adds gear to the pool;
+  VictoryScreen lists both). Persisted by SaveSerializer (pool + all equipped slots).
 
 ### ResonanceSystem (Node, child of BattleScene)
 - Reads/writes `character.resonance_meter` directly (0–100); **persists across battles**
@@ -358,10 +387,10 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **457 tests / 16 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **532 tests / 17 suites**
   currently (character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
-  stats_screen, items_screen, item_factory).
+  stats_screen, items_screen, item_factory, equipment).
 - Tests touching GameManager must snapshot & restore global state.
 - When fixing a bug, add a regression test that fails before the fix.
 - **Adding a new `class_name` file:** the headless test runner won't see it until the
@@ -430,11 +459,17 @@ BattleScene (Node2D)
   `ItemFactory.roll_drops`, `GameManager.award_rewards` adds them to the shared party
   inventory (`party[0].inventory`), and `VictoryScreen` lists drops with counts. Suites
   `items_screen`, `item_factory`.
+- **Phase P3 — Equipment system** (see the Equipment core-system section above):
+  `Equipment` + `EquipmentFactory` resources; 5 slots/hero (1 Weapon, 1 Armor, 3
+  Accessory); flexible per-stat bonuses summed into the Character stat getters via
+  `Inventory.equipment_bonus`; class/element restrictions (rarity is cosmetic). Shared
+  unequipped pool on `party[0].inventory.equipment`, equipped slots per-hero; moves via
+  static `Inventory.equip_from_pool`/`unequip_to_pool` (clamp vitals). Pause-menu
+  `EquipmentScreen` (`class_name`): hero tabs, live stats with equipment deltas, 5
+  selectable slots + unequip, restriction-gated equippable pool. Starter loadouts +
+  enemy drops (unified drop pipeline). Full SaveSerializer round-trip. Suite `equipment`.
 
 ### Planned (next phases)
-- **Phase P3 — Equipment system**: weapons/armor resources; `Inventory.get_weapon_attack()`/
-  `get_armor_defense()` currently return 0 — wire them into Character stat getters;
-  pause-menu Equipment screen to equip/unequip.
 - **Phase P4 — Settings menu (main menu + pause menu)**: audio volume, auto-save toggle,
   (later) controller bindings, text speed. Persist to `user://config.cfg`.
 - **Phase P5 — Auto-save**: trigger on town/safe-area entry (`MapArea.auto_save_on_enter`)
