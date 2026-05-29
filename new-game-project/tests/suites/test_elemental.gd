@@ -69,15 +69,12 @@ func test_amethyst_is_super_effective_against_all() -> void:
 
 func test_names_and_icons_nonempty() -> void:
 	var E = ElementalSystem.Element
-	# NORMAL is intentionally allowed to have an empty icon (clean UI for the
-	# default type); name must be non-empty for every element including NORMAL.
-	for e in [
+	# Every element — including NORMAL — has a non-empty name AND icon, so
+	# Normal-typed moves still read as a type on the stats screen and in battle.
+	var all_elements = [
 		E.NORMAL, E.FIRE, E.WATER, E.NATURE, E.ICE, E.LIGHTNING, E.EARTH, E.WIND,
 		E.SOUND, E.PSYCHIC, E.SPIRIT, E.DRAGON, E.METAL, E.LIGHT, E.DARK, E.AMETHYST,
-	]:
+	]
+	for e in all_elements:
 		assert_ne(ElementalSystem.get_element_name(e), "", "name for element %d non-empty" % e)
-	for e in [
-		E.FIRE, E.WATER, E.NATURE, E.ICE, E.LIGHTNING, E.EARTH, E.WIND,
-		E.SOUND, E.PSYCHIC, E.SPIRIT, E.DRAGON, E.METAL, E.LIGHT, E.DARK, E.AMETHYST,
-	]:
 		assert_ne(ElementalSystem.get_element_icon(e), "", "icon for element %d non-empty" % e)

@@ -31,9 +31,11 @@ var current_mp: int
 # Amethyst Resonance meter (0–100). Persists across battles like current HP/MP —
 # only resonance attacks reset it (or future "drain"-style enemy effects).
 var resonance_meter: float = 0.0
+const XP_BASE := 100      # XP needed for the first level-up (Lv 1 → 2)
+const XP_GROWTH := 1.5    # each level requires 50% more than the previous
 @export var level: int = 1
 var experience: int = 0
-var experience_to_next: int = 100
+var experience_to_next: int = XP_BASE
 
 # --- Inventory ---
 var inventory: Inventory
@@ -257,12 +259,23 @@ func level_up():
 	# Carry over remaining EXP to next level
 	experience -= experience_to_next
 	# Scale EXP requirement — each level needs 50% more than the last
-	experience_to_next = int(experience_to_next * 1.5)
+	experience_to_next = int(experience_to_next * XP_GROWTH)
 	# Current HP/MP intentionally NOT restored — leveling raises max but keeps current.
 	_learn_skills_at_level()
 
 func _learn_skills_at_level():
 	pass
+
+# Total XP earned across this character's whole life: every threshold crossed to
+# reach the current level, plus current progress toward the next. Mirrors the
+# XP_BASE × XP_GROWTH progression in level_up() (int-truncated each step).
+func total_experience_earned() -> int:
+	var total := experience
+	var threshold := XP_BASE
+	for _i in range(level - 1):
+		total += threshold
+		threshold = int(threshold * XP_GROWTH)
+	return total
 
 func get_stats_summary() -> Dictionary:
 	return {

@@ -100,3 +100,26 @@ func test_gain_experience_multi_level() -> void:
 	# 100 -> level 2 (carry 150 over: 250-100), threshold 150 -> level 3 ...
 	c.gain_experience(300)
 	assert_true(c.level >= 3, "large EXP batch yields multiple level ups (got Lv%d)" % c.level)
+
+func test_total_experience_fresh_character() -> void:
+	var c = _make()
+	assert_eq(c.total_experience_earned(), 0, "fresh Lv1 character has earned 0 XP")
+	c.experience = 85
+	assert_eq(c.total_experience_earned(), 85, "Lv1 with 85 progress has earned 85 total")
+
+func test_total_experience_includes_past_thresholds() -> void:
+	var c = _make()
+	c.level = 2
+	c.experience = 85
+	# Reaching Lv2 cost the first threshold (100), plus 85 toward Lv3 = 185.
+	assert_eq(c.total_experience_earned(), 185, "Lv2 + 85 = 100 (past) + 85")
+
+func test_total_experience_matches_cumulative_gain() -> void:
+	# Lifetime total must equal the raw XP fed in, regardless of how many level-ups
+	# it triggers (threshold truncation is recomputed identically).
+	var c = _make()
+	c.level = 1
+	c.experience = 0
+	c.experience_to_next = Character.XP_BASE
+	c.gain_experience(250)
+	assert_eq(c.total_experience_earned(), 250, "total earned == cumulative XP gained")

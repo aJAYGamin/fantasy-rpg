@@ -200,7 +200,7 @@ func _create_skill_slot(skill: Skill, cinzel, cinzel_bold) -> PanelContainer:
 	# Column 1: Element
 	var elem_name = ElementalSystem.get_element_name(skill.element)
 	var elem_lbl = Label.new()
-	elem_lbl.text = elem_name if elem_name != "Normal" else "—"
+	elem_lbl.text = elem_name
 	elem_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	elem_lbl.clip_text = true
 	if cinzel: elem_lbl.add_theme_font_override("font", cinzel)

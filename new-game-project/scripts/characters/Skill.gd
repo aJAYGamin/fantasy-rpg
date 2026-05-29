@@ -133,8 +133,6 @@ func get_skill_type_display() -> String:
 	return ""
 
 func get_element_display() -> String:
-	if element == ElementalSystem.Element.NORMAL:
-		return ""
 	return "%s %s" % [
 		ElementalSystem.get_element_icon(element),
 		ElementalSystem.get_element_name(element)

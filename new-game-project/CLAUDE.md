@@ -15,7 +15,7 @@ auto-save, more overworld content, and eventually story.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **370 tests, 13 suites**)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **406 tests, 14 suites**)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -355,9 +355,10 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **370 tests / 13 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **406 tests / 14 suites**
   currently (character, skill, elemental, rarity, enemy, encounter_group, resonance,
-  enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette).
+  enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
+  stats_screen).
 - Tests touching GameManager must snapshot & restore global state.
 - When fixing a bug, add a regression test that fails before the fix.
 - **Adding a new `class_name` file:** the headless test runner won't see it until the
@@ -409,11 +410,15 @@ BattleScene (Node2D)
 - **UI theming pass**: shared BattleUITheme + HeroPalette; themed action/attack/items/
   resonance menus, hero panels, enemy cards (rarity border), turn order, victory/defeat,
   pause menu; resonance element-gradient text + auto-grow + decorative tier dividers.
+- **Phase P1 — Pause-menu Stats screen** (`scripts/ui/StatsScreen.gd`, `class_name StatsScreen`):
+  full-screen 3-column per-hero page opened from PauseMenu (replace-not-stack). Left:
+  portrait/name/Lv, XP bar + lifetime "Total XP earned" (`Character.total_experience_earned()`),
+  affinity, resonance meter + solo ultimate. Middle: bio stacked on top of the vertical
+  core-stats list (HP/MP/ATK/DEF/MAG/ARC/SPD). Right: attack/special cards (2-per-row,
+  always show element incl. NORMAL "◇"). ←/→ or name tabs cycle heroes. Pure testable
+  `build_hero_view_model()` (suite `stats_screen`).
 
 ### Planned (next phases)
-- **Phase P1 — Pause-menu Stats screen**: per-hero info page (model, bio, level, XP,
-  HP/MP and ATK/DEF/MAG/ARC/SPD, learned attacks/specials with descriptions, solo
-  resonance). Reuse the PauseMenu replace-not-stack pattern + BattleUITheme.
 - **Phase P2 — Pause-menu Items screen**: Items / Battle Items / Key Items tabs;
   shared item list UI with the battle ItemsMenu styling.
 - **Phase P3 — Equipment system**: weapons/armor resources; `Inventory.get_weapon_attack()`/

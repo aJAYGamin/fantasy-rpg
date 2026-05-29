@@ -200,7 +200,7 @@ static func get_effectiveness_color(multiplier: float) -> Color:
 ## Get element icon character for UI display
 static func get_element_icon(element: Element) -> String:
 	match element:
-		Element.NORMAL:    return ""        # default type — no icon clutter
+		Element.NORMAL:    return "◇"       # neutral glyph so Normal still reads as a type
 		Element.FIRE:      return "🔥"
 		Element.WATER:     return "💧"
 		Element.NATURE:    return "🌿"

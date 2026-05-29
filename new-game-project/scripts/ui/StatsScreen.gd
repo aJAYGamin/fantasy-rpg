@@ -63,6 +63,7 @@ static func build_hero_view_model(c: Character) -> Dictionary:
 		"experience": c.experience,
 		"experience_to_next": c.experience_to_next,
 		"exp_text": "%d / %d" % [c.experience, c.experience_to_next],
+		"total_experience": c.total_experience_earned(),
 		"current_hp": c.current_hp,
 		"max_hp": c.max_hp(),
 		"hp_text": "%d / %d" % [c.current_hp, c.max_hp()],
@@ -138,23 +139,32 @@ func _build_chrome() -> void:
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(dim)
 
+	# Panel covers the entire screen. This reuses the proven CenterContainer +
+	# explicitly-sized PanelContainer structure (a bare full-rect PanelContainer
+	# collapses to its content — see CLAUDE.md). In this project's canvas_items
+	# stretch mode the UI space is always the base resolution, so sizing to it
+	# exactly fills the screen at any window size.
+	const BASE_W := 1152.0
+	const BASE_H := 648.0
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
 
 	var panel := BattleUITheme.make_panel()
-	panel.custom_minimum_size = Vector2(820, 560)
-	# Slightly roomier margins than the default theme panel.
+	panel.custom_minimum_size = Vector2(BASE_W, BASE_H)
+	# Square corners (full-screen rectangle, no rounding) + compact margins so all
+	# sections fit on screen without scrolling.
 	var pstyle := panel.get_theme_stylebox("panel") as StyleBoxFlat
 	if pstyle:
-		pstyle.content_margin_left = 18
-		pstyle.content_margin_right = 18
-		pstyle.content_margin_top = 14
-		pstyle.content_margin_bottom = 14
+		pstyle.set_corner_radius_all(0)
+		pstyle.content_margin_left = 22
+		pstyle.content_margin_right = 22
+		pstyle.content_margin_top = 12
+		pstyle.content_margin_bottom = 12
 	center.add_child(panel)
 
 	var root_v := VBoxContainer.new()
-	root_v.add_theme_constant_override("separation", 10)
+	root_v.add_theme_constant_override("separation", 8)
 	panel.add_child(root_v)
 
 	# Header: title + Back button.
@@ -183,17 +193,24 @@ func _build_chrome() -> void:
 
 	root_v.add_child(_divider())
 
-	# Scrollable content area — rebuilt per selected hero.
+	# Scrollable content area — rebuilt per selected hero. Fills the rest of the
+	# panel vertically so the screen uses the full window height.
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.custom_minimum_size = Vector2(0, 440)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	root_v.add_child(scroll)
 
+	# Reserve a right gutter so the vertical scrollbar never crowds the
+	# right-aligned stat numbers.
+	var scroll_margin := MarginContainer.new()
+	scroll_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll_margin.add_theme_constant_override("margin_right", 16)
+	scroll.add_child(scroll_margin)
+
 	_content_host = VBoxContainer.new()
 	_content_host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(_content_host)
+	scroll_margin.add_child(_content_host)
 
 # --- Selection ----------------------------------------------------------------
 
@@ -219,12 +236,16 @@ func _build_content(hero: Character) -> void:
 	columns.add_theme_constant_override("separation", 16)
 	_content_host.add_child(columns)
 
+	# Three columns so the wide screen stays filled: identity/XP/affinity/resonance
+	# on the left, bio stacked on top of the vertical core stats in the middle, and
+	# the skill cards on the right.
 	columns.add_child(_build_left_column(vm, palette))
+	columns.add_child(_build_middle_column(vm, palette))
 	columns.add_child(_build_right_column(vm, palette))
 
 func _build_left_column(vm: Dictionary, palette: Dictionary) -> Control:
 	var col := VBoxContainer.new()
-	col.custom_minimum_size = Vector2(300, 0)
+	col.custom_minimum_size = Vector2(270, 0)
 	col.add_theme_constant_override("separation", 10)
 
 	# Portrait placeholder (hero-accent letter tile).
@@ -238,8 +259,11 @@ func _build_left_column(vm: Dictionary, palette: Dictionary) -> Control:
 	var sub_lbl := _label("Lv %d  ·  %s" % [vm["level"], vm["class"]], BattleUITheme.font_regular(), 13, palette["subtitle"], HORIZONTAL_ALIGNMENT_CENTER)
 	col.add_child(sub_lbl)
 
-	# XP bar.
+	# XP bar + lifetime XP earned (under the bar).
 	col.add_child(_make_meter_row("XP", vm["experience"], vm["experience_to_next"], Color(0.85, 0.78, 0.45), vm["exp_text"]))
+	var total_xp := _label("Total XP earned:  %d" % int(vm["total_experience"]), BattleUITheme.font_regular(), 11, BattleUITheme.TEXT_SUBTITLE, HORIZONTAL_ALIGNMENT_RIGHT)
+	total_xp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.add_child(total_xp)
 
 	col.add_child(_divider())
 
@@ -252,51 +276,67 @@ func _build_left_column(vm: Dictionary, palette: Dictionary) -> Control:
 	# Resonance.
 	col.add_child(_section_header("Resonance"))
 	col.add_child(_make_meter_row("", vm["resonance_meter"], 100.0, Color(0.62, 0.40, 0.95), "%d%%" % int(round(vm["resonance_meter"]))))
-	var res_name := _label("✦ %s" % vm["resonance_name"], BattleUITheme.font_bold(), 14, Color(0.80, 0.62, 1.0))
+	var res_name := _label("✦ %s" % vm["resonance_name"], BattleUITheme.font_bold(), 14, palette["accent"])
 	col.add_child(res_name)
 	var res_desc := _label(vm["resonance_desc"], BattleUITheme.font_regular(), 11, BattleUITheme.TEXT_SUBTITLE)
 	res_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	res_desc.custom_minimum_size = Vector2(284, 0)
+	res_desc.custom_minimum_size = Vector2(254, 0)
 	col.add_child(res_desc)
 
-	# Bio.
+	return col
+
+# Middle column: each hero's biography sits directly on top of their core stats,
+# which are listed vertically (one stat per row) rather than side-by-side.
+func _build_middle_column(vm: Dictionary, _palette: Dictionary) -> Control:
+	var col := VBoxContainer.new()
+	col.custom_minimum_size = Vector2(240, 0)
+	col.add_theme_constant_override("separation", 8)
+
 	if str(vm["bio"]) != "":
-		col.add_child(_divider())
 		col.add_child(_section_header("Bio"))
 		var bio_lbl := _label(vm["bio"], BattleUITheme.font_regular(), 11, BattleUITheme.TEXT_PRIMARY)
 		bio_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		bio_lbl.custom_minimum_size = Vector2(284, 0)
+		bio_lbl.custom_minimum_size = Vector2(224, 0)
 		col.add_child(bio_lbl)
+		col.add_child(_divider())
+
+	col.add_child(_section_header("Core Stats"))
+	var stats_col := VBoxContainer.new()
+	stats_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	stats_col.add_theme_constant_override("separation", 4)
+	stats_col.add_child(_make_stat_row("HP", vm["hp_text"], Color(0.55, 0.95, 0.55)))
+	stats_col.add_child(_make_stat_row("MP", vm["mp_text"], Color(0.50, 0.70, 1.0)))
+	for pair in STAT_ROWS:
+		stats_col.add_child(_make_stat_row(pair[0], str(vm[pair[1]]), BattleUITheme.TEXT_PRIMARY))
+	col.add_child(stats_col)
 
 	return col
 
 func _build_right_column(vm: Dictionary, _palette: Dictionary) -> Control:
 	var col := VBoxContainer.new()
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	col.add_theme_constant_override("separation", 8)
+	col.add_theme_constant_override("separation", 6)
 
-	# Core stats.
-	col.add_child(_section_header("Core Stats"))
-	col.add_child(_make_stat_row("HP", vm["hp_text"], Color(0.55, 0.95, 0.55)))
-	col.add_child(_make_stat_row("MP", vm["mp_text"], Color(0.50, 0.70, 1.0)))
-	for pair in STAT_ROWS:
-		col.add_child(_make_stat_row(pair[0], str(vm[pair[1]]), BattleUITheme.TEXT_PRIMARY))
-
-	# Attacks.
+	# Attacks / Specials — two cards per row to fill the horizontal space.
 	col.add_child(_section_header("Attacks"))
-	if (vm["attacks"] as Array).is_empty():
-		col.add_child(_label("None learned.", BattleUITheme.font_regular(), 11, BattleUITheme.TEXT_SUBTITLE))
-	for s in vm["attacks"]:
-		col.add_child(_make_skill_card(s))
-
-	# Specials.
+	col.add_child(_build_skill_grid(vm["attacks"]))
 	col.add_child(_section_header("Specials"))
-	if (vm["specials"] as Array).is_empty():
-		col.add_child(_label("None learned.", BattleUITheme.font_regular(), 11, BattleUITheme.TEXT_SUBTITLE))
-	for s in vm["specials"]:
-		col.add_child(_make_skill_card(s))
+	col.add_child(_build_skill_grid(vm["specials"]))
 
 	return col
+
+# Lays skill cards out two-per-row. Returns a "None learned." label when empty.
+func _build_skill_grid(skills: Array) -> Control:
+	if skills.is_empty():
+		return _label("None learned.", BattleUITheme.font_regular(), 11, BattleUITheme.TEXT_SUBTITLE)
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 6)
+	for s in skills:
+		grid.add_child(_make_skill_card(s))
+	return grid
 
 # --- Builders -----------------------------------------------------------------
 
@@ -408,9 +448,11 @@ func _make_skill_card(s: Dictionary) -> Control:
 	var elem_color := ElementalSystem.get_element_color(s["element"])
 	var card := PanelContainer.new()
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	card.custom_minimum_size = Vector2(236, 0)
 	var style := BattleUITheme.panel_style(BattleUITheme.BUTTON_BORDER, BattleUITheme.SUBPANEL_BG, 1, 8)
-	style.content_margin_top = 6
-	style.content_margin_bottom = 6
+	style.content_margin_top = 4
+	style.content_margin_bottom = 4
 	style.content_margin_left = 10
 	style.content_margin_right = 10
 	card.add_theme_stylebox_override("panel", style)
@@ -430,8 +472,8 @@ func _make_skill_card(s: Dictionary) -> Control:
 	v.add_child(top)
 
 	var meta_parts: Array = [s["type_display"]]
-	if str(s["element_name"]) != "" and s["element"] != ElementalSystem.Element.NORMAL:
-		meta_parts.append("%s %s" % [s["element_icon"], s["element_name"]])
+	# Always surface the element — Normal-typed moves show "◇ Normal" too.
+	meta_parts.append("%s %s" % [s["element_icon"], s["element_name"]])
 	meta_parts.append(s["target"])
 	var meta_lbl := _label("  ·  ".join(meta_parts), BattleUITheme.font_regular(), 10, BattleUITheme.TEXT_SUBTITLE)
 	v.add_child(meta_lbl)
@@ -439,7 +481,8 @@ func _make_skill_card(s: Dictionary) -> Control:
 	if str(s["description"]) != "":
 		var desc := _label(s["description"], BattleUITheme.font_regular(), 11, BattleUITheme.TEXT_PRIMARY)
 		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		desc.custom_minimum_size = Vector2(420, 0)
+		# No fixed min width — wrap to whatever width the grid cell gives the card.
+		desc.custom_minimum_size = Vector2(0, 0)
 		v.add_child(desc)
 	return card
 
