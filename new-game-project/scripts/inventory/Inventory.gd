@@ -17,10 +17,12 @@ func remove_item(item: Item, amount: int = 1):
 		items.erase(item)
 
 func get_battle_items() -> Array[Item]:
-	# Return all items that can be used in battle
+	# Items usable in battle = everything except Key and General (those carry no
+	# combat/heal effect). Healing consumables are usable in battle too.
 	var battle_items: Array[Item] = []
 	for item in items:
-		if item.quantity > 0:
+		if item.quantity > 0 and item.get_category() != Item.ItemCategory.KEY \
+				and item.get_category() != Item.ItemCategory.GENERAL:
 			battle_items.append(item)
 	return battle_items
 
@@ -28,6 +30,13 @@ func get_items_by_type(type: Item.ItemType) -> Array[Item]:
 	var result: Array[Item] = []
 	for item in items:
 		if item.item_type == type and item.quantity > 0:
+			result.append(item)
+	return result
+
+func get_items_by_category(category: Item.ItemCategory) -> Array[Item]:
+	var result: Array[Item] = []
+	for item in items:
+		if item.get_category() == category and item.quantity > 0:
 			result.append(item)
 	return result
 

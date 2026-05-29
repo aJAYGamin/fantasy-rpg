@@ -9,7 +9,19 @@ enum ItemType {
 	ANTIDOTE,
 	DAMAGE,
 	DEBUFF,
-	DODGE_BUFF   # Gives hero a chance to dodge attacks for one turn
+	DODGE_BUFF,  # Gives hero a chance to dodge attacks for one turn
+	# Appended after the action types so existing enum values (and saved item_type
+	# ints) stay valid. These two carry no battle/heal effect:
+	KEY,         # story/event item — never consumed, never used
+	GENERAL,     # misc item (materials, trinkets) — not usable yet
+}
+
+# Pause-menu Items screen tabs. Derived from item_type via get_category().
+enum ItemCategory {
+	GENERAL,
+	HEALING,
+	BATTLE,
+	KEY,
 }
 
 enum TargetType {
@@ -69,3 +81,28 @@ func use(target: Character) -> Dictionary:
 			result["action"] = "dodge_buff"
 			result["value"] = effect_value
 	return result
+
+# Which Items-screen tab this item belongs to. Derived from item_type so callers
+# never have to keep a separate category field in sync.
+func get_category() -> ItemCategory:
+	match item_type:
+		ItemType.HP_RESTORE, ItemType.MP_RESTORE, ItemType.REVIVAL, ItemType.ANTIDOTE:
+			return ItemCategory.HEALING
+		ItemType.DAMAGE, ItemType.BUFF, ItemType.DEBUFF, ItemType.DODGE_BUFF:
+			return ItemCategory.BATTLE
+		ItemType.KEY:
+			return ItemCategory.KEY
+	return ItemCategory.GENERAL
+
+# True for items the player can use from the overworld (pause-menu Items screen).
+# Only healing-type consumables apply outside battle; battle items need combat,
+# and key/general items aren't usable.
+func is_field_usable() -> bool:
+	return get_category() == ItemCategory.HEALING
+
+func get_category_name() -> String:
+	match get_category():
+		ItemCategory.HEALING: return "Healing"
+		ItemCategory.BATTLE:  return "Battle"
+		ItemCategory.KEY:     return "Key"
+	return "Item"

@@ -151,9 +151,11 @@ func start_battle(party: Array[Character], enemies: Array[Character], area: Stri
 	resonance_menu.setup(battle_manager, resonance_system)
 	resonance_menu.resonance_action_selected.connect(_on_resonance_action)
 	resonance_menu.menu_closed.connect(_on_attack_menu_closed)
-	_test_items = _create_test_items()
-	items_menu.setup(battle_manager, null)
-	items_menu.set_items(_test_items)
+	# Use the shared party inventory (the leader holds all items) so battle item
+	# use and the pause-menu Items screen draw from the same store. ItemsMenu
+	# filters to battle-usable items via Inventory.get_battle_items().
+	_battle_inventory = party[0].inventory if not party.is_empty() else Inventory.new()
+	items_menu.setup(battle_manager, _battle_inventory)
 	items_menu.item_used.connect(_on_item_used)
 	items_menu.menu_closed.connect(_on_attack_menu_closed)
 	battle_manager.start_battle(party, enemies)
@@ -872,7 +874,8 @@ var _pending_action: String = ""
 var _pending_skill: Skill = null
 var _pending_item: Item = null
 var _battle_over: bool = false
-var _test_items: Array[Item] = []
+# Shared party inventory used for in-battle item use (set in start_battle).
+var _battle_inventory: Inventory = null
 
 func _input(event):
 	if _battle_over:
@@ -992,9 +995,9 @@ func _on_target_selected(target: Character):
 		result["target"] = target
 		_handle_item_result(result)
 		_refresh_all_panels()
-		# Remove item from list if depleted
-		if item.quantity <= 0:
-			_test_items.erase(item)
+		# Remove item from the shared inventory if depleted.
+		if item.quantity <= 0 and _battle_inventory != null:
+			_battle_inventory.items.erase(item)
 		if not _battle_over:
 			battle_manager.end_player_turn()
 	else:
@@ -1210,73 +1213,6 @@ func _find_portrait_in(container: Node, portrait_name: String) -> Node:
 			return found
 	return null
 
-func _create_test_items() -> Array[Item]:
-	var items: Array[Item] = []
-
-	var potion = Item.new()
-	potion.item_name = "Health Potion"
-	potion.description = "Restores 50 HP to one ally."
-	potion.item_type = Item.ItemType.HP_RESTORE
-	potion.effect_value = 50
-	potion.quantity = 3
-	potion.target_type = Item.TargetType.SINGLE_ALLY
-	items.append(potion)
-
-	var mp_potion = Item.new()
-	mp_potion.item_name = "Mana Potion"
-	mp_potion.description = "Restores 30 MP to one ally."
-	mp_potion.item_type = Item.ItemType.MP_RESTORE
-	mp_potion.effect_value = 30
-	mp_potion.quantity = 2
-	mp_potion.target_type = Item.TargetType.SINGLE_ALLY
-	items.append(mp_potion)
-
-	var elixir = Item.new()
-	elixir.item_name = "Elixir"
-	elixir.description = "Restores 100 HP to all allies."
-	elixir.item_type = Item.ItemType.HP_RESTORE
-	elixir.effect_value = 100
-	elixir.quantity = 1
-	elixir.target_type = Item.TargetType.ALL_ALLIES
-	items.append(elixir)
-
-	var revive = Item.new()
-	revive.item_name = "Phoenix Down"
-	revive.description = "Revives a defeated ally with 50% HP."
-	revive.item_type = Item.ItemType.REVIVAL
-	revive.effect_value = 50
-	revive.quantity = 1
-	revive.target_type = Item.TargetType.SINGLE_ALLY
-	items.append(revive)
-
-	var antidote = Item.new()
-	antidote.item_name = "Antidote"
-	antidote.description = "Cures poison and burn from one ally."
-	antidote.item_type = Item.ItemType.ANTIDOTE
-	antidote.effect_value = 0
-	antidote.quantity = 2
-	antidote.target_type = Item.TargetType.SINGLE_ALLY
-	items.append(antidote)
-
-	var bomb = Item.new()
-	bomb.item_name = "Fire Bomb"
-	bomb.description = "Deals 40 fire damage to all enemies."
-	bomb.item_type = Item.ItemType.DAMAGE
-	bomb.effect_value = 40
-	bomb.quantity = 2
-	bomb.target_type = Item.TargetType.ALL_ENEMIES
-	items.append(bomb)
-
-	var smoke = Item.new()
-	smoke.item_name = "Smoke Veil"
-	smoke.description = "Grants a 20% chance to dodge attacks to one ally."
-	smoke.item_type = Item.ItemType.DODGE_BUFF
-	smoke.effect_value = 20
-	smoke.quantity = 2
-	smoke.target_type = Item.TargetType.SINGLE_ALLY
-	items.append(smoke)
-
-	return items
 
 func _on_items_pressed():
 	if current_actor == null:
@@ -1296,8 +1232,8 @@ func _on_item_used(item: Item, targets: Array):
 	else:
 		action_menu.visible = false
 		item.quantity -= 1
-		if item.quantity <= 0:
-			_test_items.erase(item)
+		if item.quantity <= 0 and _battle_inventory != null:
+			_battle_inventory.items.erase(item)
 		for t in targets:
 			var result = item.use(t)
 			result["target"] = t

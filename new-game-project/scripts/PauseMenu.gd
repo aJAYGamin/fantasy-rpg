@@ -98,6 +98,19 @@ func _open_stats() -> void:
 	add_child(screen)
 	screen.setup(GameManager.party)
 
+# Opens the party Items screen as a sub-view (replace-don't-stack, like Stats).
+func _open_items() -> void:
+	if GameManager.party.is_empty():
+		show_toast("No party yet.", true)
+		return
+	if _main_content and is_instance_valid(_main_content):
+		_main_content.hide()
+	var screen := ItemsScreen.new()
+	_sub_view = screen
+	screen.back_requested.connect(_dismiss_sub_view)
+	add_child(screen)
+	screen.setup(GameManager.party)
+
 # --- Build ---
 func _rebuild() -> void:
 	for c in get_children():
@@ -140,7 +153,7 @@ func _rebuild() -> void:
 	v.add_child(_menu_button("Resume", _on_resume))
 	v.add_child(_menu_button("Save Game", _on_save))
 	v.add_child(_menu_button("Stats", _open_stats))
-	v.add_child(_menu_button("Items", func(): show_toast("Coming soon")))
+	v.add_child(_menu_button("Items", _open_items))
 	v.add_child(_menu_button("Equipment", func(): show_toast("Coming soon")))
 	v.add_child(_menu_button("Settings", func(): show_toast("Coming soon")))
 	v.add_child(_menu_button("Quit to Main Menu", _on_quit, true))
