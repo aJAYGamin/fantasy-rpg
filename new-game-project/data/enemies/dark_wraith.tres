@@ -56,4 +56,4 @@ base_speed = 9
 element = 14
 secondary_element = 10
 skills = Array[ExtResource("1_skill")]([SubResource("Skill_shadow_claw"), SubResource("Skill_soul_drain"), SubResource("Skill_dark_pulse"), SubResource("Skill_void_shroud")])
-drop_table = Array[Dictionary]([{ "item_name": "Monster Fang", "chance": 0.6, "quantity": 1 }, { "item_name": "Health Potion", "chance": 0.35, "quantity": 1 }])
+drop_table = Array[Dictionary]([{ "item_name": "Monster Fang", "chance": 0.6, "quantity": 1 }, { "item_name": "Health Potion", "chance": 0.35, "quantity": 1 }, { "item_name": "Guardian Charm", "chance": 0.15, "quantity": 1 }])

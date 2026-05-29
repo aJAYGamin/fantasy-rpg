@@ -64,13 +64,64 @@ static func deserialize_item(d: Dictionary) -> Item:
 	i.quantity = int(d.get("quantity", 1))
 	return i
 
+# --- Equipment ---
+static func serialize_equipment(eq: Equipment) -> Dictionary:
+	return {
+		"equipment_name": eq.equipment_name,
+		"description": eq.description,
+		"slot": int(eq.slot),
+		"rarity": int(eq.rarity),
+		"stat_bonuses": eq.stat_bonuses.duplicate(true),
+		"class_restriction": eq.class_restriction.duplicate(),
+		"element_restriction": eq.element_restriction.duplicate(),
+	}
+
+static func deserialize_equipment(d: Dictionary) -> Equipment:
+	var e = Equipment.new()
+	e.equipment_name = d.get("equipment_name", "")
+	e.description = d.get("description", "")
+	e.slot = int(d.get("slot", 0))
+	e.rarity = int(d.get("rarity", 0))
+	var bonuses := {}
+	var raw_bonuses: Dictionary = d.get("stat_bonuses", {})
+	for k in raw_bonuses:
+		bonuses[String(k)] = int(raw_bonuses[k])
+	e.stat_bonuses = bonuses
+	var cls: Array[String] = []
+	for c in d.get("class_restriction", []):
+		cls.append(String(c))
+	e.class_restriction = cls
+	var els: Array[int] = []
+	for el in d.get("element_restriction", []):
+		els.append(int(el))
+	e.element_restriction = els
+	return e
+
 # --- Inventory ---
 static func serialize_inventory(inv: Inventory) -> Dictionary:
 	var items_data: Array = []
+	var equipment_data: Array = []
+	var weapon = null
+	var armor = null
+	var accessories: Array = []
 	if inv != null:
 		for item in inv.items:
 			items_data.append(serialize_item(item))
-	return {"items": items_data}
+		for eq in inv.equipment:
+			equipment_data.append(serialize_equipment(eq))
+		if inv.equipped_weapon != null:
+			weapon = serialize_equipment(inv.equipped_weapon)
+		if inv.equipped_armor != null:
+			armor = serialize_equipment(inv.equipped_armor)
+		for a in inv.equipped_accessories:
+			accessories.append(serialize_equipment(a) if a != null else null)
+	return {
+		"items": items_data,
+		"equipment": equipment_data,
+		"equipped_weapon": weapon,
+		"equipped_armor": armor,
+		"equipped_accessories": accessories,
+	}
 
 static func deserialize_inventory(d: Dictionary) -> Inventory:
 	var inv = Inventory.new()
@@ -78,6 +129,23 @@ static func deserialize_inventory(d: Dictionary) -> Inventory:
 	for item_dict in d.get("items", []):
 		typed.append(deserialize_item(item_dict))
 	inv.items = typed
+
+	var typed_eq: Array[Equipment] = []
+	for eq_dict in d.get("equipment", []):
+		typed_eq.append(deserialize_equipment(eq_dict))
+	inv.equipment = typed_eq
+
+	var weapon = d.get("equipped_weapon", null)
+	inv.equipped_weapon = deserialize_equipment(weapon) if weapon is Dictionary else null
+	var armor = d.get("equipped_armor", null)
+	inv.equipped_armor = deserialize_equipment(armor) if armor is Dictionary else null
+
+	var accessories: Array[Equipment] = [null, null, null]
+	var acc_data: Array = d.get("equipped_accessories", [])
+	for i in range(min(acc_data.size(), accessories.size())):
+		var a = acc_data[i]
+		accessories[i] = deserialize_equipment(a) if a is Dictionary else null
+	inv.equipped_accessories = accessories
 	return inv
 
 # --- Character ---

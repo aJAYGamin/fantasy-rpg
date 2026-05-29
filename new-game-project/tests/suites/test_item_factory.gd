@@ -57,9 +57,9 @@ func test_roll_drops_empty_table() -> void:
 
 func test_enemy_drop_tables_loaded() -> void:
 	var paths := {
-		"res://data/enemies/dark_wraith.tres": 2,
-		"res://data/enemies/sea_serpent.tres": 2,
-		"res://data/enemies/earth_golem.tres": 2,
+		"res://data/enemies/dark_wraith.tres": 3,
+		"res://data/enemies/sea_serpent.tres": 4,
+		"res://data/enemies/earth_golem.tres": 4,
 	}
 	for path in paths:
 		var enemy: Enemy = load(path)
@@ -67,6 +67,9 @@ func test_enemy_drop_tables_loaded() -> void:
 		assert_eq(enemy.drop_table.size(), paths[path], "%s has expected drop count" % path)
 
 func test_enemy_drop_names_are_known() -> void:
+	# Drops route to either ItemFactory (consumables) or EquipmentFactory (gear).
 	var enemy: Enemy = load("res://data/enemies/dark_wraith.tres")
 	for entry in enemy.drop_table:
-		assert_true(ItemFactory.has_item(entry["item_name"]), "drop '%s' is a known item" % entry["item_name"])
+		var n: String = entry["item_name"]
+		assert_true(ItemFactory.has_item(n) or EquipmentFactory.has_equipment(n),
+			"drop '%s' is a known item or equipment" % n)

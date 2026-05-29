@@ -10,6 +10,7 @@ static func create_default_party() -> Array[Character]:
 	# items) so the pause-menu Items screen and the battle item menu have content
 	# from a fresh game. Replace with real starting-loot balancing for actual play.
 	_seed_starter_items(party[0].inventory)
+	_seed_starter_equipment(party)
 	return party
 
 static func _create_aria() -> Character:
@@ -208,6 +209,40 @@ static func _seed_starter_items(inv: Inventory) -> void:
 		var item := ItemFactory.create(item_name, starter_quantities[item_name])
 		if item != null:
 			inv.add_item(item)
+
+# --- Starter equipment (test seed) ---
+# Equip a class/element-appropriate weapon, armor, and accessory on each hero,
+# and leave a few spare pieces in the shared pool (party[0]) so the Equipment
+# screen has things to swap. Definitions live in EquipmentFactory.
+static func _seed_starter_equipment(party: Array[Character]) -> void:
+	var pool := party[0].inventory
+	# hero -> [weapon, armor, accessory]
+	var loadouts := [
+		["Apprentice Staff", "Mage Robe", "Sage Pendant"],     # Aria  (Mage / Water)
+		["Iron Greatsword", "Knight's Plate", "Power Ring"],   # Kael  (Warrior / Fire)
+		["Cedar Wand", "Healer's Garb", "Swift Boots"],        # Lyra  (Healer / Wind)
+	]
+	for i in range(min(party.size(), loadouts.size())):
+		for name in loadouts[i]:
+			_equip_new(party[i], pool, name)
+	# Spare gear, left unequipped in the shared pool.
+	for name in ["Worn Shortsword", "Leather Vest", "Guardian Charm",
+			"Vitality Brooch", "Tidecaller Rod", "Galewind Cloak"]:
+		var e := EquipmentFactory.create(name)
+		if e != null:
+			pool.add_equipment(e)
+	# Top heroes off so they start at full including the gear's max-HP/MP bonuses.
+	for hero in party:
+		hero.current_hp = hero.max_hp()
+		hero.current_mp = hero.max_mp()
+
+# Creates a fresh piece into the shared pool, then equips it onto `hero`.
+static func _equip_new(hero: Character, pool: Inventory, name: String) -> void:
+	var e := EquipmentFactory.create(name)
+	if e == null:
+		return
+	pool.add_equipment(e)
+	Inventory.equip_from_pool(hero, pool, e)
 
 # --- Skill construction helpers ---
 static func _make_skill(name: String, desc: String, skill_type: Skill.SkillType,

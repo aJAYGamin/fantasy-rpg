@@ -81,4 +81,4 @@ species = "Sea Serpent"
 rarity = 1
 base_exp_reward = 25
 base_gold_reward = 12
-drop_table = Array[Dictionary]([{ "item_name": "Mana Potion", "chance": 0.5, "quantity": 1 }, { "item_name": "Beast Hide", "chance": 0.7, "quantity": 1 }])
+drop_table = Array[Dictionary]([{ "item_name": "Mana Potion", "chance": 0.5, "quantity": 1 }, { "item_name": "Beast Hide", "chance": 0.7, "quantity": 1 }, { "item_name": "Tidecaller Rod", "chance": 0.1, "quantity": 1 }, { "item_name": "Swift Boots", "chance": 0.15, "quantity": 1 }])

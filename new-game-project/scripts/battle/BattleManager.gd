@@ -392,15 +392,30 @@ func _calculate_rewards() -> Dictionary:
 	var total_exp = 0
 	var total_gold = 0
 	var dropped_items: Array[Item] = []
+	var dropped_equipment: Array[Equipment] = []
 	for enemy in enemies:
 		total_exp += enemy.level * 20 + 10
 		total_gold += enemy.level * 5 + randi() % 10
-		# Roll each defeated enemy's drop table. Identical drops from multiple
-		# enemies stack into one entry so the victory list stays compact.
+		# Roll each defeated enemy's drop table once per entry, routing the name
+		# to ItemFactory (consumables, which stack) or EquipmentFactory (gear,
+		# distinct pieces). Identical item drops stack so the victory list stays
+		# compact; equipment is always listed per piece.
 		if enemy is Enemy:
-			for item in ItemFactory.roll_drops(enemy.drop_table):
-				_stack_drop(dropped_items, item)
-	return {"exp": total_exp, "gold": total_gold, "items": dropped_items}
+			for entry in enemy.drop_table:
+				if randf() >= float(entry.get("chance", 0.0)):
+					continue
+				var drop_name := String(entry.get("item_name", ""))
+				var qty: int = max(1, int(entry.get("quantity", 1)))
+				if ItemFactory.has_item(drop_name):
+					var it := ItemFactory.create(drop_name, qty)
+					if it != null:
+						_stack_drop(dropped_items, it)
+				elif EquipmentFactory.has_equipment(drop_name):
+					for i in range(qty):
+						var eq := EquipmentFactory.create(drop_name)
+						if eq != null:
+							dropped_equipment.append(eq)
+	return {"exp": total_exp, "gold": total_gold, "items": dropped_items, "equipment": dropped_equipment}
 
 # Merges a dropped item into the running list, stacking by name.
 func _stack_drop(dropped: Array[Item], item: Item) -> void:
