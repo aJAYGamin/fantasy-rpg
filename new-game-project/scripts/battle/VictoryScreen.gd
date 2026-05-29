@@ -142,7 +142,10 @@ func _build_rewards_label():
 	var item_text = "No items dropped" if items.is_empty() else "Items:"
 	if not items.is_empty():
 		for item in items:
-			item_text += "\n  %s" % item.item_name
+			if item.quantity > 1:
+				item_text += "\n  %s x%d" % [item.item_name, item.quantity]
+			else:
+				item_text += "\n  %s" % item.item_name
 	rewards_label.text = item_text
 	if cinzel: rewards_label.add_theme_font_override("font", cinzel)
 	rewards_label.add_theme_font_size_override("font_size", 13)

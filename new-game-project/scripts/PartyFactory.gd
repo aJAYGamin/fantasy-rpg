@@ -187,44 +187,27 @@ static func _create_lyra() -> Character:
 	return hero
 
 # --- Starter inventory (test seed) ---
+# Item definitions live in ItemFactory; this just lists starting quantities so
+# seeds and enemy drops share one source of truth. Replace with real
+# starting-loot balancing for actual play.
 static func _seed_starter_items(inv: Inventory) -> void:
-	# Healing items (field-usable consumables).
-	inv.add_item(_make_item("Health Potion", "Restores 50 HP to one ally.",
-		Item.ItemType.HP_RESTORE, 50, 5, Item.TargetType.SINGLE_ALLY))
-	inv.add_item(_make_item("Mana Potion", "Restores 30 MP to one ally.",
-		Item.ItemType.MP_RESTORE, 30, 3, Item.TargetType.SINGLE_ALLY))
-	inv.add_item(_make_item("Elixir", "Restores 100 HP to all allies.",
-		Item.ItemType.HP_RESTORE, 100, 1, Item.TargetType.ALL_ALLIES))
-	inv.add_item(_make_item("Phoenix Down", "Revives a defeated ally with 50% HP.",
-		Item.ItemType.REVIVAL, 50, 2, Item.TargetType.SINGLE_ALLY))
-	inv.add_item(_make_item("Antidote", "Cures poison and burn from one ally.",
-		Item.ItemType.ANTIDOTE, 0, 3, Item.TargetType.SINGLE_ALLY))
-	# Battle items (combat-only).
-	inv.add_item(_make_item("Fire Bomb", "Deals 40 fire damage to all enemies.",
-		Item.ItemType.DAMAGE, 40, 3, Item.TargetType.ALL_ENEMIES))
-	inv.add_item(_make_item("Smoke Veil", "Grants a 20% chance to dodge attacks to one ally.",
-		Item.ItemType.DODGE_BUFF, 20, 2, Item.TargetType.SINGLE_ALLY))
-	# General / misc (placeholder content for the Items tab).
-	inv.add_item(_make_item("Monster Fang", "A sharp fang dropped by beasts. Crafting material.",
-		Item.ItemType.GENERAL, 0, 4, Item.TargetType.SINGLE_ALLY))
-	inv.add_item(_make_item("Worn Pendant", "A tarnished pendant of little obvious value.",
-		Item.ItemType.GENERAL, 0, 1, Item.TargetType.SINGLE_ALLY))
-	# Key items (story/event — never consumed; placeholder content for the Key tab).
-	inv.add_item(_make_item("Amethyst Shard", "A humming shard of amethyst. It resonates faintly with the coming Requiem.",
-		Item.ItemType.KEY, 0, 1, Item.TargetType.SINGLE_ALLY))
-	inv.add_item(_make_item("Silent Shrine Key", "An old key said to open one of the fallen water-shrines.",
-		Item.ItemType.KEY, 0, 1, Item.TargetType.SINGLE_ALLY))
-
-static func _make_item(name: String, desc: String, type: Item.ItemType,
-		value: int, qty: int, target: Item.TargetType) -> Item:
-	var i = Item.new()
-	i.item_name = name
-	i.description = desc
-	i.item_type = type
-	i.effect_value = value
-	i.quantity = qty
-	i.target_type = target
-	return i
+	var starter_quantities := {
+		"Health Potion": 5,
+		"Mana Potion": 3,
+		"Elixir": 1,
+		"Phoenix Down": 2,
+		"Antidote": 3,
+		"Fire Bomb": 3,
+		"Smoke Veil": 2,
+		"Monster Fang": 4,
+		"Worn Pendant": 1,
+		"Amethyst Shard": 1,
+		"Silent Shrine Key": 1,
+	}
+	for item_name in starter_quantities:
+		var item := ItemFactory.create(item_name, starter_quantities[item_name])
+		if item != null:
+			inv.add_item(item)
 
 # --- Skill construction helpers ---
 static func _make_skill(name: String, desc: String, skill_type: Skill.SkillType,

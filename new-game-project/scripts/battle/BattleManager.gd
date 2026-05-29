@@ -395,7 +395,20 @@ func _calculate_rewards() -> Dictionary:
 	for enemy in enemies:
 		total_exp += enemy.level * 20 + 10
 		total_gold += enemy.level * 5 + randi() % 10
+		# Roll each defeated enemy's drop table. Identical drops from multiple
+		# enemies stack into one entry so the victory list stays compact.
+		if enemy is Enemy:
+			for item in ItemFactory.roll_drops(enemy.drop_table):
+				_stack_drop(dropped_items, item)
 	return {"exp": total_exp, "gold": total_gold, "items": dropped_items}
+
+# Merges a dropped item into the running list, stacking by name.
+func _stack_drop(dropped: Array[Item], item: Item) -> void:
+	for existing in dropped:
+		if existing.item_name == item.item_name:
+			existing.quantity += item.quantity
+			return
+	dropped.append(item)
 
 func get_alive_party() -> Array[Character]:
 	return party.filter(func(c): return c.is_alive())

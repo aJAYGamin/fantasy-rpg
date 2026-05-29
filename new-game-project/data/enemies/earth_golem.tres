@@ -81,4 +81,4 @@ species = "Earth Golem"
 rarity = 2
 base_exp_reward = 40
 base_gold_reward = 20
-drop_table = []
+drop_table = Array[Dictionary]([{ "item_name": "Monster Fang", "chance": 0.6, "quantity": 1 }, { "item_name": "Glimmer Dust", "chance": 0.4, "quantity": 1 }])
