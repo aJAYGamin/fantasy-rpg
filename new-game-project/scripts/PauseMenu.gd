@@ -1,8 +1,7 @@
 extends Control
 
 ## PauseMenu — opened with Esc from the overworld.
-## Save + Quit + Stats + Items + Equipment are functional. Settings remains a
-## stub that shows a "Coming soon" toast until that phase lands.
+## Save + Quit + Stats + Items + Equipment + Settings are functional.
 
 signal save_requested
 signal quit_requested
@@ -40,14 +39,24 @@ func open() -> void:
 	_rebuild()
 	show()
 	get_tree().paused = true
+	# The central focus guard (GameManager, runs while paused) keeps controller
+	# focus on the main list. Sub-views / confirm prompts register their own scope
+	# on top, so the guard always tracks the visible layer.
+	GameManager.register_focus_scope(_main_content)
+
+func _focus_sub_view() -> void:
+	# Sub-views (Stats/Items/Equipment/Settings) register their own focus scope.
+	pass
 
 func close() -> void:
 	get_tree().paused = false
 	hide()
+	GameManager.unregister_focus_scope(_main_content)
 	if _toast and is_instance_valid(_toast):
 		_toast.queue_free()
 		_toast = null
 	if _confirm_modal and is_instance_valid(_confirm_modal):
+		GameManager.unregister_focus_scope(_confirm_modal)
 		_confirm_modal.queue_free()
 	_confirm_modal = null
 	if _sub_view and is_instance_valid(_sub_view):
@@ -71,8 +80,10 @@ func _input(event: InputEvent) -> void:
 # Closes the active confirm prompt and restores the main pause menu.
 func _dismiss_confirm() -> void:
 	if _confirm_modal != null and is_instance_valid(_confirm_modal):
+		GameManager.unregister_focus_scope(_confirm_modal)
 		_confirm_modal.queue_free()
 	_confirm_modal = null
+	# Showing _main_content again lets the focus guard re-grab it automatically.
 	if _main_content and is_instance_valid(_main_content):
 		_main_content.show()
 
@@ -97,6 +108,7 @@ func _open_stats() -> void:
 	screen.back_requested.connect(_dismiss_sub_view)
 	add_child(screen)
 	screen.setup(GameManager.party)
+	call_deferred("_focus_sub_view")
 
 # Opens the party Items screen as a sub-view (replace-don't-stack, like Stats).
 func _open_items() -> void:
@@ -110,6 +122,7 @@ func _open_items() -> void:
 	screen.back_requested.connect(_dismiss_sub_view)
 	add_child(screen)
 	screen.setup(GameManager.party)
+	call_deferred("_focus_sub_view")
 
 # Opens the per-hero Equipment screen as a sub-view (replace-don't-stack).
 func _open_equipment() -> void:
@@ -123,6 +136,18 @@ func _open_equipment() -> void:
 	screen.back_requested.connect(_dismiss_sub_view)
 	add_child(screen)
 	screen.setup(GameManager.party)
+	call_deferred("_focus_sub_view")
+
+# Opens the Settings screen as a sub-view (replace-don't-stack). PauseMenu owns
+# Esc here, so SettingsScreen is opened non-standalone.
+func _open_settings() -> void:
+	if _main_content and is_instance_valid(_main_content):
+		_main_content.hide()
+	var screen := SettingsScreen.new()
+	_sub_view = screen
+	screen.back_requested.connect(_dismiss_sub_view)
+	add_child(screen)
+	screen.setup(false)
 
 # --- Build ---
 func _rebuild() -> void:
@@ -168,7 +193,7 @@ func _rebuild() -> void:
 	v.add_child(_menu_button("Stats", _open_stats))
 	v.add_child(_menu_button("Items", _open_items))
 	v.add_child(_menu_button("Equipment", _open_equipment))
-	v.add_child(_menu_button("Settings", func(): show_toast("Coming soon")))
+	v.add_child(_menu_button("Settings", _open_settings))
 	v.add_child(_menu_button("Quit to Main Menu", _on_quit, true))
 
 # --- Actions ---
@@ -258,6 +283,13 @@ func _styled_button(text: String, danger: bool) -> Button:
 	pressed.bg_color = Color(0.22, 0.14, 0.32, 0.98)
 	pressed.border_color = ACCENT_COLOR
 	b.add_theme_stylebox_override("pressed", pressed)
+	# Bright focus ring for keyboard/controller navigation.
+	var focus = StyleBoxFlat.new()
+	focus.bg_color = Color(0.85, 0.7, 1.0, 0.12)
+	focus.border_color = Color(0.95, 0.85, 1.0)
+	focus.set_border_width_all(2)
+	focus.set_corner_radius_all(4)
+	b.add_theme_stylebox_override("focus", focus)
 	return b
 
 func _menu_button(text: String, on_pressed: Callable, danger: bool = false) -> Button:
@@ -317,8 +349,12 @@ func _show_confirm(title_text: String, message: String, confirm_text: String, da
 	# restore the main content since we're leaving the scene.
 	ok.pressed.connect(func():
 		_confirm_modal = null
+		GameManager.unregister_focus_scope(modal)
 		modal.queue_free()
 		on_confirm.call())
 	actions.add_child(ok)
 
 	add_child(modal)
+	# Register on top so the focus guard tracks the prompt (Cancel is added before
+	# OK, so it gets first focus). Mouse mode stays click-only.
+	GameManager.register_focus_scope(modal)

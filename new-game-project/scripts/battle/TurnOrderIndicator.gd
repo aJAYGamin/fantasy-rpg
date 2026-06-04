@@ -58,6 +58,9 @@ func _rebuild_slots():
 		return
 
 	var cinzel = load("res://fonts/Cinzel-Regular.ttf")
+	# Keep _current_index in range — the turn order can shrink (enemies die)
+	# between a scroll and this rebuild, leaving it stale/out of bounds.
+	_current_index = _get_wrapped(_current_index)
 	# Build slots for prev, current, next (wrap around)
 	var indices = [_get_wrapped(_current_index - 1),
 				   _current_index,

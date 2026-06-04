@@ -79,6 +79,11 @@ func show_defeat():
 	tween.set_parallel(true)
 	tween.tween_property(overlay, "modulate:a", 1.0, 0.6)
 	tween.tween_property(fade_target, "modulate:a", 1.0, 0.9)
+	# Central focus guard maintains controller focus on the buttons while shown.
+	GameManager.register_focus_scope(self)
+
+func _exit_tree() -> void:
+	GameManager.unregister_focus_scope(self)
 
 func _on_continue():
 	emit_signal("continue_from_save")

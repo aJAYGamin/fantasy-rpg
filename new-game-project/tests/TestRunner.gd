@@ -29,6 +29,9 @@ const SUITE_PATHS := [
 	"res://tests/suites/test_items_screen.gd",
 	"res://tests/suites/test_item_factory.gd",
 	"res://tests/suites/test_equipment.gd",
+	"res://tests/suites/test_settings.gd",
+	"res://tests/suites/test_input_map.gd",
+	"res://tests/suites/test_focus_guard.gd",
 ]
 
 func _ready() -> void:

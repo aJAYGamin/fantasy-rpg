@@ -93,6 +93,15 @@ static func style_button(b: Button, font_size: int = 11) -> void:
 	disabled.border_color = Color(0.30, 0.25, 0.40, 0.5)
 	b.add_theme_stylebox_override("disabled", disabled)
 
+	# Keyboard/controller focus ring — a bright transparent-fill border drawn over
+	# the current state so focused buttons read clearly during pad navigation.
+	var focus := StyleBoxFlat.new()
+	focus.bg_color = Color(0.85, 0.7, 1.0, 0.12)
+	focus.border_color = Color(0.95, 0.85, 1.0)
+	focus.set_border_width_all(2)
+	focus.set_corner_radius_all(6)
+	b.add_theme_stylebox_override("focus", focus)
+
 # Builds a fresh themed Button.
 static func make_button(text: String, font_size: int = 11) -> Button:
 	var b := Button.new()
@@ -105,3 +114,12 @@ static func make_panel(border_color: Color = PANEL_BORDER, bg: Color = PANEL_BG)
 	var p := PanelContainer.new()
 	p.add_theme_stylebox_override("panel", panel_style(border_color, bg))
 	return p
+
+# --- Controller focus tagging ------------------------------------------------
+# Marks a button so the central focus guard (GameManager) never makes it
+# keyboard/controller-focusable — category tabs, the "?" helper, etc. stay
+# mouse-only even in controller mode (tabs are cycled with L1/R1 instead).
+const NO_FOCUS_META := "no_focus"
+
+static func mark_no_focus(b: Control) -> void:
+	b.set_meta(NO_FOCUS_META, true)

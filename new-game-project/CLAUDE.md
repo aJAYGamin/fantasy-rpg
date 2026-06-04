@@ -3,9 +3,15 @@
 ## Project Overview
 A turn-based JRPG built in **Godot 4 (GDScript)**, in active development.
 The core battle system, status-effect system, save system, and a heavily-themed
-battle UI are complete. The pause-menu Stats/Items/Equipment sub-screens are
-done. Focus going forward: the Settings screen (pause + main menu), auto-save,
+battle UI are complete. The pause-menu Stats/Items/Equipment sub-screens and the
+Settings screen (main menu + pause menu) are done. Focus going forward: auto-save,
 more overworld content, and eventually story.
+
+> **Aesthetic rule (applies to everything):** anything added to the UI must be
+> visually appealing and match the game's amethyst aesthetic. Reuse
+> `BattleUITheme` (panels/buttons/fonts/colors) and `HeroPalette` (per-hero
+> accents); never ship default-themed Godot controls (plain dropdowns,
+> scrollbars, sliders, popups, cursors). Style every new control to fit.
 
 ---
 
@@ -15,7 +21,7 @@ more overworld content, and eventually story.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **532 tests, 17 suites**)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **653 tests, 21 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -33,6 +39,11 @@ scripts/
     StatsScreen.gd            # class_name StatsScreen — pause-menu per-hero stats page (P1)
     ItemsScreen.gd            # class_name ItemsScreen — pause-menu Items page, 4 tabs + field-use (P2)
     EquipmentScreen.gd        # class_name EquipmentScreen — pause-menu per-hero equip page, 5 slots (P3)
+    SettingsScreen.gd         # class_name SettingsScreen — settings hub (Game/Controls/Audio/Display/Performance) (P4)
+    FocusUtil.gd              # class_name FocusUtil — L1/R1 category-cycle detection for controller nav (P4)
+  settings/
+    SettingsModel.gd          # class_name SettingsModel — audio/display/perf/difficulty/sticks data + config + apply (P4)
+    InputMapConfig.gd         # class_name InputMapConfig — named actions, defaults, remap, per-device reset, persistence (P4)
   overworld/
     OverworldScene.gd         # Free-roam controller; step-based encounter rolls; pause menu host
     Player.gd                 # CharacterBody2D, 8-dir arrow/controller movement
@@ -80,7 +91,7 @@ data/                         # data-driven content (.tres resources)
 tests/
   TestRunner.tscn/.gd         # run this scene (F6) to execute all suites; register suites in SUITE_PATHS
   TestSuite.gd                # base class with assert_* helpers
-  suites/                     # one test_<feature>.gd per system (17 suites)
+  suites/                     # one test_<feature>.gd per system (21 suites)
 assets/  backgrounds/ characters/ enemies/ icons/ ui/
 fonts/   music/
 ```
@@ -468,10 +479,49 @@ BattleScene (Node2D)
   `EquipmentScreen` (`class_name`): hero tabs, live stats with equipment deltas, 5
   selectable slots + unequip, restriction-gated equippable pool. Starter loadouts +
   enemy drops (unified drop pipeline). Full SaveSerializer round-trip. Suite `equipment`.
+- **Phase P4 — Settings menu + difficulty + full input remapping + controller navigation**
+  (`scripts/ui/SettingsScreen.gd` `class_name SettingsScreen`; `scripts/settings/SettingsModel.gd`
+  `class_name SettingsModel`; `scripts/settings/InputMapConfig.gd` `class_name InputMapConfig`;
+  `scripts/ui/FocusUtil.gd` `class_name FocusUtil`). Persisted in `user://config.cfg` `[settings]`
+  (alongside `[save] last_slot`); `GameManager.settings` is the live model, loaded/applied at launch.
+  `SettingsScreen` is a category hub (Game / Controls / Audio / Display / Performance, in that order);
+  Controls splits into Keyboard / Controller sub-views. Same screen serves the main menu (standalone
+  overlay, owns Esc) and the pause menu (replace-not-stack sub-view). Targeted apply helpers
+  (`apply_audio_and_save` / `apply_display_and_save` / `apply_performance_and_save` /
+  `apply_fps_overlay_and_save` / `save_settings`) so changing one group never triggers unrelated side
+  effects (e.g. volume changes don't flicker the window).
+  - **Audio:** Master/Music/SFX volume → three AudioServer buses (Master + programmatic Music/SFX via
+    `SettingsModel.ensure_buses()`). Global UI SFX (`misc_menu_4.wav`) auto-wired to every Button's
+    `pressed`+`mouse_entered` by GameManager (plays while paused). Main-menu music loops.
+  - **Display:** window mode (Fullscreen / Borderless / Windowed) + resolution dropdown.
+    `apply_display()` is **idempotent** (guards each transition on current mode — re-issuing macOS
+    fullscreen crashes). Game **boots windowed** (`project.godot` has no `window/size/mode`) then
+    applies the saved mode deferred, so the saved mode sticks across restarts. NOTE: window ops are
+    no-ops while the game runs **embedded in the editor's Game tab** (Godot 4.6) — that's an editor
+    toggle, not a code issue.
+  - **Performance:** framerate cap / V-Sync / on-screen FPS counter (global CanvasLayer overlay).
+  - **Game:** Difficulty (Easy/Normal/Hard) + Auto-Save toggle (consumed by P5). Difficulty scales
+    enemy combat stats via `Character.combat_stat_multiplier` (×0.5 / ×1.0 / ×2.0, applied to battle
+    copies in `BattleScene.start_battle`), Hard gives +25% gold/XP and caps healing/battle item stacks
+    at `Inventory.HARD_ITEM_CAP` (10 each; drops skip when capped), and reserves a `shop_price_mult`.
+  - **Controls:** stick sensitivity (left scales movement; right reserved), live device statuses
+    (controller name / "No Controller Found"; keyboard+mouse are activity-based since Godot can't
+    enumerate them), and full **keyboard + controller remapping** via `InputMapConfig` — named actions
+    (`move_*`/`confirm`/`cancel`/`pause`) with per-device defaults, press-to-bind, per-device + global
+    reset, persisted to `[input]`; `confirm`/`cancel` mirror onto `ui_accept`/`ui_cancel`.
+  - **Controller menu navigation (centralized focus guard):** `GameManager` tracks input mode
+    (`is_controller_mode()`, `input_mode_changed`) and runs a per-frame **focus guard** (PROCESS_MODE_ALWAYS,
+    works while paused). Menus call `register_focus_scope(ctrl)` / `unregister_focus_scope(ctrl)`; the
+    guard makes ONLY the topmost visible scope's controls focusable (locks out background — no leak),
+    re-grabs focus when lost (covers rebuilds / next hero / re-entry), and in keyboard+mouse mode forces
+    everything click-only (release happens once on transition, NOT per-frame — per-frame release cancels
+    in-progress clicks). Category tabs are tagged `BattleUITheme.mark_no_focus` (cycled with L1/R1, never
+    focused). `FocusUtil` holds the L1/R1 detection. Screens detach old children immediately on rebuild
+    (not deferred queue_free) so stale full-rect overlays can't swallow clicks. Back = controller B /
+    Esc (`ui_cancel`) everywhere; battle sub-menus + target select honor it too.
+  - Suites: `settings`, `input_map`, `focus_guard`.
 
 ### Planned (next phases)
-- **Phase P4 — Settings menu (main menu + pause menu)**: audio volume, auto-save toggle,
-  (later) controller bindings, text speed. Persist to `user://config.cfg`.
 - **Phase P5 — Auto-save**: trigger on town/safe-area entry (`MapArea.auto_save_on_enter`)
   and story-cutscene calls; gated by the Settings toggle; save-status indicator (bottom-right).
 - **Phase P6 — Defeat → load flow**: replace the current "revive at 50%" with a proper

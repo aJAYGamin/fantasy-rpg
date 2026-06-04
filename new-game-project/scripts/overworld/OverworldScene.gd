@@ -43,10 +43,10 @@ func _ready() -> void:
 		push_warning("OverworldScene has no MapArea assigned — encounters will not trigger")
 
 func _input(event: InputEvent) -> void:
-	# Use _input (not _unhandled_input) and the ui_cancel action so Esc is caught
-	# before Godot's GUI pipeline can consume it. Also makes controller remap
-	# automatic — bind a gamepad button to ui_cancel and it works here too.
-	if event.is_action_pressed("ui_cancel"):
+	# Use _input (not _unhandled_input) so the pause key is caught before Godot's
+	# GUI pipeline can consume it. The remappable "pause" action (default Esc /
+	# controller Start) is honored here automatically.
+	if event.is_action_pressed("pause"):
 		_open_pause_menu()
 		get_viewport().set_input_as_handled()
 

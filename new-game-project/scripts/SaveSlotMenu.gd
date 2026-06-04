@@ -34,18 +34,37 @@ var _cinzel_bold: Font
 # "new" = slot picker for New Game (Overwrite & Start + Copy + Delete; empty slots interactive).
 # "load" = slot picker for Continue (Load + Copy + Delete; empty slots are non-interactive labels).
 var _mode: String = "new"
+# Open modals (confirm / copy picker), newest last. Esc / controller-B closes the
+# topmost one; with none open it closes the whole picker.
+var _modals: Array[Control] = []
 
 func _ready() -> void:
 	_cinzel = load("res://fonts/Cinzel-Regular.ttf")
 	_cinzel_bold = load("res://fonts/Cinzel-Bold.ttf")
 	hide()
 
+func _input(event: InputEvent) -> void:
+	if not visible:
+		return
+	if event.is_action_pressed("ui_cancel"):
+		# Back: close the topmost modal first, else close the whole picker.
+		_modals = _modals.filter(func(m): return is_instance_valid(m))
+		if not _modals.is_empty():
+			var top: Control = _modals.back()
+			top.queue_free()
+		else:
+			_close()
+		get_viewport().set_input_as_handled()
+
 func open(mode: String = "new") -> void:
 	_mode = mode
 	_rebuild()
 	show()
+	# Register on top of the main menu so the focus guard tracks this picker.
+	GameManager.register_focus_scope(self)
 
 func _close() -> void:
+	GameManager.unregister_focus_scope(self)
 	hide()
 	menu_closed.emit()
 
@@ -186,6 +205,16 @@ func _build_occupied_content(content: HBoxContainer, slot: int) -> void:
 		del_btn.custom_minimum_size = Vector2(86, 26)
 		del_btn.pressed.connect(_on_delete_pressed.bind(slot))
 		minor.add_child(del_btn)
+		# Explicit focus neighbors: Godot's geometric focus search picks the
+		# overlapping primary button over the side-by-side Delete, so the d-pad
+		# could never reach Delete. Wire Copy <-> Delete horizontally and both up
+		# to the primary action.
+		copy_btn.focus_neighbor_right = copy_btn.get_path_to(del_btn)
+		del_btn.focus_neighbor_left = del_btn.get_path_to(copy_btn)
+		del_btn.focus_neighbor_top = del_btn.get_path_to(primary)
+		del_btn.focus_neighbor_bottom = del_btn.get_path_to(primary)
+	copy_btn.focus_neighbor_top = copy_btn.get_path_to(primary)
+	primary.focus_neighbor_bottom = primary.get_path_to(copy_btn)
 	actions.add_child(minor)
 
 	content.add_child(actions)
@@ -300,6 +329,12 @@ func _styled_button(text: String, danger: bool) -> Button:
 	pressed.bg_color = Color(0.22, 0.14, 0.32, 0.98)
 	pressed.border_color = ACCENT_COLOR
 	b.add_theme_stylebox_override("pressed", pressed)
+	var focus = StyleBoxFlat.new()
+	focus.bg_color = Color(0.85, 0.7, 1.0, 0.12)
+	focus.border_color = Color(0.95, 0.85, 1.0)
+	focus.set_border_width_all(2)
+	focus.set_corner_radius_all(4)
+	b.add_theme_stylebox_override("focus", focus)
 	return b
 
 # Custom themed modal — replaces Godot's stock ConfirmationDialog so the
@@ -341,6 +376,13 @@ func _make_modal_panel(title_text: String, message_text: String, panel_width: fl
 	actions.add_theme_constant_override("separation", 12)
 	actions.alignment = BoxContainer.ALIGNMENT_CENTER
 	v.add_child(actions)
+	# Register on top so the focus guard tracks the modal; auto-cleanup when it
+	# leaves the tree (covers every free path without per-caller wiring).
+	GameManager.register_focus_scope(modal)
+	_modals.append(modal)
+	modal.tree_exiting.connect(func():
+		GameManager.unregister_focus_scope(modal)
+		_modals.erase(modal))
 	return {"modal": modal, "actions": actions}
 
 # --- Actions ---

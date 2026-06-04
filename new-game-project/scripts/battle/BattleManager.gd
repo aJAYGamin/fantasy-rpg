@@ -393,6 +393,9 @@ func _calculate_rewards() -> Dictionary:
 	var total_gold = 0
 	var dropped_items: Array[Item] = []
 	var dropped_equipment: Array[Equipment] = []
+	# Hard mode caps healing/battle item stacks and refuses to drop more once the
+	# player is at the cap.
+	var hard_caps: bool = GameManager.settings.hard_item_caps()
 	for enemy in enemies:
 		total_exp += enemy.level * 20 + 10
 		total_gold += enemy.level * 5 + randi() % 10
@@ -408,14 +411,45 @@ func _calculate_rewards() -> Dictionary:
 				var qty: int = max(1, int(entry.get("quantity", 1)))
 				if ItemFactory.has_item(drop_name):
 					var it := ItemFactory.create(drop_name, qty)
-					if it != null:
-						_stack_drop(dropped_items, it)
+					if it == null:
+						continue
+					if hard_caps and _is_capped_item(it):
+						var room: int = _drop_room_for(it, dropped_items)
+						if room <= 0:
+							continue   # already at cap — no drop
+						it.quantity = min(it.quantity, room)
+					_stack_drop(dropped_items, it)
 				elif EquipmentFactory.has_equipment(drop_name):
 					for i in range(qty):
 						var eq := EquipmentFactory.create(drop_name)
 						if eq != null:
 							dropped_equipment.append(eq)
+	# Difficulty reward multiplier (Hard gives a little more gold & XP).
+	var rmult: float = GameManager.settings.reward_mult()
+	if not is_equal_approx(rmult, 1.0):
+		total_exp = roundi(total_exp * rmult)
+		total_gold = roundi(total_gold * rmult)
 	return {"exp": total_exp, "gold": total_gold, "items": dropped_items, "equipment": dropped_equipment}
+
+# Healing/battle items are the ones Hard mode caps at Inventory.HARD_ITEM_CAP.
+func _is_capped_item(it: Item) -> bool:
+	var c := it.get_category()
+	return c == Item.ItemCategory.HEALING or c == Item.ItemCategory.BATTLE
+
+# How many more of `it` can drop before hitting the Hard cap, counting what the
+# party already holds plus what's already queued in this battle's drops.
+func _drop_room_for(it: Item, dropped_items: Array[Item]) -> int:
+	var have := 0
+	if not GameManager.party.is_empty() and GameManager.party[0].inventory != null:
+		for existing in GameManager.party[0].inventory.items:
+			if existing.item_name == it.item_name:
+				have = existing.quantity
+				break
+	for d in dropped_items:
+		if d.item_name == it.item_name:
+			have += d.quantity
+			break
+	return Inventory.HARD_ITEM_CAP - have
 
 # Merges a dropped item into the running list, stacking by name.
 func _stack_drop(dropped: Array[Item], item: Item) -> void:

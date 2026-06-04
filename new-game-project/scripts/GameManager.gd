@@ -4,6 +4,12 @@ extends Node
 
 signal gold_changed(new_amount: int)
 signal party_updated
+# Emitted when a controller connects/disconnects (for the Settings device status).
+signal controllers_changed
+# Emitted when the active input mode flips between controller and keyboard+mouse.
+# Menus listen to this to enable/disable button focus (controller = focusable for
+# d-pad/stick nav; keyboard+mouse = mouse-click only).
+signal input_mode_changed(is_controller: bool)
 
 # ─── Party ───────────────────────────────────────────────
 var party: Array[Character] = []
@@ -58,11 +64,207 @@ var save_overworld_position: Vector2 = Vector2.ZERO
 # saved position instead of the area's default_spawn.
 var resuming_from_save: bool = false
 
+# ─── Settings (audio / autosave / display / performance) ──
+# Persisted in USER_CONFIG_PATH alongside the save slot. SettingsScreen edits
+# this instance and calls the targeted apply_*_and_save() helpers below.
+var settings := SettingsModel.new()
+# Global on-screen FPS counter (toggled by settings.show_fps). Lives on its own
+# high CanvasLayer under the autoload so it survives scene changes.
+var _fps_layer: CanvasLayer = null
+var _fps_label: Label = null
+
+# Global UI click SFX. Auto-wired to every Button in the tree (see _on_node_added)
+# so any button anywhere makes a sound, on the SFX bus.
+const BUTTON_SFX_PATH: String = "res://music/GUI_Sound_Effects_by_Lokif/misc_menu_4.wav"
+var _ui_sfx: AudioStreamPlayer = null
+
+# Active input mode. true = controller (menus are focus-navigable); false =
+# keyboard+mouse (menu buttons are mouse-only; keyboard is overworld actions).
+var _controller_mode: bool = false
+
 func _ready():
+	# Run while the tree is paused so the focus guard keeps working in the pause menu.
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	_load_user_config()
+	_load_settings()
+	_load_input_config()
+	_setup_ui_sfx()
+	Input.joy_connection_changed.connect(_on_joy_connection_changed)
+	# Start in controller mode if a pad is already connected at launch.
+	_controller_mode = not Input.get_connected_joypads().is_empty()
 
 func _process(delta):
 	play_time_seconds += delta
+	if _fps_label != null and _fps_label.visible:
+		_fps_label.text = "FPS %d" % Engine.get_frames_per_second()
+	_update_focus_guard()
+
+# ─── Centralized controller-focus guard ──────────────────
+# The single source of truth for "what does the controller have focus on."
+# Menus register a focus scope (a container Control) when they open and
+# unregister when they close. Every frame (even while paused) this guard:
+#   • in controller mode: makes the topmost visible scope's buttons focusable,
+#     disables focus everywhere else (no background leak), and re-grabs focus if
+#     it was lost (handles rebuilds, re-entry, the next hero's turn, etc.);
+#   • in keyboard+mouse mode: releases focus so no ring shows (menus are click-only).
+# Scope entries: { "ctrl": Control }. Buttons tagged BattleUITheme.NO_FOCUS_META
+# (category tabs) are never focusable — they cycle with L1/R1.
+var _focus_scopes: Array = []
+var _focus_top_last: Control = null
+
+func register_focus_scope(ctrl: Control) -> void:
+	if ctrl == null:
+		return
+	# De-dupe + drop invalid, then push to the top (most recent wins).
+	_prune_focus_scopes()
+	_focus_scopes = _focus_scopes.filter(func(s): return s["ctrl"] != ctrl)
+	_focus_scopes.append({"ctrl": ctrl})
+	# In keyboard+mouse mode, immediately lock the new scope to click-only so its
+	# buttons never become keyboard-navigable; in controller mode, force the guard
+	# to re-evaluate the active scope next tick.
+	if not _controller_mode:
+		_set_scope_focusable(ctrl, false)
+	else:
+		_focus_top_last = null
+
+func unregister_focus_scope(ctrl: Control) -> void:
+	_focus_scopes = _focus_scopes.filter(func(s): return s["ctrl"] != ctrl and is_instance_valid(s["ctrl"]))
+
+func _prune_focus_scopes() -> void:
+	_focus_scopes = _focus_scopes.filter(func(s): return is_instance_valid(s["ctrl"]))
+
+# --- Introspection / test hooks ----------------------------------------------
+func has_focus_scope(ctrl: Control) -> bool:
+	for s in _focus_scopes:
+		if s["ctrl"] == ctrl:
+			return true
+	return false
+
+func focus_scope_count(ctrl: Control) -> int:
+	var n := 0
+	for s in _focus_scopes:
+		if s["ctrl"] == ctrl:
+			n += 1
+	return n
+
+# Topmost registered scope that is currently visible in the tree (or null).
+func top_focus_scope() -> Control:
+	_prune_focus_scopes()
+	for i in range(_focus_scopes.size() - 1, -1, -1):
+		var c: Control = _focus_scopes[i]["ctrl"]
+		if is_instance_valid(c) and c.is_visible_in_tree():
+			return c
+	return null
+
+# Test hook: force the input mode without synthesizing an InputEvent.
+func set_controller_mode_for_test(controller: bool) -> void:
+	_set_controller_mode(controller)
+
+# Test hook: run one guard tick synchronously.
+func update_focus_guard_for_test() -> void:
+	_update_focus_guard()
+
+func _update_focus_guard() -> void:
+	_prune_focus_scopes()
+	var tree := get_tree()
+	if tree == null:
+		return
+	var vp := tree.root.get_viewport()
+	if vp == null:
+		return
+
+	if not _controller_mode:
+		# Mouse/keyboard: menus are click-only. Lock every scope's controls to
+		# FOCUS_NONE so the keyboard can't navigate/activate them, and release the
+		# focus ring — but ONLY on the transition into mouse mode. Doing
+		# release_focus() every frame cancels an in-progress button press (mouse
+		# down then up on the next frame), so clicks like the settings Back button
+		# silently fail. Once the controls are FOCUS_NONE they can't hold focus
+		# anyway, so a one-time release is sufficient.
+		if _focus_top_last != null:
+			for s in _focus_scopes:
+				var c: Control = s["ctrl"]
+				if is_instance_valid(c):
+					_set_scope_focusable(c, false)
+			_focus_top_last = null
+			var owner_mouse := vp.gui_get_focus_owner()
+			if owner_mouse != null:
+				owner_mouse.release_focus()
+		return
+
+	# Topmost VISIBLE registered scope wins (later registrations sit on top).
+	var top: Control = null
+	for i in range(_focus_scopes.size() - 1, -1, -1):
+		var c: Control = _focus_scopes[i]["ctrl"]
+		if is_instance_valid(c) and c.is_visible_in_tree():
+			top = c
+			break
+	if top == null:
+		return
+
+	# Only the top scope is focusable; everything else is locked out so d-pad
+	# navigation can't wander onto a background menu. Re-applying the focus_mode
+	# tree-walk is only needed when the active scope changes (cheap per-frame
+	# otherwise — just the grab check below). Guard against a freed _focus_top_last
+	# (e.g. scene change) so the comparison always forces a refresh.
+	if not is_instance_valid(_focus_top_last):
+		_focus_top_last = null
+	if top != _focus_top_last:
+		for s in _focus_scopes:
+			var c: Control = s["ctrl"]
+			if is_instance_valid(c):
+				_set_scope_focusable(c, c == top)
+		_focus_top_last = top
+
+	# Keep focus inside the top scope. Don't steal it mid-navigation: only grab
+	# when nothing valid in the scope currently holds it.
+	var owner := vp.gui_get_focus_owner()
+	var ok := owner != null and is_instance_valid(owner) and top.is_ancestor_of(owner) \
+		and owner.is_visible_in_tree() and owner.focus_mode != Control.FOCUS_NONE \
+		and not (owner is BaseButton and (owner as BaseButton).disabled)
+	if not ok:
+		# Focus was lost — usually the scope rebuilt its content (new item list,
+		# next hero's panel, target buttons). Re-apply focusability so the new
+		# controls are grabbable, then grab the first.
+		_set_scope_focusable(top, true)
+		var first := _first_focusable(top)
+		if first != null:
+			first.grab_focus()
+
+# Recursively set focus_mode on the interactive controls under `root`.
+func _set_scope_focusable(root: Node, focusable: bool) -> void:
+	for child in root.get_children():
+		if child is BaseButton or child is Slider or child is OptionButton:
+			var ctl := child as Control
+			if ctl.has_meta(BattleUITheme.NO_FOCUS_META):
+				ctl.focus_mode = Control.FOCUS_NONE
+			else:
+				ctl.focus_mode = Control.FOCUS_ALL if focusable else Control.FOCUS_NONE
+		_set_scope_focusable(child, focusable)
+
+# First focusable, enabled, visible control under `root`, preferring a non-Back
+# button so opening a menu doesn't land on Back.
+func _first_focusable(root: Node) -> Control:
+	var candidates: Array = []
+	_collect_focusable(root, candidates)
+	if candidates.is_empty():
+		return null
+	for c in candidates:
+		if not (c is BaseButton and String((c as BaseButton).text).begins_with("←")):
+			return c
+	return candidates[0]
+
+func _collect_focusable(root: Node, out: Array) -> void:
+	for child in root.get_children():
+		if child is Control:
+			var ctl := child as Control
+			# Use is_visible_in_tree(): a button inside a hidden container is itself
+			# still .visible==true, but must NOT be treated as focusable (else it
+			# would steal the controller's A press, e.g. during the level-up spin).
+			if ctl.is_visible_in_tree() and ctl.focus_mode != Control.FOCUS_NONE \
+					and not (ctl is BaseButton and (ctl as BaseButton).disabled):
+				out.append(ctl)
+		_collect_focusable(child, out)
 
 # ─── User Config (persists last-used slot) ───────────────
 func _load_user_config():
@@ -82,6 +284,195 @@ func _save_user_config():
 	cfg.load(USER_CONFIG_PATH)
 	cfg.set_value("save", "last_slot", active_slot)
 	cfg.save(USER_CONFIG_PATH)
+
+# ─── Settings ────────────────────────────────────────────
+# Loads persisted settings (or defaults), creates the audio buses, and applies
+# volumes, window mode, framerate, and the FPS overlay. Called once on launch.
+func _load_settings():
+	var cfg = ConfigFile.new()
+	if cfg.load(USER_CONFIG_PATH) == OK:
+		settings.from_config(cfg)
+	SettingsModel.ensure_buses()
+	settings.apply_audio()
+	settings.apply_performance()
+	_update_fps_overlay()
+	# Apply the window mode a couple frames late: doing it during autoload _ready
+	# is too early — the window isn't fully presented yet (esp. the macOS
+	# fullscreen transition), so the saved mode would be ignored and the game
+	# always booted fullscreen. Deferring makes the saved display mode stick.
+	_apply_display_deferred()
+
+func _apply_display_deferred() -> void:
+	# Let the window finish presenting before changing its mode. A short delay is
+	# more reliable than a frame or two, especially for the macOS fullscreen
+	# transition, which otherwise swallows the mode change and boots fullscreen.
+	await get_tree().process_frame
+	await get_tree().create_timer(0.1).timeout
+	settings.apply_display()
+
+# Persists the [settings] section, merge-preserving the [save] section.
+func _write_settings_config() -> void:
+	var cfg = ConfigFile.new()
+	cfg.load(USER_CONFIG_PATH)
+	settings.to_config(cfg)
+	cfg.save(USER_CONFIG_PATH)
+
+# Targeted apply+save helpers so changing one group of settings doesn't trigger
+# unrelated side effects (e.g. tweaking volume must NOT re-apply the window mode,
+# which visibly flickers the window). SettingsScreen calls the matching one.
+func apply_audio_and_save() -> void:
+	settings.clamp_all()
+	settings.apply_audio()
+	_write_settings_config()
+
+func apply_display_and_save() -> void:
+	settings.clamp_all()
+	settings.apply_display()
+	_write_settings_config()
+
+func apply_performance_and_save() -> void:
+	settings.clamp_all()
+	settings.apply_performance()
+	_write_settings_config()
+
+func apply_fps_overlay_and_save() -> void:
+	settings.clamp_all()
+	_update_fps_overlay()
+	_write_settings_config()
+
+# For settings with no engine side effect (e.g. the auto-save toggle).
+func save_settings() -> void:
+	settings.clamp_all()
+	_write_settings_config()
+
+# ─── On-screen FPS counter ───────────────────────────────
+func _ensure_fps_overlay():
+	if _fps_layer != null and is_instance_valid(_fps_layer):
+		return
+	_fps_layer = CanvasLayer.new()
+	_fps_layer.layer = 128
+	add_child(_fps_layer)
+	_fps_label = Label.new()
+	_fps_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	_fps_label.offset_left = 12
+	_fps_label.offset_right = -12
+	_fps_label.offset_top = 6
+	_fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_fps_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var f := BattleUITheme.font_bold()
+	if f: _fps_label.add_theme_font_override("font", f)
+	_fps_label.add_theme_font_size_override("font_size", 14)
+	_fps_label.add_theme_color_override("font_color", Color(0.55, 1.0, 0.6))
+	_fps_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	_fps_label.add_theme_constant_override("outline_size", 4)
+	_fps_layer.add_child(_fps_label)
+
+func _update_fps_overlay():
+	_ensure_fps_overlay()
+	_fps_label.visible = settings.show_fps
+
+# ─── Input remapping ─────────────────────────────────────
+func _load_input_config() -> void:
+	var cfg = ConfigFile.new()
+	if cfg.load(USER_CONFIG_PATH) == OK:
+		InputMapConfig.apply(InputMapConfig.load_custom(cfg))
+	else:
+		InputMapConfig.apply({})
+
+# Writes the current InputMap bindings to config (merge-preserving other sections).
+func save_input_config() -> void:
+	var cfg = ConfigFile.new()
+	cfg.load(USER_CONFIG_PATH)
+	InputMapConfig.save_to_config(cfg)
+	cfg.save(USER_CONFIG_PATH)
+
+func _on_joy_connection_changed(_device: int, _connected: bool) -> void:
+	controllers_changed.emit()
+
+# Human-readable summary of connected controllers for the Settings screen.
+func connected_controllers_text() -> String:
+	var pads := Input.get_connected_joypads()
+	if pads.is_empty():
+		return "No Controller Found"
+	var names: Array[String] = []
+	for id in pads:
+		var nm := Input.get_joy_name(id)
+		names.append(nm if nm != "" else "Controller %d" % id)
+	return ", ".join(names)
+
+# ─── Live keyboard / mouse activity ──────────────────────
+# Godot can't enumerate keyboards/mice or tell external from built-in, so we
+# report live activity instead: "detected" while input is flowing, otherwise the
+# "no external … found" default.
+const _INPUT_ACTIVE_MS := 2500
+var _last_kb_ms: int = -100000
+var _last_mouse_ms: int = -100000
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventKey:
+		_last_kb_ms = Time.get_ticks_msec()
+		_set_controller_mode(false)
+	elif event is InputEventMouseButton or event is InputEventMouseMotion:
+		_last_mouse_ms = Time.get_ticks_msec()
+		_set_controller_mode(false)
+	elif event is InputEventJoypadButton and event.pressed:
+		_set_controller_mode(true)
+	elif event is InputEventJoypadMotion and absf(event.axis_value) > 0.5:
+		_set_controller_mode(true)
+
+# --- Input mode (controller vs keyboard+mouse) ---------------------------------
+func is_controller_mode() -> bool:
+	return _controller_mode
+
+func _set_controller_mode(controller: bool) -> void:
+	if _controller_mode == controller:
+		return
+	_controller_mode = controller
+	input_mode_changed.emit(controller)
+
+func keyboard_status_text() -> String:
+	return "Keyboard detected" if (Time.get_ticks_msec() - _last_kb_ms) < _INPUT_ACTIVE_MS else "No external keyboard found"
+
+func mouse_status_text() -> String:
+	return "Mouse detected" if (Time.get_ticks_msec() - _last_mouse_ms) < _INPUT_ACTIVE_MS else "No external mouse found"
+
+# ─── Global UI button SFX ────────────────────────────────
+# One SFX player on the SFX bus, auto-connected to every Button added to the
+# tree so any button click anywhere plays the menu sound — no per-button wiring.
+func _setup_ui_sfx() -> void:
+	_ui_sfx = AudioStreamPlayer.new()
+	_ui_sfx.bus = SettingsModel.BUS_SFX
+	_ui_sfx.max_polyphony = 4
+	# Must play even while the SceneTree is paused — otherwise pause-menu buttons
+	# (and its sub-screens) would be silent because a pausable player is frozen.
+	_ui_sfx.process_mode = Node.PROCESS_MODE_ALWAYS
+	if ResourceLoader.exists(BUTTON_SFX_PATH):
+		_ui_sfx.stream = load(BUTTON_SFX_PATH)
+	add_child(_ui_sfx)
+	# Wire buttons added from now on, plus any already present.
+	get_tree().node_added.connect(_on_node_added)
+	_wire_buttons_under(get_tree().root)
+
+func _wire_buttons_under(node: Node) -> void:
+	if node is BaseButton:
+		_wire_button(node)
+	for child in node.get_children():
+		_wire_buttons_under(child)
+
+func _on_node_added(node: Node) -> void:
+	if node is BaseButton:
+		_wire_button(node)
+
+func _wire_button(b: BaseButton) -> void:
+	if not b.pressed.is_connected(_play_ui_sfx):
+		b.pressed.connect(_play_ui_sfx)
+	# Hover SFX too, matching the main-menu feel — for every button everywhere.
+	if not b.mouse_entered.is_connected(_play_ui_sfx):
+		b.mouse_entered.connect(_play_ui_sfx)
+
+func _play_ui_sfx() -> void:
+	if _ui_sfx != null and _ui_sfx.stream != null:
+		_ui_sfx.play()
 
 # ─── Party Management ────────────────────────────────────
 func ensure_default_party():

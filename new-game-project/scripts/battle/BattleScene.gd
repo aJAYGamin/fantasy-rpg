@@ -92,6 +92,11 @@ func _ready():
 	run_btn.pressed.connect(_on_run_pressed)
 	resonance_btn.pressed.connect(_on_resonance_pressed)
 
+	# The action menu is a persistent node toggled visible/hidden each turn. Keep
+	# its focus scope registered in lockstep with visibility so the central focus
+	# guard always re-grabs it — including for the next hero and after sub-menus.
+	action_menu.visibility_changed.connect(_on_action_menu_visibility_changed)
+
 	# Apply the shared battle UI theme to the scene-built action menu buttons
 	# so they match the resonance menu / hero panels visually.
 	BattleUITheme.style_button(attack_btn, 12)
@@ -133,6 +138,12 @@ func set_background(area: String):
 func start_battle(party: Array[Character], enemies: Array[Character], area: String = "fallster_plains", enemy_layout: EnemyLayout = EnemyLayout.GRID_2COL):
 	_enemy_layout = enemy_layout
 	set_background(area)
+	# Apply difficulty scaling to enemy stats (Easy 0.5x / Normal 1.0x / Hard 2.0x)
+	# on these battle copies before any stat is read/cached below.
+	var diff_mult := GameManager.settings.enemy_stat_mult()
+	if not is_equal_approx(diff_mult, 1.0):
+		for e in enemies:
+			e.set_difficulty_multiplier(diff_mult)
 	resonance_system.setup(party)
 	# Store max values at battle start so bars don't change mid-battle
 	for c in party:
@@ -533,9 +544,20 @@ func _on_turn_ready_for_action(character: Character):
 	var is_player = battle_manager.party.has(character)
 	if is_player:
 		action_title.text = "— %s's Turn —" % character.character_name
+		# Showing the action menu fires visibility_changed -> registers its focus
+		# scope; the central focus guard then grabs controller focus automatically.
 		action_menu.visible = not _battle_over
 	else:
 		action_menu.visible = false
+
+# Register/unregister the action menu's focus scope in lockstep with visibility.
+# The central focus guard (GameManager) then keeps controller focus on it every
+# frame — covering the next hero's turn and returns from sub-menus automatically.
+func _on_action_menu_visibility_changed():
+	if action_menu.visible:
+		GameManager.register_focus_scope(action_menu)
+	else:
+		GameManager.unregister_focus_scope(action_menu)
 
 func _on_enemy_move_preview(enemy: Character, move_name: String):
 	# Remove any existing preview panel
@@ -880,9 +902,12 @@ var _battle_inventory: Inventory = null
 func _input(event):
 	if _battle_over:
 		return
-	if event is InputEventKey and event.pressed and event.keycode == KEY_BACKSPACE:
-		if _pending_action != "":
+	# Back during target selection: controller B / Esc (ui_cancel) or Backspace
+	# returns to the action menu.
+	if _pending_action != "":
+		if event.is_action_pressed("ui_cancel") or (event is InputEventKey and event.pressed and event.keycode == KEY_BACKSPACE):
 			_cancel_target_selection()
+			get_viewport().set_input_as_handled()
 
 func _enter_target_selection(action: String):
 	_pending_action = action
@@ -890,23 +915,66 @@ func _enter_target_selection(action: String):
 	_set_target_selection_ui(true)
 	if action == "item_ally":
 		_show_ally_target_buttons()
+		GameManager.register_focus_scope(party_status_bar)
 	else:
 		_show_target_buttons()
+		GameManager.register_focus_scope(enemy_info_row)
 
 func _show_ally_target_buttons():
 	var alive_party = battle_manager.get_alive_party()
-	# Highlight hero panels to show they are selectable
 	for i in range(party_status_bar.get_child_count()):
 		var panel = party_status_bar.get_child(i)
 		if i < alive_party.size():
-			panel.modulate = Color(1.2, 1.2, 0.6)
 			var btn = Button.new()
 			btn.name = "AllyTargetBtn_%d" % i
-			btn.flat = true
 			btn.set_anchors_preset(Control.PRESET_FULL_RECT)
-			btn.modulate = Color(1, 1, 1, 0.01)
+			_style_target_button(btn)
 			panel.add_child(btn)
 			btn.pressed.connect(_on_target_selected.bind(alive_party[i]))
+			# Highlight ONLY the focused/hovered ally — no extra border on the UI.
+			var idx := i
+			btn.focus_entered.connect(func(): _highlight_ally_target(idx))
+			btn.mouse_entered.connect(func(): _highlight_ally_target(idx))
+	call_deferred("_focus_first_target")
+
+func _highlight_ally_target(idx: int) -> void:
+	for j in range(party_status_bar.get_child_count()):
+		var panel = party_status_bar.get_child(j)
+		if panel.has_node("AllyTargetBtn_%d" % j):
+			panel.modulate = Color(1.2, 1.2, 0.6) if j == idx else Color(1, 1, 1)
+
+func _highlight_enemy_target(idx: int) -> void:
+	for j in range(enemy_info_row.get_child_count()):
+		var card = enemy_info_row.get_child(j)
+		if card.has_node("TargetBtn_%d" % j):
+			card.modulate = Color(1.2, 1.2, 0.6) if j == idx else Color(1, 1, 1)
+
+# Transparent click overlay — no visible border. The targeted card highlights
+# itself on focus/hover via _highlight_*_target.
+func _style_target_button(btn: Button) -> void:
+	var empty := StyleBoxEmpty.new()
+	btn.add_theme_stylebox_override("normal", empty)
+	btn.add_theme_stylebox_override("hover", empty)
+	btn.add_theme_stylebox_override("pressed", empty)
+	btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+
+func _focus_first_target() -> void:
+	# Controller mode: focus the first target (and its highlight follows focus).
+	# Mouse mode: leave nothing focused — hovering a target highlights it.
+	if not GameManager.is_controller_mode():
+		return
+	var b := _find_target_button(self)
+	if b != null:
+		b.grab_focus()
+
+func _find_target_button(node: Node) -> Button:
+	for child in node.get_children():
+		if child is Button and (child.name.begins_with("TargetBtn_") or child.name.begins_with("AllyTargetBtn_")):
+			return child
+		var f := _find_target_button(child)
+		if f != null:
+			return f
+	return null
 
 func _clear_ally_target_buttons():
 	for panel in party_status_bar.get_children():
@@ -955,20 +1023,27 @@ func _cancel_target_selection():
 		var back_btn = action_layout.get_node_or_null("TargetBackBtn")
 		if back_btn:
 			back_btn.queue_free()
+	# Re-assert the action menu as the active focus scope so the guard moves
+	# controller focus back onto it now that the target buttons are gone.
+	if action_menu.visible:
+		GameManager.register_focus_scope(action_menu)
 
 func _show_target_buttons():
 	var alive_enemies = battle_manager.get_alive_enemies()
 	for i in range(enemy_info_row.get_child_count()):
 		var card = enemy_info_row.get_child(i)
 		if i < alive_enemies.size():
-			card.modulate = Color(1.2, 1.2, 0.6)
 			var btn = Button.new()
 			btn.name = "TargetBtn_%d" % i
-			btn.flat = true
 			btn.set_anchors_preset(Control.PRESET_FULL_RECT)
-			btn.modulate = Color(1, 1, 1, 0.01)
+			_style_target_button(btn)
 			card.add_child(btn)
 			btn.pressed.connect(_on_target_selected.bind(alive_enemies[i]))
+			# Highlight ONLY the focused/hovered enemy — no extra border on the UI.
+			var idx := i
+			btn.focus_entered.connect(func(): _highlight_enemy_target(idx))
+			btn.mouse_entered.connect(func(): _highlight_enemy_target(idx))
+	call_deferred("_focus_first_target")
 
 func _on_target_selected(target: Character):
 	_clear_target_buttons()
@@ -1004,6 +1079,8 @@ func _on_target_selected(target: Character):
 		battle_manager.player_attack(current_actor, target)
 
 func _clear_target_buttons():
+	GameManager.unregister_focus_scope(enemy_info_row)
+	GameManager.unregister_focus_scope(party_status_bar)
 	for card in enemy_info_row.get_children():
 		card.modulate = Color(1, 1, 1)
 		for child in card.get_children():

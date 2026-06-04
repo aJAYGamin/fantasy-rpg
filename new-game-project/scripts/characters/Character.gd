@@ -40,6 +40,12 @@ var experience_to_next: int = XP_BASE
 # --- Inventory ---
 var inventory: Inventory
 
+# --- Difficulty ---
+# Flat multiplier folded into every combat-stat getter (1.0 = unchanged). Set on
+# enemy battle copies by the difficulty system (Easy 0.5 / Normal 1.0 / Hard 2.0);
+# heroes always stay at 1.0. Transient — never serialized.
+var combat_stat_multiplier: float = 1.0
+
 # --- Skills ---
 @export var skills: Array[Skill] = []
 
@@ -63,31 +69,38 @@ func _init():
 
 # --- Stat Calculations ---
 func max_hp() -> int:
-	return base_hp + (level - 1) * 15 + inventory.equipment_bonus("max_hp")
+	return maxi(1, roundi((base_hp + (level - 1) * 15 + inventory.equipment_bonus("max_hp")) * combat_stat_multiplier))
 
 func max_mp() -> int:
-	return base_mp + (level - 1) * 8 + inventory.equipment_bonus("max_mp")
+	return maxi(0, roundi((base_mp + (level - 1) * 8 + inventory.equipment_bonus("max_mp")) * combat_stat_multiplier))
 
 func attack_power() -> int:
 	var raw = base_attack + (level - 1) * 2 + inventory.equipment_bonus("attack")
-	return StatusSystem.compose_stat(raw, self, StatusSystem.STAT_ATK)
+	return roundi(StatusSystem.compose_stat(raw, self, StatusSystem.STAT_ATK) * combat_stat_multiplier)
 
 func defense_power() -> int:
 	var raw = base_defense + (level - 1) * 1 + inventory.equipment_bonus("defense")
-	return StatusSystem.compose_stat(raw, self, StatusSystem.STAT_DEF)
+	return roundi(StatusSystem.compose_stat(raw, self, StatusSystem.STAT_DEF) * combat_stat_multiplier)
 
 func magic_power() -> int:
 	var raw = base_magic + (level - 1) * 2 + inventory.equipment_bonus("magic")
-	return StatusSystem.compose_stat(raw, self, StatusSystem.STAT_MAG)
+	return roundi(StatusSystem.compose_stat(raw, self, StatusSystem.STAT_MAG) * combat_stat_multiplier)
 
 # Magic resistance — analogous to defense_power() but for magic damage.
 func arcane_power() -> int:
 	var raw = base_arcane + (level - 1) * 1 + inventory.equipment_bonus("arcane")
-	return StatusSystem.compose_stat(raw, self, StatusSystem.STAT_ARC)
+	return roundi(StatusSystem.compose_stat(raw, self, StatusSystem.STAT_ARC) * combat_stat_multiplier)
 
 func speed() -> int:
 	var raw = base_speed + (level - 1) * 1 + inventory.equipment_bonus("speed")
-	return StatusSystem.compose_stat(raw, self, StatusSystem.STAT_SPD)
+	return roundi(StatusSystem.compose_stat(raw, self, StatusSystem.STAT_SPD) * combat_stat_multiplier)
+
+# Applies a difficulty multiplier to all combat stats and refills vitals to the
+# new maxima. Call on enemy battle copies only — never a shared .tres template.
+func set_difficulty_multiplier(mult: float) -> void:
+	combat_stat_multiplier = maxf(0.01, mult)
+	current_hp = max_hp()
+	current_mp = max_mp()
 
 # Keep current HP/MP within their (possibly equipment-shifted) maximums. Call
 # after equipping/unequipping gear that changes max_hp / max_mp.
