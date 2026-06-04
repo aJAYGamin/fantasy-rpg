@@ -2,6 +2,8 @@ class_name Inventory
 extends Resource
 
 const ACCESSORY_SLOTS := 3
+# Hard mode caps each healing/battle item stack at this amount.
+const HARD_ITEM_CAP := 10
 
 var items: Array[Item] = []
 
@@ -14,12 +16,27 @@ var equipped_armor: Equipment = null
 var equipped_accessories: Array[Equipment] = [null, null, null]
 
 func add_item(item: Item):
+	var cap := _stack_cap(item)   # 0 = no cap
 	# Stack if same item exists
 	for existing in items:
 		if existing.item_name == item.item_name:
 			existing.quantity += item.quantity
+			if cap > 0:
+				existing.quantity = min(existing.quantity, cap)
 			return
+	if cap > 0:
+		item.quantity = min(item.quantity, cap)
 	items.append(item)
+
+# Returns the max stack size for `item`, or 0 if uncapped. On Hard, healing and
+# battle items are capped at HARD_ITEM_CAP.
+func _stack_cap(item: Item) -> int:
+	if not GameManager.settings.hard_item_caps():
+		return 0
+	var c := item.get_category()
+	if c == Item.ItemCategory.HEALING or c == Item.ItemCategory.BATTLE:
+		return HARD_ITEM_CAP
+	return 0
 
 func remove_item(item: Item, amount: int = 1):
 	item.quantity -= amount

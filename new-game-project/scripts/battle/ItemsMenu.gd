@@ -18,8 +18,10 @@ func _ready():
 func _input(event):
 	if not visible:
 		return
-	if event is InputEventKey and event.pressed and event.keycode == KEY_BACKSPACE:
+	# Back: controller B / Esc (ui_cancel) or Backspace returns to the action menu.
+	if event.is_action_pressed("ui_cancel") or (event is InputEventKey and event.pressed and event.keycode == KEY_BACKSPACE):
 		close()
+		get_viewport().set_input_as_handled()
 
 func setup(battle_mgr: BattleManager, inventory: Inventory):
 	_battle_manager = battle_mgr
@@ -33,8 +35,10 @@ func show_menu(hero: Character):
 	_pending_item = null
 	_build_menu()
 	show()
+	GameManager.register_focus_scope(self)
 
 func close():
+	GameManager.unregister_focus_scope(self)
 	hide()
 	emit_signal("menu_closed")
 

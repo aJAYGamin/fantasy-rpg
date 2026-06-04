@@ -37,6 +37,9 @@ var _selected: int = 0
 var _selected_slot_def: int = 0
 var _tab_buttons: Array[Button] = []
 var _content_host: Control = null
+# The currently-selected slot's button — refocused after a rebuild so controller
+# navigation doesn't lose its place.
+var _selected_slot_btn: Button = null
 
 # --- Pure helper (testable) ---------------------------------------------------
 
@@ -60,15 +63,25 @@ func setup(party: Array, start_index: int = 0) -> void:
 	_party = party
 	_selected = clampi(start_index, 0, max(0, _party.size() - 1))
 	_build_chrome()
+	# Hero tabs are tagged no-focus (cycled with L1/R1); the focus guard keeps the
+	# controller on the slot/pool buttons inside the page.
+	for tb in _tab_buttons:
+		BattleUITheme.mark_no_focus(tb)
 	_select(_selected)
+	GameManager.register_focus_scope(self)
 
+func _exit_tree() -> void:
+	GameManager.unregister_focus_scope(self)
+
+# Hero switching is done with L1/R1 (the hero tabs are not focusable, so the
+# controller only lands on the slot/pool buttons inside the page).
 func _input(event: InputEvent) -> void:
 	if not visible or _party.size() <= 1:
 		return
-	if event.is_action_pressed("ui_left"):
+	if FocusUtil.is_prev_category(event):
 		_select((_selected - 1 + _party.size()) % _party.size())
 		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("ui_right"):
+	elif FocusUtil.is_next_category(event):
 		_select((_selected + 1) % _party.size())
 		get_viewport().set_input_as_handled()
 
@@ -167,6 +180,7 @@ func _build_content() -> void:
 		return
 	for c in _content_host.get_children():
 		c.queue_free()
+	_selected_slot_btn = null
 
 	var hero: Character = _party[_selected]
 	var palette := HeroPalette.for_hero(hero.character_name)
@@ -180,6 +194,17 @@ func _build_content() -> void:
 	columns.add_child(_build_left_column(hero, palette))
 	columns.add_child(_build_slots_column(hero))
 	columns.add_child(_build_pool_column(hero))
+	# Prefer the active slot for focus across rebuilds; the central guard makes
+	# the buttons focusable and maintains focus from here (controller mode only).
+	call_deferred("_focus_after_build")
+
+func _focus_after_build() -> void:
+	if not GameManager.is_controller_mode():
+		return
+	if _selected_slot_btn != null and is_instance_valid(_selected_slot_btn):
+		# Slot buttons start FOCUS_NONE until the guard runs; make this one grabbable.
+		_selected_slot_btn.focus_mode = Control.FOCUS_ALL
+		_selected_slot_btn.grab_focus()
 
 # --- Left column: identity + live stats ---------------------------------------
 
@@ -275,9 +300,10 @@ func _make_slot_row(hero: Character, idx_def: int) -> Control:
 	var btn := Button.new()
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn.custom_minimum_size = Vector2(0, 52)
-	btn.focus_mode = Control.FOCUS_NONE
 	btn.pressed.connect(func(): _select_slot(idx_def))
 	_style_slot_button(btn, eq, selected)
+	if selected:
+		_selected_slot_btn = btn
 	row.add_child(btn)
 
 	var content := VBoxContainer.new()
@@ -442,7 +468,12 @@ func _style_slot_button(b: Button, eq: Equipment, selected: bool) -> void:
 		hover.bg_color = BattleUITheme.TEXT_ACCENT.lerp(BattleUITheme.SUBPANEL_BG, 0.88)
 	b.add_theme_stylebox_override("hover", hover)
 	b.add_theme_stylebox_override("pressed", hover)
-	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	var focus := StyleBoxFlat.new()
+	focus.bg_color = Color(0.85, 0.7, 1.0, 0.12)
+	focus.border_color = Color(0.95, 0.85, 1.0)
+	focus.set_border_width_all(2)
+	focus.set_corner_radius_all(6)
+	b.add_theme_stylebox_override("focus", focus)
 
 func _make_tab(hero_name: String, index: int) -> Button:
 	var b := Button.new()

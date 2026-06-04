@@ -37,16 +37,18 @@ func _ready():
 func _input(event):
 	if not visible:
 		return
-	# Stop spin on click or Enter
+	# Stop the spin: mouse click, or the confirm action (ui_accept covers Enter/
+	# Space on keyboard and the A / confirm button on controller).
 	if _spinning:
-		if event is InputEventMouseButton and event.pressed:
+		if (event is InputEventMouseButton and event.pressed) or event.is_action_pressed("ui_accept"):
 			_stop_spin()
-		elif event is InputEventKey and event.pressed and event.keycode == KEY_ENTER:
-			_stop_spin()
-	# Cancel stat selection on Backspace
+			get_viewport().set_input_as_handled()
+		return
+	# Cancel stat selection: controller B / Esc (ui_cancel) or Backspace.
 	if _confirmed_stat != "":
-		if event is InputEventKey and event.pressed and event.keycode == KEY_BACKSPACE:
+		if event.is_action_pressed("ui_cancel") or (event is InputEventKey and event.pressed and event.keycode == KEY_BACKSPACE):
 			_cancel_confirmation()
+			get_viewport().set_input_as_handled()
 
 func show_level_ups(heroes: Array[Character]):
 	if heroes.is_empty():
@@ -77,6 +79,10 @@ func _build_panels():
 	for i in range(heroes_to_show.size()):
 		var panel = $PanelsRow.get_child(i)
 		_animate_stats(panel, heroes_to_show[i])
+
+	# Central focus guard makes the stat-choice buttons selectable and maintains
+	# controller focus as panels resolve.
+	GameManager.register_focus_scope(self)
 
 func _create_hero_panel(hero: Character, cinzel: FontFile, cinzel_bold: FontFile) -> PanelContainer:
 	var palette = _palette_for(hero.character_name)
@@ -372,7 +378,7 @@ func _start_spin(hero: Character, stat: String, panel: PanelContainer, cinzel):
 	slot_container.add_child(slot_lbl)
 
 	var hint_lbl = Label.new()
-	hint_lbl.text = "Click or press Enter to stop"
+	hint_lbl.text = "Press Confirm (Enter / A) or click to stop"
 	hint_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	if cinzel: hint_lbl.add_theme_font_override("font", cinzel)
 	hint_lbl.add_theme_font_size_override("font_size", 9)
@@ -473,6 +479,7 @@ func _apply_bonus(hero: Character, stat: String, panel: PanelContainer, cinzel):
 		var out = create_tween()
 		out.tween_property(self, "modulate:a", 0.0, 0.4)
 		await out.finished
+		GameManager.unregister_focus_scope(self)
 		hide()
 		emit_signal("level_up_complete")
 

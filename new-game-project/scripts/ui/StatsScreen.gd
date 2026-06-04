@@ -118,14 +118,23 @@ func setup(party: Array, start_index: int = 0) -> void:
 	_selected = clampi(start_index, 0, max(0, _party.size() - 1))
 	_build_chrome()
 	_select(_selected)
+	# The central focus guard keeps controller focus inside this screen; hero tabs
+	# are tagged no-focus (cycled with L1/R1) so the controller skips them.
+	for tb in _tab_buttons:
+		BattleUITheme.mark_no_focus(tb)
+	GameManager.register_focus_scope(self)
+
+func _exit_tree() -> void:
+	GameManager.unregister_focus_scope(self)
 
 func _input(event: InputEvent) -> void:
 	if not visible or _party.size() <= 1:
 		return
-	if event.is_action_pressed("ui_left"):
+	# L1 / R1 cycle heroes (the category for this screen).
+	if FocusUtil.is_prev_category(event):
 		_select((_selected - 1 + _party.size()) % _party.size())
 		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("ui_right"):
+	elif FocusUtil.is_next_category(event):
 		_select((_selected + 1) % _party.size())
 		get_viewport().set_input_as_handled()
 

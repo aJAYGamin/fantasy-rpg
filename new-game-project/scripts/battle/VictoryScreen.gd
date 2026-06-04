@@ -262,6 +262,8 @@ func _animate_exp():
 
 	# Show continue button — level up shown when player presses it
 	continue_btn.visible = true
+	# Central focus guard keeps controller focus on Continue while shown.
+	GameManager.register_focus_scope(self)
 	if not leveled_heroes.is_empty() and level_up_screen != null:
 		continue_btn.text = "Level Up! (Press to Continue)"
 		continue_btn.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
@@ -298,8 +300,12 @@ func _on_level_up_complete():
 	continue_btn.visible = true
 	continue_btn.text = "Continue"
 	continue_btn.remove_theme_color_override("font_color")
+	# Re-register: the scope was unregistered when we left for the level-up screen,
+	# so the focus guard needs it back to put controller focus on Continue.
+	GameManager.register_focus_scope(self)
 
 func _on_continue():
+	GameManager.unregister_focus_scope(self)
 	if not _pending_level_up_heroes.is_empty():
 		hide()
 		level_up_screen.show_level_ups(_pending_level_up_heroes)

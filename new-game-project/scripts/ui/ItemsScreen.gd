@@ -120,16 +120,31 @@ func setup(party: Array, start_tab: int = 0) -> void:
 	_selected_tab = clampi(start_tab, 0, TAB_DEFS.size() - 1)
 	_build_chrome()
 	_select_tab(_selected_tab)
+	# The central focus guard maintains controller focus on the item list / picker;
+	# category tabs are tagged no-focus (cycled with L1/R1).
+	for tb in _tab_buttons:
+		BattleUITheme.mark_no_focus(tb)
+	GameManager.register_focus_scope(self)
+
+func _exit_tree() -> void:
+	GameManager.unregister_focus_scope(self)
 
 func _input(event: InputEvent) -> void:
-	# Esc is owned by PauseMenu (backs out the whole screen). While the target
-	# picker is open, swallow tab-cycle input so it doesn't change behind it.
-	if not visible or _picker != null:
+	if not visible:
 		return
-	if event.is_action_pressed("ui_left"):
+	# While the target picker is open, Cancel/B closes it (and is consumed so the
+	# pause menu doesn't back out the whole screen).
+	if _picker != null:
+		if event.is_action_pressed("ui_cancel"):
+			_close_target_picker()
+			get_viewport().set_input_as_handled()
+		return
+	# L1 / R1 (shoulder buttons) cycle category tabs on controller. Keyboard+mouse
+	# users switch tabs by clicking them with the mouse.
+	if FocusUtil.is_prev_category(event):
 		_select_tab((_selected_tab - 1 + TAB_DEFS.size()) % TAB_DEFS.size())
 		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("ui_right"):
+	elif FocusUtil.is_next_category(event):
 		_select_tab((_selected_tab + 1) % TAB_DEFS.size())
 		get_viewport().set_input_as_handled()
 
@@ -216,6 +231,7 @@ func _select_tab(index: int) -> void:
 	for i in range(_tab_buttons.size()):
 		_style_tab(_tab_buttons[i], i == _selected_tab)
 	_build_content()
+	# New item buttons appeared — the central focus guard re-grabs focus next frame.
 
 func _build_content() -> void:
 	if _content_host == null:
@@ -270,6 +286,8 @@ func _make_item_slot(item: Item) -> Control:
 
 	var desc_btn := BattleUITheme.make_button("?", 11)
 	desc_btn.custom_minimum_size = Vector2(28, 28)
+	# Controller skips the "?" so vertical navigation lands on the Use button.
+	BattleUITheme.mark_no_focus(desc_btn)
 	desc_btn.pressed.connect(func(): desc.visible = not desc.visible)
 	row.add_child(desc_btn)
 
@@ -359,6 +377,9 @@ func _open_target_picker(item: Item) -> void:
 	cancel.custom_minimum_size = Vector2(0, 32)
 	cancel.pressed.connect(_close_target_picker)
 	v.add_child(cancel)
+	# Register the picker on top so the focus guard tracks it; closing it pops back
+	# to the item list scope.
+	GameManager.register_focus_scope(_picker)
 
 # A target row themed in the hero's own palette color, with HP/MP shown as
 # distinct colored columns. A plain Button can only tint its whole label one
@@ -370,7 +391,6 @@ func _make_target_button(item: Item, hero: Character) -> Button:
 
 	var b := Button.new()
 	b.custom_minimum_size = Vector2(416, 46)
-	b.focus_mode = Control.FOCUS_NONE
 	b.disabled = not valid
 	if not valid:
 		b.modulate = Color(1, 1, 1, 0.45)
@@ -422,10 +442,13 @@ func _style_target_button(b: Button, accent: Color) -> void:
 	var disabled := normal.duplicate()
 	disabled.bg_color = BattleUITheme.SUBPANEL_BG
 	b.add_theme_stylebox_override("disabled", disabled)
-	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	# Controller focus reuses the hover look — highlight only the targeted hero,
+	# no extra border box.
+	b.add_theme_stylebox_override("focus", hover)
 
 func _close_target_picker() -> void:
 	if _picker != null and is_instance_valid(_picker):
+		GameManager.unregister_focus_scope(_picker)
 		_picker.queue_free()
 	_picker = null
 	if _picker_dim != null and is_instance_valid(_picker_dim):
@@ -439,6 +462,8 @@ func _make_tab(text: String, index: int) -> Button:
 	b.text = text
 	b.custom_minimum_size = Vector2(0, 32)
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# Tabs are cycled with L1/R1, never controller-focusable.
+	BattleUITheme.mark_no_focus(b)
 	b.pressed.connect(func(): _select_tab(index))
 	_style_tab(b, false)
 	return b

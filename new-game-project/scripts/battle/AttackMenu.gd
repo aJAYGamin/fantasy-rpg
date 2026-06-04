@@ -28,8 +28,10 @@ func _ready():
 func _input(event):
 	if not visible:
 		return
-	if event is InputEventKey and event.pressed and event.keycode == KEY_BACKSPACE:
+	# Back: controller B / Esc (ui_cancel) or Backspace returns to the action menu.
+	if event.is_action_pressed("ui_cancel") or (event is InputEventKey and event.pressed and event.keycode == KEY_BACKSPACE):
 		close()
+		get_viewport().set_input_as_handled()
 
 func setup(battle_mgr: BattleManager, res_system: ResonanceSystem):
 	_battle_manager = battle_mgr
@@ -44,6 +46,7 @@ func show_attacks(hero: Character):
 		_skills.append(hero.skills[i])
 	_build_menu("— Choose Attack —")
 	show()
+	GameManager.register_focus_scope(self)
 
 func show_specials(hero: Character):
 	_current_hero = hero
@@ -54,8 +57,10 @@ func show_specials(hero: Character):
 		_skills.append(hero.skills[i])
 	_build_menu("— Choose Special —")
 	show()
+	GameManager.register_focus_scope(self)
 
 func close():
+	GameManager.unregister_focus_scope(self)
 	hide()
 	emit_signal("menu_closed")
 

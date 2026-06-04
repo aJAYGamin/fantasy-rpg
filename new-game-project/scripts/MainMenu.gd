@@ -5,7 +5,6 @@ extends Control
 @onready var settings_btn = $LayoutContainer/CenterContainer/VBoxContainer/SettingsButton
 @onready var quit_btn     = $LayoutContainer/CenterContainer/VBoxContainer/QuitButton
 @onready var music_player = $MusicPlayer
-@onready var hover_sound  = $HoverSound
 
 const GAME_SCENE = "res://scenes/OverworldScene.tscn"
 const SAVE_SLOT_MENU_SCENE = "res://scenes/SaveSlotMenu.tscn"
@@ -13,6 +12,7 @@ const SAVE_SLOT_MENU_SCENE = "res://scenes/SaveSlotMenu.tscn"
 var _slot_menu: Control = null
 # Tracks which flow opened the slot menu so _on_slot_chosen knows how to dispatch.
 var _slot_picker_mode: String = "new"
+var _settings_overlay: SettingsScreen = null
 
 func _ready():
 	modulate.a = 0.0
@@ -26,11 +26,33 @@ func _ready():
 	settings_btn.pressed.connect(_on_settings)
 	quit_btn.pressed.connect(_on_quit)
 
-	for btn in [new_game_btn, continue_btn, settings_btn, quit_btn]:
-		btn.mouse_entered.connect(_on_button_hover)
+	# Hover/click SFX is now handled globally for every button by GameManager
+	# (same misc_menu_4.wav), so no per-button hover wiring is needed here.
+
+	# Themed focus ring. Focus navigation only engages with a controller; in
+	# keyboard+mouse mode the menu is click-only. The central focus guard
+	# (GameManager) makes these focusable and maintains focus; opening an overlay
+	# (settings/slot picker) registers its own scope on top, locking these out.
+	for b in [new_game_btn, continue_btn, settings_btn, quit_btn]:
+		var focus := StyleBoxFlat.new()
+		focus.bg_color = Color(0.85, 0.7, 1.0, 0.12)
+		focus.border_color = Color(0.95, 0.85, 1.0)
+		focus.set_border_width_all(2)
+		focus.set_corner_radius_all(6)
+		b.add_theme_stylebox_override("focus", focus)
+	GameManager.register_focus_scope(self)
+
+	# Route the menu music through the settings-controlled Music bus.
+	music_player.bus = SettingsModel.BUS_MUSIC
 
 	if music_player.stream != null:
 		music_player.volume_db = -10.0
+		# Loop the menu theme for as long as we're on this scene. Prefer the
+		# stream's own loop flag; fall back to replaying on finish.
+		if "loop" in music_player.stream:
+			music_player.stream.loop = true
+		else:
+			music_player.finished.connect(func(): music_player.play())
 		music_player.play()
 
 func _refresh_continue_button():
@@ -59,9 +81,6 @@ func _ensure_slot_menu() -> Control:
 		_slot_menu.menu_closed.connect(_on_slot_menu_closed)
 	return _slot_menu
 
-func _on_button_hover():
-	if hover_sound.stream != null:
-		hover_sound.play()
 
 func _on_new_game():
 	_slot_picker_mode = "new"
@@ -103,7 +122,18 @@ func _on_slot_menu_closed():
 	_refresh_continue_button()
 
 func _on_settings():
-	print("Settings coming soon!")
+	if _settings_overlay != null and is_instance_valid(_settings_overlay):
+		return
+	var screen := SettingsScreen.new()
+	_settings_overlay = screen
+	screen.back_requested.connect(_close_settings)
+	add_child(screen)
+	screen.setup(true)
+
+func _close_settings():
+	if _settings_overlay != null and is_instance_valid(_settings_overlay):
+		_settings_overlay.queue_free()
+	_settings_overlay = null
 
 func _on_quit():
 	get_tree().quit()
