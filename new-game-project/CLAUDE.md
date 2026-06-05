@@ -21,7 +21,7 @@ more overworld content, and eventually story.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **653 tests, 21 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **670 tests, 22 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -41,16 +41,18 @@ scripts/
     EquipmentScreen.gd        # class_name EquipmentScreen — pause-menu per-hero equip page, 5 slots (P3)
     SettingsScreen.gd         # class_name SettingsScreen — settings hub (Game/Controls/Audio/Display/Performance) (P4)
     FocusUtil.gd              # class_name FocusUtil — L1/R1 category-cycle detection for controller nav (P4)
+    SaveIndicator.gd          # class_name SaveIndicator — bottom-right auto-save status badge (P5)
   settings/
     SettingsModel.gd          # class_name SettingsModel — audio/display/perf/difficulty/sticks data + config + apply (P4)
     InputMapConfig.gd         # class_name InputMapConfig — named actions, defaults, remap, per-device reset, persistence (P4)
   overworld/
     OverworldScene.gd         # Free-roam controller; step-based encounter rolls; pause menu host
     Player.gd                 # CharacterBody2D, 8-dir arrow/controller movement
-    MapArea.gd                # Resource: area metadata + encounter group list
+    MapArea.gd                # Resource: area metadata + encounter group list + safe_zones (town rects)
     EncounterGroup.gd         # Resource: weighted encounter (pool + count range + level gate)
   save/
     SaveSerializer.gd         # Pure static: Character/Skill/Item/Inventory ↔ Dictionary (full, option 1B)
+    AutoSaveSystem.gd         # class_name AutoSaveSystem — pure safe-zone enter detection for auto-save (P5)
   battle/
     BattleScene.gd            # Main battle controller & UI wiring; status banners; hero panel theming
     BattleManager.gd          # Turn logic, state machine, action dispatch, status resolution
@@ -91,7 +93,7 @@ data/                         # data-driven content (.tres resources)
 tests/
   TestRunner.tscn/.gd         # run this scene (F6) to execute all suites; register suites in SUITE_PATHS
   TestSuite.gd                # base class with assert_* helpers
-  suites/                     # one test_<feature>.gd per system (21 suites)
+  suites/                     # one test_<feature>.gd per system (22 suites)
 assets/  backgrounds/ characters/ enemies/ icons/ ui/
 fonts/   music/
 ```
@@ -520,10 +522,19 @@ BattleScene (Node2D)
     (not deferred queue_free) so stale full-rect overlays can't swallow clicks. Back = controller B /
     Esc (`ui_cancel`) everywhere; battle sub-menus + target select honor it too.
   - Suites: `settings`, `input_map`, `focus_guard`.
+- **Phase P5 — Auto-save** (`scripts/save/AutoSaveSystem.gd` `class_name AutoSaveSystem`;
+  `scripts/ui/SaveIndicator.gd` `class_name SaveIndicator`): auto-saves to the active slot on
+  entering a town/safe zone. `MapArea.safe_zones: Array[Rect2]` lists town rects in world space
+  (Fallster Plains has three, matching the Marker1/2/3 placeholder towns). `AutoSaveSystem` is a
+  pure tracker: `update(pos, zones)` returns true only on the outside→inside transition (fires once
+  per entry; re-entry refires; zone-to-zone doesn't), and `in_safe_zone()` suppresses random
+  encounters while standing in a town. `OverworldScene._physics_process` drives it and calls
+  `GameManager.autosave(scene_path, pos)`, which is gated by `can_autosave()` (settings toggle +
+  valid `active_slot`) and emits `autosave_started`/`autosave_finished(success)`. `SaveIndicator`
+  (bottom-right, BattleUITheme-styled, on its own CanvasLayer) listens to those signals: fades in
+  "✦ Saving Game…" then "✦ Saved Game" and fades out. Suite `auto_save`.
 
 ### Planned (next phases)
-- **Phase P5 — Auto-save**: trigger on town/safe-area entry (`MapArea.auto_save_on_enter`)
-  and story-cutscene calls; gated by the Settings toggle; save-status indicator (bottom-right).
 - **Phase P6 — Defeat → load flow**: replace the current "revive at 50%" with a proper
   Continue (load `active_slot`) / Quit (MainMenu) game-over.
 - **Phase P7 — More overworld content**: additional MapArea files + map-to-map

@@ -187,18 +187,38 @@ func apply_display() -> void:
 			DisplayServer.window_set_size(DisplayServer.screen_get_size(screen))
 			DisplayServer.window_set_position(DisplayServer.screen_get_position(screen))
 		WindowMode.WINDOWED:
-			if is_fullscreen:
+			# Force plain WINDOWED first: window_set_size is IGNORED while the window
+			# is fullscreen OR maximized (the OS maximizes the window when a near-
+			# screen-size resolution is chosen), so a later resolution change would
+			# silently do nothing without clearing that mode first.
+			if cur_mode != DisplayServer.WINDOW_MODE_WINDOWED:
 				DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
 			var size: Vector2i = RESOLUTIONS[clampi(window_size_index, 0, RESOLUTIONS.size() - 1)]
+			# Clamp so the window (including its title bar) fits in the usable screen
+			# area. window_set_size, screen_get_usable_rect and screen sizes are all in
+			# the SAME pixel space (no scale conversion needed). The decoration overhead
+			# (title bar) is the difference between the content size and the size with
+			# decorations, reserved so an oversized choice doesn't get auto-maximized.
+			var screen := DisplayServer.window_get_current_screen()
+			var usable: Rect2i = DisplayServer.screen_get_usable_rect(screen)
+			var decor: Vector2i = DisplayServer.window_get_size_with_decorations() - DisplayServer.window_get_size()
+			size.x = mini(size.x, usable.size.x - maxi(0, decor.x))
+			size.y = mini(size.y, usable.size.y - maxi(0, decor.y))
 			DisplayServer.window_set_size(size)
 			_center_window(size)
 
+# Centers the window (decorations included) within the usable screen area, clamped
+# so no edge goes off-screen. Same pixel space throughout — no scale conversion.
 func _center_window(size: Vector2i) -> void:
 	var screen := DisplayServer.window_get_current_screen()
-	var screen_size := DisplayServer.screen_get_size(screen)
-	var screen_pos := DisplayServer.screen_get_position(screen)
-	DisplayServer.window_set_position(screen_pos + (screen_size - size) / 2)
+	var usable: Rect2i = DisplayServer.screen_get_usable_rect(screen)
+	var decor: Vector2i = DisplayServer.window_get_size_with_decorations() - DisplayServer.window_get_size()
+	var full := size + Vector2i(maxi(0, decor.x), maxi(0, decor.y))
+	var pos := usable.position + (usable.size - full) / 2
+	pos.x = maxi(pos.x, usable.position.x)
+	pos.y = maxi(pos.y, usable.position.y)
+	DisplayServer.window_set_position(pos)
 
 # Framerate cap + V-Sync (engine-level; the on-screen FPS counter is UI and
 # lives in GameManager).

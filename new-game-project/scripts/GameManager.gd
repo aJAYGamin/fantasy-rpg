@@ -10,6 +10,9 @@ signal controllers_changed
 # Menus listen to this to enable/disable button focus (controller = focusable for
 # d-pad/stick nav; keyboard+mouse = mouse-click only).
 signal input_mode_changed(is_controller: bool)
+# Auto-save lifecycle (P5) — the save-status indicator listens to these.
+signal autosave_started
+signal autosave_finished(success: bool)
 
 # ─── Party ───────────────────────────────────────────────
 var party: Array[Character] = []
@@ -681,6 +684,27 @@ func save_to_slot(slot: int) -> bool:
 	active_slot = slot
 	print("Game saved to slot %d." % slot)
 	return true
+
+# ─── Auto-save (P5) ──────────────────────────────────────
+# True if auto-save is allowed to run right now: enabled in settings AND there's
+# a bound save slot (a New Game / loaded game). A fresh boot with no slot won't
+# auto-save (nothing to overwrite).
+func can_autosave() -> bool:
+	return settings.autosave_enabled and _is_valid_slot(active_slot)
+
+# Auto-saves the current overworld position to the active slot. The caller passes
+# its scene path + the player's world position (same as a manual pause-menu save).
+# Emits autosave_started / autosave_finished(success) for the status indicator.
+# No-ops (and emits nothing) when auto-save isn't allowed.
+func autosave(scene_path: String, position: Vector2) -> bool:
+	if not can_autosave():
+		return false
+	autosave_started.emit()
+	save_overworld_scene_path = scene_path
+	save_overworld_position = position
+	var ok := save_to_slot(active_slot)
+	autosave_finished.emit(ok)
+	return ok
 
 func load_from_slot(slot: int) -> bool:
 	if not slot_exists(slot):

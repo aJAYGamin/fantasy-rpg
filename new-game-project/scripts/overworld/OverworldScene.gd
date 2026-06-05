@@ -19,6 +19,9 @@ var _distance_accumulator: float = 0.0
 var _steps_since_encounter: int = 0
 var _encounter_in_flight: bool = false
 var _pause_menu: Control = null
+# P5 auto-save: tracks safe-zone (town) entry to trigger an auto-save.
+var _auto_save := AutoSaveSystem.new()
+var _save_indicator: Control = null
 
 func _ready() -> void:
 	GameManager.ensure_default_party()
@@ -39,8 +42,25 @@ func _ready() -> void:
 
 	_last_position = player.position
 
+	# Seed the auto-save tracker to the spawn position so spawning inside a town
+	# (e.g. resuming a save made in one) doesn't immediately re-trigger an auto-save.
+	if area != null:
+		_auto_save.update(player.position, area.safe_zones)
+	_ensure_save_indicator()
+
 	if area == null:
 		push_warning("OverworldScene has no MapArea assigned — encounters will not trigger")
+
+# The auto-save status badge lives on its own CanvasLayer so it renders in
+# screen-space (bottom-right) rather than being panned by the player's camera.
+func _ensure_save_indicator() -> void:
+	if _save_indicator != null and is_instance_valid(_save_indicator):
+		return
+	var layer := CanvasLayer.new()
+	layer.layer = 5
+	add_child(layer)
+	_save_indicator = SaveIndicator.new()
+	layer.add_child(_save_indicator)
 
 func _input(event: InputEvent) -> void:
 	# Use _input (not _unhandled_input) so the pause key is caught before Godot's
@@ -88,6 +108,15 @@ func _physics_process(_delta: float) -> void:
 	var moved := current_pos.distance_to(_last_position)
 	_last_position = current_pos
 	if moved <= 0.0:
+		return
+
+	# Auto-save on entering a town/safe zone (P5). Returns true only on the
+	# transition into a zone, so it fires once per entry.
+	if area != null and _auto_save.update(current_pos, area.safe_zones):
+		GameManager.autosave(scene_file_path, current_pos)
+
+	# No random encounters while standing in a safe zone.
+	if area != null and _auto_save.in_safe_zone():
 		return
 
 	_distance_accumulator += moved

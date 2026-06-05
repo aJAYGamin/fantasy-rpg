@@ -12,3 +12,4 @@ area_name = "Fallster Plains"
 battle_background_id = "fallster_plains"
 default_spawn = Vector2(2000, 1500)
 encounter_groups = Array[EncounterGroup]([ExtResource("2_ps"), ExtResource("3_lw"), ExtResource("4_hp"), ExtResource("5_et")])
+safe_zones = Array[Rect2]([Rect2(800, 800, 100, 100), Rect2(3100, 2100, 100, 100), Rect2(1500, 2400, 100, 100)])
