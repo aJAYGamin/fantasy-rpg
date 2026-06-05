@@ -30,6 +30,14 @@ var _spin_slowing: bool = false
 var _final_value: int = 0
 var _confirmed_stat: String = ""
 var _stat_buttons: Dictionary = {}  # hero_name -> {stat -> Button}
+# The active scroll-bounce tween on the spinning number label, tracked so it can
+# be killed when the spin stops (otherwise it can leave the label off-center).
+var _label_tween: Tween = null
+
+func _kill_label_tween() -> void:
+	if _label_tween != null and _label_tween.is_valid():
+		_label_tween.kill()
+	_label_tween = null
 
 func _ready():
 	hide()
@@ -183,7 +191,7 @@ func _create_hero_panel(hero: Character, cinzel: FontFile, cinzel_bold: FontFile
 		var diff = new_stats[stat] - old_stats[stat]
 		var inc_lbl = Label.new()
 		inc_lbl.name = "Inc_%s_%s" % [hero.character_name, stat]
-		inc_lbl.text = "+%d" % diff
+		inc_lbl.text = _format_diff(diff)
 		inc_lbl.custom_minimum_size = Vector2(34, 0)
 		inc_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		inc_lbl.modulate.a = 0.0
@@ -399,9 +407,10 @@ func _spin_numbers(slot_lbl: Label, hero: Character, stat: String, panel: PanelC
 		if slot_lbl and is_instance_valid(slot_lbl):
 			# Scroll effect — move label down then snap back
 			slot_lbl.text = str(display_val)
-			var tween = create_tween()
-			tween.tween_property(slot_lbl, "position:y", 8.0, interval * 0.5)
-			tween.tween_property(slot_lbl, "position:y", 0.0, interval * 0.5)
+			_kill_label_tween()
+			_label_tween = create_tween()
+			_label_tween.tween_property(slot_lbl, "position:y", 8.0, interval * 0.5)
+			_label_tween.tween_property(slot_lbl, "position:y", 0.0, interval * 0.5)
 
 		elapsed += interval
 		# Slow down after minimum time
@@ -410,8 +419,12 @@ func _spin_numbers(slot_lbl: Label, hero: Character, stat: String, panel: PanelC
 
 		await get_tree().create_timer(interval).timeout
 
-	# Land on final value
+	# Land on final value. Reset position:y — the spin can be stopped mid-scroll
+	# tween, which would otherwise leave the number parked off-center (above the
+	# box). Kill any in-flight tween on the label first so it can't move it after.
 	if slot_lbl and is_instance_valid(slot_lbl):
+		_kill_label_tween()
+		slot_lbl.position.y = 0.0
 		slot_lbl.text = str(_final_value)
 		slot_lbl.add_theme_color_override("font_color", Color(0.4, 1.0, 0.5))
 
@@ -448,7 +461,7 @@ func _apply_bonus(hero: Character, stat: String, panel: PanelContainer, cinzel):
 	if val_lbl:
 		var inc = _find_node("Inc_%s_%s" % [hero.character_name, stat], panel)
 		if inc:
-			inc.text = "+%d" % bonus
+			inc.text = _format_diff(bonus)
 			inc.modulate.a = 0.0
 			var t1 = create_tween()
 			t1.tween_property(inc, "modulate:a", 1.0, 0.3)
@@ -492,15 +505,32 @@ func _get_weighted_random() -> int:
 	else:
 		return randi_range(9, 10)
 
+# Sign-safe delta text: "+3" for positive, "0" for none, "-2" for negative
+# (never the broken "+-2" that "+%d" produces for a negative value).
+func _format_diff(diff: int) -> String:
+	if diff > 0:
+		return "+%d" % diff
+	return str(diff)
+
+# Per-level stat growth (must match Character's getters: each level adds these).
+const LEVEL_GROWTH := {
+	"HP": 15, "MP": 8, "ATK": 2, "DEF": 1, "MAG": 2, "ARC": 1, "SPD": 1,
+}
+
+# Old stats = the hero's CURRENT total (equipment + status included, same basis as
+# _get_new_stats) minus this level's growth. Computing old as "new − growth" keeps
+# both columns on the same basis, so the diff is exactly the level gain (always
+# the positive growth) and never goes negative because of stat-reducing gear.
 func _get_old_stats(hero: Character) -> Dictionary:
+	var new_stats := _get_new_stats(hero)
 	return {
-		"HP":  hero.base_hp + (hero.level - 2) * 15,
-		"MP":  hero.base_mp + (hero.level - 2) * 8,
-		"ATK": hero.base_attack + (hero.level - 2) * 2,
-		"DEF": hero.base_defense + (hero.level - 2) * 1,
-		"MAG": hero.base_magic + (hero.level - 2) * 2,
-		"ARC": hero.base_arcane + (hero.level - 2) * 1,
-		"SPD": hero.base_speed + (hero.level - 2) * 1,
+		"HP":  new_stats["HP"] - LEVEL_GROWTH["HP"],
+		"MP":  new_stats["MP"] - LEVEL_GROWTH["MP"],
+		"ATK": new_stats["ATK"] - LEVEL_GROWTH["ATK"],
+		"DEF": new_stats["DEF"] - LEVEL_GROWTH["DEF"],
+		"MAG": new_stats["MAG"] - LEVEL_GROWTH["MAG"],
+		"ARC": new_stats["ARC"] - LEVEL_GROWTH["ARC"],
+		"SPD": new_stats["SPD"] - LEVEL_GROWTH["SPD"],
 	}
 
 func _get_new_stats(hero: Character) -> Dictionary:
