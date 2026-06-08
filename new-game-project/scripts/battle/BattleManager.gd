@@ -21,6 +21,9 @@ enum BattleState {
 	BATTLE_OVER
 }
 
+# Turns a "regenerate" skill heals for (transient heal-over-time, not a status).
+const REGEN_TURNS := 3
+
 var state: BattleState = BattleState.IDLE
 var party: Array[Character] = []
 var enemies: Array[Character] = []
@@ -58,6 +61,10 @@ func _next_turn():
 		return
 
 	current_actor = turn_order[current_turn_index]
+
+	# Defend lasts until the defender's next turn — it protected them through the
+	# intervening enemy turns, so clear it now that they're acting again.
+	current_actor.clear_defend()
 
 	var status_results = current_actor.process_status_effects()
 	for result in status_results:
@@ -290,7 +297,7 @@ func enemy_use_skill(enemy: Character, skill: Skill, targets: Array[Character]):
 			handle_defeat(target)
 
 func player_defend(character: Character):
-	character.add_status("defending")
+	character.start_defend()
 	var result = {"action": "defend", "actor": character, "value": 0}
 	emit_signal("action_performed", result)
 	end_player_turn()
@@ -483,6 +490,10 @@ func _apply_skill_status(target: Character, token: String):
 			target.apply_debuff(parsed["value"])
 		_:
 			var status_name: String = parsed["value"]
+			# Regenerate is a transient heal-over-time, not a status chip.
+			if status_name == StatusSystem.REGENERATE:
+				target.start_regen(REGEN_TURNS)
+				return
 			var was_active: bool = target.is_status(status_name)
 			target.add_status(status_name)
 			# Banner only when this call is what actually put the status on the

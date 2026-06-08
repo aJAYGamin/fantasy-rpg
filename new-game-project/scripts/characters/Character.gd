@@ -62,6 +62,14 @@ var debuffs: Dictionary = {}
 # 1 -> 75%, 2 -> 50%, 3 -> 25%, 4 -> guaranteed wake.
 var sleep_turn: int = 0
 
+# --- Transient combat effects (NOT statuses; no chip, never serialized) ---
+# Defend: halves incoming damage until this character's next turn starts.
+var is_defending: bool = false
+# Regenerate: heals each turn for this many remaining turns (0 = inactive).
+const DEFEND_DAMAGE_MULT := 0.5
+var regen_turns: int = 0
+var regen_amount: int = 0
+
 func _init():
 	inventory = Inventory.new()
 	current_hp = max_hp()
@@ -130,6 +138,8 @@ func take_damage(amount: int, attack_element: ElementalSystem.Element = Elementa
 
 	var base_damage = max(1, amount - defense_power())
 	var final_damage = max(1, int(base_damage * multiplier))
+	if is_defending:
+		final_damage = max(1, int(final_damage * DEFEND_DAMAGE_MULT))
 	current_hp = max(0, current_hp - final_damage)
 
 	return {
@@ -153,6 +163,8 @@ func take_magic_damage(amount: int, attack_element: ElementalSystem.Element = El
 	# before applying the element multiplier.
 	var base_damage = max(1, amount - arcane_power())
 	var final_damage = max(1, int(base_damage * multiplier))
+	if is_defending:
+		final_damage = max(1, int(final_damage * DEFEND_DAMAGE_MULT))
 	current_hp = max(0, current_hp - final_damage)
 
 	return {
@@ -179,10 +191,18 @@ func use_mp(amount: int) -> bool:
 	return false
 
 func add_status(effect: String):
+	# A defeated character can't be afflicted — a killing blow that also inflicts
+	# a status (e.g. a scorching hit that downs the hero) must not leave the status
+	# on the corpse. Statuses only apply to the living.
+	if not is_alive():
+		return
+	# Element immunity: Fire can't be scorched, Metal poisoned, Lightning paralyzed,
+	# Ice frostbitten (checked against both element + secondary_element).
+	if StatusSystem.is_immune_to(self, effect):
+		return
 	# Mutex statuses are first-come-first-served — if the character already has
 	# ANY mutex status, the new one is rejected. This gives the player a window
 	# to cleanse before stacking up; statuses can't pile on top of each other.
-	# Non-mutex statuses (regenerate, defending) are unaffected.
 	if effect in StatusSystem.MUTEX_STATUSES:
 		for existing in StatusSystem.MUTEX_STATUSES:
 			if is_status(existing):
@@ -238,6 +258,9 @@ func clear_battle_effects():
 	buffs.clear()
 	debuffs.clear()
 	sleep_turn = 0
+	is_defending = false
+	regen_turns = 0
+	regen_amount = 0
 
 # Per-turn status processing.
 # Returns Array of events for UI to render (e.g. tick damage, regen heal).
@@ -253,13 +276,30 @@ func process_status_effects() -> Array[Dictionary]:
 		if dmg > 0:
 			current_hp = max(0, current_hp - dmg)
 			results.append({"type": tick_status, "value": dmg})
-	# Positive non-mutex statuses (kept independent so they CAN coexist with
-	# the mutex pool — a poisoned hero can still regenerate from an item).
-	if is_status(StatusSystem.REGENERATE):
-		var heal_amt: int = max(1, max_hp() / 8)
+	# Regenerate is a transient heal-over-time (not a status chip): heals each turn
+	# while turns remain, then expires. Coexists with the mutex pool — a poisoned
+	# hero can still regenerate.
+	if regen_turns > 0 and is_alive():
+		var heal_amt: int = max(1, regen_amount)
 		heal(heal_amt)
+		regen_turns -= 1
 		results.append({"type": StatusSystem.REGENERATE, "value": heal_amt})
 	return results
+
+# --- Transient combat effects ---
+# Defend until this character's next turn. Cleared by clear_defend() at the start
+# of their turn.
+func start_defend() -> void:
+	is_defending = true
+
+func clear_defend() -> void:
+	is_defending = false
+
+# Begin (or refresh) a regenerate-over-time effect. amount per turn; <=0 amount
+# defaults to 1/8 max HP.
+func start_regen(turns: int, amount: int = -1) -> void:
+	regen_turns = max(regen_turns, turns)
+	regen_amount = amount if amount > 0 else max(1, max_hp() / 8)
 
 # --- Leveling ---
 func gain_experience(amount: int) -> bool:

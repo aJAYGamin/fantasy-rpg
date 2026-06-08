@@ -739,6 +739,26 @@ func load_from_slot(slot: int) -> bool:
 	print("Game loaded from slot %d." % slot)
 	return true
 
+# True when the active slot holds a loadable save (used by the defeat→load flow
+# to decide whether "Load Last Save" is available).
+func has_active_save() -> bool:
+	return slot_exists(active_slot)
+
+# Loads the active slot and prepares a return to the saved overworld. Returns the
+# scene path to change to (the saved overworld scene, or a sensible default), or
+# "" if there's nothing to load. Mirrors the MainMenu Continue flow so the defeat
+# screen reuses the canonical load path.
+func load_active_slot() -> String:
+	if not has_active_save():
+		return ""
+	if not load_from_slot(active_slot):
+		return ""
+	resuming_from_save = true
+	var path: String = save_overworld_scene_path
+	if path == "":
+		path = "res://scenes/OverworldScene.tscn"
+	return path
+
 # Reads just the metadata block (cheap — no party deserialization) for slot pickers.
 # Returns {} if the slot is empty/invalid/unparseable.
 func get_slot_metadata(slot: int) -> Dictionary:
