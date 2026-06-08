@@ -21,7 +21,7 @@ more overworld content, and eventually story.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **670 tests, 22 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **691 tests, 25 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -93,7 +93,7 @@ data/                         # data-driven content (.tres resources)
 tests/
   TestRunner.tscn/.gd         # run this scene (F6) to execute all suites; register suites in SUITE_PATHS
   TestSuite.gd                # base class with assert_* helpers
-  suites/                     # one test_<feature>.gd per system (22 suites)
+  suites/                     # one test_<feature>.gd per system (25 suites)
 assets/  backgrounds/ characters/ enemies/ icons/ ui/
 fonts/   music/
 ```
@@ -141,6 +141,16 @@ new one while any is active is **rejected** (first-come-first-served; was previo
 | `scorched` | 1/20 max HP | ATK ×0.5 | — | heal / KO |
 | `frostbite` | 1/20 max HP | MAG ×0.5 | — | heal / KO |
 - Non-mutex positive statuses (`regenerate`, `defending`) can coexist with the mutex pool.
+  These are transient combat effects, NOT real statuses: defending is a `Character.is_defending`
+  bool (halves incoming damage until next turn, `DEFEND_DAMAGE_MULT`); regenerate is
+  `Character.start_regen(turns)` (heal-over-time). Neither lives in `status_effects` (not mutex,
+  never serialized) — they're kept as named constants only for chip rendering + as the default
+  BUFF token. `_apply_skill_status` intercepts the `regenerate` token before `add_status`.
+- **`add_status` guards (enforced at the single mutation point):** a defeated character
+  (`not is_alive()`) is never afflicted — a killing blow that also inflicts a status leaves the
+  downed character clean. **Element immunity** (`StatusSystem.ELEMENT_IMMUNITY` /
+  `is_immune_to`): Fire can't be scorched, Metal poisoned, Lightning paralyzed, Ice frostbitten —
+  checked against both primary and secondary element.
 - Key API: `resolve_turn_skip(character)` → `{skip, woke_up}` (mutates: stun auto-clears,
   sleep counter advances or wakes); `get_tick_damage(character)`; `get_active_mutex_status`;
   `get_status_stat_multiplier`; phrasing helpers `applied_phrase`/`skipped_phrase`/`woke_phrase`
@@ -533,10 +543,15 @@ BattleScene (Node2D)
   valid `active_slot`) and emits `autosave_started`/`autosave_finished(success)`. `SaveIndicator`
   (bottom-right, BattleUITheme-styled, on its own CanvasLayer) listens to those signals: fades in
   "✦ Saving Game…" then "✦ Saved Game" and fades out. Suite `auto_save`.
+- **Phase P6 — Defeat → load flow** (`scripts/battle/DefeatScreen.gd`): the old "revive party at
+  50% HP and walk back" hack is replaced with a proper game-over. The DefeatScreen now offers
+  **Load Last Save** (loads the active slot via `GameManager.load_active_slot()`, which sets
+  `resuming_from_save` and returns the saved overworld scene path) and **Quit to Main Menu**.
+  Load is disabled/greyed when `GameManager.has_active_save()` is false (no loadable slot), so the
+  focus guard lands on Quit. `revive_party()` is retained (still unit-tested) but no longer used by
+  the defeat flow. Suite `defeat_flow`.
 
 ### Planned (next phases)
-- **Phase P6 — Defeat → load flow**: replace the current "revive at 50%" with a proper
-  Continue (load `active_slot`) / Quit (MainMenu) game-over.
 - **Phase P7 — More overworld content**: additional MapArea files + map-to-map
   connections/transitions; fixed-composition encounters for tutorial/story battles.
 - **Phase P8 — Skill learning**: implement `Character._learn_skills_at_level()` per hero

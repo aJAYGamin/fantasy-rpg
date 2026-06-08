@@ -34,6 +34,7 @@ const SUITE_PATHS := [
 	"res://tests/suites/test_focus_guard.gd",
 	"res://tests/suites/test_auto_save.gd",
 	"res://tests/suites/test_level_up_screen.gd",
+	"res://tests/suites/test_defeat_flow.gd",
 ]
 
 func _ready() -> void:

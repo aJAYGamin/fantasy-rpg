@@ -228,3 +228,92 @@ func test_clear_battle_effects_wipes_everything() -> void:
 	assert_eq(c.debuffs.size(), 0, "debuffs cleared")
 	assert_eq(c.sleep_turn, 0, "sleep counter cleared")
 	assert_eq(c.attack_power(), 20, "stats back to base after clear")
+
+# --- No statuses on defeated characters ---
+
+func test_no_status_when_defeated() -> void:
+	var c = _make()
+	c.current_hp = 0
+	c.add_status(StatusSystem.POISON)
+	assert_false(c.is_status(StatusSystem.POISON), "a defeated character can't be poisoned")
+
+func test_killing_blow_does_not_leave_status() -> void:
+	# Simulate a lethal hit followed by a status application (the BattleManager
+	# order): damage first, then add_status — which must no-op on the corpse.
+	var c = _make()
+	c.current_hp = 1
+	c.take_damage(9999, ElementalSystem.Element.NORMAL)
+	assert_false(c.is_alive(), "lethal hit downs the character")
+	c.add_status(StatusSystem.SCORCHED)
+	assert_eq(c.status_effects.size(), 0, "no status sticks to a downed character")
+
+# --- Element-based status immunity ---
+
+func _typed(elem: int) -> Character:
+	var c = _make()
+	c.element = elem
+	return c
+
+func test_fire_immune_to_scorched() -> void:
+	var c = _typed(ElementalSystem.Element.FIRE)
+	c.add_status(StatusSystem.SCORCHED)
+	assert_false(c.is_status(StatusSystem.SCORCHED), "Fire is immune to Scorched")
+	# But a non-immune status still applies.
+	c.add_status(StatusSystem.POISON)
+	assert_true(c.is_status(StatusSystem.POISON), "Fire can still be poisoned")
+
+func test_metal_immune_to_poison() -> void:
+	var c = _typed(ElementalSystem.Element.METAL)
+	c.add_status(StatusSystem.POISON)
+	assert_false(c.is_status(StatusSystem.POISON), "Metal is immune to Poison")
+
+func test_lightning_immune_to_paralysis() -> void:
+	var c = _typed(ElementalSystem.Element.LIGHTNING)
+	c.add_status(StatusSystem.PARALYSIS)
+	assert_false(c.is_status(StatusSystem.PARALYSIS), "Lightning is immune to Paralysis")
+
+func test_ice_immune_to_frostbite() -> void:
+	var c = _typed(ElementalSystem.Element.ICE)
+	c.add_status(StatusSystem.FROSTBITE)
+	assert_false(c.is_status(StatusSystem.FROSTBITE), "Ice is immune to Frostbite")
+
+func test_immunity_checks_secondary_element() -> void:
+	var c = _make()
+	c.element = ElementalSystem.Element.NORMAL
+	c.secondary_element = ElementalSystem.Element.FIRE
+	c.add_status(StatusSystem.SCORCHED)
+	assert_false(c.is_status(StatusSystem.SCORCHED), "secondary Fire element grants Scorched immunity")
+
+# --- Defend (transient, not a status) ---
+
+func test_defend_halves_damage_and_is_not_a_status() -> void:
+	var c = _make()
+	c.start_defend()
+	assert_true(c.is_defending, "defending flag set")
+	assert_eq(c.status_effects.size(), 0, "defend is not a status chip")
+	var undefended = _make()
+	var def_dmg: int = c.take_damage(100, ElementalSystem.Element.NORMAL)["damage"]
+	var raw_dmg: int = undefended.take_damage(100, ElementalSystem.Element.NORMAL)["damage"]
+	assert_true(def_dmg < raw_dmg, "defending takes less damage than not defending")
+	assert_eq(def_dmg, max(1, int(raw_dmg * Character.DEFEND_DAMAGE_MULT)), "defend halves the final damage")
+
+func test_clear_defend() -> void:
+	var c = _make()
+	c.start_defend()
+	c.clear_defend()
+	assert_false(c.is_defending, "clear_defend ends the defend")
+
+# --- Regenerate (transient heal-over-time, not a status) ---
+
+func test_regen_heals_each_turn_then_expires() -> void:
+	var c = _make()
+	c.current_hp = 10
+	c.start_regen(2, 5)
+	assert_eq(c.status_effects.size(), 0, "regen is not a status chip")
+	c.process_status_effects()
+	assert_eq(c.current_hp, 15, "regen heals turn 1")
+	c.process_status_effects()
+	assert_eq(c.current_hp, 20, "regen heals turn 2")
+	assert_eq(c.regen_turns, 0, "regen expired after its turns")
+	c.process_status_effects()
+	assert_eq(c.current_hp, 20, "no further healing after regen expires")

@@ -60,7 +60,9 @@ func _apply_theme():
 	defeat_label.add_theme_constant_override("shadow_offset_x", 2)
 	defeat_label.add_theme_constant_override("shadow_offset_y", 2)
 
-	# Themed buttons.
+	# Themed buttons. Continue reloads the last save, so label it accordingly.
+	continue_btn.text = "Load Last Save"
+	quit_btn.text = "Quit to Main Menu"
 	BattleUITheme.style_button(continue_btn, 14)
 	BattleUITheme.style_button(quit_btn, 14)
 	continue_btn.custom_minimum_size = Vector2(240, 42)
@@ -69,6 +71,12 @@ func _apply_theme():
 	quit_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 
 func show_defeat():
+	# "Load Last Save" is only possible if there's a loadable save in the active
+	# slot — otherwise grey it out and leave only Quit to Main Menu.
+	var can_load: bool = GameManager.has_active_save()
+	continue_btn.disabled = not can_load
+	continue_btn.modulate.a = 1.0 if can_load else 0.45
+
 	await get_tree().create_timer(1.0).timeout
 	show()
 
@@ -80,26 +88,26 @@ func show_defeat():
 	tween.tween_property(overlay, "modulate:a", 1.0, 0.6)
 	tween.tween_property(fade_target, "modulate:a", 1.0, 0.9)
 	# Central focus guard maintains controller focus on the buttons while shown.
+	# (The guard skips disabled buttons, so focus lands on Quit when Continue is off.)
 	GameManager.register_focus_scope(self)
 
 func _exit_tree() -> void:
 	GameManager.unregister_focus_scope(self)
 
 func _on_continue():
+	# Load the last save and return to where it was made. If there's nothing to
+	# load (shouldn't happen — the button is disabled then), fall back to the menu.
 	emit_signal("continue_from_save")
-	if GameManager.in_overworld_battle:
-		# Phase 2c: revive party at 50% HP and return to overworld at saved position.
-		# Proper game-over with save-reload flow comes once save points exist.
-		GameManager.revive_party()
-		var path: String = GameManager.pending_overworld_scene_path
-		if path == "":
-			path = "res://scenes/OverworldScene.tscn"
-		get_tree().change_scene_to_file(path)
-	elif GameManager.load_game():
-		get_tree().change_scene_to_file("res://scenes/BattleScene.tscn")
-	else:
+	# Clear the battle-handoff flag so the overworld spawns from the save, not the
+	# stale "returning from battle" position.
+	GameManager.in_overworld_battle = false
+	var path: String = GameManager.load_active_slot()
+	if path == "":
 		get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")
+		return
+	get_tree().change_scene_to_file(path)
 
 func _on_quit():
 	emit_signal("quit_to_menu")
+	GameManager.in_overworld_battle = false
 	get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")

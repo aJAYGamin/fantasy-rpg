@@ -28,6 +28,26 @@ const DEFENDING := "defending"
 
 const MUTEX_STATUSES := [STUN, POISON, PARALYSIS, SLEEP, SCORCHED, FROSTBITE]
 
+# Element-based status immunity: a character of the given element can never be
+# afflicted with the mapped status (checked against both primary + secondary
+# element). Fire can't be scorched, Metal can't be poisoned, Lightning can't be
+# paralyzed, Ice can't be frostbitten.
+const ELEMENT_IMMUNITY := {
+	ElementalSystem.Element.FIRE: SCORCHED,
+	ElementalSystem.Element.METAL: POISON,
+	ElementalSystem.Element.LIGHTNING: PARALYSIS,
+	ElementalSystem.Element.ICE: FROSTBITE,
+}
+
+# True if `character` is immune to `status` because of its element(s).
+static func is_immune_to(character, status: String) -> bool:
+	if character == null:
+		return false
+	for elem in [character.element, character.secondary_element]:
+		if ELEMENT_IMMUNITY.get(elem, "") == status:
+			return true
+	return false
+
 # --- Stat name constants (used by buff/debuff dicts and skill .tres) ---
 const STAT_ATK := "attack"
 const STAT_DEF := "defense"

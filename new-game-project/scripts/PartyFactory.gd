@@ -116,7 +116,7 @@ static func _create_kael() -> Character:
 		Skill.SkillType.DAMAGE, Skill.AttackType.STRIKE, ElementalSystem.Element.FIRE,
 		2.8, 28, Skill.TargetType.SINGLE_ENEMY)
 
-	# Description says "regenerates HP" — keep legacy regenerate status (heals each turn).
+	# Heals the party over a few turns (transient regen effect, not a status chip).
 	var iron_will = _make_status_skill("Iron Will", "Regenerates HP each turn for the party.",
 		Skill.StatusType.BUFF, ElementalSystem.Element.NORMAL,
 		1.0, 22, Skill.TargetType.ALL_ALLIES, "regenerate")
