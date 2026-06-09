@@ -1,11 +1,21 @@
 # The Amethyst Requiem — Project Context for Claude Code
 
 ## Project Overview
-A turn-based JRPG built in **Godot 4 (GDScript)**, in active development.
-The core battle system, status-effect system, save system, and a heavily-themed
-battle UI are complete. The pause-menu Stats/Items/Equipment sub-screens and the
-Settings screen (main menu + pause menu) are done. Focus going forward: auto-save,
-more overworld content, and eventually story.
+**The Amethyst Requiem** — a turn-based JRPG built in **Godot 4 (GDScript)**, in active
+development. Working title's payoff is the **AMETHYST** element + a triple-hero
+"Amethyst Requiem" resonance (see ElementalSystem / ResonanceMenu).
+
+**Completed (P1–P7 part 1, all merged to `main`):** core turn-based battle, 16-element
+system with dual-typing, status effects (mutex + buff/debuff), 3-slot save system with
+full serialization, auto-save on town entry, a heavily-themed amethyst battle UI, the
+pause-menu Stats/Items/Equipment screens, a full Settings screen (audio/display/
+performance/difficulty/input remapping) with complete keyboard+controller navigation,
+a proper defeat→load game-over, and **visible roaming overworld enemies** (replacing
+old random encounters).
+
+**Next up:** P7 part 2 (more maps + transitions + the enterable goblin-castle dungeon —
+blocked on map art), then P8 skill-learning, P9 real art, P10 story/cutscenes. See
+**Development Phases** at the bottom for the full done/planned list.
 
 > **Aesthetic rule (applies to everything):** anything added to the UI must be
 > visually appealing and match the game's amethyst aesthetic. Reuse
@@ -21,7 +31,7 @@ more overworld content, and eventually story.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **730 tests, 26 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **732 tests, 24 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -46,8 +56,9 @@ scripts/
     SettingsModel.gd          # class_name SettingsModel — audio/display/perf/difficulty/sticks data + config + apply (P4)
     InputMapConfig.gd         # class_name InputMapConfig — named actions, defaults, remap, per-device reset, persistence (P4)
   overworld/
-    OverworldScene.gd         # Free-roam controller; step-based encounter rolls; pause menu host
-    Player.gd                 # CharacterBody2D, 8-dir arrow/controller movement
+    OverworldScene.gd         # Free-roam controller; roaming-enemy spawner/manager; auto-save; pause host
+    Player.gd                 # CharacterBody2D, 8-dir keyboard/controller movement (stick sensitivity)
+    RoamingEnemy.gd           # class_name RoamingEnemy — visible overworld enemy: wander+chase in a territory (P7)
     MapArea.gd                # Resource: area metadata + encounter group list + safe_zones (town rects)
     EncounterGroup.gd         # Resource: weighted encounter (pool + count range + level gate)
   save/
@@ -75,6 +86,8 @@ scripts/
     StatusSystem.gd           # class_name StatusSystem — mutex statuses + buff/debuff math + banner phrasing
     ElementalSystem.gd        # Element enum, weakness/resistance tables, colors, icons  (NOTE: in characters/, not systems/)
     Rarity.gd                 # Enemy rarity tiers (COMMON→CELESTIAL), multipliers, colors
+  dialogue/
+    DialogueManager.gd        # STUB — node dialogue + `choices_presented` signal; no choice UI yet (future P10)
   inventory/
     Inventory.gd              # Per-character item + equipment container (pool + equipped slots + equip/unequip)
     Item.gd                   # Item resource with use() logic + ItemCategory (GENERAL/HEALING/BATTLE/KEY)
@@ -93,7 +106,7 @@ data/                         # data-driven content (.tres resources)
 tests/
   TestRunner.tscn/.gd         # run this scene (F6) to execute all suites; register suites in SUITE_PATHS
   TestSuite.gd                # base class with assert_* helpers
-  suites/                     # one test_<feature>.gd per system (26 suites)
+  suites/                     # one test_<feature>.gd per system (24 suites)
 assets/  backgrounds/ characters/ enemies/ icons/ ui/
 fonts/   music/
 ```
@@ -267,26 +280,62 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
 
 ### GameManager (Autoload)
 - `party: Array[Character]` (max 4), source of truth, persists across battles.
-- `ensure_default_party()` → `PartyFactory`; `start_new_game(slot)`; `revive_party()` (50%).
+- `ensure_default_party()` → `PartyFactory`; `start_new_game(slot)`; `revive_party()` (50%,
+  retained + tested but no longer used since the P6 defeat→load flow).
 - `gold` (clamped ≥0, `gold_changed`); `species_memory`; `award_rewards` (gold+items
   only — **VictoryScreen owns EXP** to avoid double-counting).
 - **Saves: 3 slots** at `user://save_slot_{0,1,2}.json` (`SAVE_PATH_FORMAT`).
   `active_slot` (-1 = none) persisted to `user://config.cfg`. `save_to_slot`,
   `load_from_slot`, `slot_exists`, `get_slot_metadata`, `delete_slot`, `copy_slot`.
+  P6 helpers: `has_active_save()`, `load_active_slot()` (loads active slot, sets
+  `resuming_from_save`, returns the saved overworld scene path; used by DefeatScreen).
   (`user://savegame.json` is a legacy single-file path still referenced by an older
   Continue branch.)
+- **Settings (P4):** `settings: SettingsModel` (live), loaded/applied at launch; persisted in
+  `config.cfg [settings]`. Targeted apply helpers: `apply_audio_and_save`,
+  `apply_display_and_save`, `apply_performance_and_save`, `apply_fps_overlay_and_save`,
+  `save_settings`. Audio buses via `SettingsModel.ensure_buses()`; global UI button SFX
+  auto-wired in `_on_node_added`.
+- **Input mode + focus guard (P4):** `is_controller_mode()` / `input_mode_changed`;
+  per-frame focus guard (PROCESS_MODE_ALWAYS) with `register_focus_scope` /
+  `unregister_focus_scope` — see Controller Navigation below.
+- **Auto-save (P5):** `autosave(scene_path, pos)` gated by `can_autosave()` (toggle +
+  valid slot); emits `autosave_started` / `autosave_finished(success)`.
 - Overworld↔battle handoff: `in_overworld_battle`, `pending_battle_enemies`,
   `pending_battle_background`, `pending_overworld_scene_path`, `pending_overworld_return_position`.
+- **Roaming-enemy handoff + region state (P7):** `pending_roamer_id`, `last_battle_won`,
+  `pending_flee_iframes`; region-scoped roamer persistence (`roamer_region`,
+  `roamer_states`, `has_roamer_state_for`, `set_roamer_state`, `remove_roamer_state`,
+  `clear_roamer_state`). See the Overworld & Encounters section.
 
-### Overworld & Encounters
-- `OverworldScene.gd` reads `@export var area: MapArea`; hosts the `PauseMenu`
-  (in a CanvasLayer so it renders above the camera). Esc opens it.
-- Movement: 8-dir `ui_*` (arrows + gamepad). Encounter: every 32px = 1 step;
-  chance += 1%/step, resets on encounter. Weighted pick among `area.encounter_groups`
-  gated by `min_party_level`; group deep-copies enemies (optional `enemy_level_override`).
+### Overworld & Encounters (P7 — visible roaming enemies)
+- `OverworldScene.gd` reads `@export var area: MapArea` (+ `@export field_rect`); hosts the
+  `PauseMenu` (in a CanvasLayer above the camera, Esc opens it) and the `SaveIndicator`.
+  Movement uses the remappable `move_*` actions (keyboard + controller, left-stick scaled).
+- **No more random step-based encounters.** The scene spawns up to `MAX_ROAMERS` (4)
+  **`RoamingEnemy`** nodes, each given a weighted-picked `EncounterGroup` and a random
+  `TERRITORY_SIZE` home rect clear of `area.safe_zones`. A roamer **wanders inside its
+  territory** and **chases the player only while the player is strictly inside that
+  territory** (`home_rect.has_point` — no margin), clamping/steering back at the edges.
+  Touching the player (also gated on the player being in-territory) emits `touched_player`;
+  `OverworldScene._on_roamer_touched` freezes it, persists state, sets the `pending_battle_*`
+  + `pending_roamer_id` handoff, and changes to BattleScene.
+- **Region-scoped persistence (no respawn until you leave & return):** the scene fully
+  reloads after every battle, so roamer state (id, group_index, position, home rect) is
+  saved in `GameManager` keyed by scene path. On return to the SAME region the survivors
+  are restored in place; a roamer the player **defeated** is dropped permanently. Entering a
+  DIFFERENT region — or loading a save / starting a new game — calls `clear_roamer_state()`,
+  so that original region repopulates fresh on the next visit. Fighting within a region
+  never respawns it.
+- **Flee i-frames:** fleeing a battle sets `pending_flee_iframes`; on return the player gets
+  `FLEE_IFRAME_TIME` (3s) where no roamer touch can start a fight (player + roamers fade,
+  but roamers keep wandering). If an enemy is still touching the player the instant the
+  window ends, the battle starts immediately (the enemy keeps re-checking contact —
+  it does NOT freeze itself on a blocked touch; only `OverworldScene` freezes it on accept).
+- Safe zones (towns) suppress spawns + trigger the P5 auto-save on entry.
 - `EncounterGroup`: `weight`, `min_party_level`, `enemy_pool`, `min_enemies`/`max_enemies`,
   `enemy_level_override`. `MapArea`: `area_name`, `battle_background_id`, `default_spawn`,
-  `encounter_groups`.
+  `encounter_groups`, `safe_zones: Array[Rect2]`.
 
 ---
 
@@ -410,10 +459,11 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **532 tests / 17 suites**
-  currently (character, skill, elemental, rarity, enemy, encounter_group, resonance,
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **732 tests / 24 suites**
+  currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
-  stats_screen, items_screen, item_factory, equipment).
+  stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,
+  auto_save, level_up_screen, defeat_flow, roaming_enemy.
 - Tests touching GameManager must snapshot & restore global state.
 - When fixing a bug, add a regression test that fails before the fix.
 - **Adding a new `class_name` file:** the headless test runner won't see it until the
@@ -441,9 +491,15 @@ BattleScene (Node2D)
      branch off the latest `main` (e.g. `git checkout main && git pull && git checkout -b p1-stats-screen`).
   2. Do all work and commits on that branch.
   3. When the work is complete **and the user has confirmed it's good**, merge the
-     branch into `main` (fast-forward when possible), push `main`, then **delete the
-     branch** (local + remote): `git checkout main && git merge <branch> && git push origin main && git branch -d <branch> && git push origin --delete <branch>`.
+     branch into `main` (`--no-ff` is fine), then **delete the branch**:
+     `git checkout main && git merge --no-ff <branch> -m "..." && git branch -d <branch>`.
+     Task branches are typically **local-only**; only run `git push origin --delete <branch>`
+     if you actually pushed that branch. Push `main` to origin when the user asks (or as the
+     final step of finalizing) — `git push origin main`.
   4. Result after each task: only `main` remains; the task branch is gone.
+  - In practice this session: branches stayed local, `main` is pushed to
+    `origin/main` after finalizing each phase. Repo lives at
+    `github.com/aJAYGamin/fantasy-rpg` (path `new-game-project/` inside it).
 - Still ask before the finalize step — don't merge/push/delete until the user says
   the work is done. Creating the working branch up front is expected and doesn't need
   a prompt. Never commit straight to `main`.
@@ -574,20 +630,48 @@ BattleScene (Node2D)
     `last_battle_won`. Safe zones still suppress spawns + auto-save on entry. Suite `roaming_enemy`.
 
 ### Planned (next phases)
-- **Phase P7 (part 2) — More maps + transitions** (needs SpriteFlow map art): additional MapArea
-  files + map-to-map connections/transitions (mountain-gate pass, goblin castle dungeon entrance);
-  fixed-composition encounters for tutorial/story battles.
-- **Phase P8 — Skill learning**: implement `Character._learn_skills_at_level()` per hero
-  (currently a stub).
-- **Phase P9 — Real art**: player sprite, overworld tilemap, enemy/hero portraits
-  (placeholders are colored letter-tiles today).
-- **Phase P10 — Story & cutscenes**: dialogue system, story flags, scripted events;
-  the title "The Amethyst Requiem" and the AMETHYST element/triple-resonance are the
-  narrative payoff.
+> **Next session should start here.** P7 part 2 is the immediate next target but is
+> **blocked on map art** (the user generates maps in SpriteFlow and was out of credits).
+> If art isn't ready, **P8 (skill learning) is the best art-free phase to do next.**
+
+- **Phase P7 (part 2) — Fallster Plains map + transitions + goblin castle** (needs the
+  SpriteFlow map art first). Plan agreed with the user:
+  - The Fallster Plains map should contain: **2 big towns, 1 small village, 1 river, a
+    mountain range with a gate** (pass to another region), and **1 goblin castle** the
+    player can travel to and **enter as a dungeon** (the user explicitly wants it enterable).
+    Art must match the battle-scene style (bright 32-bit pixel, Mario & Luigi RPG 3/4
+    top-down). SpriteFlow settings + prompts were already provided to the user.
+  - Wire the generated map into `OverworldScene` (replace the placeholder ColorRect
+    field/markers); place real interaction zones: town entrances, the mountain-gate as a
+    **map-to-map transition**, and the goblin castle as a **dungeon entrance**.
+  - Add more `MapArea` .tres files + map-to-map transitions; pin roamer territories to
+    sensible spots; add **fixed-composition** encounters for tutorial/story/boss battles
+    (`EncounterGroup` currently only has "flexible" mode — add an `is_fixed` path).
+- **Phase P8 — Skill learning** (art-free): implement `Character._learn_skills_at_level()`
+  (currently a stub) so heroes learn new skills on level-up; surface it in the LevelUpScreen.
+- **Phase P9 — Real art**: player sprite, overworld map art (P7p2 dependency), enemy/hero
+  portraits + battle sprites (placeholders are colored squares / letter-tiles today),
+  custom cursor.
+- **Phase P10 — Story & cutscenes**: dialogue system (a `DialogueManager` stub exists in
+  `scripts/dialogue/` with a `choices_presented` signal but **no choice UI yet**), story
+  flags (`GameManager.story_flags`), scripted events; the AMETHYST element + triple-resonance
+  "Amethyst Requiem" are the narrative payoff.
+
+### Deferred / known follow-ups
+- **Virtual cursor + mouse sensitivity (was "Chunk D" of P4):** the user wants a themed
+  in-game cursor + a working mouse-sensitivity slider, agreed to do LAST (needs a virtual
+  cursor that reworks menu click routing). Not started.
+- **Stats screen format tweaks:** the user deferred minor visual/format tweaks to the P1
+  Stats screen "to some point later" — expect them.
+- **Roamer state is in-memory only** (per session), not written into the save JSON. After a
+  hard quit + load, a region spawns fresh. Fine for now; revisit if defeated enemies should
+  persist through saves.
 
 ### Backlog / ideas
-- Boss enemies (full-width cards, multi-phase, unique mechanics).
+- Boss enemies (full-width cards, multi-phase, unique mechanics) — goblin-castle boss is a
+  natural first one.
 - Status-cleansing items/skills (antidote already exists for poison/burn — extend to
   the new statuses), and a way to cure paralysis (currently only clears at battle end).
 - More heroes (add to `PartyFactory` + `HeroPalette.HERO_BASE_COLORS` +
   `ResonanceMenu.COMBINED_ATTACK_NAMES`).
+- Shops (the difficulty model already reserves a `shop_price_mult` for Hard mode).
