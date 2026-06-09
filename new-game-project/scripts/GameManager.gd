@@ -43,6 +43,46 @@ var pending_battle_enemies: Array[Enemy] = []
 var pending_battle_background: String = "fallster_plains"
 var pending_overworld_scene_path: String = ""
 var pending_overworld_return_position: Vector2 = Vector2.ZERO
+# P7 roaming enemies: the id of the overworld roamer that started this battle, and
+# whether the player won. On return, the overworld removes a defeated roamer (won)
+# or leaves it (fled/lost). -1 = battle wasn't started by a roamer.
+var pending_roamer_id: int = -1
+var last_battle_won: bool = false
+# Set true when the player FLEES a battle, so the overworld grants a few seconds of
+# i-frames on return (no roamer can pull them into another fight immediately).
+var pending_flee_iframes: bool = false
+
+# Persistent roamer state for the CURRENT region, so roamers survive the battle
+# scene reload. A region is identified by its overworld scene path. On battle
+# return we restore the survivors (minus the defeated one); moving to a DIFFERENT
+# region clears this so the original region repopulates fresh on the next visit.
+# Each entry: { "id": int, "group_index": int, "position": Vector2, "home": Rect2 }
+var roamer_region: String = ""
+var roamers_initialized: bool = false
+var roamer_states: Array = []
+
+# True if we have live roamer state for `region` to restore (same region, already
+# populated). A different/empty region means "spawn fresh".
+func has_roamer_state_for(region: String) -> bool:
+	return roamers_initialized and roamer_region == region
+
+# Replaces the saved roamer state for a region (called when the overworld spawns
+# fresh or persists its current roamers before a battle/scene change).
+func set_roamer_state(region: String, states: Array) -> void:
+	roamer_region = region
+	roamer_states = states
+	roamers_initialized = true
+
+# Removes a defeated roamer (by id) from the saved state so it doesn't come back
+# when we restore on battle return.
+func remove_roamer_state(id: int) -> void:
+	roamer_states = roamer_states.filter(func(s): return int(s.get("id", -1)) != id)
+
+# Clears roamer state (e.g. on a brand-new game) so the next region spawns fresh.
+func clear_roamer_state() -> void:
+	roamer_region = ""
+	roamers_initialized = false
+	roamer_states = []
 
 # ─── Save/Load ───────────────────────────────────────────
 const SAVE_PATH = "user://savegame.json"  # legacy single-file save (still used by old Continue path)
@@ -497,6 +537,9 @@ func start_new_game(slot: int):
 	resuming_from_save = false
 	in_overworld_battle = false
 	pending_battle_enemies = [] as Array[Enemy]
+	pending_roamer_id = -1
+	pending_flee_iframes = false
+	clear_roamer_state()
 	active_slot = slot  # setter persists last_slot to config
 	ensure_default_party()
 
@@ -734,6 +777,11 @@ func load_from_slot(slot: int) -> bool:
 	save_overworld_position = Vector2(float(pos_data.get("x", 0)), float(pos_data.get("y", 0)))
 	party = SaveSerializer.deserialize_party(data.get("party", []))
 	active_slot = slot
+	# Loading a save enters its region fresh — drop any in-memory roamer state so
+	# the loaded area repopulates instead of restoring a different session's roamers.
+	pending_roamer_id = -1
+	pending_flee_iframes = false
+	clear_roamer_state()
 	emit_signal("party_updated")
 	emit_signal("gold_changed", gold)
 	print("Game loaded from slot %d." % slot)

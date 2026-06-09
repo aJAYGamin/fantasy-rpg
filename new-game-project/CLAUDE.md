@@ -21,7 +21,7 @@ more overworld content, and eventually story.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **691 tests, 25 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **730 tests, 26 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -93,7 +93,7 @@ data/                         # data-driven content (.tres resources)
 tests/
   TestRunner.tscn/.gd         # run this scene (F6) to execute all suites; register suites in SUITE_PATHS
   TestSuite.gd                # base class with assert_* helpers
-  suites/                     # one test_<feature>.gd per system (25 suites)
+  suites/                     # one test_<feature>.gd per system (26 suites)
 assets/  backgrounds/ characters/ enemies/ icons/ ui/
 fonts/   music/
 ```
@@ -461,7 +461,8 @@ BattleScene (Node2D)
   turn-skip gating, battle-end cleanup, enemy/hero inflictors.
 - **Enemies ignore MP.**
 - **Save system**: 3-slot full serialization, slot picker, pause menu, quit confirm.
-- **Overworld + step encounters** (Phase 2/3), MapArea/EncounterGroup data.
+- **Overworld** (Phase 2/3), MapArea/EncounterGroup data. Encounters are now VISIBLE
+  roaming enemies (P7), not invisible step-based rolls.
 - **UI theming pass**: shared BattleUITheme + HeroPalette; themed action/attack/items/
   resonance menus, hero panels, enemy cards (rarity border), turn order, victory/defeat,
   pause menu; resonance element-gradient text + auto-grow + decorative tier dividers.
@@ -550,10 +551,32 @@ BattleScene (Node2D)
   Load is disabled/greyed when `GameManager.has_active_save()` is false (no loadable slot), so the
   focus guard lands on Quit. `revive_party()` is retained (still unit-tested) but no longer used by
   the defeat flow. Suite `defeat_flow`.
+- **Phase P7 (part 1) — Visible roaming enemies** (`scripts/overworld/RoamingEnemy.gd`
+  `class_name RoamingEnemy`): replaces invisible step-based random encounters with on-map enemy
+  sprites (Mario & Luigi style). A `RoamingEnemy` (CharacterBody2D, placeholder crimson square)
+  **wanders within its own territory** (`home_rect`) and **chases** the player only while the
+  player is inside that territory (hysteresis: in at `DETECT_RADIUS`, out at `LOSE_RADIUS` or when
+  the player leaves home); it clamps/steers back so it never leaves its area. Touching the player
+  emits `touched_player`. `OverworldScene` spawns up to `MAX_ROAMERS` (4), each with a random
+  `TERRITORY_SIZE` rect clear of `MapArea.safe_zones` towns, carrying a weighted-picked
+  `EncounterGroup`.
+  - **No respawn until you leave & return:** roamer state (id, group index, position, territory)
+    is persisted in `GameManager` keyed by the region's scene path (`roamer_region` /
+    `roamer_states` / `has_roamer_state_for`). The scene reloads after each battle, so on return
+    the survivors are **restored** in place; a WON roamer is removed permanently
+    (`remove_roamer_state(id)`). Entering a *different* region (or loading a save / new game)
+    clears the state via `clear_roamer_state()`, so the original region repopulates fresh on the
+    next visit — but fighting within a region never respawns it.
+  - **Flee i-frames:** running from a battle sets `pending_flee_iframes`; on overworld return the
+    player gets `FLEE_IFRAME_TIME` (3s) where no roamer touch can start a battle (immune to all),
+    roamers fade (`set_faded`) but keep wandering, then normal play resumes.
+  - Handoff: `pending_battle_*` + `pending_roamer_id`; `BattleScene._on_battle_ended` records
+    `last_battle_won`. Safe zones still suppress spawns + auto-save on entry. Suite `roaming_enemy`.
 
 ### Planned (next phases)
-- **Phase P7 — More overworld content**: additional MapArea files + map-to-map
-  connections/transitions; fixed-composition encounters for tutorial/story battles.
+- **Phase P7 (part 2) — More maps + transitions** (needs SpriteFlow map art): additional MapArea
+  files + map-to-map connections/transitions (mountain-gate pass, goblin castle dungeon entrance);
+  fixed-composition encounters for tutorial/story battles.
 - **Phase P8 — Skill learning**: implement `Character._learn_skills_at_level()` per hero
   (currently a stub).
 - **Phase P9 — Real art**: player sprite, overworld tilemap, enemy/hero portraits
