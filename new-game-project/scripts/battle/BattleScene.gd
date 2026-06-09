@@ -726,6 +726,9 @@ func _rebuild_enemy_cards():
 
 func _on_battle_ended(player_won: bool, rewards: Dictionary):
 	_battle_over = true
+	# Record the outcome so the overworld knows whether a roaming enemy that
+	# started this fight should stay gone (won) or remain (lost/fled).
+	GameManager.last_battle_won = player_won
 	_toggle_action_menu(false)
 	# Clear ALL temporary battle effects from the party — mutex statuses
 	# (poison/scorched/frostbite/stun/sleep/paralysis), buffs, debuffs, sleep
@@ -1345,6 +1348,8 @@ func _on_run_pressed():
 	for hero in battle_manager.party:
 		hero.clear_battle_effects()
 	if GameManager.in_overworld_battle:
+		# Grant post-flee i-frames so the player isn't instantly re-caught on return.
+		GameManager.pending_flee_iframes = true
 		_return_to_overworld()
 	else:
 		get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")
