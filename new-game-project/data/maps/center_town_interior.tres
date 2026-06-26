@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="MapArea" format=3]
+
+[ext_resource type="Script" uid="uid://dm7d3gjebbqvr" path="res://scripts/overworld/MapArea.gd" id="1_ma"]
+
+[resource]
+script = ExtResource("1_ma")
+area_name = "Center Town"
+battle_background_id = "fallster_plains"
+default_spawn = Vector2(1000, 1100)
+autosave_on_enter = true

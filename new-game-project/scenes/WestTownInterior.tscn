@@ -1,0 +1,92 @@
+[gd_scene format=3 uid="uid://baeunwo2fwno3"]
+
+[ext_resource type="Script" uid="uid://v3sxdaxf6g3" path="res://scripts/overworld/OverworldScene.gd" id="1_scene"]
+[ext_resource type="Script" uid="uid://cweivgthta1cf" path="res://scripts/overworld/Player.gd" id="2_player"]
+[ext_resource type="Resource" path="res://data/maps/west_town_interior.tres" id="3_area"]
+[ext_resource type="Script" path="res://scripts/overworld/MapZone.gd" id="4_zone"]
+[ext_resource type="Script" uid="uid://dmyv4jd0wgae5" path="res://scripts/overworld/EditorCollisionViz.gd" id="5_viz"]
+
+[sub_resource type="RectangleShape2D" id="Shape_horizontal_wall"]
+size = Vector2(2200, 100)
+
+[sub_resource type="RectangleShape2D" id="Shape_vertical_wall"]
+size = Vector2(100, 1600)
+
+[sub_resource type="RectangleShape2D" id="Shape_player"]
+size = Vector2(28, 28)
+
+[node name="WestTownInterior" type="Node2D" unique_id=903735309]
+script = ExtResource("1_scene")
+area = ExtResource("3_area")
+field_rect = Rect2(0, 0, 2000, 1400)
+
+[node name="Background" type="ColorRect" parent="." unique_id=280456238]
+z_index = -1
+offset_right = 2000.0
+offset_bottom = 1400.0
+color = Color(0.47, 0.44, 0.42, 1)
+
+[node name="ExitGate" type="ColorRect" parent="." unique_id=483483132]
+offset_left = 850.0
+offset_top = 1280.0
+offset_right = 1150.0
+offset_bottom = 1400.0
+color = Color(0.35, 0.28, 0.2, 1)
+
+[node name="BoundaryTop" type="StaticBody2D" parent="." unique_id=1243246143]
+position = Vector2(1000, -50)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryTop" unique_id=1305674348]
+shape = SubResource("Shape_horizontal_wall")
+
+[node name="BoundaryBottom" type="StaticBody2D" parent="." unique_id=1723447467]
+position = Vector2(1000, 1450)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryBottom" unique_id=1941638447]
+shape = SubResource("Shape_horizontal_wall")
+
+[node name="BoundaryLeft" type="StaticBody2D" parent="." unique_id=1623664227]
+position = Vector2(-50, 700)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryLeft" unique_id=204764268]
+shape = SubResource("Shape_vertical_wall")
+
+[node name="BoundaryRight" type="StaticBody2D" parent="." unique_id=1642822607]
+position = Vector2(2050, 700)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryRight" unique_id=392567555]
+shape = SubResource("Shape_vertical_wall")
+
+[node name="Zones" type="Node2D" parent="." unique_id=234475929]
+
+[node name="Zone_Exit" type="Area2D" parent="Zones" unique_id=920995199]
+script = ExtResource("4_zone")
+label = "Leave West Town"
+target_scene = "res://scenes/OverworldScene.tscn"
+target_spawn = Vector2(845, 1740)
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Zones/Zone_Exit" unique_id=1283963218]
+polygon = PackedVector2Array(850, 1280, 1150, 1280, 1150, 1400, 850, 1400)
+
+[node name="Player" type="CharacterBody2D" parent="." unique_id=13099169]
+position = Vector2(1000, 1100)
+script = ExtResource("2_player")
+
+[node name="Sprite" type="ColorRect" parent="Player" unique_id=134571482]
+offset_left = -16.0
+offset_top = -16.0
+offset_right = 16.0
+offset_bottom = 16.0
+color = Color(0.35, 0.55, 0.95, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Player" unique_id=319929890]
+shape = SubResource("Shape_player")
+
+[node name="Camera2D" type="Camera2D" parent="Player" unique_id=1472763322]
+limit_left = 0
+limit_top = 0
+limit_right = 2000
+limit_bottom = 1400
+
+[node name="EditorCollisionViz" type="Node2D" parent="." unique_id=1464271681]
+script = ExtResource("5_viz")

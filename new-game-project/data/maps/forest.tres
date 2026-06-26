@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="MapArea" format=3]
+
+[ext_resource type="Script" path="res://scripts/overworld/MapArea.gd" id="1_ma"]
+[ext_resource type="Resource" path="res://data/encounters/wolf_pack.tres" id="2_wp"]
+[ext_resource type="Resource" path="res://data/encounters/goblin_raiders.tres" id="3_gr"]
+
+[resource]
+script = ExtResource("1_ma")
+area_name = "Southern Woods"
+battle_background_id = "fallster_plains"
+default_spawn = Vector2(1400, 1500)
+encounter_groups = Array[EncounterGroup]([ExtResource("2_wp"), ExtResource("3_gr")])

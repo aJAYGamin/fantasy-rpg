@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="MapArea" format=3 uid="uid://bxtkcc37tk6v2"]
+
+[ext_resource type="Script" uid="uid://dm7d3gjebbqvr" path="res://scripts/overworld/MapArea.gd" id="1_ma"]
+[ext_resource type="Script" uid="uid://b8tw205heq3dy" path="res://scripts/overworld/EncounterGroup.gd" id="1_wyc01"]
+[ext_resource type="Resource" path="res://data/encounters/goblin_ambush.tres" id="2_ga"]
+
+[resource]
+script = ExtResource("1_ma")
+area_name = "Goblin Castle"
+default_spawn = Vector2(400, 1350)
+encounter_groups = Array[ExtResource("1_wyc01")]([ExtResource("2_ga")])

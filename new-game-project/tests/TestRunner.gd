@@ -36,6 +36,10 @@ const SUITE_PATHS := [
 	"res://tests/suites/test_level_up_screen.gd",
 	"res://tests/suites/test_defeat_flow.gd",
 	"res://tests/suites/test_roaming_enemy.gd",
+	"res://tests/suites/test_map_transition.gd",
+	"res://tests/suites/test_map_zone.gd",
+	"res://tests/suites/test_roamer_territory.gd",
+	"res://tests/suites/test_depth_overlay.gd",
 ]
 
 func _ready() -> void:

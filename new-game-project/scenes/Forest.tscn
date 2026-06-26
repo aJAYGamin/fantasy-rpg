@@ -1,0 +1,103 @@
+[gd_scene format=3 uid="uid://cnvfhkemwkx02"]
+
+[ext_resource type="Script" uid="uid://v3sxdaxf6g3" path="res://scripts/overworld/OverworldScene.gd" id="1_scene"]
+[ext_resource type="Script" uid="uid://cweivgthta1cf" path="res://scripts/overworld/Player.gd" id="2_player"]
+[ext_resource type="Resource" path="res://data/maps/forest.tres" id="3_area"]
+[ext_resource type="Script" path="res://scripts/overworld/MapZone.gd" id="4_zone"]
+[ext_resource type="Script" uid="uid://cm5gxsseoe83o" path="res://scripts/overworld/RoamerTerritory.gd" id="5_terr"]
+
+[sub_resource type="RectangleShape2D" id="Shape_horizontal_wall"]
+size = Vector2(3000, 100)
+
+[sub_resource type="RectangleShape2D" id="Shape_vertical_wall"]
+size = Vector2(100, 2000)
+
+[sub_resource type="RectangleShape2D" id="Shape_player"]
+size = Vector2(28, 28)
+
+[node name="Forest" type="Node2D" unique_id=1091315475]
+script = ExtResource("1_scene")
+area = ExtResource("3_area")
+field_rect = Rect2(0, 0, 2800, 1800)
+
+[node name="Background" type="ColorRect" parent="." unique_id=193740362]
+z_index = -1
+offset_right = 2800.0
+offset_bottom = 1800.0
+color = Color(0.13, 0.24, 0.14, 1)
+
+[node name="ExitPath" type="ColorRect" parent="." unique_id=1849441120]
+offset_left = 1280.0
+offset_top = 1680.0
+offset_right = 1520.0
+offset_bottom = 1800.0
+color = Color(0.42, 0.5, 0.32, 1)
+
+[node name="BoundaryTop" type="StaticBody2D" parent="." unique_id=881591971]
+position = Vector2(1400, -50)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryTop" unique_id=1328094167]
+shape = SubResource("Shape_horizontal_wall")
+
+[node name="BoundaryBottom" type="StaticBody2D" parent="." unique_id=532555219]
+position = Vector2(1400, 1850)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryBottom" unique_id=739971617]
+shape = SubResource("Shape_horizontal_wall")
+
+[node name="BoundaryLeft" type="StaticBody2D" parent="." unique_id=549112157]
+position = Vector2(-50, 900)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryLeft" unique_id=2033614232]
+shape = SubResource("Shape_vertical_wall")
+
+[node name="BoundaryRight" type="StaticBody2D" parent="." unique_id=1719661730]
+position = Vector2(2850, 900)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryRight" unique_id=1476313179]
+shape = SubResource("Shape_vertical_wall")
+
+[node name="RoamerTerritories" type="Node2D" parent="." unique_id=157106015]
+
+[node name="Territory_West" type="Area2D" parent="RoamerTerritories" unique_id=1507868470]
+script = ExtResource("5_terr")
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="RoamerTerritories/Territory_West" unique_id=657403840]
+polygon = PackedVector2Array(350, 500, 1050, 500, 1050, 1100, 350, 1100)
+
+[node name="Territory_East" type="Area2D" parent="RoamerTerritories" unique_id=709595322]
+script = ExtResource("5_terr")
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="RoamerTerritories/Territory_East" unique_id=2017006836]
+polygon = PackedVector2Array(1750, 450, 2450, 450, 2450, 1050, 1750, 1050)
+
+[node name="Zones" type="Node2D" parent="." unique_id=2087972480]
+
+[node name="Zone_Exit" type="Area2D" parent="Zones" unique_id=884139855]
+script = ExtResource("4_zone")
+label = "Back to Plains"
+target_scene = "res://scenes/OverworldScene.tscn"
+target_spawn = Vector2(976, 2154)
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Zones/Zone_Exit" unique_id=1465559639]
+polygon = PackedVector2Array(1280, 1680, 1520, 1680, 1520, 1800, 1280, 1800)
+
+[node name="Player" type="CharacterBody2D" parent="." unique_id=176949503]
+position = Vector2(1400, 1500)
+script = ExtResource("2_player")
+
+[node name="Sprite" type="ColorRect" parent="Player" unique_id=563229944]
+offset_left = -16.0
+offset_top = -16.0
+offset_right = 16.0
+offset_bottom = 16.0
+color = Color(0.35, 0.55, 0.95, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Player" unique_id=993393578]
+shape = SubResource("Shape_player")
+
+[node name="Camera2D" type="Camera2D" parent="Player" unique_id=1442993376]
+limit_left = 0
+limit_top = 0
+limit_right = 2800
+limit_bottom = 1800

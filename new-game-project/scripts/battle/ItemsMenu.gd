@@ -100,6 +100,9 @@ func _build_menu():
 	var scroll = ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	# Auto-scroll to keep the controller-focused item visible — without this the
+	# d-pad moves focus down the list but the view stays put, so it looks stuck.
+	scroll.follow_focus = true
 	outer.add_child(scroll)
 	# Theme the vertical scrollbar to match the amethyst aesthetic.
 	_style_scrollbar(scroll.get_v_scroll_bar())

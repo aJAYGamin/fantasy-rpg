@@ -141,3 +141,27 @@ func test_focusutil_category_shoulders() -> void:
 	a.button_index = JOY_BUTTON_A
 	a.pressed = true
 	assert_false(FocusUtil.is_prev_category(a), "A button does not cycle category")
+
+func test_focusutil_category_keyboard() -> void:
+	# Q / E are the keyboard category-cycle keys, so keyboard players can switch
+	# Stats/Items/Equipment tabs without the mouse.
+	var q := InputEventKey.new()
+	q.keycode = KEY_Q
+	q.pressed = true
+	var e := InputEventKey.new()
+	e.keycode = KEY_E
+	e.pressed = true
+	assert_true(FocusUtil.is_prev_category(q), "Q is prev-category")
+	assert_true(FocusUtil.is_next_category(e), "E is next-category")
+	assert_false(FocusUtil.is_next_category(q), "Q is not next-category")
+	# An auto-repeat echo must not cycle (one press = one tab change).
+	var q_echo := InputEventKey.new()
+	q_echo.keycode = KEY_Q
+	q_echo.pressed = true
+	q_echo.echo = true
+	assert_false(FocusUtil.is_prev_category(q_echo), "key echo does not cycle category")
+	# An unrelated key does nothing.
+	var w := InputEventKey.new()
+	w.keycode = KEY_W
+	w.pressed = true
+	assert_false(FocusUtil.is_prev_category(w), "W does not cycle category")

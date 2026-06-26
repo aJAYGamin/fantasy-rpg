@@ -195,11 +195,11 @@ func _build_content() -> void:
 	columns.add_child(_build_slots_column(hero))
 	columns.add_child(_build_pool_column(hero))
 	# Prefer the active slot for focus across rebuilds; the central guard makes
-	# the buttons focusable and maintains focus from here (controller mode only).
+	# the buttons focusable and maintains focus from here (keyboard/controller).
 	call_deferred("_focus_after_build")
 
 func _focus_after_build() -> void:
-	if not GameManager.is_controller_mode():
+	if not GameManager.focus_nav_active():
 		return
 	if _selected_slot_btn != null and is_instance_valid(_selected_slot_btn):
 		# Slot buttons start FOCUS_NONE until the guard runs; make this one grabbable.

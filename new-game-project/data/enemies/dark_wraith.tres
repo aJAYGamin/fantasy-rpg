@@ -14,7 +14,6 @@ element = 14
 script = ExtResource("1_skill")
 skill_name = "Soul Drain"
 description = "Drains the life force of a hero."
-mp_cost = 0
 attack_type = 2
 power = 1.4
 element = 14
@@ -25,7 +24,6 @@ status_chance = 0.5
 script = ExtResource("1_skill")
 skill_name = "Dark Pulse"
 description = "A wave of dark energy that corrupts all heroes."
-mp_cost = 0
 attack_type = 2
 target_type = 1
 element = 14
@@ -34,7 +32,6 @@ element = 14
 script = ExtResource("1_skill")
 skill_name = "Void Shroud"
 description = "Wraps itself in darkness, healing its wounds."
-mp_cost = 0
 skill_type = 1
 target_type = 4
 power = 1.1
@@ -46,6 +43,19 @@ species = "Dark Wraith"
 rarity = 1
 base_exp_reward = 25
 base_gold_reward = 12
+drop_table = Array[Dictionary]([{
+"chance": 0.6,
+"item_name": "Monster Fang",
+"quantity": 1
+}, {
+"chance": 0.35,
+"item_name": "Health Potion",
+"quantity": 1
+}, {
+"chance": 0.15,
+"item_name": "Guardian Charm",
+"quantity": 1
+}])
 character_name = "Dark Wraith"
 character_class = "Mage"
 base_hp = 45
@@ -56,4 +66,3 @@ base_speed = 9
 element = 14
 secondary_element = 10
 skills = Array[ExtResource("1_skill")]([SubResource("Skill_shadow_claw"), SubResource("Skill_soul_drain"), SubResource("Skill_dark_pulse"), SubResource("Skill_void_shroud")])
-drop_table = Array[Dictionary]([{ "item_name": "Monster Fang", "chance": 0.6, "quantity": 1 }, { "item_name": "Health Potion", "chance": 0.35, "quantity": 1 }, { "item_name": "Guardian Charm", "chance": 0.15, "quantity": 1 }])

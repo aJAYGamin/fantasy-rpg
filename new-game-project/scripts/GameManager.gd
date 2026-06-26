@@ -52,6 +52,19 @@ var last_battle_won: bool = false
 # i-frames on return (no roamer can pull them into another fight immediately).
 var pending_flee_iframes: bool = false
 
+# ─── Map-to-Map Transitions (P7p2) ───────────────────────
+# Set by a MapTransition zone right before change_scene_to_file; the destination
+# OverworldScene consumes them in _ready (spawn at the target + fade back in).
+# Transient — both are cleared the instant the destination reads them.
+var pending_transition_active: bool = false
+var pending_transition_spawn: Vector2 = Vector2.ZERO
+var pending_fade_in: bool = false   # destination should start black and fade in
+# Where the player last entered a transition from. A "return_to_origin" zone (e.g. a
+# shared town-interior exit) sends them back here, so one interior can serve several
+# towns and drop the player back at the right one.
+var transition_origin_scene: String = ""
+var transition_origin_pos: Vector2 = Vector2.ZERO
+
 # Persistent roamer state for the CURRENT region, so roamers survive the battle
 # scene reload. A region is identified by its overworld scene path. On battle
 # return we restore the survivors (minus the defeated one); moving to a DIFFERENT
@@ -121,9 +134,13 @@ var _fps_label: Label = null
 const BUTTON_SFX_PATH: String = "res://music/GUI_Sound_Effects_by_Lokif/misc_menu_4.wav"
 var _ui_sfx: AudioStreamPlayer = null
 
-# Active input mode. true = controller (menus are focus-navigable); false =
-# keyboard+mouse (menu buttons are mouse-only; keyboard is overworld actions).
+# Active input mode flags. Focus-based menu navigation (a moving highlight driven
+# by the ui_up/down/left/right + ui_accept actions) is on for BOTH controller AND
+# keyboard; only pure-mouse usage turns it off so menus go click-only with no ring.
+# `_controller_mode` stays true only for an actual gamepad (it drives the Settings
+# device status); for "should menus be arrow/d-pad navigable" use focus_nav_active().
 var _controller_mode: bool = false
+var _keyboard_nav: bool = false
 
 func _ready():
 	# Run while the tree is paused so the focus guard keeps working in the pause menu.
@@ -162,10 +179,10 @@ func register_focus_scope(ctrl: Control) -> void:
 	_prune_focus_scopes()
 	_focus_scopes = _focus_scopes.filter(func(s): return s["ctrl"] != ctrl)
 	_focus_scopes.append({"ctrl": ctrl})
-	# In keyboard+mouse mode, immediately lock the new scope to click-only so its
-	# buttons never become keyboard-navigable; in controller mode, force the guard
-	# to re-evaluate the active scope next tick.
-	if not _controller_mode:
+	# In mouse mode, immediately lock the new scope to click-only (no focus ring);
+	# in keyboard/controller mode, force the guard to re-evaluate the active scope
+	# next tick so the new scope's buttons become navigable.
+	if not focus_nav_active():
 		_set_scope_focusable(ctrl, false)
 	else:
 		_focus_top_last = null
@@ -203,6 +220,10 @@ func top_focus_scope() -> Control:
 func set_controller_mode_for_test(controller: bool) -> void:
 	_set_controller_mode(controller)
 
+# Test hook: force keyboard-navigation mode (focus nav on, gamepad bit off).
+func set_keyboard_nav_for_test(on: bool) -> void:
+	_apply_input_mode(false, on)
+
 # Test hook: run one guard tick synchronously.
 func update_focus_guard_for_test() -> void:
 	_update_focus_guard()
@@ -216,14 +237,14 @@ func _update_focus_guard() -> void:
 	if vp == null:
 		return
 
-	if not _controller_mode:
-		# Mouse/keyboard: menus are click-only. Lock every scope's controls to
-		# FOCUS_NONE so the keyboard can't navigate/activate them, and release the
-		# focus ring — but ONLY on the transition into mouse mode. Doing
-		# release_focus() every frame cancels an in-progress button press (mouse
-		# down then up on the next frame), so clicks like the settings Back button
-		# silently fail. Once the controls are FOCUS_NONE they can't hold focus
-		# anyway, so a one-time release is sufficient.
+	if not focus_nav_active():
+		# Pure mouse: menus are click-only. Lock every scope's controls to
+		# FOCUS_NONE so no focus ring shows, and release the focus owner — but ONLY
+		# on the transition into mouse mode. Doing release_focus() every frame
+		# cancels an in-progress button press (mouse down then up on the next
+		# frame), so clicks like the settings Back button silently fail. Once the
+		# controls are FOCUS_NONE they can't hold focus anyway, so a one-time
+		# release is sufficient.
 		if _focus_top_last != null:
 			for s in _focus_scopes:
 				var c: Control = s["ctrl"]
@@ -454,24 +475,40 @@ var _last_mouse_ms: int = -100000
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey:
 		_last_kb_ms = Time.get_ticks_msec()
-		_set_controller_mode(false)
+		_apply_input_mode(false, true)    # keyboard → focus navigation
 	elif event is InputEventMouseButton or event is InputEventMouseMotion:
 		_last_mouse_ms = Time.get_ticks_msec()
-		_set_controller_mode(false)
+		_apply_input_mode(false, false)   # mouse → click-only, no focus ring
 	elif event is InputEventJoypadButton and event.pressed:
-		_set_controller_mode(true)
+		_apply_input_mode(true, false)    # controller → focus navigation
 	elif event is InputEventJoypadMotion and absf(event.axis_value) > 0.5:
-		_set_controller_mode(true)
+		_apply_input_mode(true, false)
 
-# --- Input mode (controller vs keyboard+mouse) ---------------------------------
+# --- Input mode (controller vs keyboard vs mouse) ------------------------------
 func is_controller_mode() -> bool:
 	return _controller_mode
 
+# True when menus should be focus-navigable (moving highlight + ui_accept). On for
+# controller AND keyboard; off for pure mouse. This is what the focus guard and the
+# per-screen "grab initial focus" helpers key off of.
+func focus_nav_active() -> bool:
+	return _controller_mode or _keyboard_nav
+
 func _set_controller_mode(controller: bool) -> void:
-	if _controller_mode == controller:
+	# Setting controller mode explicitly (e.g. the test hook) clears keyboard nav,
+	# so `false` means "mouse mode / click-only", matching the prior behavior.
+	_apply_input_mode(controller, false)
+
+func _apply_input_mode(controller: bool, keyboard: bool) -> void:
+	if controller == _controller_mode and keyboard == _keyboard_nav:
 		return
+	var ctrl_changed := controller != _controller_mode
 	_controller_mode = controller
-	input_mode_changed.emit(controller)
+	_keyboard_nav = keyboard
+	# Emit only when the gamepad bit flips (device status listeners care about that);
+	# the focus guard re-applies focusability on its own via _focus_top_last tracking.
+	if ctrl_changed:
+		input_mode_changed.emit(controller)
 
 func keyboard_status_text() -> String:
 	return "Keyboard detected" if (Time.get_ticks_msec() - _last_kb_ms) < _INPUT_ACTIVE_MS else "No external keyboard found"
@@ -539,6 +576,10 @@ func start_new_game(slot: int):
 	pending_battle_enemies = [] as Array[Enemy]
 	pending_roamer_id = -1
 	pending_flee_iframes = false
+	pending_transition_active = false
+	pending_fade_in = false
+	transition_origin_scene = ""
+	transition_origin_pos = Vector2.ZERO
 	clear_roamer_state()
 	active_slot = slot  # setter persists last_slot to config
 	ensure_default_party()

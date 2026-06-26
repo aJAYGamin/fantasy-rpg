@@ -212,6 +212,7 @@ func _build_chrome() -> void:
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true   # keep the controller-focused item in view
 	root_v.add_child(scroll)
 
 	var scroll_margin := MarginContainer.new()
@@ -326,7 +327,11 @@ func _apply_field_item(item: Item, targets: Array) -> void:
 	item.quantity -= 1
 	if item.quantity <= 0 and _inventory != null:
 		_inventory.items.erase(item)
-	_build_content()
+	# Rebuild AFTER the current input event finishes. Rebuilding now would free the
+	# Use/target Button whose `pressed` is still executing, which leaves the
+	# viewport's GUI mouse state pointing at a freed control — every later click
+	# (e.g. the "?" buttons) is then swallowed until a tab switch resets it.
+	call_deferred("_build_content")
 
 func _open_target_picker(item: Item) -> void:
 	_close_target_picker()
@@ -398,7 +403,9 @@ func _make_target_button(item: Item, hero: Character) -> Button:
 	if valid:
 		b.pressed.connect(func():
 			_apply_field_item(item, [hero])
-			_close_target_picker())
+			# Deferred: this target button is freed by the close, and freeing it
+			# mid-press would wedge the GUI mouse state (see _apply_field_item).
+			call_deferred("_close_target_picker"))
 
 	var row := HBoxContainer.new()
 	row.set_anchors_preset(Control.PRESET_FULL_RECT)
