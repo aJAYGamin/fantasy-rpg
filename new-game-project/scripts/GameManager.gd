@@ -4,6 +4,12 @@ extends Node
 
 signal gold_changed(new_amount: int)
 signal party_updated
+# Emitted when a quest is accepted from a giver, and when one is turned in (rewarded).
+signal quest_accepted(quest: Quest)
+signal quest_completed(quest: Quest)
+# Fires on ANY quest-state change (accept / turn-in / select active / story change)
+# so NPCs can refresh their waypoint markers.
+signal quests_changed
 # Emitted when a controller connects/disconnects (for the Settings device status).
 signal controllers_changed
 # Emitted when the active input mode flips between controller and keyboard+mouse.
@@ -29,7 +35,8 @@ var gold: int = 100:
 
 # ─── World State ─────────────────────────────────────────
 var current_map: String = "world_map"
-var completed_quests: Array[String] = []
+# Quest state: live ACTIVE quest instances + COMPLETED ids (see QuestLog).
+var quest_log := QuestLog.new()
 var story_flags: Dictionary = {}   # e.g. {"met_elder": true, "darkwood_cleared": false}
 var play_time_seconds: float = 0.0
 
@@ -566,7 +573,8 @@ func start_new_game(slot: int):
 	party = [] as Array[Character]
 	gold = 100
 	species_memory = {}
-	completed_quests = [] as Array[String]
+	quest_log.reset()
+	quest_log.set_story(QuestFactory.create(QuestFactory.STORY_START))
 	story_flags = {}
 	play_time_seconds = 0.0
 	save_overworld_scene_path = ""
@@ -621,11 +629,77 @@ func spend_gold(amount: int) -> bool:
 
 # ─── Quest & Flags ───────────────────────────────────────
 func complete_quest(quest_id: String):
-	if not quest_id in completed_quests:
-		completed_quests.append(quest_id)
+	if not quest_id in quest_log.completed:
+		quest_log.completed.append(quest_id)
 
 func is_quest_done(quest_id: String) -> bool:
-	return quest_id in completed_quests
+	return quest_log.is_completed(quest_id)
+
+# Accept a SIDE quest from a giver (by id or a built Quest). Returns the accepted
+# Quest, or null if it couldn't be accepted (already had / completed / unknown id).
+func accept_quest(quest_or_id) -> Quest:
+	var quest: Quest = quest_or_id if quest_or_id is Quest else QuestFactory.create(String(quest_or_id))
+	if quest == null:
+		return null
+	if quest_log.accept_side(quest):
+		emit_signal("quest_accepted", quest)
+		emit_signal("quests_changed")
+		return quest
+	return null
+
+# Sets the always-active story quest (by id or a built Quest). Called on new game and
+# whenever the story advances.
+func set_story_quest(quest_or_id) -> Quest:
+	var quest: Quest = quest_or_id if quest_or_id is Quest else QuestFactory.create(String(quest_or_id))
+	quest_log.set_story(quest)
+	emit_signal("quests_changed")
+	return quest
+
+# Picks which accepted side quest is the highlighted "active side quest".
+func select_active_side_quest(quest_id: String) -> bool:
+	var ok := quest_log.select_active_side(quest_id)
+	if ok:
+		emit_signal("quests_changed")
+	return ok
+
+# Advance counter quests whose objective_key matches (e.g. "defeat:goblin"). Combat
+# and other systems call this; the Quests menu reflects it.
+func report_quest_event(event_key: String, amount: int = 1) -> void:
+	quest_log.report(event_key, amount)
+
+func can_turn_in_quest(quest_id: String) -> bool:
+	return quest_log.can_turn_in(quest_id)
+
+# Turn in an objective-met quest: moves it to completed and grants its rewards
+# (gold, XP to the whole party, and any reward items). Returns the quest or null.
+func turn_in_quest(quest_id: String) -> Quest:
+	var q := quest_log.mark_completed(quest_id)
+	if q == null:
+		return null
+	if q.reward_gold > 0:
+		earn_gold(q.reward_gold)
+	for n in q.reward_items:
+		var it := ItemFactory.create(String(n))
+		if it != null and not party.is_empty():
+			party[0].inventory.add_item(it)
+	emit_signal("quest_completed", q)
+	emit_signal("quests_changed")
+	return q
+
+# Restores quest state from a save dict. New saves carry a structured "quests" dict
+# (story + side quests + active selection + completed); older saves only had a
+# "completed_quests" id list. Either way the story quest is guaranteed present after.
+func _load_quests(data: Dictionary) -> void:
+	if data.has("quests") and data["quests"] is Dictionary:
+		quest_log.from_save(data["quests"])
+	else:
+		quest_log.reset()
+		for q in data.get("completed_quests", []):
+			var s := str(q)
+			if not (s in quest_log.completed):
+				quest_log.completed.append(s)
+	if quest_log.story == null:
+		quest_log.set_story(QuestFactory.create(QuestFactory.STORY_START))
 
 func set_flag(flag: String, value = true):
 	story_flags[flag] = value
@@ -656,7 +730,7 @@ func save_game():
 	var save_data = {
 		"gold": gold,
 		"current_map": current_map,
-		"completed_quests": completed_quests,
+		"quests": quest_log.to_save(),
 		"story_flags": story_flags,
 		"play_time": play_time_seconds,
 		"species_memory": species_memory,
@@ -692,7 +766,7 @@ func load_game() -> bool:
 	var data = json.data
 	gold = data.get("gold", 100)
 	current_map = data.get("current_map", "world_map")
-	completed_quests = data.get("completed_quests", [])
+	_load_quests(data)
 	story_flags = data.get("story_flags", {})
 	species_memory = data.get("species_memory", {})
 	play_time_seconds = data.get("play_time", 0.0)
@@ -744,7 +818,7 @@ func _build_save_dict() -> Dictionary:
 		"gold": gold,
 		"party": SaveSerializer.serialize_party(party),
 		"species_memory": species_memory,
-		"completed_quests": completed_quests,
+		"quests": quest_log.to_save(),
 		"story_flags": story_flags,
 		"current_map": current_map,
 		"overworld_scene_path": save_overworld_scene_path,
@@ -805,11 +879,7 @@ func load_from_slot(slot: int) -> bool:
 	var data = json.data
 	gold = int(data.get("gold", 100))
 	species_memory = data.get("species_memory", {})
-	# JSON.parse returns untyped Array, so quests must be re-typed before assignment.
-	var typed_quests: Array[String] = []
-	for q in data.get("completed_quests", []):
-		typed_quests.append(str(q))
-	completed_quests = typed_quests
+	_load_quests(data)
 	story_flags = data.get("story_flags", {})
 	current_map = data.get("current_map", "world_map")
 	play_time_seconds = float(data.get("metadata", {}).get("playtime_seconds", 0.0))

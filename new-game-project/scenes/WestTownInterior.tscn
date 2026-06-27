@@ -5,6 +5,8 @@
 [ext_resource type="Resource" path="res://data/maps/west_town_interior.tres" id="3_area"]
 [ext_resource type="Script" path="res://scripts/overworld/MapZone.gd" id="4_zone"]
 [ext_resource type="Script" uid="uid://dmyv4jd0wgae5" path="res://scripts/overworld/EditorCollisionViz.gd" id="5_viz"]
+[ext_resource type="Script" path="res://scripts/overworld/NPC.gd" id="6_npc"]
+[ext_resource type="Script" path="res://scripts/overworld/QuestGiver.gd" id="7_giver"]
 
 [sub_resource type="RectangleShape2D" id="Shape_horizontal_wall"]
 size = Vector2(2200, 100)
@@ -90,3 +92,10 @@ limit_bottom = 1400
 
 [node name="EditorCollisionViz" type="Node2D" parent="." unique_id=1464271681]
 script = ExtResource("5_viz")
+
+[node name="NPC_Greeter" type="StaticBody2D" parent="."]
+position = Vector2(1000, 820)
+script = ExtResource("7_giver")
+npc_name = "Townsperson"
+quest_id = "cull_goblins"
+lines = PackedStringArray("Welcome to West Town, traveler!")

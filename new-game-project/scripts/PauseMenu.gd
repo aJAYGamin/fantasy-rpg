@@ -138,6 +138,18 @@ func _open_equipment() -> void:
 	screen.setup(GameManager.party)
 	call_deferred("_focus_sub_view")
 
+# Opens the Quests screen as a sub-view (replace-don't-stack). No party guard —
+# quests are global state.
+func _open_quests() -> void:
+	if _main_content and is_instance_valid(_main_content):
+		_main_content.hide()
+	var screen := QuestScreen.new()
+	_sub_view = screen
+	screen.back_requested.connect(_dismiss_sub_view)
+	add_child(screen)
+	screen.setup(GameManager.party)
+	call_deferred("_focus_sub_view")
+
 # Opens the Settings screen as a sub-view (replace-don't-stack). PauseMenu owns
 # Esc here, so SettingsScreen is opened non-standalone.
 func _open_settings() -> void:
@@ -193,6 +205,7 @@ func _rebuild() -> void:
 	v.add_child(_menu_button("Stats", _open_stats))
 	v.add_child(_menu_button("Items", _open_items))
 	v.add_child(_menu_button("Equipment", _open_equipment))
+	v.add_child(_menu_button("Quests", _open_quests))
 	v.add_child(_menu_button("Settings", _open_settings))
 	v.add_child(_menu_button("Quit to Main Menu", _on_quit, true))
 

@@ -4,6 +4,10 @@ extends CharacterBody2D
 const SPEED: float = 180.0
 
 func _physics_process(_delta: float) -> void:
+	# Freeze movement during a conversation (the dialogue box owns input then).
+	if DialogueManager.is_active():
+		velocity = Vector2.ZERO
+		return
 	var input_dir: Vector2 = Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	# Left-stick sensitivity scales analog tilt (keyboard input is already full
 	# magnitude, so limit_length keeps it at normal speed).
