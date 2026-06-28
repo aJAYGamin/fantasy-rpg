@@ -35,6 +35,11 @@ var gold: int = 100:
 
 # ─── World State ─────────────────────────────────────────
 var current_map: String = "world_map"
+# In-world clock (time of day). Advances during overworld exploration; paused in
+# battles, menus, and dialogue/cutscenes (see _process gating). Persisted in saves.
+var clock := TimeOfDay.new()
+var _time_in_overworld: bool = false
+var _clock_overlay: CanvasLayer = null
 # Quest state: live ACTIVE quest instances + COMPLETED ids (see QuestLog).
 var quest_log := QuestLog.new()
 var story_flags: Dictionary = {}   # e.g. {"met_elder": true, "darkwood_cleared": false}
@@ -159,12 +164,36 @@ func _ready():
 	Input.joy_connection_changed.connect(_on_joy_connection_changed)
 	# Start in controller mode if a pad is already connected at launch.
 	_controller_mode = not Input.get_connected_joypads().is_empty()
+	_create_clock_overlay.call_deferred()
+
+func _create_clock_overlay() -> void:
+	if _clock_overlay != null and is_instance_valid(_clock_overlay):
+		return
+	# load() (not preload) + deferred so ClockOverlay compiles after this script is
+	# fully settled, not re-entrantly during _ready (the dialogue-box trap).
+	var clock_script: GDScript = load("res://scripts/ui/ClockOverlay.gd")
+	_clock_overlay = clock_script.new()
+	add_child(_clock_overlay)
 
 func _process(delta):
 	play_time_seconds += delta
+	# Advance the in-world clock only while exploring — paused in battle, in any menu
+	# (the tree is paused), and during dialogue/cutscenes.
+	if _time_in_overworld and not get_tree().paused and not DialogueManager.is_active():
+		clock.advance_real(delta)
 	if _fps_label != null and _fps_label.visible:
 		_fps_label.text = "FPS %d" % Engine.get_frames_per_second()
 	_update_focus_guard()
+
+# Called by overworld/interior scenes (true on enter, false on exit) so the clock +
+# its overlay only run there, not in battle or the main menu.
+func set_time_overworld(active: bool) -> void:
+	_time_in_overworld = active
+
+func time_clock_visible() -> bool:
+	# Hidden in battle / main menu (not in the overworld) and while the game is
+	# paused (a menu is open).
+	return _time_in_overworld and not get_tree().paused
 
 # ─── Centralized controller-focus guard ──────────────────
 # The single source of truth for "what does the controller have focus on."
@@ -575,6 +604,7 @@ func start_new_game(slot: int):
 	species_memory = {}
 	quest_log.reset()
 	quest_log.set_story(QuestFactory.create(QuestFactory.STORY_START))
+	clock.set_minutes(TimeOfDay.START_MINUTES)
 	story_flags = {}
 	play_time_seconds = 0.0
 	save_overworld_scene_path = ""
@@ -731,6 +761,7 @@ func save_game():
 		"gold": gold,
 		"current_map": current_map,
 		"quests": quest_log.to_save(),
+		"time_minutes": clock.minutes,
 		"story_flags": story_flags,
 		"play_time": play_time_seconds,
 		"species_memory": species_memory,
@@ -767,6 +798,7 @@ func load_game() -> bool:
 	gold = data.get("gold", 100)
 	current_map = data.get("current_map", "world_map")
 	_load_quests(data)
+	clock.set_minutes(float(data.get("time_minutes", TimeOfDay.START_MINUTES)))
 	story_flags = data.get("story_flags", {})
 	species_memory = data.get("species_memory", {})
 	play_time_seconds = data.get("play_time", 0.0)
@@ -819,6 +851,7 @@ func _build_save_dict() -> Dictionary:
 		"party": SaveSerializer.serialize_party(party),
 		"species_memory": species_memory,
 		"quests": quest_log.to_save(),
+		"time_minutes": clock.minutes,
 		"story_flags": story_flags,
 		"current_map": current_map,
 		"overworld_scene_path": save_overworld_scene_path,
@@ -880,6 +913,7 @@ func load_from_slot(slot: int) -> bool:
 	gold = int(data.get("gold", 100))
 	species_memory = data.get("species_memory", {})
 	_load_quests(data)
+	clock.set_minutes(float(data.get("time_minutes", TimeOfDay.START_MINUTES)))
 	story_flags = data.get("story_flags", {})
 	current_map = data.get("current_map", "world_map")
 	play_time_seconds = float(data.get("metadata", {}).get("playtime_seconds", 0.0))

@@ -29,6 +29,13 @@ extends Resource
 # encounter relevant as the player levels. enemy_level_override still wins, and
 # scripted fights (e.g. a story boss) can turn this off to stay at fixed levels.
 @export var scale_levels_to_party: bool = true
+# Time-of-day gate: which phases (TimeOfDay.Phase ints — 0=Dawn, 1=Day, 2=Dusk,
+# 3=Night) this group may spawn in. Empty = any time. e.g. [3] = night-only.
+@export var time_phases: Array[int] = []
+
+# True if this group may spawn during the given time phase.
+func allowed_at_phase(phase: int) -> bool:
+	return time_phases.is_empty() or phase in time_phases
 
 # Builds a battle-ready list of Enemy instances for this group. Pass the party's
 # max level so enemies can scale to it (0 = no scaling, use template levels).

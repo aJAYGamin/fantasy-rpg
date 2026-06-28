@@ -45,9 +45,16 @@ var _fade_layer: CanvasLayer = null
 var _fade_rect: ColorRect = null
 # P7p2 debug zone overlay (toggled with F3).
 var _zone_debug: ZoneDebugOverlay = null
+var _time_modulate: CanvasModulate = null   # tints the world by time of day
 
 func _ready() -> void:
 	GameManager.ensure_default_party()
+	# Time of day: the clock runs while this scene is active; a CanvasModulate tints
+	# the world (map/player/roamers) per phase — UI on CanvasLayers is unaffected.
+	GameManager.set_time_overworld(true)
+	_time_modulate = CanvasModulate.new()
+	_time_modulate.color = GameManager.clock.tint()
+	add_child(_time_modulate)
 	# Depth (P7p2): Y-sort the scene so the player can walk BEHIND structures.
 	# DepthOverlay polygons re-draw building pixels at their baseline Y; the
 	# player (and roamers) interleave with them by position. Nested overlay
@@ -230,7 +237,15 @@ func _on_pause_quit() -> void:
 	get_tree().paused = false
 	get_tree().change_scene_to_file(MAIN_MENU_SCENE_PATH)
 
+func _exit_tree() -> void:
+	# Leaving the overworld (to battle / main menu) stops the clock + hides its overlay.
+	GameManager.set_time_overworld(false)
+
 func _process(delta: float) -> void:
+	# Keep the world tint current every frame (even mid-transition for a smooth fade).
+	if _time_modulate != null:
+		_time_modulate.color = GameManager.clock.tint()
+
 	if _encounter_in_flight or _transitioning:
 		return
 
@@ -254,10 +269,16 @@ func _eligible_groups() -> Array[EncounterGroup]:
 	if area == null:
 		return available
 	var party_level: int = _get_party_max_level()
+	var phase: int = GameManager.clock.phase()
+	var any_phase: Array[EncounterGroup] = []
 	for g in area.encounter_groups:
 		if g != null and g.min_party_level <= party_level and not g.enemy_pool.is_empty():
-			available.append(g)
-	return available
+			any_phase.append(g)
+			if g.allowed_at_phase(phase):
+				available.append(g)
+	# If nothing matches the current phase, fall back to all eligible groups so the
+	# region is never empty at some time of day.
+	return available if not available.is_empty() else any_phase
 
 # --- Spawn (fresh) ---
 func _spawn_initial_roamers(count: int) -> void:
