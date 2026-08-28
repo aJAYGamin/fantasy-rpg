@@ -10,22 +10,22 @@ extends RefCounted
 # listed; effect_stat stays "" since none of these are stat buff/debuff items.
 const DEFS := {
 	# Healing consumables (field-usable).
-	"Health Potion": {"desc": "Restores 50 HP to one ally.", "type": Item.ItemType.HP_RESTORE, "value": 50, "target": Item.TargetType.SINGLE_ALLY},
-	"Mana Potion": {"desc": "Restores 30 MP to one ally.", "type": Item.ItemType.MP_RESTORE, "value": 30, "target": Item.TargetType.SINGLE_ALLY},
-	"Elixir": {"desc": "Restores 100 HP to all allies.", "type": Item.ItemType.HP_RESTORE, "value": 100, "target": Item.TargetType.ALL_ALLIES},
-	"Phoenix Down": {"desc": "Revives a defeated ally with 50% HP.", "type": Item.ItemType.REVIVAL, "value": 50, "target": Item.TargetType.SINGLE_ALLY},
-	"Antidote": {"desc": "Cures poison and burn from one ally.", "type": Item.ItemType.ANTIDOTE, "value": 0, "target": Item.TargetType.SINGLE_ALLY},
+	"Health Potion": {"desc": "Restores 50 HP to one ally.", "type": Item.ItemType.HP_RESTORE, "value": 50, "target": Item.TargetType.SINGLE_ALLY, "price": 30},
+	"Mana Potion": {"desc": "Restores 30 MP to one ally.", "type": Item.ItemType.MP_RESTORE, "value": 30, "target": Item.TargetType.SINGLE_ALLY, "price": 25},
+	"Elixir": {"desc": "Restores 100 HP to all allies.", "type": Item.ItemType.HP_RESTORE, "value": 100, "target": Item.TargetType.ALL_ALLIES, "price": 120},
+	"Phoenix Down": {"desc": "Revives a defeated ally with 50% HP.", "type": Item.ItemType.REVIVAL, "value": 50, "target": Item.TargetType.SINGLE_ALLY, "price": 200},
+	"Antidote": {"desc": "Cures poison and burn from one ally.", "type": Item.ItemType.ANTIDOTE, "value": 0, "target": Item.TargetType.SINGLE_ALLY, "price": 20},
 	# Battle items (combat-only).
-	"Fire Bomb": {"desc": "Deals 40 fire damage to all enemies.", "type": Item.ItemType.DAMAGE, "value": 40, "target": Item.TargetType.ALL_ENEMIES},
-	"Smoke Veil": {"desc": "Grants a 20% chance to dodge attacks to one ally.", "type": Item.ItemType.DODGE_BUFF, "value": 20, "target": Item.TargetType.SINGLE_ALLY},
-	# General / crafting materials (the kind of thing enemies drop).
-	"Monster Fang": {"desc": "A sharp fang dropped by beasts. Crafting material.", "type": Item.ItemType.GENERAL, "value": 0, "target": Item.TargetType.SINGLE_ALLY},
-	"Beast Hide": {"desc": "Tough hide from a wild creature. Crafting material.", "type": Item.ItemType.GENERAL, "value": 0, "target": Item.TargetType.SINGLE_ALLY},
-	"Glimmer Dust": {"desc": "Faintly glowing dust shed by magical foes. Crafting material.", "type": Item.ItemType.GENERAL, "value": 0, "target": Item.TargetType.SINGLE_ALLY},
-	"Worn Pendant": {"desc": "A tarnished pendant of little obvious value.", "type": Item.ItemType.GENERAL, "value": 0, "target": Item.TargetType.SINGLE_ALLY},
-	# Key items (story/event — never consumed).
-	"Amethyst Shard": {"desc": "A humming shard of amethyst. It resonates faintly with the coming Requiem.", "type": Item.ItemType.KEY, "value": 0, "target": Item.TargetType.SINGLE_ALLY},
-	"Silent Shrine Key": {"desc": "An old key said to open one of the fallen water-shrines.", "type": Item.ItemType.KEY, "value": 0, "target": Item.TargetType.SINGLE_ALLY},
+	"Fire Bomb": {"desc": "Deals 40 fire damage to all enemies.", "type": Item.ItemType.DAMAGE, "value": 40, "target": Item.TargetType.ALL_ENEMIES, "price": 60},
+	"Smoke Veil": {"desc": "Grants a 20% chance to dodge attacks to one ally.", "type": Item.ItemType.DODGE_BUFF, "value": 20, "target": Item.TargetType.SINGLE_ALLY, "price": 80},
+	# General / crafting materials (sellable; the kind of thing enemies drop).
+	"Monster Fang": {"desc": "A sharp fang dropped by beasts. Crafting material.", "type": Item.ItemType.GENERAL, "value": 0, "target": Item.TargetType.SINGLE_ALLY, "price": 10},
+	"Beast Hide": {"desc": "Tough hide from a wild creature. Crafting material.", "type": Item.ItemType.GENERAL, "value": 0, "target": Item.TargetType.SINGLE_ALLY, "price": 16},
+	"Glimmer Dust": {"desc": "Faintly glowing dust shed by magical foes. Crafting material.", "type": Item.ItemType.GENERAL, "value": 0, "target": Item.TargetType.SINGLE_ALLY, "price": 30},
+	"Worn Pendant": {"desc": "A tarnished pendant of little obvious value.", "type": Item.ItemType.GENERAL, "value": 0, "target": Item.TargetType.SINGLE_ALLY, "price": 24},
+	# Key items (story/event — never consumed or sold).
+	"Amethyst Shard": {"desc": "A humming shard of amethyst. It resonates faintly with the coming Requiem.", "type": Item.ItemType.KEY, "value": 0, "target": Item.TargetType.SINGLE_ALLY, "price": 0},
+	"Silent Shrine Key": {"desc": "An old key said to open one of the fallen water-shrines.", "type": Item.ItemType.KEY, "value": 0, "target": Item.TargetType.SINGLE_ALLY, "price": 0},
 }
 
 static func has_item(name: String) -> bool:
@@ -44,6 +44,7 @@ static func create(name: String, quantity: int = 1) -> Item:
 	it.item_type = d["type"]
 	it.effect_value = d["value"]
 	it.target_type = d["target"]
+	it.price = int(d.get("price", 0))
 	it.quantity = quantity
 	return it
 

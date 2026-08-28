@@ -31,7 +31,7 @@ const DEFS := {
 		"objective_target": 3,
 		"turn_in_npc": "Townsperson",
 		"reward_gold": 150,
-		"reward_items": ["Potion", "Potion"],
+		"reward_items": ["Health Potion", "Health Potion"],
 	},
 	"wolf_trouble": {
 		"title": "Wolves at the Door",
@@ -43,7 +43,7 @@ const DEFS := {
 		"objective_target": 2,
 		"turn_in_npc": "Townsperson",
 		"reward_gold": 120,
-		"reward_items": ["Ether"],
+		"reward_items": ["Mana Potion"],
 	},
 }
 

@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="MapArea" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/overworld/MapArea.gd" id="1_ma"]
+
+[resource]
+script = ExtResource("1_ma")
+area_name = "Apothecary"
+battle_background_id = "fallster_plains"
+default_spawn = Vector2(836, 760)

@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://v3sxdaxf6g3" path="res://scripts/overworld/OverworldScene.gd" id="1_scene"]
 [ext_resource type="Script" uid="uid://cweivgthta1cf" path="res://scripts/overworld/Player.gd" id="2_player"]
 [ext_resource type="Resource" uid="uid://c6t7ef5so1gd4" path="res://data/maps/fallster_plains.tres" id="3_area"]
-[ext_resource type="Texture2D" uid="uid://jx56rdm32fp7" path="res://assets/maps/FallsterPlains.png" id="4_map"]
+[ext_resource type="Texture2D" uid="uid://jx56rdm32fp7" path="res://assets/maps/Fallster Plains/FallsterPlains.png" id="4_map"]
 [ext_resource type="Script" path="res://scripts/overworld/MapZone.gd" id="5_zone"]
 [ext_resource type="Script" uid="uid://cm5gxsseoe83o" path="res://scripts/overworld/RoamerTerritory.gd" id="6_terr"]
 [ext_resource type="Script" uid="uid://byeuabexqehwh" path="res://scripts/overworld/DepthOverlay.gd" id="7_depth"]
@@ -382,9 +382,19 @@ build_mode = 1
 polygon = PackedVector2Array(1559, 2187, 1533, 2204, 1531, 2219, 1557, 2227, 1588, 2208)
 
 [node name="Stone4" type="CollisionPolygon2D" parent="TerrainCollision/Stones" unique_id=2081845566]
-position = Vector2(153, -140)
+position = Vector2(153, -143)
 build_mode = 1
 polygon = PackedVector2Array(1705, 1454, 1685, 1474, 1699, 1488, 1716, 1493, 1735, 1481, 1726, 1460)
+
+[node name="Stone5" type="CollisionPolygon2D" parent="TerrainCollision/Stones" unique_id=786111350]
+position = Vector2(-183, -288)
+build_mode = 1
+polygon = PackedVector2Array(910, 1270, 889, 1281, 878, 1302, 903, 1312, 912, 1326, 949, 1296)
+
+[node name="Stone6" type="CollisionPolygon2D" parent="TerrainCollision/Stones" unique_id=283186276]
+position = Vector2(153, -140)
+build_mode = 1
+polygon = PackedVector2Array(1121, 1702, 1173, 1733, 1134, 1743, 1130, 1751, 1094, 1741)
 
 [node name="DepthOverlays" type="Node2D" parent="." unique_id=1367519365]
 y_sort_enabled = true
@@ -461,7 +471,8 @@ polygon = PackedVector2Array(1767, 1389, 1768, 1524, 1987, 1526, 1987, 1364)
 script = ExtResource("6_terr")
 
 [node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="RoamerTerritories/Territory 4" unique_id=1847299878]
-position = Vector2(132, -128)
+position = Vector2(379.00003, -51)
+scale = Vector2(0.718388, 1)
 polygon = PackedVector2Array(560, 950, 771, 965, 819, 1186, 560, 1210)
 
 [node name="Territory 5" type="Area2D" parent="RoamerTerritories" unique_id=856704947]

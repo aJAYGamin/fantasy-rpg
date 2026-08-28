@@ -657,6 +657,74 @@ func spend_gold(amount: int) -> bool:
 	print("Not enough gold!")
 	return false
 
+# ─── Shops & Inn ─────────────────────────────────────────
+# All shop transactions use the shared party inventory (party[0].inventory).
+
+func _shared_inventory() -> Inventory:
+	return party[0].inventory if not party.is_empty() else null
+
+func can_afford(cost: int) -> bool:
+	return gold >= cost
+
+# Buys one of a named ItemFactory item if affordable; returns true on success.
+func buy_item(item_name: String) -> bool:
+	var it := ItemFactory.create(item_name)
+	var inv := _shared_inventory()
+	if it == null or inv == null or it.price <= 0 or not can_afford(it.price):
+		return false
+	spend_gold(it.price)
+	inv.add_item(it)
+	return true
+
+# Buys a named EquipmentFactory piece (added to the shared pool) if affordable.
+func buy_equipment(eq_name: String) -> bool:
+	var eq := EquipmentFactory.create(eq_name)
+	var inv := _shared_inventory()
+	if eq == null or inv == null or eq.price <= 0 or not can_afford(eq.price):
+		return false
+	spend_gold(eq.price)
+	inv.add_equipment(eq)
+	return true
+
+# Sells one of an item instance from the shared inventory; returns gold earned (0 if
+# it isn't sellable — e.g. key items).
+func sell_item(item: Item) -> int:
+	var inv := _shared_inventory()
+	if inv == null or item == null or item.sell_price() <= 0:
+		return 0
+	var earned := item.sell_price()
+	inv.remove_item(item, 1)
+	earn_gold(earned)
+	return earned
+
+func sell_equipment(eq: Equipment) -> int:
+	var inv := _shared_inventory()
+	if inv == null or eq == null or eq.sell_price() <= 0:
+		return 0
+	var earned := eq.sell_price()
+	inv.remove_equipment(eq)
+	earn_gold(earned)
+	return earned
+
+# Bumped by story progression to raise inn prices over the game (0 = the starting
+# 20-gold rate). The story system will set this as the player advances.
+var inn_cost_tier: int = 0
+
+# Inn: pay gold to fully restore the party's HP/MP. Starts at 20 gold and only goes
+# up at story milestones (via inn_cost_tier), not with party level.
+func inn_rest_cost() -> int:
+	return 20 + inn_cost_tier * 20
+
+func inn_rest() -> bool:
+	var cost := inn_rest_cost()
+	if not can_afford(cost):
+		return false
+	spend_gold(cost)
+	for c in party:
+		c.current_hp = c.max_hp()
+		c.current_mp = c.max_mp()
+	return true
+
 # ─── Quest & Flags ───────────────────────────────────────
 func complete_quest(quest_id: String):
 	if not quest_id in quest_log.completed:

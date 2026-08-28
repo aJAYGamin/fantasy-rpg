@@ -6,5 +6,5 @@
 script = ExtResource("1_ma")
 area_name = "Center Town"
 battle_background_id = "fallster_plains"
-default_spawn = Vector2(1000, 1100)
+default_spawn = Vector2(836, 820)
 autosave_on_enter = true
