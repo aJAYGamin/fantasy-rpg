@@ -23,6 +23,18 @@ blocked on map art), then P8 skill-learning, P9 real art, P10 story/cutscenes. S
 > accents); never ship default-themed Godot controls (plain dropdowns,
 > scrollbars, sliders, popups, cursors). Style every new control to fit.
 
+> **Art style (world/map/prop art):** **smooth hand-painted 2D illustration** —
+> soft shading, fine clean linework, anti-aliased edges, vibrant saturated colors,
+> top-down 3/4 overhead view (polished storybook / mobile-RPG look). **NOT pixel
+> art** (an earlier note called it "32-bit pixel" — that was wrong; the actual
+> generated maps are painted). Requirement: **individual objects must read clearly**
+> — a player should never have to guess what a structure is because it's blurry, so
+> generate at high enough resolution that small props (flowers, statues, ornaments)
+> keep crisp definition, and downscale in Godot rather than upscaling. Use **Linear**
+> texture filtering for this art (Nearest is only for genuine pixel-art assets like
+> the time-of-day phase icons). Animated props are baked as sprite-sheet loops
+> (SpriteFlow Sprite Motion) in the same painted style; see the animated-prop plan.
+
 ---
 
 ## Engine & Setup
@@ -639,8 +651,8 @@ BattleScene (Node2D)
   - The Fallster Plains map should contain: **2 big towns, 1 small village, 1 river, a
     mountain range with a gate** (pass to another region), and **1 goblin castle** the
     player can travel to and **enter as a dungeon** (the user explicitly wants it enterable).
-    Art must match the battle-scene style (bright 32-bit pixel, Mario & Luigi RPG 3/4
-    top-down). SpriteFlow settings + prompts were already provided to the user.
+    Art must match the game's art style (see **Art Style** below). SpriteFlow settings +
+    prompts were already provided to the user.
   - Wire the generated map into `OverworldScene` (replace the placeholder ColorRect
     field/markers); place real interaction zones: town entrances, the mountain-gate as a
     **map-to-map transition**, and the goblin castle as a **dungeon entrance**.

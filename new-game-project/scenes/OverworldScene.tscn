@@ -26,7 +26,7 @@ area = ExtResource("3_area")
 z_index = -1
 texture_filter = 4
 position = Vector2(-14.000001, -0.99999976)
-scale = Vector2(1.921875, 1.9722222)
+scale = Vector2(0.9609375, 0.9861111)
 texture = ExtResource("4_map")
 centered = false
 
