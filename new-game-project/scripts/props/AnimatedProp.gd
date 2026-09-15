@@ -116,12 +116,12 @@ func _rebuild() -> void:
 		return
 
 	if _sprite == null:
+		_sprite = get_node_or_null("Sprite") as AnimatedSprite2D
+	if _sprite == null:
 		_sprite = AnimatedSprite2D.new()
 		_sprite.name = "Sprite"
 		_sprite.animation_finished.connect(_on_finished)
 		add_child(_sprite)
-		if Engine.is_editor_hint() and owner != null:
-			_sprite.owner = owner
 
 	if frames == null:
 		_sprite.visible = false
@@ -153,13 +153,13 @@ func _rebuild() -> void:
 	# --- shadow ---
 	if shadow_enabled:
 		if _shadow == null:
+			_shadow = get_node_or_null("Shadow") as Sprite2D
+		if _shadow == null:
 			_shadow = Sprite2D.new()
 			_shadow.name = "Shadow"
-			_shadow.texture = PropShadow.texture()
 			add_child(_shadow)
 			move_child(_shadow, 0)   # beneath the sprite
-			if Engine.is_editor_hint() and owner != null:
-				_shadow.owner = owner
+		_shadow.texture = PropShadow.texture()
 		_shadow.visible = true
 		var sw := w * shadow_width
 		var sh := sw * shadow_flatten
@@ -172,12 +172,12 @@ func _rebuild() -> void:
 	# --- light ---
 	if light_enabled:
 		if _light == null:
+			_light = get_node_or_null("Light") as PointLight2D
+		if _light == null:
 			_light = PointLight2D.new()
 			_light.name = "Light"
-			_light.texture = PropShadow.texture()   # same radial falloff, used as glow
 			add_child(_light)
-			if Engine.is_editor_hint() and owner != null:
-				_light.owner = owner
+		_light.texture = PropShadow.texture()   # same radial falloff, used as glow
 		_light.visible = true
 		_light.color = light_color
 		_light.energy = light_energy

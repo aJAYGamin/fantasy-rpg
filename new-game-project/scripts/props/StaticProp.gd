@@ -19,6 +19,13 @@ extends Node2D
 		prop_name = v
 		_rebuild()
 
+## Turns prop_name into a dropdown of everything in PropLibrary, so placing a
+## prop by hand is a pick from a list rather than a string you can typo.
+func _validate_property(property: Dictionary) -> void:
+	if property.name == "prop_name":
+		property.hint = PROPERTY_HINT_ENUM
+		property.hint_string = ",".join(PropLibrary.names())
+
 ## World-space height in pixels. 0 = use PropLibrary's default for this prop.
 @export var height_override: float = 0.0:
 	set(v):
@@ -108,13 +115,17 @@ func _rebuild() -> void:
 	var w: float = lay["width"]
 
 	# --- shadow first so it draws beneath the prop ---
+	# Resolve by name before creating: after a scene reload the script's node
+	# refs are null, and blindly adding would stack a fresh pair of children on
+	# every load. These children are deliberately left unowned so they are never
+	# written into the .tscn — the prop rebuilds itself from prop_name instead.
+	if _shadow == null:
+		_shadow = get_node_or_null("Shadow") as Sprite2D
 	if _shadow == null:
 		_shadow = Sprite2D.new()
 		_shadow.name = "Shadow"
-		_shadow.texture = PropShadow.texture()
 		add_child(_shadow)
-		if Engine.is_editor_hint() and owner != null:
-			_shadow.owner = owner
+	_shadow.texture = PropShadow.texture()
 	_shadow.visible = shadow_enabled
 	if shadow_enabled:
 		var sz := shadow_size(w, shadow_width, shadow_flatten)
@@ -125,11 +136,11 @@ func _rebuild() -> void:
 
 	# --- the prop itself, standing on the foot point ---
 	if _sprite == null:
+		_sprite = get_node_or_null("Sprite") as Sprite2D
+	if _sprite == null:
 		_sprite = Sprite2D.new()
 		_sprite.name = "Sprite"
 		add_child(_sprite)
-		if Engine.is_editor_hint() and owner != null:
-			_sprite.owner = owner
 	_sprite.visible = true
 	_sprite.texture = tex
 	_sprite.centered = false
