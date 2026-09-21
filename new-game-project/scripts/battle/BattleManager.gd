@@ -379,6 +379,14 @@ func _execute_enemy_turn():
 # --- Helpers ---
 func handle_defeat(character: Character):
 	emit_signal("character_defeated", character)
+	# Quest progress: count defeated ENEMIES (not downed heroes). Report a generic
+	# "defeat:any" plus a species key from the first word of the name (e.g. a
+	# "Goblin Cutthroat" reports "defeat:goblin", a "Dire Wolf" reports "defeat:dire").
+	if character in enemies:
+		GameManager.report_quest_event("defeat:any")
+		var species: String = character.character_name.split(" ")[0].to_lower()
+		if species != "":
+			GameManager.report_quest_event("defeat:" + species)
 
 func check_battle_end() -> bool:
 	var party_alive = party.any(func(c): return c.is_alive())

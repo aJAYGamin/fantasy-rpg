@@ -28,6 +28,10 @@ var encounter_group: EncounterGroup = null
 # Territory this enemy is bound to (world space). It never wanders or chases
 # outside it. Defaults huge so an unset roamer still moves.
 var home_rect: Rect2 = Rect2(-100000, -100000, 200000, 200000)
+# Polygon territory (P7p2, from a drawable RoamerTerritory node). When set (>= 3
+# points) it REPLACES the rect for containment/clamping; home_rect becomes its
+# bounding box (still used for wander-bias sizing and persistence fallback).
+var home_polygon: PackedVector2Array = PackedVector2Array()
 
 var _player: Node2D = null
 var _chasing := false
@@ -35,12 +39,19 @@ var _wander_dir := Vector2.ZERO
 var _repick_timer := 0.0
 var _active := true                 # false while a battle is in flight (freeze)
 
-func setup(id: int, group: EncounterGroup, gindex: int, player: Node2D, territory: Rect2) -> void:
+func setup(id: int, group: EncounterGroup, gindex: int, player: Node2D, territory: Rect2,
+		territory_poly: PackedVector2Array = PackedVector2Array()) -> void:
 	spawn_id = id
 	encounter_group = group
 	group_index = gindex
 	_player = player
 	home_rect = territory
+	home_polygon = territory_poly
+	if home_polygon.size() >= 3:
+		home_rect = RoamerTerritory.bounding_rect(home_polygon)
+
+func _has_polygon_home() -> bool:
+	return home_polygon.size() >= 3
 
 func _ready() -> void:
 	_build_visuals()
@@ -79,6 +90,8 @@ func set_faded(faded: bool) -> void:
 func _player_in_territory() -> bool:
 	if _player == null:
 		return false
+	if _has_polygon_home():
+		return Geometry2D.is_point_in_polygon(_player.global_position, home_polygon)
 	return home_rect.has_point(_player.global_position)
 
 func _physics_process(delta: float) -> void:
@@ -129,6 +142,22 @@ func _physics_process(delta: float) -> void:
 
 # Clamps a position to within the home territory (accounting for the sprite size).
 func _clamp_to_home(p: Vector2) -> Vector2:
+	if _has_polygon_home():
+		if Geometry2D.is_point_in_polygon(p, home_polygon):
+			return p
+		# Snap to the nearest boundary point, nudged slightly inward so the
+		# enemy doesn't sit exactly on the edge and re-trigger every frame.
+		var best := p
+		var best_d := INF
+		var n := home_polygon.size()
+		for i in n:
+			var c := Geometry2D.get_closest_point_to_segment(p, home_polygon[i], home_polygon[(i + 1) % n])
+			var d := p.distance_squared_to(c)
+			if d < best_d:
+				best_d = d
+				best = c
+		var inward := (_home_center() - best).normalized() * 2.0
+		return best + inward
 	var half := SIZE * 0.5
 	var lo := home_rect.position + half
 	var hi := home_rect.position + home_rect.size - half
@@ -137,10 +166,16 @@ func _clamp_to_home(p: Vector2) -> Vector2:
 	if lo.y > hi.y: lo.y = hi.y
 	return Vector2(clampf(p.x, lo.x, hi.x), clampf(p.y, lo.y, hi.y))
 
+# Center of the territory (polygon centroid, or the rect center).
+func _home_center() -> Vector2:
+	if _has_polygon_home():
+		return RoamerTerritory.centroid(home_polygon)
+	return home_rect.position + home_rect.size * 0.5
+
 func _pick_new_wander_dir() -> void:
 	# Bias the wander direction back toward home center when near an edge so the
 	# enemy naturally stays within its territory instead of hugging the border.
-	var to_center := (home_rect.position + home_rect.size * 0.5) - global_position
+	var to_center := _home_center() - global_position
 	var ang := randf() * TAU
 	var rand_dir := Vector2(cos(ang), sin(ang))
 	if to_center.length() > home_rect.size.length() * 0.25:

@@ -962,9 +962,9 @@ func _style_target_button(btn: Button) -> void:
 	btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 
 func _focus_first_target() -> void:
-	# Controller mode: focus the first target (and its highlight follows focus).
-	# Mouse mode: leave nothing focused — hovering a target highlights it.
-	if not GameManager.is_controller_mode():
+	# Keyboard / controller: focus the first target (and its highlight follows
+	# focus). Pure mouse: leave nothing focused — hovering a target highlights it.
+	if not GameManager.focus_nav_active():
 		return
 	var b := _find_target_button(self)
 	if b != null:

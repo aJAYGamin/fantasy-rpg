@@ -1,84 +1,617 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene format=3 uid="uid://nvi7hsq84pdh"]
 
-[ext_resource type="Script" path="res://scripts/overworld/OverworldScene.gd" id="1_scene"]
-[ext_resource type="Script" path="res://scripts/overworld/Player.gd" id="2_player"]
-[ext_resource type="Resource" path="res://data/maps/fallster_plains.tres" id="3_area"]
+[ext_resource type="Script" uid="uid://v3sxdaxf6g3" path="res://scripts/overworld/OverworldScene.gd" id="1_scene"]
+[ext_resource type="Script" uid="uid://cweivgthta1cf" path="res://scripts/overworld/Player.gd" id="2_player"]
+[ext_resource type="Resource" uid="uid://c6t7ef5so1gd4" path="res://data/maps/fallster_plains.tres" id="3_area"]
+[ext_resource type="Texture2D" uid="uid://jx56rdm32fp7" path="res://assets/maps/Fallster Plains/FallsterPlains.png" id="4_map"]
+[ext_resource type="Script" path="res://scripts/overworld/MapZone.gd" id="5_zone"]
+[ext_resource type="Script" uid="uid://cm5gxsseoe83o" path="res://scripts/overworld/RoamerTerritory.gd" id="6_terr"]
+[ext_resource type="Script" uid="uid://byeuabexqehwh" path="res://scripts/overworld/DepthOverlay.gd" id="7_depth"]
+[ext_resource type="Script" uid="uid://dmyv4jd0wgae5" path="res://scripts/overworld/EditorCollisionViz.gd" id="8_viz"]
+
+[sub_resource type="RectangleShape2D" id="Shape_horizontal_wall"]
+size = Vector2(4000, 100)
+
+[sub_resource type="RectangleShape2D" id="Shape_vertical_wall"]
+size = Vector2(100, 2400)
 
 [sub_resource type="RectangleShape2D" id="Shape_player"]
 size = Vector2(28, 28)
 
-[sub_resource type="RectangleShape2D" id="Shape_horizontal_wall"]
-size = Vector2(4200, 100)
-
-[sub_resource type="RectangleShape2D" id="Shape_vertical_wall"]
-size = Vector2(100, 3200)
-
-[node name="OverworldScene" type="Node2D"]
+[node name="OverworldScene" type="Node2D" unique_id=1267804982]
 script = ExtResource("1_scene")
 area = ExtResource("3_area")
 
-[node name="Background" type="ColorRect" parent="."]
-offset_right = 4000.0
-offset_bottom = 3000.0
-color = Color(0.36, 0.55, 0.32, 1)
+[node name="MapImage" type="Sprite2D" parent="." unique_id=343715245]
+z_index = -1
+texture_filter = 4
+position = Vector2(-14.000001, -0.99999976)
+scale = Vector2(0.9609375, 0.9861111)
+texture = ExtResource("4_map")
+centered = false
 
-[node name="Marker1" type="ColorRect" parent="."]
-offset_left = 800.0
-offset_top = 800.0
-offset_right = 900.0
-offset_bottom = 900.0
-color = Color(0.85, 0.3, 0.3, 1)
+[node name="BoundaryTop" type="StaticBody2D" parent="." unique_id=2133547454]
+position = Vector2(1920, -50)
 
-[node name="Marker2" type="ColorRect" parent="."]
-offset_left = 3100.0
-offset_top = 2100.0
-offset_right = 3200.0
-offset_bottom = 2200.0
-color = Color(0.95, 0.85, 0.2, 1)
-
-[node name="Marker3" type="ColorRect" parent="."]
-offset_left = 1500.0
-offset_top = 2400.0
-offset_right = 1600.0
-offset_bottom = 2500.0
-color = Color(0.6, 0.4, 0.85, 1)
-
-[node name="BoundaryTop" type="StaticBody2D" parent="."]
-position = Vector2(2000, -50)
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryTop"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryTop" unique_id=1951228853]
 shape = SubResource("Shape_horizontal_wall")
 
-[node name="BoundaryBottom" type="StaticBody2D" parent="."]
-position = Vector2(2000, 3050)
+[node name="BoundaryBottom" type="StaticBody2D" parent="." unique_id=1617338210]
+position = Vector2(1920, 2210)
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryBottom"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryBottom" unique_id=1157347843]
+position = Vector2(-17, 96)
 shape = SubResource("Shape_horizontal_wall")
 
-[node name="BoundaryLeft" type="StaticBody2D" parent="."]
-position = Vector2(-50, 1500)
+[node name="BoundaryLeft" type="StaticBody2D" parent="." unique_id=862986627]
+position = Vector2(-50, 1080)
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryLeft"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryLeft" unique_id=608191764]
 shape = SubResource("Shape_vertical_wall")
 
-[node name="BoundaryRight" type="StaticBody2D" parent="."]
-position = Vector2(4050, 1500)
+[node name="BoundaryRight" type="StaticBody2D" parent="." unique_id=1432017656]
+position = Vector2(3890, 1080)
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryRight"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryRight" unique_id=53813159]
+position = Vector2(58, 0)
 shape = SubResource("Shape_vertical_wall")
 
-[node name="Player" type="CharacterBody2D" parent="."]
-position = Vector2(2000, 1500)
+[node name="TerrainCollision" type="Node2D" parent="." unique_id=760762082]
+
+[node name="Mountains" type="StaticBody2D" parent="TerrainCollision" unique_id=1071967254]
+
+[node name="WestOfGate" type="CollisionPolygon2D" parent="TerrainCollision/Mountains" unique_id=1190464776]
+build_mode = 1
+polygon = PackedVector2Array(-17, 0, 2049, -6, 2049, 179, 2004, 225, 2002, 295, 1976, 287, 1982, 330, 1923, 341, 1916, 411, 1829, 416, 1788, 421, 1744, 400, 1687, 380, 1680, 352, 1568, 337, 1396, 405, 1361, 420, 1327, 417, 1299, 395, 1300, 372, 1318, 351, 1257, 339, 1256, 350, 1241, 373, 1086, 323, 1066, 307, 1108, 265, 838, 284, 763, 251, 637, 358, 544, 348, 469, 297, -17, 226)
+
+[node name="EastOfGate" type="CollisionPolygon2D" parent="TerrainCollision/Mountains" unique_id=1776271759]
+build_mode = 1
+polygon = PackedVector2Array(2051, 4, 3895, 0, 3898, 305, 3803, 254, 3657, 218, 3478, 253, 3291, 272, 3054, 366, 2938, 338, 2858, 399, 2737, 395, 2683, 446, 2514, 344, 2415, 424, 2315, 419, 2295, 383, 2128, 338, 2128, 296, 2107, 298, 2105, 222, 2048, 176)
+
+[node name="River" type="StaticBody2D" parent="TerrainCollision" unique_id=1772801013]
+
+[node name="River1" type="CollisionPolygon2D" parent="TerrainCollision/River" unique_id=570259090]
+position = Vector2(152, -53)
+build_mode = 1
+polygon = PackedVector2Array(556, 349, 555, 412, 520, 467, 528, 511, 556, 544, 632, 586, 693, 610, 739, 705, 773, 725, 760, 762, 773, 774, 796, 783, 821, 773, 857, 788, 903, 803, 1016, 841, 1092, 854, 1149, 849, 1264, 855, 1317, 881, 1336, 913, 1342, 965, 1325, 1007, 1296, 1039, 1303, 1059, 1332, 1093, 1417, 1144, 1506, 1180, 1522, 1183, 1597, 1152, 1676, 1128, 1635, 1105, 1602, 1086, 1573, 1070, 1500, 1036, 1482, 1010, 1485, 984, 1498, 971, 1510, 944, 1538, 909, 1534, 876, 1509, 842, 1497, 822, 1476, 805, 1403, 792, 1365, 765, 1334, 752, 1293, 738, 1147, 764, 1064, 750, 1040, 726, 1014, 716, 980, 708, 936, 694, 894, 666, 871, 627, 880, 595, 866, 566, 826, 530, 773, 530, 731, 514, 683, 468, 661, 439, 703, 366, 703, 336, 611, 304)
+
+[node name="River2" type="CollisionPolygon2D" parent="TerrainCollision/River" unique_id=297897347]
+position = Vector2(152, -52)
+build_mode = 1
+polygon = PackedVector2Array(1559, 1227, 1599.6177, 1274.1318, 1625, 1301, 1651.1943, 1333.088, 1680, 1337, 1715, 1353, 1770, 1360, 1863, 1369, 1902, 1389, 1919, 1421, 1931, 1453, 1923, 1487, 1906, 1523, 1885, 1554, 1827, 1584, 1751, 1600, 1721, 1633, 1680, 1650, 1658, 1652, 1645, 1665, 1654, 1695, 1662, 1709, 1819, 1764, 1799, 1744, 1817, 1730, 1988, 1646, 2029, 1606, 2082, 1559, 2107, 1500, 2071, 1426, 2087, 1386, 2039, 1334, 2016, 1291, 2001, 1236, 1930, 1242, 1800, 1229, 1737, 1207, 1720, 1168, 1638, 1192)
+
+[node name="River3" type="CollisionPolygon2D" parent="TerrainCollision/River" unique_id=880223649]
+position = Vector2(-230, -6)
+build_mode = 1
+polygon = PackedVector2Array(2001, 1706, 2085, 1723, 2166, 1762, 2183, 1795, 2266, 1832, 2287, 1864, 2396, 1900, 2411, 1930, 2438, 1951, 2464, 1975, 2470, 1995, 2503, 2016, 2532, 2074, 2519, 2141, 2485, 2178, 2484, 2197, 2506, 2239, 2534, 2257, 2535, 2274, 2235, 2274, 2208, 2217, 2218, 2172, 2277, 2072, 2275, 2040, 2247, 2003, 2143, 1907, 2083, 1885, 1986, 1832, 1934, 1791, 1894, 1772, 1927, 1739, 1999, 1718)
+
+[node name="ForestWest" type="StaticBody2D" parent="TerrainCollision" unique_id=1597356005]
+
+[node name="West Forest" type="CollisionPolygon2D" parent="TerrainCollision/ForestWest" unique_id=427447168]
+position = Vector2(3, -180)
+build_mode = 1
+polygon = PackedVector2Array(-19, 405, 465, 478, 495, 561, 465, 586, 401, 664, 327, 711, 236, 741, 279, 783, 279, 830, 237, 850, 255, 891, 211, 941, 201, 990, 164, 1020, 110, 1055, 171, 1083, 268, 1125, 289, 1175, 428, 1235, 439, 1276, 410, 1304, 398, 1357, 352, 1393, 286, 1426, 264, 1477, 239, 1493, 236, 1532, 278, 1559, 288, 1610, 305, 1674, 256, 1705, 298, 1768, 343, 1767, 392, 1884, 358, 1881, 355, 1924, 395, 1929, 438, 1887, 478, 1927, 472, 1960, 437, 1981, 475, 2014, 645, 2126, 951, 2230, 955, 2259, 715, 2465, -23, 2452)
+
+[node name="South Forest" type="CollisionPolygon2D" parent="TerrainCollision/ForestWest" unique_id=42277760]
+position = Vector2(-12, 17)
+build_mode = 1
+polygon = PackedVector2Array(973, 2252, 1044, 2165, 1076, 2200, 1118, 2107, 1155, 2148, 1221, 2071, 1263, 2145, 1307, 2145, 1324, 2119, 1361, 2155, 1379, 2190, 1406, 2200, 1459, 2137, 1502, 2176, 1516, 2218, 1530, 2224, 1569, 2159, 1588, 2189, 1605, 2228, 1625, 2217, 1660, 2256)
+
+[node name="East Forest" type="CollisionPolygon2D" parent="TerrainCollision/ForestWest" unique_id=858052416]
+position = Vector2(295, 70)
+build_mode = 1
+polygon = PackedVector2Array(3639, 670, 3578, 665, 3541, 765, 3406, 820, 3349, 881, 3295, 897, 3276, 948, 3233, 931, 3199, 1037, 3253, 1070, 3220, 1104, 3224, 1138, 3330, 1162, 3377, 1195, 3464, 1201, 3496, 1240, 3444, 1360, 3381, 1354, 3349, 1436, 3359, 1471, 3409, 1488, 3405, 1517, 3374, 1516, 3343, 1577, 3281, 1574, 3237, 1668, 3202, 1681, 3181, 1756, 3135, 1748, 3084, 1802, 3031, 1791, 2923, 1854, 2897, 1913, 2860, 1866, 2833, 1912, 2789, 1919, 2764, 1994, 2714, 1990, 2640, 1975, 2601, 2023, 2547, 2004, 2521, 2076, 2468, 2072, 2441, 2122, 2413, 2084, 2386, 2135, 2340, 2130, 2299, 2205, 3636, 2203)
+
+[node name="Ledges" type="StaticBody2D" parent="TerrainCollision" unique_id=405628724]
+
+[node name="TreeMound" type="CollisionPolygon2D" parent="TerrainCollision/Ledges" unique_id=12202892]
+position = Vector2(174, -8)
+build_mode = 1
+polygon = PackedVector2Array(2397, 1820, 2460, 1841, 2471, 1860, 2511, 1895, 2521, 1941, 2500, 2008, 2459, 2060, 2396, 2091, 2321, 2086, 2267, 2108, 2227, 2083, 2232, 2050, 2261, 2024, 2204, 1979, 2207, 1921, 2294, 1848, 2322, 1817)
+
+[node name="Ledge1" type="CollisionPolygon2D" parent="TerrainCollision/Ledges" unique_id=825245700]
+position = Vector2(-989, -1416)
+build_mode = 1
+polygon = PackedVector2Array(2406, 1868, 2437, 1889, 2443, 1934, 2428, 1954, 2394, 1973, 2348, 1990, 2346, 2039, 2311, 2067, 2268, 2079, 2212, 2067, 2179, 2035, 2229, 2049, 2269, 2055, 2307, 2043, 2340, 2001, 2331, 1972, 2405, 1934, 2433, 1907)
+
+[node name="Ledge2" type="CollisionPolygon2D" parent="TerrainCollision/Ledges" unique_id=1228091333]
+position = Vector2(-545, -1466)
+build_mode = 1
+polygon = PackedVector2Array(2270, 1857, 2348, 1896, 2382, 1927, 2383, 1966, 2374, 1979, 2339.9126, 1994.4583, 2288, 2018, 2270, 2022, 2223, 2017, 2210, 1994, 2220, 1981, 2234, 1992, 2295, 1987, 2359, 1952, 2373, 1942, 2371, 1923, 2351, 1902)
+
+[node name="Ledge3" type="CollisionPolygon2D" parent="TerrainCollision/Ledges" unique_id=168542673]
+position = Vector2(-560, -1427)
+build_mode = 1
+polygon = PackedVector2Array(1538, 2230, 1564, 2251, 1582, 2299, 1659, 2332, 1680, 2359, 1677, 2385, 1640, 2407, 1595, 2425, 1564, 2425, 1538, 2408, 1546, 2388, 1579, 2404, 1622, 2391, 1667, 2362, 1667, 2339, 1592, 2304, 1569, 2259)
+
+[node name="Ledge4" type="CollisionPolygon2D" parent="TerrainCollision/Ledges" unique_id=507296380]
+position = Vector2(-714, -1336)
+build_mode = 1
+polygon = PackedVector2Array(1257, 2258, 1301, 2283, 1317, 2318, 1281, 2370, 1230, 2394, 1147, 2401, 1155, 2428, 1209, 2424, 1288, 2394, 1319, 2355, 1319, 2318, 1302, 2283)
+
+[node name="Ledge5" type="CollisionPolygon2D" parent="TerrainCollision/Ledges" unique_id=399988512]
+position = Vector2(297, -634)
+build_mode = 1
+polygon = PackedVector2Array(1841, 1378, 1787, 1420, 1775, 1452, 1776, 1469, 1814, 1494, 1846, 1558, 1897, 1590, 1943, 1602, 1998, 1682, 2067, 1714, 2142, 1702, 2144, 1667, 2110, 1687, 2088, 1695, 2022, 1676, 1949, 1576, 1878, 1555, 1849, 1530, 1831, 1476, 1792, 1452, 1781, 1429)
+
+[node name="Ledge6" type="CollisionPolygon2D" parent="TerrainCollision/Ledges" unique_id=1022647748]
+position = Vector2(169, -90)
+build_mode = 1
+polygon = PackedVector2Array(2723, 911, 2767, 929, 2800, 962, 2814, 998, 2804, 1041, 2759, 1088, 2721, 1105, 2646, 1089, 2600, 1080, 2543, 1098, 2500, 1142, 2435, 1168, 2419, 1147, 2473, 1132, 2543, 1072, 2585, 1056, 2631, 1063, 2702, 1077, 2730, 1077, 2790, 1019, 2803, 964, 2769, 930)
+
+[node name="Ledge7" type="CollisionPolygon2D" parent="TerrainCollision/Ledges" unique_id=938607263]
+position = Vector2(163, -42)
+build_mode = 1
+polygon = PackedVector2Array(213, 1515, 198, 1568, 228, 1641, 263, 1696, 341, 1726, 406, 1738, 456, 1798, 512, 1818, 571, 1810, 604, 1788, 588, 1771, 555, 1796, 511, 1799, 452, 1767, 416, 1712, 366, 1694, 291, 1684, 261, 1663, 204, 1564)
+
+[node name="Ledge8" type="CollisionPolygon2D" parent="TerrainCollision/Ledges" unique_id=68629219]
+position = Vector2(161, -31)
+build_mode = 1
+polygon = PackedVector2Array(796, 1763, 849, 1797, 895, 1807, 960, 1785, 1013, 1748, 1044, 1660, 1083, 1607, 1119, 1567, 1055, 1679, 1038, 1738, 1018, 1775, 939, 1821, 896, 1830, 834, 1816, 790, 1781)
+
+[node name="Ledge9" type="CollisionPolygon2D" parent="TerrainCollision/Ledges" unique_id=845299407]
+position = Vector2(301, -598)
+build_mode = 1
+polygon = PackedVector2Array(2396, 1856, 2415, 1874, 2411, 1889, 2405, 1905, 2383, 1941, 2291, 2016, 2247, 2016, 2181, 2003, 2186, 1983, 2271, 1995, 2297, 1982, 2317, 1962, 2367, 1921)
+
+[node name="CenterTownWalls" type="StaticBody2D" parent="TerrainCollision" unique_id=1984904067]
+
+[node name="CityWalls" type="CollisionPolygon2D" parent="TerrainCollision/CenterTownWalls" unique_id=1775548825]
+position = Vector2(159, -40)
+build_mode = 1
+polygon = PackedVector2Array(649, 1713, 653, 1673, 676, 1660, 703, 1664, 714, 1678, 714, 1713, 749, 1720, 773, 1710, 819, 1698, 907, 1652, 937, 1659, 968, 1634, 999, 1594, 1000, 1473, 989, 1418, 1009, 1407, 1029, 1407, 1032, 1461, 1035, 1461, 1033, 1432, 1011, 1362, 961, 1369, 911, 1330, 759, 1277, 724, 1266, 623, 1266, 527, 1295, 454, 1323, 375, 1383, 371, 1404, 369, 1582, 378, 1602, 395, 1618, 402, 1640, 425, 1656, 464, 1652, 508, 1673, 586, 1693, 593, 1712)
+
+[node name="WestTownWalls" type="StaticBody2D" parent="TerrainCollision" unique_id=2038210175]
+
+[node name="CityWalls" type="CollisionPolygon2D" parent="TerrainCollision/WestTownWalls" unique_id=148442097]
+position = Vector2(1841, -755)
+build_mode = 1
+polygon = PackedVector2Array(643, 1716, 645, 1677, 671, 1662, 705, 1673, 709, 1717, 756, 1721, 774, 1711, 811, 1708, 888, 1673, 910, 1678, 935, 1664, 956, 1622, 951, 1442, 897, 1396, 767, 1331, 726, 1320, 603, 1319, 485, 1387, 421, 1444, 417, 1623, 434, 1640, 441, 1659, 458, 1670, 482, 1664, 544, 1700, 590, 1714, 600, 1721)
+
+[node name="VillageNWFence" type="StaticBody2D" parent="TerrainCollision" unique_id=2133289401]
+
+[node name="VillageFence" type="CollisionPolygon2D" parent="TerrainCollision/VillageNWFence" unique_id=951244022]
+build_mode = 1
+polygon = PackedVector2Array(628, 755, 681, 732, 739, 685, 740, 592, 690, 563, 605, 537, 491, 538, 400, 576, 355, 609, 356, 714, 451, 765, 527, 781, 527, 744, 488, 748, 370, 688, 370, 643, 463, 579, 504, 563, 602, 564, 680, 591, 725, 618, 724, 670, 671, 706, 623, 720)
+
+[node name="VillageSEFence" type="StaticBody2D" parent="TerrainCollision" unique_id=180010957]
+
+[node name="VillageFence" type="CollisionPolygon2D" parent="TerrainCollision/VillageSEFence" unique_id=1822930676]
+position = Vector2(2660, 852)
+build_mode = 1
+polygon = PackedVector2Array(317, 920, 238, 882, 198, 851, 193, 723, 232, 706, 309, 664, 499, 665, 521, 669, 612, 723, 612, 876, 549, 923, 507, 939, 465, 946, 405, 954, 404, 904, 413, 905, 417, 917, 441, 921, 468, 918, 509, 910, 599, 856, 597, 750, 516, 695, 363, 684, 299, 701, 212, 753, 211, 832, 282, 873, 308, 885, 316, 874, 323, 882, 323, 922)
+
+[node name="CastleWalls" type="StaticBody2D" parent="TerrainCollision" unique_id=1756872660]
+
+[node name="CastleWalls" type="CollisionPolygon2D" parent="TerrainCollision/CastleWalls" unique_id=1855571457]
+position = Vector2(142, 117)
+build_mode = 1
+polygon = PackedVector2Array(3403, 427, 3402, 370, 3388, 347, 3370, 334, 3342, 353, 3335, 375, 3335, 426, 3309, 444, 3289, 439, 3278, 422, 3277, 413, 3254, 411, 3224, 395, 3213, 382, 3194, 394, 3169, 374, 3167, 352, 3150, 328, 3166, 298, 3168, 152, 3340, 135, 3515, 100, 3573, 116, 3577, 371, 3561, 394, 3525, 393, 3466, 421, 3452, 441, 3428, 444)
+
+[node name="Tree" type="StaticBody2D" parent="TerrainCollision" unique_id=221499315]
+
+[node name="Tree1" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=1326906355]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(-153, 903, -131, 862, -111, 852, -87, 875, -75, 903, -88, 922, -105, 930, -102, 944, -127, 941, -120, 928, -142, 924)
+
+[node name="Tree2" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=319769756]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(-68, 906, -56, 886, -45, 879, -27, 895, -19, 913, -21, 920, -37, 929, -40, 936, -49, 936, -50, 930, -61, 928, -69, 921, -73, 913)
+
+[node name="Tree3" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=128269249]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(579, 348, 553, 359, 536, 388, 542, 410, 577, 422, 578, 432, 589, 434, 593, 422, 610, 416, 623, 395, 610, 363, 595, 350)
+
+[node name="Tree4" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=1843136907]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(717, 644, 745, 621, 765, 638, 772, 658, 767, 671, 750, 677, 747, 686, 739, 686, 739, 678, 721, 675, 715, 660)
+
+[node name="Tree5" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=442675268]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(364, 833, 379, 806, 398, 797, 416, 812, 426, 829, 422, 847, 406, 856, 398, 857, 398, 862, 391, 862, 390, 855, 375, 850)
+
+[node name="Tree6" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=1537949190]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(221, 1051, 245, 1041, 264, 1050, 276, 1069, 288, 1092, 285, 1109, 270, 1121, 252, 1126, 255, 1141, 230, 1138, 240, 1126, 212, 1116, 203, 1106, 194, 1090)
+
+[node name="Tree7" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=945865378]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(94, 1204, 112, 1216, 122, 1237, 112, 1252, 103, 1254, 103, 1261, 96, 1261, 92, 1251, 83, 1251, 74, 1237, 78, 1218)
+
+[node name="Tree8" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=671013002]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(33, 1230, 54, 1268, 65, 1297, 67, 1333, 48, 1350, 46, 1363, 18, 1365, 24, 1342, -11, 1330, -2, 1301)
+
+[node name="Tree9" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=951088320]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(-52, 1379, -18, 1391, 0, 1412, 6, 1443, -4, 1463, -26, 1475, -42, 1478, -42, 1488, -57, 1487, -55, 1474, -81, 1474, -103, 1457, -108, 1426, -96, 1405)
+
+[node name="Tree10" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=1641334925]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(128, 1392, 97, 1427, 91, 1468, 106, 1492, 77, 1524, 77, 1556, 100, 1581, 96, 1596, 143, 1598, 148, 1407)
+
+[node name="Tree11" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=1855240516]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(812, 848, 787, 866, 782, 886, 773, 881, 774, 897, 782, 909, 805, 916, 806, 925, 822, 924, 819, 914, 837, 909, 845, 894, 836, 868)
+
+[node name="Tree12" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=1461981650]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(919, 1153, 938, 1164, 954, 1192, 947, 1213, 923, 1221, 925, 1233, 908, 1231, 911, 1221, 888, 1210, 885, 1186, 901, 1159)
+
+[node name="Tree13" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=1175993164]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(1186, 1367, 1148, 1435, 1142, 1484, 1170, 1496, 1166, 1515, 1195, 1510, 1231, 1533, 1246, 1534, 1246, 1524, 1269, 1519, 1297, 1531, 1298, 1543, 1313, 1541, 1314, 1532, 1346, 1519, 1347, 1496, 1304, 1433, 1278, 1472, 1239, 1421, 1221, 1442)
+
+[node name="Tree14" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=383320343]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(1224, 1902, 1204, 1919, 1197, 1937, 1218, 1951, 1220, 1958, 1230, 1957, 1230, 1949, 1247, 1943, 1243, 1922)
+
+[node name="Tree15" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=2135582784]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(1446, 2029, 1418, 2041, 1396, 2079, 1409, 2109, 1438, 2118, 1440, 2135, 1452, 2136, 1452, 2119, 1471, 2125, 1483, 2141, 1501, 2148, 1523, 2140, 1530, 2127, 1527, 2112, 1516, 2102, 1507, 2091, 1496, 2072, 1485, 2052, 1471, 2035)
+
+[node name="Tree16" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=1567224123]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(1263, 564, 1236, 578, 1223, 601, 1226, 626, 1258, 638, 1259, 645, 1272, 645, 1274, 634, 1293, 628, 1303, 616, 1300, 598, 1288, 581)
+
+[node name="Tree17" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=1654627919]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(1814, 476, 1798, 482, 1787, 506, 1800, 522, 1815, 531, 1824, 530, 1842, 513, 1842, 498, 1829, 483)
+
+[node name="Tree18" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=1402531685]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(1665, 757, 1651, 767, 1641, 791, 1645, 810, 1666, 819, 1668, 826, 1679, 826, 1680, 820, 1704, 810, 1711, 794, 1688, 757)
+
+[node name="Tree19" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=1254198255]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(1382, 969, 1360, 989, 1356, 1009, 1369, 1021, 1385, 1023, 1383, 1029, 1394, 1031, 1394, 1022, 1406, 1019, 1419, 1014, 1420, 998, 1412, 978, 1397, 968)
+
+[node name="Tree20" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=2129541809]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(1771, 1046, 1753, 1055, 1736, 1074, 1733, 1091, 1726, 1086, 1709, 1095, 1699, 1107, 1716, 1120, 1737, 1115, 1768, 1118, 1769, 1127, 1777, 1127, 1778, 1119, 1810, 1104, 1802, 1074, 1787, 1051)
+
+[node name="Tree21" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=1161571180]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(1945, 1394, 1922, 1419, 1931, 1438, 1945, 1440, 1966, 1434, 1974, 1426, 1961, 1403)
+
+[node name="Tree22" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=1044121939]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(1878, 1588, 1860, 1599, 1843, 1627, 1847, 1647, 1874, 1660, 1880, 1670, 1889, 1670, 1887, 1660, 1905, 1655, 1921, 1641, 1919, 1621, 1899, 1595)
+
+[node name="Tree23" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=1038298937]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(1988, 1636, 1970, 1650, 1965, 1667, 1984, 1677, 1986, 1684, 1995, 1684, 1994, 1676, 2012, 1669, 2014, 1660, 2002, 1645)
+
+[node name="Tree24" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=1474960686]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(2376, 2048, 2348, 2063, 2328, 2098, 2331, 2124, 2370, 2143, 2371, 2157, 2391, 2154, 2386, 2145, 2424, 2122, 2426, 2089, 2396, 2054)
+
+[node name="Tree25" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=164506375]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(2149, 1934, 2179, 1934, 2222, 1938, 2239, 1924, 2220, 1891, 2206, 1886, 2198, 1857, 2167, 1826, 2154, 1827, 2130, 1838, 2109, 1877, 2113, 1904, 2132, 1914, 2152, 1919)
+
+[node name="Tree26" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=336727024]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(2805, 1371, 2772, 1411, 2772, 1435, 2785, 1452, 2804, 1455, 2803, 1466, 2814, 1466, 2816, 1453, 2842, 1444, 2844, 1417)
+
+[node name="Tree27" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=1063857147]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(2865, 1319, 2832, 1357, 2829, 1379, 2840, 1399, 2862, 1403, 2864, 1417, 2879, 1414, 2876, 1405, 2899, 1396, 2910, 1370, 2886, 1326)
+
+[node name="Tree28" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=1109580408]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(2933, 1369, 2913, 1394, 2910, 1412, 2929, 1424, 2949, 1422, 2962, 1405, 2944, 1372)
+
+[node name="Tree29" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=857844184]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(3215, 1558, 3179, 1629, 3168, 1663, 3209, 1675, 3208, 1684, 3226, 1684, 3226, 1674, 3259, 1667, 3241, 1612)
+
+[node name="Tree30" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=1596668906]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(2478, 937, 2459, 947, 2446, 963, 2439, 984, 2447, 1002, 2468, 1009, 2470, 1020, 2480, 1018, 2480, 1008, 2501, 1003, 2514, 985, 2492, 945)
+
+[node name="Tree31" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=1895210271]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(3030, 988, 2996, 1010, 2980, 1047, 2987, 1067, 3027, 1079, 3024, 1092, 3041, 1093, 3039, 1080, 3082, 1061, 3078, 1031, 3060, 1000)
+
+[node name="Tree32" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=1699814899]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(3080, 1115, 3059, 1146, 3072, 1159, 3093, 1161, 3110, 1147)
+
+[node name="Tree33" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=1561990490]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(2409, 771, 2431, 744, 2460, 808, 2471, 871, 2454, 889, 2436, 890, 2440, 904, 2411, 902)
+
+[node name="Tree34" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=1980496564]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(1875, 783, 1859, 747, 1825, 797, 1814, 832, 1822, 862, 1847, 873, 1845, 889, 1875, 892)
+
+[node name="Tree35" type="CollisionPolygon2D" parent="TerrainCollision/Tree" unique_id=1395600254]
+position = Vector2(385, -69)
+build_mode = 1
+polygon = PackedVector2Array(2456, 543, 2439, 555, 2428, 578, 2445, 594, 2460, 605, 2473, 594, 2490, 584, 2482, 556)
+
+[node name="Stones" type="StaticBody2D" parent="TerrainCollision" unique_id=1609549648]
+
+[node name="Stone" type="CollisionPolygon2D" parent="TerrainCollision/Stones" unique_id=1418849279]
+position = Vector2(153, -140)
+build_mode = 1
+polygon = PackedVector2Array(1405, 510, 1375, 545, 1400, 562, 1446, 564, 1447, 530, 1428, 516)
+
+[node name="Stone2" type="CollisionPolygon2D" parent="TerrainCollision/Stones" unique_id=1015927969]
+build_mode = 1
+polygon = PackedVector2Array(1309, 813, 1290, 823, 1282, 838, 1289, 847, 1317, 850, 1332, 839, 1323, 821)
+
+[node name="Stone3" type="CollisionPolygon2D" parent="TerrainCollision/Stones" unique_id=1333951066]
+position = Vector2(153, -140)
+build_mode = 1
+polygon = PackedVector2Array(1559, 2187, 1533, 2204, 1531, 2219, 1557, 2227, 1588, 2208)
+
+[node name="Stone4" type="CollisionPolygon2D" parent="TerrainCollision/Stones" unique_id=2081845566]
+position = Vector2(153, -143)
+build_mode = 1
+polygon = PackedVector2Array(1705, 1454, 1685, 1474, 1699, 1488, 1716, 1493, 1735, 1481, 1726, 1460)
+
+[node name="Stone5" type="CollisionPolygon2D" parent="TerrainCollision/Stones" unique_id=786111350]
+position = Vector2(-183, -288)
+build_mode = 1
+polygon = PackedVector2Array(910, 1270, 889, 1281, 878, 1302, 903, 1312, 912, 1326, 949, 1296)
+
+[node name="Stone6" type="CollisionPolygon2D" parent="TerrainCollision/Stones" unique_id=283186276]
+position = Vector2(153, -140)
+build_mode = 1
+polygon = PackedVector2Array(1121, 1702, 1173, 1733, 1134, 1743, 1130, 1751, 1094, 1741)
+
+[node name="DepthOverlays" type="Node2D" parent="." unique_id=1367519365]
+y_sort_enabled = true
+
+[node name="Overlay_SWTown" type="Polygon2D" parent="DepthOverlays" unique_id=290719707]
+position = Vector2(159, -40)
+color = Color(1, 1, 1, 0)
+polygon = PackedVector2Array(649, 1713, 653, 1673, 676, 1660, 703, 1664, 714, 1678, 714, 1713, 749, 1720, 773, 1710, 819, 1698, 907, 1652, 937, 1659, 968, 1634, 996, 1593, 997, 1472, 989, 1418, 1009, 1407, 1029, 1407, 1032, 1461, 1035, 1461, 1033, 1432, 1028, 1398, 1032, 1389, 1025, 1376, 1011, 1362, 1007, 1352, 983, 1341, 952.4854, 1362.3586, 911, 1330, 876.5157, 1317.976, 875, 1286, 849, 1261, 842, 1239, 830, 1262, 810, 1280, 806, 1291, 759, 1277, 740, 1254, 724, 1266, 704.40875, 1266.0001, 683, 1245, 686, 1230, 675, 1216, 674, 1209, 675, 1216, 660.9604, 1229.4998, 666, 1240, 642, 1265, 623, 1266, 610, 1250, 585, 1275, 527, 1295, 524, 1277, 498, 1257, 492, 1233, 482.0307, 1256.6116, 455, 1285, 457, 1320, 375, 1383, 371, 1404, 369, 1582, 378, 1602, 395, 1618, 402, 1640, 425, 1656, 464, 1652, 508, 1673, 586, 1693, 593, 1712)
+script = ExtResource("7_depth")
+metadata/_custom_type_script = "uid://byeuabexqehwh"
+
+[node name="Overlay_CenterTown" type="Polygon2D" parent="DepthOverlays" unique_id=1312124987]
+position = Vector2(1841, -755)
+color = Color(1, 1, 1, 0)
+polygon = PackedVector2Array(643, 1716, 645, 1677, 671, 1662, 705, 1673, 709, 1717, 756, 1721, 774, 1711, 811, 1708, 888, 1673, 910, 1678, 935, 1664, 953, 1624, 951, 1442, 897, 1396, 856, 1376, 855, 1346, 832, 1324, 825, 1303, 814, 1326, 791.9776, 1343.4888, 767, 1331, 743, 1305, 726, 1320, 710.4604, 1319.8738, 686, 1291, 691, 1286, 690, 1279, 687, 1273, 681, 1269, 680, 1258, 678, 1256, 676, 1270, 668, 1278, 668, 1283, 670, 1287, 672, 1291, 646.3806, 1319.3528, 621.77783, 1319.1527, 607, 1304, 587, 1330, 552.78796, 1347.9358, 532, 1332, 519, 1304, 514, 1323, 489, 1350, 489, 1374, 496.60312, 1380.3135, 485, 1387, 421, 1444, 420, 1622, 434, 1640, 441, 1659, 458, 1670, 482, 1664, 544, 1700, 590, 1714, 600, 1721)
+script = ExtResource("7_depth")
+
+[node name="Overlay_VillageNW" type="Polygon2D" parent="DepthOverlays" unique_id=266677392]
+color = Color(1, 1, 1, 0)
+polygon = PackedVector2Array(628, 755, 681, 732, 739, 685, 740, 592, 690, 563, 629.61926, 544.53064, 630, 538, 625, 534, 621, 535, 619, 537, 617.9194, 540.95184, 605, 537, 588.8281, 537.1419, 548, 497, 499, 538, 491, 538, 474.08475, 545.06354, 468, 538, 462, 538, 458, 542, 457, 547, 458.57535, 551.54004, 400, 576, 355, 609, 356, 714, 451, 765, 527, 781, 527, 744, 488, 748, 370, 688, 370, 643, 463, 579, 504, 563, 602, 564, 680, 591, 725, 618, 724, 670, 671, 706, 623, 720)
+script = ExtResource("7_depth")
+
+[node name="Overlay_VillageSE" type="Polygon2D" parent="DepthOverlays" unique_id=433808886]
+position = Vector2(2660, 852)
+color = Color(1, 1, 1, 0)
+polygon = PackedVector2Array(317, 920, 238, 882, 198, 851, 193, 723, 232, 706, 309, 664, 312.89835, 664.02057, 316, 654, 323, 650, 331, 656, 332.1422, 664.1218, 358.29736, 664.25946, 408, 619, 464.7296, 664.8197, 488.31152, 664.9438, 489, 660, 493, 656, 498, 656, 501, 658, 505.5056, 666.18286, 521, 669, 612, 723, 612, 876, 549, 923, 507, 939, 465, 946, 405, 954, 404, 904, 413, 905, 417, 917, 441, 921, 468, 918, 509, 910, 599, 856, 597, 750, 516, 695, 363, 684, 299, 701, 212, 753, 211, 832, 282, 873, 308, 885, 316, 874, 323, 882, 323, 922)
+script = ExtResource("7_depth")
+
+[node name="Overlay_Castle" type="Polygon2D" parent="DepthOverlays" unique_id=1768493330]
+position = Vector2(142, 117)
+color = Color(1, 1, 1, 0)
+polygon = PackedVector2Array(3403, 427, 3402, 370, 3388, 347, 3370, 334, 3342, 353, 3335, 375, 3335, 426, 3309, 444, 3289, 439, 3278, 422, 3277, 413, 3254, 411, 3224, 395, 3213, 382, 3194, 394, 3169, 374, 3167, 352, 3150, 328, 3166, 298, 3168, 152, 3340, 135, 3515, 100, 3573, 116, 3577, 371, 3561, 394, 3525, 393, 3466, 421, 3452, 441, 3428, 444)
+script = ExtResource("7_depth")
+
+[node name="Tree_Overlays" type="Node2D" parent="DepthOverlays" unique_id=1914831250]
+
+[node name="Tree_Overlay1" type="Polygon2D" parent="DepthOverlays/Tree_Overlays" unique_id=619204432]
+color = Color(1, 1, 1, 0)
+polygon = PackedVector2Array(642, 1992, 702, 1906, 710, 1911, 714, 1920, 723, 1925, 725, 1931, 733, 1939, 734, 1943, 730, 1951, 737, 1953, 739, 1958, 734, 1962, 740, 1965, 744, 1959, 747, 1959, 751, 1967, 754, 1968, 754, 1965, 752, 1962, 753, 1955, 756, 1954, 758, 1958, 760, 1958, 760, 1943, 770, 1937, 781, 1927, 784, 1929, 786, 1934, 796, 1942, 799, 1949, 806, 1956, 807, 1962, 804, 1963, 805, 1966, 811, 1969, 811, 1974, 811, 1976, 815, 1980, 814, 1988, 815, 1991, 822, 1994, 820, 1986, 824, 1981, 832, 1980, 834, 1975, 830, 1972, 830, 1968, 835, 1966, 851, 1948, 860, 1960, 861, 1967, 865, 1961, 868, 1963, 869, 1970, 879, 1983, 878, 1988, 882, 1990, 881, 1994, 878, 1995, 878, 1998, 884, 2002, 888, 2002, 888, 2006, 885, 2009, 886, 2012, 889, 2011, 895, 2001, 901, 1997, 912, 1985, 916, 1987, 917, 1991, 928, 1999, 941, 2019, 939, 2026, 947, 2030, 949, 2034, 949, 2041, 953, 2044, 913, 2094)
+script = ExtResource("7_depth")
+metadata/_custom_type_script = "uid://byeuabexqehwh"
+
+[node name="Tree_Overlay2" type="Polygon2D" parent="DepthOverlays/Tree_Overlays" unique_id=1659601206]
+color = Color(1, 1, 1, 0)
+polygon = PackedVector2Array(478, 1898, 518, 1796, 532, 1819, 536, 1822, 536, 1827, 540, 1834, 539, 1838, 535, 1842, 545, 1842, 549, 1846, 550, 1850, 547, 1852, 545, 1855, 549, 1856, 549, 1861, 550, 1865, 554, 1868, 552, 1875, 561, 1875, 562, 1906)
+script = ExtResource("7_depth")
+metadata/_custom_type_script = "uid://byeuabexqehwh"
+
+[node name="RoamerTerritories" type="Node2D" parent="." unique_id=1622728673]
+
+[node name="Territory 1" type="Area2D" parent="RoamerTerritories" unique_id=233476840]
+script = ExtResource("6_terr")
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="RoamerTerritories/Territory 1" unique_id=1519870816]
+position = Vector2(805.55695, 239.5)
+scale = Vector2(0.77190083, 0.7708333)
+polygon = PackedVector2Array(1170, 450, 1550, 450, 1550, 750, 1170, 750)
+
+[node name="Territory 2" type="Area2D" parent="RoamerTerritories" unique_id=350857517]
+script = ExtResource("6_terr")
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="RoamerTerritories/Territory 2" unique_id=1117541129]
+position = Vector2(312, -35)
+polygon = PackedVector2Array(2440, 1170, 2820, 1170, 2820, 1470, 2440, 1470)
+
+[node name="Territory 3" type="Area2D" parent="RoamerTerritories" unique_id=1368973239]
+script = ExtResource("6_terr")
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="RoamerTerritories/Territory 3" unique_id=568971278]
+position = Vector2(-568, -495)
+polygon = PackedVector2Array(1767, 1389, 1768, 1524, 1987, 1526, 1987, 1364)
+
+[node name="Territory 4" type="Area2D" parent="RoamerTerritories" unique_id=880518209]
+script = ExtResource("6_terr")
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="RoamerTerritories/Territory 4" unique_id=1847299878]
+position = Vector2(379.00003, -51)
+scale = Vector2(0.718388, 1)
+polygon = PackedVector2Array(560, 950, 771, 965, 819, 1186, 560, 1210)
+
+[node name="Territory 5" type="Area2D" parent="RoamerTerritories" unique_id=856704947]
+script = ExtResource("6_terr")
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="RoamerTerritories/Territory 5" unique_id=1302047787]
+position = Vector2(1445.9999, 1356)
+scale = Vector2(0.6080333, 0.64166665)
+polygon = PackedVector2Array(1170, 450, 1550, 450, 1550, 750, 1170, 750)
+
+[node name="Territory 6" type="Area2D" parent="RoamerTerritories" unique_id=1173002676]
+script = ExtResource("6_terr")
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="RoamerTerritories/Territory 6" unique_id=773278260]
+position = Vector2(238, 1426)
+scale = Vector2(0.8207237, 0.85)
+polygon = PackedVector2Array(1170, 450, 1550, 450, 1550, 750, 1170, 750)
+
+[node name="Territory 7" type="Area2D" parent="RoamerTerritories" unique_id=768208671]
+script = ExtResource("6_terr")
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="RoamerTerritories/Territory 7" unique_id=1164136538]
+position = Vector2(2062, 389.99997)
+scale = Vector2(0.8207237, 0.85)
+polygon = PackedVector2Array(1170, 450, 1550, 450, 1550, 750, 1170, 750)
+
+[node name="Territory 8" type="Area2D" parent="RoamerTerritories" unique_id=1850397212]
+script = ExtResource("6_terr")
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="RoamerTerritories/Territory 8" unique_id=1680679702]
+position = Vector2(2568, 957.00006)
+scale = Vector2(0.68204653, 0.67916673)
+polygon = PackedVector2Array(1170, 450, 1550, 450, 1550, 750, 1170, 750)
+
+[node name="Zones" type="Node2D" parent="." unique_id=2006154567]
+
+[node name="Zone_Gate" type="Area2D" parent="Zones" unique_id=848595092]
+script = ExtResource("5_zone")
+label = "Mountain Gate"
+suppress_spawns = true
+target_scene = "res://scenes/MountainPass.tscn"
+target_spawn = Vector2(1500, 1600)
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Zones/Zone_Gate" unique_id=1204023505]
+position = Vector2(168, -194)
+scale = Vector2(1.0000002, 1.1582448)
+polygon = PackedVector2Array(1838.9996, 425.64404, 1842.9996, 357.43738, 1874, 338, 1908, 345, 1928.9995, 361.75427, 1931.9995, 423.0539)
+
+[node name="Zone_Castle" type="Area2D" parent="Zones" unique_id=1957656327]
+script = ExtResource("5_zone")
+label = "Goblin Castle"
+suppress_spawns = true
+target_scene = "res://scenes/GoblinCastle.tscn"
+target_spawn = Vector2(400, 1350)
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Zones/Zone_Castle" unique_id=299015940]
+position = Vector2(1628, 73)
+scale = Vector2(0.9999995, 1.1203359)
+polygon = PackedVector2Array(1853, 422, 1852, 365, 1864, 355, 1883.001, 343.6469, 1898, 355, 1913, 370, 1914, 422)
+
+[node name="Zone_CenterTown" type="Area2D" parent="Zones" unique_id=1993534880]
+script = ExtResource("5_zone")
+label = "Center Town"
+save_on_enter = true
+suppress_spawns = true
+target_scene = "res://scenes/CenterTownInterior.tscn"
+target_spawn = Vector2(1000, 1100)
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Zones/Zone_CenterTown" unique_id=1182022876]
+position = Vector2(156, -209)
+scale = Vector2(0.99999946, 1.125)
+polygon = PackedVector2Array(2335, 1040, 2385, 1040, 2385, 1010, 2375, 1000, 2343, 1000, 2333, 1009)
+
+[node name="Zone_WestTown" type="Area2D" parent="Zones" unique_id=1102591496]
+script = ExtResource("5_zone")
+label = "West Town"
+save_on_enter = true
+suppress_spawns = true
+target_scene = "res://scenes/WestTownInterior.tscn"
+target_spawn = Vector2(1000, 1100)
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Zones/Zone_WestTown" unique_id=1593494544]
+position = Vector2(158, -424.00003)
+scale = Vector2(0.99999946, 1.2890576)
+polygon = PackedVector2Array(657.99896, 1630.2225, 707.99896, 1630.2225, 707.99896, 1600.2223, 697.99896, 1590.2223, 666.00037, 1590.2223, 658.00037, 1603.5557)
+
+[node name="Zone_VillageNW" type="Area2D" parent="Zones" unique_id=582559847]
+script = ExtResource("5_zone")
+label = "Northwest Village"
+suppress_spawns = true
+target_scene = "res://scenes/VillageNWInterior.tscn"
+target_spawn = Vector2(800, 950)
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Zones/Zone_VillageNW" unique_id=2027667017]
+position = Vector2(140, -120)
+polygon = PackedVector2Array(486, 842, 387, 869, 388, 901, 486, 872)
+
+[node name="Zone_VillageSE" type="Area2D" parent="Zones" unique_id=1722600587]
+script = ExtResource("5_zone")
+label = "Southeast Village"
+suppress_spawns = true
+target_scene = "res://scenes/VillageSEInterior.tscn"
+target_spawn = Vector2(800, 950)
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Zones/Zone_VillageSE" unique_id=1287916195]
+position = Vector2(134, -53)
+scale = Vector2(1.011774, 1.015625)
+polygon = PackedVector2Array(2818.8115, 1759.5078, 2892, 1791, 2892, 1827, 2818.8115, 1798.8923)
+
+[node name="Zone_Forest" type="Area2D" parent="Zones" unique_id=1379947982]
+script = ExtResource("5_zone")
+label = "Southern Woods"
+target_scene = "res://scenes/Forest.tscn"
+target_spawn = Vector2(1400, 1500)
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Zones/Zone_Forest" unique_id=201148615]
+position = Vector2(-72, 56)
+polygon = PackedVector2Array(920, 2121, 821, 2203, 1043, 2202, 1075, 2163)
+
+[node name="Player" type="CharacterBody2D" parent="." unique_id=1990398883]
+position = Vector2(435, 550)
 script = ExtResource("2_player")
 
-[node name="Sprite" type="ColorRect" parent="Player"]
+[node name="Sprite" type="ColorRect" parent="Player" unique_id=303538263]
 offset_left = -16.0
 offset_top = -16.0
 offset_right = 16.0
 offset_bottom = 16.0
 color = Color(0.35, 0.55, 0.95, 1)
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Player"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Player" unique_id=11569657]
 shape = SubResource("Shape_player")
 
-[node name="Camera2D" type="Camera2D" parent="Player"]
+[node name="Camera2D" type="Camera2D" parent="Player" unique_id=1350271152]
+limit_left = 0
+limit_top = 0
+limit_right = 3840
+limit_bottom = 2160
+
+[node name="EditorCollisionViz" type="Node2D" parent="." unique_id=671087280]
+visible = false
+script = ExtResource("8_viz")

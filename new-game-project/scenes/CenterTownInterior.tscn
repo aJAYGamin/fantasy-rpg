@@ -1,0 +1,82 @@
+[gd_scene load_steps=8 format=3 uid="uid://dayicrhkjpl6t"]
+
+[ext_resource type="Script" uid="uid://v3sxdaxf6g3" path="res://scripts/overworld/OverworldScene.gd" id="1_scene"]
+[ext_resource type="Script" uid="uid://cweivgthta1cf" path="res://scripts/overworld/Player.gd" id="2_player"]
+[ext_resource type="Resource" path="res://data/maps/center_town_interior.tres" id="3_area"]
+[ext_resource type="Script" path="res://scripts/overworld/MapZone.gd" id="4_zone"]
+[ext_resource type="Script" uid="uid://dmyv4jd0wgae5" path="res://scripts/overworld/EditorCollisionViz.gd" id="5_viz"]
+[ext_resource type="Texture2D" uid="uid://d04q2se4xd06s" path="res://assets/maps/Fallster Plains/Center Town/CenterTownInterior.png" id="6_art"]
+
+[sub_resource type="RectangleShape2D" id="Shape_player"]
+size = Vector2(28, 28)
+
+[node name="CenterTownInterior" type="Node2D"]
+script = ExtResource("1_scene")
+area = ExtResource("3_area")
+field_rect = Rect2(0, 0, 1672, 941)
+
+[node name="MapImage" type="Sprite2D" parent="."]
+z_index = -1
+texture = ExtResource("6_art")
+centered = false
+
+[node name="Zones" type="Node2D" parent="."]
+
+[node name="Zone_Exit" type="Area2D" parent="Zones"]
+script = ExtResource("4_zone")
+label = "Leave Center Town"
+target_scene = "res://scenes/OverworldScene.tscn"
+target_spawn = Vector2(2518, 1042)
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Zones/Zone_Exit"]
+polygon = PackedVector2Array(700, 880, 970, 880, 970, 941, 700, 941)
+
+[node name="Zone_ItemShop" type="Area2D" parent="Zones"]
+script = ExtResource("4_zone")
+label = "Enter Item Shop"
+target_scene = "res://scenes/CenterTownItemShop.tscn"
+target_spawn = Vector2(836, 760)
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Zones/Zone_ItemShop"]
+polygon = PackedVector2Array(360, 380, 540, 380, 540, 520, 360, 520)
+
+[node name="Zone_EquipmentShop" type="Area2D" parent="Zones"]
+script = ExtResource("4_zone")
+label = "Enter Equipment Shop"
+target_scene = "res://scenes/CenterTownEquipmentShop.tscn"
+target_spawn = Vector2(836, 760)
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Zones/Zone_EquipmentShop"]
+polygon = PackedVector2Array(746, 330, 926, 330, 926, 470, 746, 470)
+
+[node name="Zone_Inn" type="Area2D" parent="Zones"]
+script = ExtResource("4_zone")
+label = "Enter Inn"
+target_scene = "res://scenes/CenterTownInn.tscn"
+target_spawn = Vector2(836, 760)
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Zones/Zone_Inn"]
+polygon = PackedVector2Array(1130, 380, 1310, 380, 1310, 520, 1130, 520)
+
+[node name="Player" type="CharacterBody2D" parent="."]
+position = Vector2(836, 820)
+script = ExtResource("2_player")
+
+[node name="Sprite" type="ColorRect" parent="Player"]
+offset_left = -16.0
+offset_top = -16.0
+offset_right = 16.0
+offset_bottom = 16.0
+color = Color(0.35, 0.55, 0.95, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Player"]
+shape = SubResource("Shape_player")
+
+[node name="Camera2D" type="Camera2D" parent="Player"]
+limit_left = 0
+limit_top = 0
+limit_right = 1672
+limit_bottom = 941
+
+[node name="EditorCollisionViz" type="Node2D" parent="."]
+script = ExtResource("5_viz")

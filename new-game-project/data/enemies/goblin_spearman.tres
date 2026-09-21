@@ -1,0 +1,50 @@
+[gd_resource type="Resource" script_class="Enemy" format=3 uid="uid://bpqvn5mp7yt08"]
+
+[ext_resource type="Script" uid="uid://cjbcaorle0k6n" path="res://scripts/characters/Skill.gd" id="1_skill"]
+[ext_resource type="Script" uid="uid://bc8mpswi1cxid" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
+
+[sub_resource type="Resource" id="Skill_spear_thrust"]
+script = ExtResource("1_skill")
+skill_name = "Spear Thrust"
+description = "Jabs a hero from a safe distance."
+attack_type = 1
+power = 1.2
+
+[sub_resource type="Resource" id="Skill_skewer"]
+script = ExtResource("1_skill")
+skill_name = "Skewer"
+description = "A lunging impale with the full weight of the haft."
+attack_type = 1
+power = 1.35
+
+[sub_resource type="Resource" id="Skill_haft_bash"]
+script = ExtResource("1_skill")
+skill_name = "Haft Bash"
+description = "Clubs a hero with the spear's butt, rattling their senses."
+power = 0.85
+status_to_apply = "stun"
+status_chance = 0.25
+
+[resource]
+script = ExtResource("2_enemy")
+species = "Goblin Spearman"
+rarity = 1
+base_exp_reward = 30
+base_gold_reward = 18
+drop_table = Array[Dictionary]([{
+"chance": 0.35,
+"item_name": "Monster Fang",
+"quantity": 1
+}, {
+"chance": 0.25,
+"item_name": "Glimmer Dust",
+"quantity": 1
+}])
+character_name = "Goblin Spearman"
+base_hp = 52
+base_attack = 8
+base_defense = 6
+base_magic = 3
+base_arcane = 3
+base_speed = 7
+skills = Array[ExtResource("1_skill")]([SubResource("Skill_spear_thrust"), SubResource("Skill_skewer"), SubResource("Skill_haft_bash")])

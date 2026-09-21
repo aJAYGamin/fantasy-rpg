@@ -8,7 +8,9 @@ extends Control
 ## Built in code with BattleUITheme styling so it matches the rest of the UI.
 
 const MARGIN := 24.0
-const HOLD_TIME := 1.4
+# Long enough to outlive a map-transition fade (FADE_TIME 0.35s) and stay readable
+# for ~2s afterwards, per design: the badge must survive the whole transition.
+const HOLD_TIME := 2.4
 
 var _panel: PanelContainer
 var _label: Label

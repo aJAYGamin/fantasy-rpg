@@ -127,3 +127,34 @@ func test_battle_items_exclude_key_and_general() -> void:
 func test_get_items_by_category_healing() -> void:
 	var healing := _full_inventory().get_items_by_category(Item.ItemCategory.HEALING)
 	assert_eq(healing.size(), 2, "inventory healing filter matches categorize")
+
+# --- Field-use flow (the UI rebuild is deferred to avoid wedging the GUI; the
+# data effects below must stay immediate). ------------------------------------
+func test_apply_field_item_decrements_quantity() -> void:
+	var screen := ItemsScreen.new()
+	var inv := Inventory.new()
+	var potion := _item("Potion", Item.ItemType.HP_RESTORE, 50, 2)
+	inv.items.append(potion)
+	var hero := _hero()
+	hero.current_hp = 1
+	screen._inventory = inv
+	screen._party = [hero]
+	screen._apply_field_item(potion, [hero])
+	assert_eq(potion.quantity, 1, "use decrements the item quantity immediately")
+	assert_true(inv.items.has(potion), "item stays in inventory while quantity remains")
+	assert_true(hero.current_hp > 1, "the heal was applied to the target")
+	screen.free()
+
+func test_apply_field_item_erases_at_zero() -> void:
+	var screen := ItemsScreen.new()
+	var inv := Inventory.new()
+	var potion := _item("Potion", Item.ItemType.HP_RESTORE, 50, 1)
+	inv.items.append(potion)
+	var hero := _hero()
+	hero.current_hp = 1
+	screen._inventory = inv
+	screen._party = [hero]
+	screen._apply_field_item(potion, [hero])
+	assert_eq(potion.quantity, 0, "last use zeroes the quantity")
+	assert_false(inv.items.has(potion), "item removed from inventory at zero quantity")
+	screen.free()

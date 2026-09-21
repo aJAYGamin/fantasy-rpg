@@ -23,6 +23,18 @@ blocked on map art), then P8 skill-learning, P9 real art, P10 story/cutscenes. S
 > accents); never ship default-themed Godot controls (plain dropdowns,
 > scrollbars, sliders, popups, cursors). Style every new control to fit.
 
+> **Art style (world/map/prop art):** **smooth hand-painted 2D illustration** —
+> soft shading, fine clean linework, anti-aliased edges, vibrant saturated colors,
+> top-down 3/4 overhead view (polished storybook / mobile-RPG look). **NOT pixel
+> art** (an earlier note called it "32-bit pixel" — that was wrong; the actual
+> generated maps are painted). Requirement: **individual objects must read clearly**
+> — a player should never have to guess what a structure is because it's blurry, so
+> generate at high enough resolution that small props (flowers, statues, ornaments)
+> keep crisp definition, and downscale in Godot rather than upscaling. Use **Linear**
+> texture filtering for this art (Nearest is only for genuine pixel-art assets like
+> the time-of-day phase icons). Animated props are baked as sprite-sheet loops
+> (SpriteFlow Sprite Motion) in the same painted style; see the animated-prop plan.
+
 ---
 
 ## Engine & Setup
@@ -630,17 +642,23 @@ BattleScene (Node2D)
     `last_battle_won`. Safe zones still suppress spawns + auto-save on entry. Suite `roaming_enemy`.
 
 ### Planned (next phases)
-> **Next session should start here.** P7 part 2 is the immediate next target but is
-> **blocked on map art** (the user generates maps in SpriteFlow and was out of credits).
-> If art isn't ready, **P8 (skill learning) is the best art-free phase to do next.**
+> **Next session should start here.** **Art is deliberately parked — do not apply it.**
+> A 70-prop library and one animation are generated, imported and committed under
+> `assets/props/`, but **nothing is placed in any scene on purpose.** The user decided
+> to finish the game's *code* first and do the detailed art pass at the end, using
+> temporary art in the meantime. So: don't place props, don't repaint maps, don't
+> generate more art unless explicitly asked. See **Art pipeline (parked)** below for
+> what already exists so it isn't rebuilt.
+>
+> **P8 (skill learning) is the art-free phase to do next.**
 
 - **Phase P7 (part 2) — Fallster Plains map + transitions + goblin castle** (needs the
   SpriteFlow map art first). Plan agreed with the user:
   - The Fallster Plains map should contain: **2 big towns, 1 small village, 1 river, a
     mountain range with a gate** (pass to another region), and **1 goblin castle** the
     player can travel to and **enter as a dungeon** (the user explicitly wants it enterable).
-    Art must match the battle-scene style (bright 32-bit pixel, Mario & Luigi RPG 3/4
-    top-down). SpriteFlow settings + prompts were already provided to the user.
+    Art must match the game's art style (see **Art Style** below). SpriteFlow settings +
+    prompts were already provided to the user.
   - Wire the generated map into `OverworldScene` (replace the placeholder ColorRect
     field/markers); place real interaction zones: town entrances, the mountain-gate as a
     **map-to-map transition**, and the goblin castle as a **dungeon entrance**.
@@ -649,13 +667,56 @@ BattleScene (Node2D)
     (`EncounterGroup` currently only has "flexible" mode — add an `is_fixed` path).
 - **Phase P8 — Skill learning** (art-free): implement `Character._learn_skills_at_level()`
   (currently a stub) so heroes learn new skills on level-up; surface it in the LevelUpScreen.
-- **Phase P9 — Real art**: player sprite, overworld map art (P7p2 dependency), enemy/hero
-  portraits + battle sprites (placeholders are colored squares / letter-tiles today),
-  custom cursor.
+- **Phase P9 — Real art**: player sprite, enemy/hero portraits + battle sprites
+  (placeholders are colored squares / letter-tiles today), custom cursor, and **placing
+  the prop library that already exists** (see below). Map art is done.
 - **Phase P10 — Story & cutscenes**: dialogue system (a `DialogueManager` stub exists in
   `scripts/dialogue/` with a `choices_presented` signal but **no choice UI yet**), story
   flags (`GameManager.story_flags`), scripted events; the AMETHYST element + triple-resonance
   "Amethyst Requiem" are the narrative payoff.
+
+### Art pipeline (parked — built, committed, deliberately NOT applied)
+Generated in SpriteFlow and committed, but **not placed in any scene**. Resume at P9.
+
+- **70 static props** in `assets/props/static/`, all 512x512 transparent PNGs, every one
+  registered in `PropLibrary.DEFS` with a world-space `height` and a `category`
+  (tree, flower, ground, crop, water_edge, rock, structure, debris, light, decor,
+  container, furniture, wares, dungeon, arcane). The art all arrives ~430px regardless
+  of subject, so **the library height is the only thing keeping a daisy from rendering
+  as tall as an oak** — heights were eyeballed against a 32-unit player block.
+- **1 animation**: `assets/props/animated/candle/` (32 frames). The other eight fire
+  props in the `light` category are generated as statics and ready to animate.
+- **Prop scenes** (`scripts/props/`): `StaticProp` and `AnimatedProp` are foot-anchored
+  — **the node's position is where the prop meets the ground**, which is what the
+  existing y-sort/`DepthOverlay` walk-behind compares against. Both are `@tool` with a
+  `prop_name` dropdown; both build their children at runtime and leave them **unowned**,
+  so nothing is serialised into the `.tscn`. `AnimatedProp` desyncs each instance
+  (random start frame + speed jitter) so a row of torches doesn't flicker in lockstep,
+  and prefers a `PointLight2D` over a baked glow. `PropShadow` is a shared contact
+  shadow. `PropScatter` works and is tested but **the user places props by hand** — it
+  is unused, kept only for a possible dense forest later.
+- **`tools/import_animation.gd`** — run a SpriteFlow animation export through this
+  before committing it. Pro Mode returns 32 frames at ~1100px on a mostly-empty canvas;
+  the candle went 8.4MB → 0.4MB (23.9x). It crops every frame to the **union** of their
+  opaque bounds (per-frame trimming would re-centre the art and make the prop jitter),
+  runs `fix_alpha_edges()` before downscaling to avoid a dark fringe, renames frames to
+  `frame_NN.png`, and reports base drift / size wobble so a bad loop gets re-rolled.
+  Usage is in the file header.
+- **SpriteFlow settings that matter** (learned the hard way): Game Prop's **Style source
+  must be `Upload reference`** with a crop of the actual map — the default `16-bit Pixel`
+  preset is what made the first candle blocky, and none of the four presets fit. Prop
+  lists are one short descriptor per line and the line count must match the 4/9/16
+  toggle exactly. In Sprite Motion, **Pro Mode locks frames to 32 and forces Enhance
+  Prompt on**; both are fine (pacing is `AnimatedProp.fps`, and the "…completely still"
+  clause in each prompt keeps Enhance in check — measured 2px drift on the candle).
+- **The prompts live in the "Amethyst Prop Atlas" artifact** — all 7 batch lists and 18
+  Sprite Motion prompts, ready to copy. Ask the user for the link if it's needed.
+- **Map state**: `FallsterPlains.png` is the 4K upscale (`MapImage` scale halved to
+  `0.9609375, 0.9861111` so the world stays exactly 3936x2272 and every collision
+  polygon stays valid). An automated repaint that erased the painted trees/flowers was
+  built and then **reverted at the user's request** — it's recoverable in `d4d7444` if
+  the prop-replacement plan is ever resumed. The forest borders were always going to
+  stay painted: they merge into 4 connected masses of 1.65M px that can't be separated.
 
 ### Deferred / known follow-ups
 - **Virtual cursor + mouse sensitivity (was "Chunk D" of P4):** the user wants a themed

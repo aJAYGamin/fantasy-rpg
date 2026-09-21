@@ -39,6 +39,11 @@ enum TargetType {
 @export var effect_value: int = 0
 @export var effect_stat: String = ""
 @export var quantity: int = 1
+@export var price: int = 0   # shop buy price (gold); 0 = not sold/worthless
+
+# Gold the player gets for selling one of these — half the buy price (rounded down).
+func sell_price() -> int:
+	return int(price * 0.5)
 
 func use(target: Character) -> Dictionary:
 	# NOTE: quantity is managed by BattleScene, not here

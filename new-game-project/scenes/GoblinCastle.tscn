@@ -1,0 +1,103 @@
+[gd_scene format=3 uid="uid://cpa1by3biguo4"]
+
+[ext_resource type="Script" uid="uid://v3sxdaxf6g3" path="res://scripts/overworld/OverworldScene.gd" id="1_scene"]
+[ext_resource type="Script" uid="uid://cweivgthta1cf" path="res://scripts/overworld/Player.gd" id="2_player"]
+[ext_resource type="Resource" uid="uid://bxtkcc37tk6v2" path="res://data/maps/goblin_castle.tres" id="3_area"]
+[ext_resource type="Script" path="res://scripts/overworld/MapZone.gd" id="4_zone"]
+[ext_resource type="Script" uid="uid://cm5gxsseoe83o" path="res://scripts/overworld/RoamerTerritory.gd" id="5_terr"]
+[ext_resource type="Resource" path="res://data/encounters/goblin_ambush.tres" id="6_ga"]
+[ext_resource type="Script" uid="uid://dmyv4jd0wgae5" path="res://scripts/overworld/EditorCollisionViz.gd" id="7_viz"]
+
+[sub_resource type="RectangleShape2D" id="Shape_horizontal_wall"]
+size = Vector2(2600, 100)
+
+[sub_resource type="RectangleShape2D" id="Shape_vertical_wall"]
+size = Vector2(100, 1800)
+
+[sub_resource type="RectangleShape2D" id="Shape_player"]
+size = Vector2(28, 28)
+
+[node name="GoblinCastle" type="Node2D" unique_id=1714281057]
+script = ExtResource("1_scene")
+area = ExtResource("3_area")
+field_rect = Rect2(0, 0, 2400, 1600)
+
+[node name="Background" type="ColorRect" parent="." unique_id=2135878482]
+z_index = -1
+offset_right = 2400.0
+offset_bottom = 1600.0
+color = Color(0.13, 0.11, 0.16, 1)
+
+[node name="ExitDoor" type="ColorRect" parent="." unique_id=1638903505]
+offset_left = 280.0
+offset_top = 1470.0
+offset_right = 520.0
+offset_bottom = 1600.0
+color = Color(0.45, 0.38, 0.3, 1)
+
+[node name="BoundaryTop" type="StaticBody2D" parent="." unique_id=559239484]
+position = Vector2(1200, -50)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryTop" unique_id=1509787433]
+shape = SubResource("Shape_horizontal_wall")
+
+[node name="BoundaryBottom" type="StaticBody2D" parent="." unique_id=180317551]
+position = Vector2(1200, 1650)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryBottom" unique_id=1423104260]
+shape = SubResource("Shape_horizontal_wall")
+
+[node name="BoundaryLeft" type="StaticBody2D" parent="." unique_id=2110899404]
+position = Vector2(-50, 800)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryLeft" unique_id=516438096]
+shape = SubResource("Shape_vertical_wall")
+
+[node name="BoundaryRight" type="StaticBody2D" parent="." unique_id=911835101]
+position = Vector2(2450, 800)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryRight" unique_id=1187923374]
+shape = SubResource("Shape_vertical_wall")
+
+[node name="RoamerTerritories" type="Node2D" parent="." unique_id=1941083541]
+
+[node name="Territory_Boss" type="Area2D" parent="RoamerTerritories" unique_id=836398912]
+script = ExtResource("5_terr")
+group = ExtResource("6_ga")
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="RoamerTerritories/Territory_Boss" unique_id=863066081]
+polygon = PackedVector2Array(1300, 450, 2000, 450, 2000, 1050, 1300, 1050)
+
+[node name="Zones" type="Node2D" parent="." unique_id=1715193761]
+
+[node name="Zone_Exit" type="Area2D" parent="Zones" unique_id=1485415593]
+script = ExtResource("4_zone")
+label = "Leave Castle"
+target_scene = "res://scenes/OverworldScene.tscn"
+target_spawn = Vector2(3505, 600)
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Zones/Zone_Exit" unique_id=621380407]
+polygon = PackedVector2Array(280, 1470, 520, 1470, 520, 1600, 280, 1600)
+
+[node name="Player" type="CharacterBody2D" parent="." unique_id=1094737535]
+position = Vector2(400, 1350)
+script = ExtResource("2_player")
+
+[node name="Sprite" type="ColorRect" parent="Player" unique_id=369874437]
+offset_left = -16.0
+offset_top = -16.0
+offset_right = 16.0
+offset_bottom = 16.0
+color = Color(0.35, 0.55, 0.95, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Player" unique_id=1634558823]
+shape = SubResource("Shape_player")
+
+[node name="Camera2D" type="Camera2D" parent="Player" unique_id=28989592]
+limit_left = 0
+limit_top = 0
+limit_right = 2400
+limit_bottom = 1600
+
+[node name="EditorCollisionViz" type="Node2D" parent="." unique_id=99009513]
+script = ExtResource("7_viz")

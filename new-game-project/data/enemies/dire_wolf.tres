@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="Enemy" format=3 uid="uid://c5e7oht47crpx"]
+
+[ext_resource type="Script" uid="uid://cjbcaorle0k6n" path="res://scripts/characters/Skill.gd" id="1_skill"]
+[ext_resource type="Script" uid="uid://bc8mpswi1cxid" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
+
+[sub_resource type="Resource" id="Skill_savage_bite"]
+script = ExtResource("1_skill")
+skill_name = "Savage Bite"
+description = "Snaps powerful jaws at a hero."
+power = 1.2
+
+[sub_resource type="Resource" id="Skill_pounce"]
+script = ExtResource("1_skill")
+skill_name = "Pounce"
+description = "Leaps onto a hero with its full weight."
+power = 1.35
+
+[sub_resource type="Resource" id="Skill_rending_claws"]
+script = ExtResource("1_skill")
+skill_name = "Rending Claws"
+description = "Rakes a hero with both forepaws."
+
+[resource]
+script = ExtResource("2_enemy")
+species = "Dire Wolf"
+drop_table = Array[Dictionary]([{
+"chance": 0.5,
+"item_name": "Monster Fang",
+"quantity": 1
+}])
+character_name = "Dire Wolf"
+character_class = "Beast"
+base_hp = 42
+base_attack = 9
+base_defense = 4
+base_magic = 2
+base_arcane = 3
+base_speed = 12
+skills = Array[ExtResource("1_skill")]([SubResource("Skill_savage_bite"), SubResource("Skill_pounce"), SubResource("Skill_rending_claws")])

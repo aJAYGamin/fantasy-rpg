@@ -1,85 +1,55 @@
-[gd_resource type="Resource" script_class="Enemy" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="Enemy" format=3 uid="uid://diurhlb2iylpx"]
 
-[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
-[ext_resource type="Script" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
+[ext_resource type="Script" uid="uid://cjbcaorle0k6n" path="res://scripts/characters/Skill.gd" id="1_skill"]
+[ext_resource type="Script" uid="uid://bc8mpswi1cxid" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
 
 [sub_resource type="Resource" id="Skill_talon_strike"]
 script = ExtResource("1_skill")
 skill_name = "Talon Strike"
 description = "A lightning-fast talon attack whose shock can paralyze nerves."
-mp_cost = 0
-skill_type = 0
-attack_type = 0
-status_type = 0
-target_type = 0
 power = 1.2
 element = 5
 status_to_apply = "paralysis"
 status_chance = 0.25
-resonance_gain_override = -1.0
 
 [sub_resource type="Resource" id="Skill_thunder_beak"]
 script = ExtResource("1_skill")
 skill_name = "Thunder Beak"
 description = "Strikes with a beak charged with lightning."
-mp_cost = 0
-skill_type = 0
 attack_type = 2
-status_type = 0
-target_type = 0
 power = 1.4
 element = 5
 status_to_apply = "stun"
 status_chance = 0.3
-resonance_gain_override = -1.0
 
 [sub_resource type="Resource" id="Skill_storm_dive"]
 script = ExtResource("1_skill")
 skill_name = "Storm Dive"
 description = "Dives through the party trailing lightning."
-mp_cost = 0
-skill_type = 0
 attack_type = 2
-status_type = 0
 target_type = 1
-power = 1.0
 element = 5
-status_to_apply = ""
-status_chance = 0.0
-resonance_gain_override = -1.0
 
 [sub_resource type="Resource" id="Skill_wind_ride"]
 script = ExtResource("1_skill")
 skill_name = "Wind Ride"
 description = "Rides an updraft to recover HP."
-mp_cost = 0
 skill_type = 1
-attack_type = 0
-status_type = 0
 target_type = 4
-power = 1.0
 element = 5
-status_to_apply = ""
-status_chance = 0.0
-resonance_gain_override = -1.0
 
 [resource]
 script = ExtResource("2_enemy")
-character_name = "Storm Eagle"
-character_class = "Ranger"
-base_hp = 40
-base_attack = 9
-base_defense = 5
-base_magic = 14
-base_arcane = 5
-base_speed = 12
-element = 5
-secondary_element = 7
-extra_weakness = 0
-extra_resistance = 0
-skills = Array[Skill]([SubResource("Skill_talon_strike"), SubResource("Skill_thunder_beak"), SubResource("Skill_storm_dive"), SubResource("Skill_wind_ride")])
 species = "Storm Eagle"
 rarity = 1
 base_exp_reward = 25
 base_gold_reward = 12
-drop_table = []
+character_name = "Storm Eagle"
+character_class = "Ranger"
+base_hp = 40
+base_attack = 9
+base_magic = 14
+base_speed = 12
+element = 5
+secondary_element = 7
+skills = Array[ExtResource("1_skill")]([SubResource("Skill_talon_strike"), SubResource("Skill_thunder_beak"), SubResource("Skill_storm_dive"), SubResource("Skill_wind_ride")])

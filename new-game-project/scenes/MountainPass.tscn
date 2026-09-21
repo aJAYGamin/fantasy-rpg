@@ -1,0 +1,107 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/overworld/OverworldScene.gd" id="1_scene"]
+[ext_resource type="Script" path="res://scripts/overworld/Player.gd" id="2_player"]
+[ext_resource type="Resource" path="res://data/maps/mountain_pass.tres" id="3_area"]
+[ext_resource type="Script" path="res://scripts/overworld/MapZone.gd" id="4_zone"]
+[ext_resource type="Script" path="res://scripts/overworld/RoamerTerritory.gd" id="5_terr"]
+[ext_resource type="Script" path="res://scripts/overworld/EditorCollisionViz.gd" id="6_viz"]
+
+[sub_resource type="RectangleShape2D" id="Shape_player"]
+size = Vector2(28, 28)
+
+[sub_resource type="RectangleShape2D" id="Shape_horizontal_wall"]
+size = Vector2(3200, 100)
+
+[sub_resource type="RectangleShape2D" id="Shape_vertical_wall"]
+size = Vector2(100, 2200)
+
+[node name="MountainPass" type="Node2D"]
+script = ExtResource("1_scene")
+area = ExtResource("3_area")
+field_rect = Rect2(0, 0, 3000, 2000)
+
+[node name="Background" type="ColorRect" parent="."]
+z_index = -1
+offset_right = 3000.0
+offset_bottom = 2000.0
+color = Color(0.3, 0.34, 0.4, 1)
+
+[node name="ExitPath" type="ColorRect" parent="."]
+offset_left = 1380.0
+offset_top = 1880.0
+offset_right = 1620.0
+offset_bottom = 2000.0
+color = Color(0.42, 0.5, 0.32, 1)
+
+[node name="BoundaryTop" type="StaticBody2D" parent="."]
+position = Vector2(1500, -50)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryTop"]
+shape = SubResource("Shape_horizontal_wall")
+
+[node name="BoundaryBottom" type="StaticBody2D" parent="."]
+position = Vector2(1500, 2050)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryBottom"]
+shape = SubResource("Shape_horizontal_wall")
+
+[node name="BoundaryLeft" type="StaticBody2D" parent="."]
+position = Vector2(-50, 1000)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryLeft"]
+shape = SubResource("Shape_vertical_wall")
+
+[node name="BoundaryRight" type="StaticBody2D" parent="."]
+position = Vector2(3050, 1000)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryRight"]
+shape = SubResource("Shape_vertical_wall")
+
+[node name="RoamerTerritories" type="Node2D" parent="."]
+
+[node name="Territory_West" type="Area2D" parent="RoamerTerritories"]
+script = ExtResource("5_terr")
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="RoamerTerritories/Territory_West"]
+polygon = PackedVector2Array(400, 600, 1100, 600, 1100, 1200, 400, 1200)
+
+[node name="Territory_East" type="Area2D" parent="RoamerTerritories"]
+script = ExtResource("5_terr")
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="RoamerTerritories/Territory_East"]
+polygon = PackedVector2Array(1900, 500, 2600, 500, 2600, 1100, 1900, 1100)
+
+[node name="Zones" type="Node2D" parent="."]
+
+[node name="Zone_Exit" type="Area2D" parent="Zones"]
+script = ExtResource("4_zone")
+label = "Back to Plains"
+target_scene = "res://scenes/OverworldScene.tscn"
+target_spawn = Vector2(1890, 570)
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Zones/Zone_Exit"]
+polygon = PackedVector2Array(1380, 1880, 1620, 1880, 1620, 2000, 1380, 2000)
+
+[node name="Player" type="CharacterBody2D" parent="."]
+position = Vector2(1500, 1600)
+script = ExtResource("2_player")
+
+[node name="Sprite" type="ColorRect" parent="Player"]
+offset_left = -16.0
+offset_top = -16.0
+offset_right = 16.0
+offset_bottom = 16.0
+color = Color(0.35, 0.55, 0.95, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Player"]
+shape = SubResource("Shape_player")
+
+[node name="Camera2D" type="Camera2D" parent="Player"]
+limit_left = 0
+limit_top = 0
+limit_right = 3000
+limit_bottom = 2000
+
+[node name="EditorCollisionViz" type="Node2D" parent="."]
+script = ExtResource("6_viz")

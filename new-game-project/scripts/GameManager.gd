@@ -4,6 +4,12 @@ extends Node
 
 signal gold_changed(new_amount: int)
 signal party_updated
+# Emitted when a quest is accepted from a giver, and when one is turned in (rewarded).
+signal quest_accepted(quest: Quest)
+signal quest_completed(quest: Quest)
+# Fires on ANY quest-state change (accept / turn-in / select active / story change)
+# so NPCs can refresh their waypoint markers.
+signal quests_changed
 # Emitted when a controller connects/disconnects (for the Settings device status).
 signal controllers_changed
 # Emitted when the active input mode flips between controller and keyboard+mouse.
@@ -29,7 +35,13 @@ var gold: int = 100:
 
 # ─── World State ─────────────────────────────────────────
 var current_map: String = "world_map"
-var completed_quests: Array[String] = []
+# In-world clock (time of day). Advances during overworld exploration; paused in
+# battles, menus, and dialogue/cutscenes (see _process gating). Persisted in saves.
+var clock := TimeOfDay.new()
+var _time_in_overworld: bool = false
+var _clock_overlay: CanvasLayer = null
+# Quest state: live ACTIVE quest instances + COMPLETED ids (see QuestLog).
+var quest_log := QuestLog.new()
 var story_flags: Dictionary = {}   # e.g. {"met_elder": true, "darkwood_cleared": false}
 var play_time_seconds: float = 0.0
 
@@ -51,6 +63,19 @@ var last_battle_won: bool = false
 # Set true when the player FLEES a battle, so the overworld grants a few seconds of
 # i-frames on return (no roamer can pull them into another fight immediately).
 var pending_flee_iframes: bool = false
+
+# ─── Map-to-Map Transitions (P7p2) ───────────────────────
+# Set by a MapTransition zone right before change_scene_to_file; the destination
+# OverworldScene consumes them in _ready (spawn at the target + fade back in).
+# Transient — both are cleared the instant the destination reads them.
+var pending_transition_active: bool = false
+var pending_transition_spawn: Vector2 = Vector2.ZERO
+var pending_fade_in: bool = false   # destination should start black and fade in
+# Where the player last entered a transition from. A "return_to_origin" zone (e.g. a
+# shared town-interior exit) sends them back here, so one interior can serve several
+# towns and drop the player back at the right one.
+var transition_origin_scene: String = ""
+var transition_origin_pos: Vector2 = Vector2.ZERO
 
 # Persistent roamer state for the CURRENT region, so roamers survive the battle
 # scene reload. A region is identified by its overworld scene path. On battle
@@ -121,9 +146,13 @@ var _fps_label: Label = null
 const BUTTON_SFX_PATH: String = "res://music/GUI_Sound_Effects_by_Lokif/misc_menu_4.wav"
 var _ui_sfx: AudioStreamPlayer = null
 
-# Active input mode. true = controller (menus are focus-navigable); false =
-# keyboard+mouse (menu buttons are mouse-only; keyboard is overworld actions).
+# Active input mode flags. Focus-based menu navigation (a moving highlight driven
+# by the ui_up/down/left/right + ui_accept actions) is on for BOTH controller AND
+# keyboard; only pure-mouse usage turns it off so menus go click-only with no ring.
+# `_controller_mode` stays true only for an actual gamepad (it drives the Settings
+# device status); for "should menus be arrow/d-pad navigable" use focus_nav_active().
 var _controller_mode: bool = false
+var _keyboard_nav: bool = false
 
 func _ready():
 	# Run while the tree is paused so the focus guard keeps working in the pause menu.
@@ -135,12 +164,36 @@ func _ready():
 	Input.joy_connection_changed.connect(_on_joy_connection_changed)
 	# Start in controller mode if a pad is already connected at launch.
 	_controller_mode = not Input.get_connected_joypads().is_empty()
+	_create_clock_overlay.call_deferred()
+
+func _create_clock_overlay() -> void:
+	if _clock_overlay != null and is_instance_valid(_clock_overlay):
+		return
+	# load() (not preload) + deferred so ClockOverlay compiles after this script is
+	# fully settled, not re-entrantly during _ready (the dialogue-box trap).
+	var clock_script: GDScript = load("res://scripts/ui/ClockOverlay.gd")
+	_clock_overlay = clock_script.new()
+	add_child(_clock_overlay)
 
 func _process(delta):
 	play_time_seconds += delta
+	# Advance the in-world clock only while exploring — paused in battle, in any menu
+	# (the tree is paused), and during dialogue/cutscenes.
+	if _time_in_overworld and not get_tree().paused and not DialogueManager.is_active():
+		clock.advance_real(delta)
 	if _fps_label != null and _fps_label.visible:
 		_fps_label.text = "FPS %d" % Engine.get_frames_per_second()
 	_update_focus_guard()
+
+# Called by overworld/interior scenes (true on enter, false on exit) so the clock +
+# its overlay only run there, not in battle or the main menu.
+func set_time_overworld(active: bool) -> void:
+	_time_in_overworld = active
+
+func time_clock_visible() -> bool:
+	# Hidden in battle / main menu (not in the overworld) and while the game is
+	# paused (a menu is open).
+	return _time_in_overworld and not get_tree().paused
 
 # ─── Centralized controller-focus guard ──────────────────
 # The single source of truth for "what does the controller have focus on."
@@ -162,10 +215,10 @@ func register_focus_scope(ctrl: Control) -> void:
 	_prune_focus_scopes()
 	_focus_scopes = _focus_scopes.filter(func(s): return s["ctrl"] != ctrl)
 	_focus_scopes.append({"ctrl": ctrl})
-	# In keyboard+mouse mode, immediately lock the new scope to click-only so its
-	# buttons never become keyboard-navigable; in controller mode, force the guard
-	# to re-evaluate the active scope next tick.
-	if not _controller_mode:
+	# In mouse mode, immediately lock the new scope to click-only (no focus ring);
+	# in keyboard/controller mode, force the guard to re-evaluate the active scope
+	# next tick so the new scope's buttons become navigable.
+	if not focus_nav_active():
 		_set_scope_focusable(ctrl, false)
 	else:
 		_focus_top_last = null
@@ -203,6 +256,10 @@ func top_focus_scope() -> Control:
 func set_controller_mode_for_test(controller: bool) -> void:
 	_set_controller_mode(controller)
 
+# Test hook: force keyboard-navigation mode (focus nav on, gamepad bit off).
+func set_keyboard_nav_for_test(on: bool) -> void:
+	_apply_input_mode(false, on)
+
 # Test hook: run one guard tick synchronously.
 func update_focus_guard_for_test() -> void:
 	_update_focus_guard()
@@ -216,14 +273,14 @@ func _update_focus_guard() -> void:
 	if vp == null:
 		return
 
-	if not _controller_mode:
-		# Mouse/keyboard: menus are click-only. Lock every scope's controls to
-		# FOCUS_NONE so the keyboard can't navigate/activate them, and release the
-		# focus ring — but ONLY on the transition into mouse mode. Doing
-		# release_focus() every frame cancels an in-progress button press (mouse
-		# down then up on the next frame), so clicks like the settings Back button
-		# silently fail. Once the controls are FOCUS_NONE they can't hold focus
-		# anyway, so a one-time release is sufficient.
+	if not focus_nav_active():
+		# Pure mouse: menus are click-only. Lock every scope's controls to
+		# FOCUS_NONE so no focus ring shows, and release the focus owner — but ONLY
+		# on the transition into mouse mode. Doing release_focus() every frame
+		# cancels an in-progress button press (mouse down then up on the next
+		# frame), so clicks like the settings Back button silently fail. Once the
+		# controls are FOCUS_NONE they can't hold focus anyway, so a one-time
+		# release is sufficient.
 		if _focus_top_last != null:
 			for s in _focus_scopes:
 				var c: Control = s["ctrl"]
@@ -454,24 +511,40 @@ var _last_mouse_ms: int = -100000
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey:
 		_last_kb_ms = Time.get_ticks_msec()
-		_set_controller_mode(false)
+		_apply_input_mode(false, true)    # keyboard → focus navigation
 	elif event is InputEventMouseButton or event is InputEventMouseMotion:
 		_last_mouse_ms = Time.get_ticks_msec()
-		_set_controller_mode(false)
+		_apply_input_mode(false, false)   # mouse → click-only, no focus ring
 	elif event is InputEventJoypadButton and event.pressed:
-		_set_controller_mode(true)
+		_apply_input_mode(true, false)    # controller → focus navigation
 	elif event is InputEventJoypadMotion and absf(event.axis_value) > 0.5:
-		_set_controller_mode(true)
+		_apply_input_mode(true, false)
 
-# --- Input mode (controller vs keyboard+mouse) ---------------------------------
+# --- Input mode (controller vs keyboard vs mouse) ------------------------------
 func is_controller_mode() -> bool:
 	return _controller_mode
 
+# True when menus should be focus-navigable (moving highlight + ui_accept). On for
+# controller AND keyboard; off for pure mouse. This is what the focus guard and the
+# per-screen "grab initial focus" helpers key off of.
+func focus_nav_active() -> bool:
+	return _controller_mode or _keyboard_nav
+
 func _set_controller_mode(controller: bool) -> void:
-	if _controller_mode == controller:
+	# Setting controller mode explicitly (e.g. the test hook) clears keyboard nav,
+	# so `false` means "mouse mode / click-only", matching the prior behavior.
+	_apply_input_mode(controller, false)
+
+func _apply_input_mode(controller: bool, keyboard: bool) -> void:
+	if controller == _controller_mode and keyboard == _keyboard_nav:
 		return
+	var ctrl_changed := controller != _controller_mode
 	_controller_mode = controller
-	input_mode_changed.emit(controller)
+	_keyboard_nav = keyboard
+	# Emit only when the gamepad bit flips (device status listeners care about that);
+	# the focus guard re-applies focusability on its own via _focus_top_last tracking.
+	if ctrl_changed:
+		input_mode_changed.emit(controller)
 
 func keyboard_status_text() -> String:
 	return "Keyboard detected" if (Time.get_ticks_msec() - _last_kb_ms) < _INPUT_ACTIVE_MS else "No external keyboard found"
@@ -529,7 +602,9 @@ func start_new_game(slot: int):
 	party = [] as Array[Character]
 	gold = 100
 	species_memory = {}
-	completed_quests = [] as Array[String]
+	quest_log.reset()
+	quest_log.set_story(QuestFactory.create(QuestFactory.STORY_START))
+	clock.set_minutes(TimeOfDay.START_MINUTES)
 	story_flags = {}
 	play_time_seconds = 0.0
 	save_overworld_scene_path = ""
@@ -539,6 +614,10 @@ func start_new_game(slot: int):
 	pending_battle_enemies = [] as Array[Enemy]
 	pending_roamer_id = -1
 	pending_flee_iframes = false
+	pending_transition_active = false
+	pending_fade_in = false
+	transition_origin_scene = ""
+	transition_origin_pos = Vector2.ZERO
 	clear_roamer_state()
 	active_slot = slot  # setter persists last_slot to config
 	ensure_default_party()
@@ -578,13 +657,147 @@ func spend_gold(amount: int) -> bool:
 	print("Not enough gold!")
 	return false
 
+# ─── Shops & Inn ─────────────────────────────────────────
+# All shop transactions use the shared party inventory (party[0].inventory).
+
+func _shared_inventory() -> Inventory:
+	return party[0].inventory if not party.is_empty() else null
+
+func can_afford(cost: int) -> bool:
+	return gold >= cost
+
+# Buys one of a named ItemFactory item if affordable; returns true on success.
+func buy_item(item_name: String) -> bool:
+	var it := ItemFactory.create(item_name)
+	var inv := _shared_inventory()
+	if it == null or inv == null or it.price <= 0 or not can_afford(it.price):
+		return false
+	spend_gold(it.price)
+	inv.add_item(it)
+	return true
+
+# Buys a named EquipmentFactory piece (added to the shared pool) if affordable.
+func buy_equipment(eq_name: String) -> bool:
+	var eq := EquipmentFactory.create(eq_name)
+	var inv := _shared_inventory()
+	if eq == null or inv == null or eq.price <= 0 or not can_afford(eq.price):
+		return false
+	spend_gold(eq.price)
+	inv.add_equipment(eq)
+	return true
+
+# Sells one of an item instance from the shared inventory; returns gold earned (0 if
+# it isn't sellable — e.g. key items).
+func sell_item(item: Item) -> int:
+	var inv := _shared_inventory()
+	if inv == null or item == null or item.sell_price() <= 0:
+		return 0
+	var earned := item.sell_price()
+	inv.remove_item(item, 1)
+	earn_gold(earned)
+	return earned
+
+func sell_equipment(eq: Equipment) -> int:
+	var inv := _shared_inventory()
+	if inv == null or eq == null or eq.sell_price() <= 0:
+		return 0
+	var earned := eq.sell_price()
+	inv.remove_equipment(eq)
+	earn_gold(earned)
+	return earned
+
+# Bumped by story progression to raise inn prices over the game (0 = the starting
+# 20-gold rate). The story system will set this as the player advances.
+var inn_cost_tier: int = 0
+
+# Inn: pay gold to fully restore the party's HP/MP. Starts at 20 gold and only goes
+# up at story milestones (via inn_cost_tier), not with party level.
+func inn_rest_cost() -> int:
+	return 20 + inn_cost_tier * 20
+
+func inn_rest() -> bool:
+	var cost := inn_rest_cost()
+	if not can_afford(cost):
+		return false
+	spend_gold(cost)
+	for c in party:
+		c.current_hp = c.max_hp()
+		c.current_mp = c.max_mp()
+	return true
+
 # ─── Quest & Flags ───────────────────────────────────────
 func complete_quest(quest_id: String):
-	if not quest_id in completed_quests:
-		completed_quests.append(quest_id)
+	if not quest_id in quest_log.completed:
+		quest_log.completed.append(quest_id)
 
 func is_quest_done(quest_id: String) -> bool:
-	return quest_id in completed_quests
+	return quest_log.is_completed(quest_id)
+
+# Accept a SIDE quest from a giver (by id or a built Quest). Returns the accepted
+# Quest, or null if it couldn't be accepted (already had / completed / unknown id).
+func accept_quest(quest_or_id) -> Quest:
+	var quest: Quest = quest_or_id if quest_or_id is Quest else QuestFactory.create(String(quest_or_id))
+	if quest == null:
+		return null
+	if quest_log.accept_side(quest):
+		emit_signal("quest_accepted", quest)
+		emit_signal("quests_changed")
+		return quest
+	return null
+
+# Sets the always-active story quest (by id or a built Quest). Called on new game and
+# whenever the story advances.
+func set_story_quest(quest_or_id) -> Quest:
+	var quest: Quest = quest_or_id if quest_or_id is Quest else QuestFactory.create(String(quest_or_id))
+	quest_log.set_story(quest)
+	emit_signal("quests_changed")
+	return quest
+
+# Picks which accepted side quest is the highlighted "active side quest".
+func select_active_side_quest(quest_id: String) -> bool:
+	var ok := quest_log.select_active_side(quest_id)
+	if ok:
+		emit_signal("quests_changed")
+	return ok
+
+# Advance counter quests whose objective_key matches (e.g. "defeat:goblin"). Combat
+# and other systems call this; the Quests menu reflects it.
+func report_quest_event(event_key: String, amount: int = 1) -> void:
+	quest_log.report(event_key, amount)
+
+func can_turn_in_quest(quest_id: String) -> bool:
+	return quest_log.can_turn_in(quest_id)
+
+# Turn in an objective-met quest: moves it to completed and grants its rewards
+# (gold, XP to the whole party, and any reward items). Returns the quest or null.
+func turn_in_quest(quest_id: String) -> Quest:
+	var q := quest_log.mark_completed(quest_id)
+	if q == null:
+		return null
+	if q.reward_gold > 0:
+		earn_gold(q.reward_gold)
+	for n in q.reward_items:
+		var it := ItemFactory.create(String(n))
+		if it != null and not party.is_empty():
+			party[0].inventory.add_item(it)
+	emit_signal("quest_completed", q)
+	emit_signal("quests_changed")
+	return q
+
+# Restores quest state from a save dict. New saves carry a structured "quests" dict
+# (story + side quests + active selection + completed); older saves only had a
+# "completed_quests" id list. Either way the story quest is guaranteed present after.
+func _load_quests(data: Dictionary) -> void:
+	if data.has("quests") and data["quests"] is Dictionary:
+		quest_log.from_save(data["quests"])
+	else:
+		quest_log.reset()
+		for q in data.get("completed_quests", []):
+			var s := str(q)
+			if not (s in quest_log.completed):
+				quest_log.completed.append(s)
+	if quest_log.story == null:
+		quest_log.set_story(QuestFactory.create(QuestFactory.STORY_START))
 
 func set_flag(flag: String, value = true):
 	story_flags[flag] = value
@@ -615,7 +828,8 @@ func save_game():
 	var save_data = {
 		"gold": gold,
 		"current_map": current_map,
-		"completed_quests": completed_quests,
+		"quests": quest_log.to_save(),
+		"time_minutes": clock.minutes,
 		"story_flags": story_flags,
 		"play_time": play_time_seconds,
 		"species_memory": species_memory,
@@ -651,7 +865,8 @@ func load_game() -> bool:
 	var data = json.data
 	gold = data.get("gold", 100)
 	current_map = data.get("current_map", "world_map")
-	completed_quests = data.get("completed_quests", [])
+	_load_quests(data)
+	clock.set_minutes(float(data.get("time_minutes", TimeOfDay.START_MINUTES)))
 	story_flags = data.get("story_flags", {})
 	species_memory = data.get("species_memory", {})
 	play_time_seconds = data.get("play_time", 0.0)
@@ -703,7 +918,8 @@ func _build_save_dict() -> Dictionary:
 		"gold": gold,
 		"party": SaveSerializer.serialize_party(party),
 		"species_memory": species_memory,
-		"completed_quests": completed_quests,
+		"quests": quest_log.to_save(),
+		"time_minutes": clock.minutes,
 		"story_flags": story_flags,
 		"current_map": current_map,
 		"overworld_scene_path": save_overworld_scene_path,
@@ -764,11 +980,8 @@ func load_from_slot(slot: int) -> bool:
 	var data = json.data
 	gold = int(data.get("gold", 100))
 	species_memory = data.get("species_memory", {})
-	# JSON.parse returns untyped Array, so quests must be re-typed before assignment.
-	var typed_quests: Array[String] = []
-	for q in data.get("completed_quests", []):
-		typed_quests.append(str(q))
-	completed_quests = typed_quests
+	_load_quests(data)
+	clock.set_minutes(float(data.get("time_minutes", TimeOfDay.START_MINUTES)))
 	story_flags = data.get("story_flags", {})
 	current_map = data.get("current_map", "world_map")
 	play_time_seconds = float(data.get("metadata", {}).get("playtime_seconds", 0.0))

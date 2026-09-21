@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="EncounterGroup" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/overworld/EncounterGroup.gd" id="1_eg"]
+[ext_resource type="Resource" path="res://data/enemies/dire_wolf.tres" id="2_dw"]
+
+[resource]
+script = ExtResource("1_eg")
+group_name = "Wolf Pack"
+weight = 1.0
+min_party_level = 1
+enemy_pool = Array[Enemy]([ExtResource("2_dw")])
+min_enemies = 1
+max_enemies = 3
+enemy_level_override = 0
+is_fixed = false

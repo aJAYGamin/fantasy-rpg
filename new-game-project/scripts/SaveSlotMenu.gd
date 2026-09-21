@@ -392,7 +392,13 @@ func _on_slot_picked(slot: int, occupied: bool) -> void:
 		slot_chosen.emit(slot)
 		return
 	if not occupied:
-		slot_chosen.emit(slot)
+		# Empty slot: still confirm before starting a fresh game.
+		_show_confirm(
+			"Start New Game?",
+			"Begin a new adventure in Slot %d?" % (slot + 1),
+			"Start", false,
+			func(): slot_chosen.emit(slot)
+		)
 		return
 	_show_confirm(
 		"Overwrite Slot %d?" % (slot + 1),

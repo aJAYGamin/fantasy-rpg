@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="EncounterGroup" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/overworld/EncounterGroup.gd" id="1_eg"]
+[ext_resource type="Resource" path="res://data/enemies/goblin_cutthroat.tres" id="2_gc"]
+[ext_resource type="Resource" path="res://data/enemies/goblin_spearman.tres" id="3_gs"]
+
+[resource]
+script = ExtResource("1_eg")
+group_name = "Goblin Raiders"
+weight = 1.2
+min_party_level = 1
+enemy_pool = Array[Enemy]([ExtResource("2_gc"), ExtResource("3_gs")])
+min_enemies = 1
+max_enemies = 2
+enemy_level_override = 0
+is_fixed = false

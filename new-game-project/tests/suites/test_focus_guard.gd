@@ -57,7 +57,28 @@ func test_controller_mode_makes_scope_focusable() -> void:
 
 	GameManager.set_controller_mode_for_test(false)
 	GameManager.update_focus_guard_for_test()
-	assert_eq(btn.focus_mode, Control.FOCUS_NONE, "keyboard+mouse mode makes scope buttons click-only")
+	assert_eq(btn.focus_mode, Control.FOCUS_NONE, "pure-mouse mode makes scope buttons click-only")
+
+	GameManager.set_controller_mode_for_test(false)
+	_cleanup([a])
+
+func test_keyboard_nav_makes_scope_focusable() -> void:
+	# Keyboard navigation uses the same focus path as the controller, so menus are
+	# arrow-key navigable (not just mouse-click).
+	var a := _make_scope()
+	var btn: Button = a.get_child(0)
+	GameManager.register_focus_scope(a)
+
+	GameManager.set_keyboard_nav_for_test(true)
+	assert_true(GameManager.focus_nav_active(), "keyboard counts as focus-navigation mode")
+	assert_false(GameManager.is_controller_mode(), "keyboard nav does not report as a gamepad")
+	GameManager.update_focus_guard_for_test()
+	assert_eq(btn.focus_mode, Control.FOCUS_ALL, "keyboard mode makes scope buttons focusable")
+
+	# Switching to pure mouse releases focusability again.
+	GameManager.set_keyboard_nav_for_test(false)
+	GameManager.update_focus_guard_for_test()
+	assert_eq(btn.focus_mode, Control.FOCUS_NONE, "mouse mode returns scope buttons to click-only")
 
 	GameManager.set_controller_mode_for_test(false)
 	_cleanup([a])

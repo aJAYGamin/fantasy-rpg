@@ -281,7 +281,7 @@ func _build_keyboard(v: VBoxContainer) -> void:
 	v.add_child(_status_row("Mouse", _mouse_status_label))
 
 	v.add_child(_divider())
-	v.add_child(_label("Click a binding, then press a key. Esc cancels.", BattleUITheme.font_regular(), 11, NOTE_COLOR))
+	v.add_child(_label("Click a binding, then press a key. Esc cancels.", BattleUITheme.font_regular(), 11, NOTE_COLOR, HORIZONTAL_ALIGNMENT_CENTER))
 	for meta in InputMapConfig.ACTIONS:
 		v.add_child(_kb_remap_row(meta["action"], meta["label"]))
 
@@ -298,10 +298,10 @@ func _build_controller(v: VBoxContainer) -> void:
 	v.add_child(_divider())
 	v.add_child(_sens_row("Left Stick Sensitivity", s.stick_sensitivity_left, func(val): s.stick_sensitivity_left = val))
 	v.add_child(_sens_row("Right Stick Sensitivity", s.stick_sensitivity_right, func(val): s.stick_sensitivity_right = val))
-	v.add_child(_label("Right stick is reserved for future camera control.", BattleUITheme.font_regular(), 11, NOTE_COLOR))
+	v.add_child(_label("Right stick is reserved for future camera control.", BattleUITheme.font_regular(), 11, NOTE_COLOR, HORIZONTAL_ALIGNMENT_CENTER))
 
 	v.add_child(_divider())
-	v.add_child(_label("Click a binding, then press a controller button/stick. Esc cancels.", BattleUITheme.font_regular(), 11, NOTE_COLOR))
+	v.add_child(_label("Click a binding, then press a controller button/stick. Esc cancels.", BattleUITheme.font_regular(), 11, NOTE_COLOR, HORIZONTAL_ALIGNMENT_CENTER))
 	for meta in InputMapConfig.ACTIONS:
 		v.add_child(_pad_remap_row(meta["action"], meta["label"]))
 
@@ -314,7 +314,8 @@ func _build_controller(v: VBoxContainer) -> void:
 func _volume_row(label_text: String, initial: float, on_set: Callable) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 14)
-	var name_label := _label(label_text, BattleUITheme.font_regular(), 15, BattleUITheme.TEXT_PRIMARY)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	var name_label := _label(label_text, BattleUITheme.font_regular(), 15, BattleUITheme.TEXT_PRIMARY, HORIZONTAL_ALIGNMENT_CENTER)
 	name_label.custom_minimum_size = Vector2(140, 0)
 	row.add_child(name_label)
 	var slider := HSlider.new()
@@ -322,7 +323,6 @@ func _volume_row(label_text: String, initial: float, on_set: Callable) -> HBoxCo
 	slider.max_value = 1.0
 	slider.step = 0.01
 	slider.value = initial
-	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	slider.custom_minimum_size = Vector2(240, 24)
 	_style_slider(slider)
 	row.add_child(slider)
@@ -338,8 +338,8 @@ func _volume_row(label_text: String, initial: float, on_set: Callable) -> HBoxCo
 func _toggle_row(label_text: String, initial: bool, on_set: Callable, commit: Callable) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 14)
-	var name_label := _label(label_text, BattleUITheme.font_regular(), 15, BattleUITheme.TEXT_PRIMARY)
-	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	var name_label := _label(label_text, BattleUITheme.font_regular(), 15, BattleUITheme.TEXT_PRIMARY, HORIZONTAL_ALIGNMENT_CENTER)
 	row.add_child(name_label)
 	var toggle := CheckButton.new()
 	toggle.button_pressed = initial
@@ -354,8 +354,8 @@ func _toggle_row(label_text: String, initial: bool, on_set: Callable, commit: Ca
 func _labeled_row(label_text: String, control: Control) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 14)
-	var name_label := _label(label_text, BattleUITheme.font_regular(), 15, BattleUITheme.TEXT_PRIMARY)
-	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	var name_label := _label(label_text, BattleUITheme.font_regular(), 15, BattleUITheme.TEXT_PRIMARY, HORIZONTAL_ALIGNMENT_CENTER)
 	row.add_child(name_label)
 	row.add_child(control)
 	return row
@@ -366,8 +366,8 @@ func _status_value(text: String) -> Label:
 func _status_row(name_text: String, value_label: Label) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 14)
-	var n := _label(name_text, BattleUITheme.font_regular(), 15, BattleUITheme.TEXT_PRIMARY)
-	n.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	var n := _label(name_text, BattleUITheme.font_regular(), 15, BattleUITheme.TEXT_PRIMARY, HORIZONTAL_ALIGNMENT_CENTER)
 	row.add_child(n)
 	row.add_child(value_label)
 	return row
@@ -375,7 +375,8 @@ func _status_row(name_text: String, value_label: Label) -> HBoxContainer:
 func _sens_row(label_text: String, initial: float, on_set: Callable) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 14)
-	var name_label := _label(label_text, BattleUITheme.font_regular(), 15, BattleUITheme.TEXT_PRIMARY)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	var name_label := _label(label_text, BattleUITheme.font_regular(), 15, BattleUITheme.TEXT_PRIMARY, HORIZONTAL_ALIGNMENT_CENTER)
 	name_label.custom_minimum_size = Vector2(190, 0)
 	row.add_child(name_label)
 	var slider := HSlider.new()
@@ -383,7 +384,6 @@ func _sens_row(label_text: String, initial: float, on_set: Callable) -> HBoxCont
 	slider.max_value = SettingsModel.SENS_MAX
 	slider.step = 0.05
 	slider.value = initial
-	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	slider.custom_minimum_size = Vector2(170, 24)
 	_style_slider(slider)
 	row.add_child(slider)
@@ -400,8 +400,9 @@ func _sens_row(label_text: String, initial: float, on_set: Callable) -> HBoxCont
 func _kb_remap_row(action: String, label_text: String) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
-	var name_label := _label(label_text, BattleUITheme.font_regular(), 14, BattleUITheme.TEXT_PRIMARY)
-	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	var name_label := _label(label_text, BattleUITheme.font_regular(), 14, BattleUITheme.TEXT_PRIMARY, HORIZONTAL_ALIGNMENT_CENTER)
+	name_label.custom_minimum_size = Vector2(130, 0)
 	row.add_child(name_label)
 	var kb := BattleUITheme.make_button(InputMapConfig.describe_keyboard(action), 11)
 	kb.custom_minimum_size = Vector2(150, 30)
@@ -418,8 +419,9 @@ func _kb_remap_row(action: String, label_text: String) -> HBoxContainer:
 func _pad_remap_row(action: String, label_text: String) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
-	var name_label := _label(label_text, BattleUITheme.font_regular(), 14, BattleUITheme.TEXT_PRIMARY)
-	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	var name_label := _label(label_text, BattleUITheme.font_regular(), 14, BattleUITheme.TEXT_PRIMARY, HORIZONTAL_ALIGNMENT_CENTER)
+	name_label.custom_minimum_size = Vector2(130, 0)
 	row.add_child(name_label)
 	var pad := BattleUITheme.make_button(InputMapConfig.describe_controller(action), 11)
 	pad.custom_minimum_size = Vector2(150, 30)

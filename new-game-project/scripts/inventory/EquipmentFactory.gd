@@ -153,6 +153,17 @@ static func create(name: String) -> Equipment:
 	for el in d.get("element_restriction", []):
 		els.append(int(el))
 	e.element_restriction = els
+	# Price: an explicit def value wins; otherwise derive from rarity + stat weight
+	# (combat stats are worth more per point than raw HP/MP).
+	if d.has("price"):
+		e.price = int(d["price"])
+	else:
+		var stat_weight := 0
+		for k in e.stat_bonuses:
+			var v := absi(int(e.stat_bonuses[k]))
+			stat_weight += v if (k == "max_hp" or k == "max_mp") else v * 12
+		var rarity_base := [40, 90, 180, 360, 700, 1300, 2400]   # COMMON..CELESTIAL
+		e.price = rarity_base[clampi(e.rarity, 0, rarity_base.size() - 1)] + stat_weight
 	return e
 
 # Rolls a drop table ([{item_name, chance, quantity}]). Each successful roll

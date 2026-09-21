@@ -23,6 +23,11 @@ const STAT_LABELS := {
 @export var stat_bonuses: Dictionary = {}             # stat key -> bonus int
 @export var class_restriction: Array[String] = []     # empty = any class
 @export var element_restriction: Array[int] = []      # ElementalSystem.Element ints; empty = any
+@export var price: int = 0   # shop buy price (gold)
+
+# Gold the player gets for selling this piece — half the buy price (rounded down).
+func sell_price() -> int:
+	return int(price * 0.5)
 
 func bonus(stat: String) -> int:
 	return int(stat_bonuses.get(stat, 0))

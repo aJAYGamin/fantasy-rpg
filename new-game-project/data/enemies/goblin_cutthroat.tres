@@ -1,0 +1,48 @@
+[gd_resource type="Resource" script_class="Enemy" format=3 uid="uid://bndbtx0w8eeyo"]
+
+[ext_resource type="Script" uid="uid://cjbcaorle0k6n" path="res://scripts/characters/Skill.gd" id="1_skill"]
+[ext_resource type="Script" uid="uid://bc8mpswi1cxid" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
+
+[sub_resource type="Resource" id="Skill_twin_fangs"]
+script = ExtResource("1_skill")
+skill_name = "Twin Fangs"
+description = "Slashes with a knife in each hand."
+power = 1.1
+
+[sub_resource type="Resource" id="Skill_venom_nick"]
+script = ExtResource("1_skill")
+skill_name = "Venom Nick"
+description = "A shallow cut from a poison-coated blade."
+power = 0.9
+status_to_apply = "poison"
+status_chance = 0.35
+
+[sub_resource type="Resource" id="Skill_flurry"]
+script = ExtResource("1_skill")
+skill_name = "Flurry"
+description = "A frantic burst of stabs at one hero."
+power = 1.25
+
+[resource]
+script = ExtResource("2_enemy")
+species = "Goblin Cutthroat"
+base_exp_reward = 22
+base_gold_reward = 14
+drop_table = Array[Dictionary]([{
+"chance": 0.4,
+"item_name": "Monster Fang",
+"quantity": 1
+}, {
+"chance": 0.2,
+"item_name": "Glimmer Dust",
+"quantity": 1
+}])
+character_name = "Goblin Cutthroat"
+character_class = "Rogue"
+base_hp = 35
+base_attack = 9
+base_defense = 4
+base_magic = 3
+base_arcane = 2
+base_speed = 11
+skills = Array[ExtResource("1_skill")]([SubResource("Skill_twin_fangs"), SubResource("Skill_venom_nick"), SubResource("Skill_flurry")])
