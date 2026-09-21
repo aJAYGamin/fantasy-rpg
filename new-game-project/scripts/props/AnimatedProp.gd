@@ -17,6 +17,43 @@ extends Node2D
 
 signal loop_finished   ## emitted for non-looping props (chest opening, etc.)
 
+## Where tools/import_animation.gd writes its trimmed, downscaled loops.
+const ANIM_DIR := "res://assets/props/animated/"
+
+## Pick an imported animation by name; the frames load themselves. Leave empty
+## to drive this node from an explicit `frames` resource instead.
+@export var prop_name: String = "":
+	set(v):
+		prop_name = v
+		_load_named_frames()
+		_rebuild()
+
+## Names of every imported animation, i.e. the folders under ANIM_DIR. Used to
+## turn prop_name into a dropdown so placing one is a pick, not a typed path.
+static func available() -> PackedStringArray:
+	var out := PackedStringArray()
+	var d := DirAccess.open(ANIM_DIR)
+	if d == null:
+		return out
+	for sub in d.get_directories():
+		if ResourceLoader.exists(ANIM_DIR + sub + "/frame_01.png"):
+			out.append(sub)
+	out.sort()
+	return out
+
+func _validate_property(property: Dictionary) -> void:
+	if property.name == "prop_name":
+		property.hint = PROPERTY_HINT_ENUM
+		property.hint_string = ",".join(available())
+
+func _load_named_frames() -> void:
+	if prop_name == "":
+		return
+	var dir := ANIM_DIR + prop_name
+	if not ResourceLoader.exists(dir + "/frame_01.png"):
+		return
+	frames = frames_from_dir(dir, animation_name, fps, loop)
+
 @export var frames: SpriteFrames = null:
 	set(v):
 		frames = v
@@ -94,6 +131,10 @@ var _light: PointLight2D = null
 
 func _ready() -> void:
 	y_sort_enabled = false
+	# Frames are not serialised with the node, so a named prop reloads them on
+	# every open/run rather than baking 32 texture refs into the scene file.
+	if frames == null:
+		_load_named_frames()
 	_rebuild()
 	if not Engine.is_editor_hint():
 		_desync()
@@ -141,6 +182,10 @@ func _rebuild() -> void:
 	var w := 0.0
 	var tex := _first_frame()
 	if tex != null:
+		# Fall back to the library height so an animated candle matches a static
+		# one; only then to the raw frame size.
+		if h <= 0.0 and prop_name != "":
+			h = PropLibrary.height_for(prop_name)
 		if h <= 0.0:
 			h = float(tex.get_height())
 		var s := h / float(tex.get_height())

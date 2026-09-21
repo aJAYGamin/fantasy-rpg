@@ -150,6 +150,49 @@ func test_static_prop_shadow_is_a_flat_ellipse() -> void:
 	assert_near(sz.y, 21.6, 0.01, "shadow height is flattened from its width")
 	assert_true(sz.y < sz.x, "shadow reads as ground contact, not a ball")
 
+# --------------------------------------------------------------- AnimatedProp
+
+func test_imported_animation_is_present() -> void:
+	var avail := AnimatedProp.available()
+	assert_true(avail.has("candle"), "the imported candle loop is discoverable")
+	for n in avail:
+		assert_true(ResourceLoader.exists(AnimatedProp.ANIM_DIR + n + "/frame_01.png"),
+			"'%s' has a first frame" % n)
+
+func test_frames_from_dir_builds_a_loop() -> void:
+	var sf := AnimatedProp.frames_from_dir(AnimatedProp.ANIM_DIR + "candle", "default", 12.0, true)
+	assert_true(sf != null, "SpriteFrames built")
+	assert_true(sf.has_animation("default"), "animation created")
+	var n := sf.get_frame_count("default")
+	assert_eq(n, 32, "all 32 exported frames loaded")
+	assert_true(sf.get_animation_loop("default"), "loop flag set")
+	assert_near(sf.get_animation_speed("default"), 12.0, 0.01, "fps applied")
+
+func test_animation_frames_share_one_size() -> void:
+	# The importer crops every frame to the UNION of their opaque bounds. If it
+	# had trimmed each frame to its own bounds, the flame's movement would
+	# re-centre the art and the prop would visibly jitter in place.
+	var sf := AnimatedProp.frames_from_dir(AnimatedProp.ANIM_DIR + "candle")
+	var n := sf.get_frame_count("default")
+	assert_true(n > 1, "more than one frame to compare")
+	var first: Texture2D = sf.get_frame_texture("default", 0)
+	var size := first.get_size()
+	for i in range(1, n):
+		var t: Texture2D = sf.get_frame_texture("default", i)
+		assert_eq(t.get_size(), size, "frame %d matches frame 0's size" % i)
+
+func test_animation_frames_were_downscaled() -> void:
+	# Raw Pro Mode exports are ~1100px wide; nine of those is >100MB of repo.
+	var sf := AnimatedProp.frames_from_dir(AnimatedProp.ANIM_DIR + "candle")
+	var t: Texture2D = sf.get_frame_texture("default", 0)
+	assert_true(t.get_height() <= 320, "frames downscaled to the import cap")
+	assert_true(t.get_height() >= 64, "still big enough to scale up a little")
+
+func test_frames_from_dir_handles_missing_dir() -> void:
+	var sf := AnimatedProp.frames_from_dir(AnimatedProp.ANIM_DIR + "does_not_exist")
+	assert_true(sf != null, "returns an empty SpriteFrames rather than null")
+	assert_eq(sf.get_frame_count("default"), 0, "no frames for an unknown animation")
+
 # ---------------------------------------------------------------- PropScatter
 
 func _names() -> PackedStringArray:
