@@ -38,6 +38,28 @@ func test_library_categories() -> void:
 	assert_true(PropLibrary.names_in_category("nonexistent").is_empty(),
 		"unknown category returns nothing")
 
+func test_library_has_all_four_batches() -> void:
+	# One name per generated prop; a missing entry means art landed in assets/
+	# but never got registered, so it can never be placed.
+	assert_eq(PropLibrary.names().size(), 36, "all four batches registered")
+	for n in ["tree_oak", "flowers_pink", "well", "forge"]:
+		assert_true(PropLibrary.has_prop(n), "'%s' is registered" % n)
+
+func test_light_props_registered() -> void:
+	# These nine are the Sprite Motion inputs; each also drives a PointLight2D.
+	var lights := PropLibrary.names_in_category("light")
+	assert_eq(lights.size(), 9, "all nine fire/light props registered")
+	for n in ["candle", "torch_wall", "campfire", "brazier", "lamp_post",
+			"fireplace", "lantern_hanging", "forge", "cauldron"]:
+		assert_true(lights.has(n), "'%s' is a light prop" % n)
+
+func test_structure_and_rock_categories() -> void:
+	assert_true(PropLibrary.names_in_category("rock").has("rock_boulders"), "boulders are rock")
+	assert_true(PropLibrary.names_in_category("structure").has("well"), "well is a structure")
+	assert_true(PropLibrary.names_in_category("debris").has("stump"), "stump is debris")
+	assert_true(PropLibrary.height_for("rock_small") < PropLibrary.height_for("rock_boulders"),
+		"a single rock is smaller than a boulder cluster")
+
 func test_trees_are_taller_than_ground_cover() -> void:
 	# The art arrives all ~430px regardless of subject, so the library is the
 	# only thing preventing daisies rendering as tall as oaks.

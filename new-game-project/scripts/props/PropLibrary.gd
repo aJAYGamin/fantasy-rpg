@@ -37,6 +37,32 @@ const DEFS := {
 	"wheat_patch":    {"file": "wheat_patch.png",    "height": 60.0,  "category": "crop"},
 	"reeds":          {"file": "reeds.png",          "height": 62.0,  "category": "water_edge"},
 	"mushrooms_red":  {"file": "mushrooms_red.png",  "height": 34.0,  "category": "ground"},
+
+	# --- rock ---
+	"rock_boulders":  {"file": "rock_boulders.png",  "height": 72.0,  "category": "rock"},
+	"rock_small":     {"file": "rock_small.png",     "height": 26.0,  "category": "rock"},
+
+	# --- rustic structures ---
+	"fence_wood":     {"file": "fence_wood.png",     "height": 56.0,  "category": "structure"},
+	"signpost":       {"file": "signpost.png",       "height": 86.0,  "category": "structure"},
+	"well":           {"file": "well.png",           "height": 96.0,  "category": "structure"},
+	"bridge_wood":    {"file": "bridge_wood.png",    "height": 100.0, "category": "structure"},
+	"cart":           {"file": "cart.png",           "height": 70.0,  "category": "structure"},
+	"stump":          {"file": "stump.png",          "height": 42.0,  "category": "debris"},
+	"firewood":       {"file": "firewood.png",       "height": 46.0,  "category": "debris"},
+
+	# --- fire & light ---
+	# All nine are Sprite Motion inputs and light sources: pair each with an
+	# AnimatedProp loop plus a PointLight2D rather than baking a glow in.
+	"candle":         {"file": "candle.png",         "height": 18.0,  "category": "light"},
+	"torch_wall":     {"file": "torch_wall.png",     "height": 58.0,  "category": "light"},
+	"campfire":       {"file": "campfire.png",       "height": 52.0,  "category": "light"},
+	"brazier":        {"file": "brazier.png",        "height": 68.0,  "category": "light"},
+	"lamp_post":      {"file": "lamp_post.png",      "height": 105.0, "category": "light"},
+	"fireplace":      {"file": "fireplace.png",      "height": 80.0, "category": "light"},
+	"lantern_hanging":{"file": "lantern_hanging.png","height": 48.0,  "category": "light"},
+	"forge":          {"file": "forge.png",          "height": 90.0, "category": "light"},
+	"cauldron":       {"file": "cauldron.png",       "height": 48.0,  "category": "light"},
 }
 
 static func has_prop(prop_name: String) -> bool:
