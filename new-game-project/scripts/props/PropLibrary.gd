@@ -63,6 +63,52 @@ const DEFS := {
 	"lantern_hanging":{"file": "lantern_hanging.png","height": 48.0,  "category": "light"},
 	"forge":          {"file": "forge.png",          "height": 90.0, "category": "light"},
 	"cauldron":       {"file": "cauldron.png",       "height": 48.0,  "category": "light"},
+
+	# --- town decor ---
+	"banner":         {"file": "banner.png",         "height": 80.0,  "category": "decor"},
+	"statue":         {"file": "statue.png",         "height": 95.0,  "category": "decor"},
+
+	# --- containers ---
+	"crate":          {"file": "crate.png",          "height": 40.0,  "category": "container"},
+	"chest":          {"file": "chest.png",          "height": 38.0,  "category": "container"},
+	"sack":           {"file": "sack.png",           "height": 34.0,  "category": "container"},
+	"bucket":         {"file": "bucket.png",         "height": 28.0,  "category": "container"},
+
+	# --- furniture & fixtures (shop interiors) ---
+	"bench":          {"file": "bench.png",          "height": 34.0,  "category": "furniture"},
+	"table":          {"file": "table.png",          "height": 42.0,  "category": "furniture"},
+	"chair":          {"file": "chair.png",          "height": 48.0,  "category": "furniture"},
+	"bookshelf":      {"file": "bookshelf.png",      "height": 85.0,  "category": "furniture"},
+	"anvil":          {"file": "anvil.png",          "height": 42.0,  "category": "furniture"},
+	"ladder":         {"file": "ladder.png",         "height": 75.0,  "category": "furniture"},
+	"door":           {"file": "door.png",           "height": 85.0,  "category": "furniture"},
+
+	# --- shop display items ---
+	"potion_bottle":  {"file": "potion_bottle.png",  "height": 26.0,  "category": "wares"},
+	"sword":          {"file": "sword.png",          "height": 50.0,  "category": "wares"},
+	"shield":         {"file": "shield.png",         "height": 40.0,  "category": "wares"},
+
+	# --- dungeon & blight (goblin castle) ---
+	"tombstone":        {"file": "tombstone.png",        "height": 55.0, "category": "dungeon"},
+	"skull":            {"file": "skull.png",            "height": 24.0, "category": "dungeon"},
+	"bones":            {"file": "bones.png",            "height": 28.0, "category": "dungeon"},
+	"cobweb":           {"file": "cobweb.png",           "height": 55.0, "category": "dungeon"},
+	"chain":            {"file": "chain.png",            "height": 70.0, "category": "dungeon"},
+	"rubble":           {"file": "rubble.png",           "height": 40.0, "category": "dungeon"},
+	"pillar_broken":    {"file": "pillar_broken.png",    "height": 45.0, "category": "dungeon"},
+	"mushrooms_glowing":{"file": "mushrooms_glowing.png","height": 38.0, "category": "dungeon"},
+	"portcullis":       {"file": "portcullis.png",       "height": 90.0, "category": "dungeon"},
+
+	# --- arcane (the Amethyst Requiem's visual payoff) ---
+	"amethyst_cluster":{"file": "amethyst_cluster.png", "height": 55.0, "category": "arcane"},
+	"rune_circle":     {"file": "rune_circle.png",      "height": 70.0, "category": "arcane"},
+	"magic_orb":       {"file": "magic_orb.png",        "height": 35.0, "category": "arcane"},
+	"spellbook":       {"file": "spellbook.png",        "height": 32.0, "category": "arcane"},
+	"staff":           {"file": "staff.png",            "height": 80.0, "category": "arcane"},
+	"scroll":          {"file": "scroll.png",           "height": 26.0, "category": "arcane"},
+	"gemstone":        {"file": "gemstone.png",         "height": 22.0, "category": "arcane"},
+	"mirror":          {"file": "mirror.png",           "height": 70.0, "category": "arcane"},
+	"pedestal":        {"file": "pedestal.png",         "height": 62.0, "category": "arcane"},
 }
 
 static func has_prop(prop_name: String) -> bool:

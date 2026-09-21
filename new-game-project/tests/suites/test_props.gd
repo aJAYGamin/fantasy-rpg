@@ -38,12 +38,33 @@ func test_library_categories() -> void:
 	assert_true(PropLibrary.names_in_category("nonexistent").is_empty(),
 		"unknown category returns nothing")
 
-func test_library_has_all_four_batches() -> void:
+func test_library_has_all_seven_batches() -> void:
 	# One name per generated prop; a missing entry means art landed in assets/
 	# but never got registered, so it can never be placed.
-	assert_eq(PropLibrary.names().size(), 36, "all four batches registered")
-	for n in ["tree_oak", "flowers_pink", "well", "forge"]:
+	assert_eq(PropLibrary.names().size(), 70, "all seven batches registered")
+	for n in ["tree_oak", "flowers_pink", "well", "forge",
+			"shield", "portcullis", "pedestal"]:
 		assert_true(PropLibrary.has_prop(n), "'%s' is registered" % n)
+
+func test_library_files_are_unique() -> void:
+	# Two names pointing at one file means a copy-paste slip in DEFS, and one
+	# prop would silently render as another.
+	var seen := {}
+	for n in PropLibrary.names():
+		var f := PropLibrary.path_for(n)
+		assert_false(seen.has(f), "'%s' has its own art (not shared with '%s')" % [n, seen.get(f, "")])
+		seen[f] = n
+
+func test_batch_five_to_seven_categories() -> void:
+	assert_eq(PropLibrary.names_in_category("dungeon").size(), 9, "dungeon set registered")
+	assert_eq(PropLibrary.names_in_category("arcane").size(), 9, "arcane set registered")
+	assert_eq(PropLibrary.names_in_category("furniture").size(), 7, "furniture set registered")
+	assert_eq(PropLibrary.names_in_category("container").size(), 4, "container set registered")
+	assert_eq(PropLibrary.names_in_category("wares").size(), 3, "shop wares registered")
+	assert_eq(PropLibrary.names_in_category("decor").size(), 2, "town decor registered")
+	# The signature element of the game gets its own prop.
+	assert_true(PropLibrary.names_in_category("arcane").has("amethyst_cluster"),
+		"amethyst cluster is arcane")
 
 func test_light_props_registered() -> void:
 	# These nine are the Sprite Motion inputs; each also drives a PointLight2D.
