@@ -51,10 +51,16 @@ func _ready() -> void:
 	GameManager.ensure_default_party()
 	# Time of day: the clock runs while this scene is active; a CanvasModulate tints
 	# the world (map/player/roamers) per phase — UI on CanvasLayers is unaffected.
+	#
+	# The clock runs in interiors too (time passes while you shop), but the tint is
+	# skipped under a roof — see MapArea.wants_time_tint(). Leaving the modulate out
+	# entirely rather than setting it to white keeps _process's null check doing the
+	# work, so an interior costs nothing per frame. A null area means outdoors.
 	GameManager.set_time_overworld(true)
-	_time_modulate = CanvasModulate.new()
-	_time_modulate.color = GameManager.clock.tint()
-	add_child(_time_modulate)
+	if area == null or area.wants_time_tint():
+		_time_modulate = CanvasModulate.new()
+		_time_modulate.color = GameManager.clock.tint()
+		add_child(_time_modulate)
 	# Depth (P7p2): Y-sort the scene so the player can walk BEHIND structures.
 	# DepthOverlay polygons re-draw building pixels at their baseline Y; the
 	# player (and roamers) interleave with them by position. Nested overlay

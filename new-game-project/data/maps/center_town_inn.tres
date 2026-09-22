@@ -7,3 +7,4 @@ script = ExtResource("1_ma")
 area_name = "Inn"
 battle_background_id = "fallster_plains"
 default_spawn = Vector2(836, 760)
+is_interior = true

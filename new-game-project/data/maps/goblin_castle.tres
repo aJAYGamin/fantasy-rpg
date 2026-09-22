@@ -9,3 +9,4 @@ script = ExtResource("1_ma")
 area_name = "Goblin Castle"
 default_spawn = Vector2(400, 1350)
 encounter_groups = Array[ExtResource("1_wyc01")]([ExtResource("2_ga")])
+is_interior = true

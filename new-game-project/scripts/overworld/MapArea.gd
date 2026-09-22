@@ -15,6 +15,24 @@ extends Resource
 # (settings toggle + active slot), same as the old safe-zone auto-save.
 @export var autosave_on_enter: bool = false
 
+# Is this area INSIDE a building (a shop room, a dungeon) rather than under open
+# sky? Interiors skip the time-of-day CanvasModulate: a night-blue wash over a
+# torch-lit shop looks wrong, and the art already carries its own lighting.
+#
+# NOTE this is about a roof, not about the "_interior" in a scene name. The town
+# and village "interiors" are aerial maps of open streets and gardens, so they
+# are NOT interiors by this flag and stay tinted.
+#
+# The clock keeps running either way, so time still passes while the player
+# shops and the correct tint is waiting when they step back outside.
+@export var is_interior: bool = false
+
+## Should this area be washed with the time-of-day colour? Only areas under open
+## sky. Callers with a possibly-null area should treat null as outdoors, which
+## keeps the pre-flag behaviour for any scene without a MapArea assigned.
+func wants_time_tint() -> bool:
+	return not is_interior
+
 # Safe zones (towns/sanctuaries) in this area, in world coordinates. Entering one
 # triggers an auto-save (P5). Encounters never roll while the player stands in a
 # safe zone. Each Rect2 is position + size in the same space as the player.
