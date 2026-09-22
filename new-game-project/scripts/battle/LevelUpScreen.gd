@@ -200,6 +200,27 @@ func _create_hero_panel(hero: Character, cinzel: FontFile, cinzel_bold: FontFile
 		inc_lbl.add_theme_color_override("font_color", palette["increment"])
 		row.add_child(inc_lbl)
 
+	# P8: any skills this level-up unlocked. Character.pending_learned is filled
+	# during gain_experience, so it covers a multi-level jump from one battle.
+	if not hero.pending_learned.is_empty():
+		var learn_sep_wrap = MarginContainer.new()
+		learn_sep_wrap.add_theme_constant_override("margin_top", 4)
+		learn_sep_wrap.add_theme_constant_override("margin_bottom", 4)
+		vbox.add_child(learn_sep_wrap)
+		var learn_sep = ColorRect.new()
+		learn_sep.color = palette["separator"]
+		learn_sep.custom_minimum_size = Vector2(0, 1)
+		learn_sep_wrap.add_child(learn_sep)
+		for skill in hero.pending_learned:
+			var learn_lbl = Label.new()
+			learn_lbl.text = "✦ Learned %s!" % skill.skill_name
+			learn_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			learn_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			if cinzel_bold: learn_lbl.add_theme_font_override("font", cinzel_bold)
+			learn_lbl.add_theme_font_size_override("font_size", 12)
+			learn_lbl.add_theme_color_override("font_color", palette["accent"])
+			vbox.add_child(learn_lbl)
+
 	return panel
 
 func _animate_stats(panel: PanelContainer, hero: Character):

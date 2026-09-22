@@ -62,6 +62,12 @@ var debuffs: Dictionary = {}
 # 1 -> 75%, 2 -> 50%, 3 -> 25%, 4 -> guaranteed wake.
 var sleep_turn: int = 0
 
+# P8: skills learned during the most recent gain_experience() call, for the
+# victory/level-up screens to report. Transient like the battle state above and
+# NOT serialized — the durable facts are `level` and each Skill.unlock_level,
+# from which what-is-known is always re-derivable.
+var pending_learned: Array[Skill] = []
+
 # --- Transient combat effects (NOT statuses; no chip, never serialized) ---
 # Defend: halves incoming damage until this character's next turn starts.
 var is_defending: bool = false
@@ -303,6 +309,10 @@ func start_regen(turns: int, amount: int = -1) -> void:
 
 # --- Leveling ---
 func gain_experience(amount: int) -> bool:
+	# Fresh batch: anything learned below belongs to THIS award, so the victory
+	# and level-up screens can report it. Cleared here rather than after display
+	# so a second award can't show stale skills.
+	pending_learned.clear()
 	experience += amount
 	var leveled = false
 	# Handle multiple level ups from one batch of EXP
@@ -320,8 +330,48 @@ func level_up():
 	# Current HP/MP intentionally NOT restored — leveling raises max but keeps current.
 	_learn_skills_at_level()
 
+# P8 — skill learning. A hero always carries all 8 skill slots; a slot becomes
+# usable once `level` reaches its Skill.unlock_level. Keeping the array whole
+# preserves the positional contract the battle menus rely on (0-3 attacks,
+# 4-7 specials) — shrinking it would re-slot every later skill.
 func _learn_skills_at_level():
-	pass
+	for s in skills:
+		if s != null and s.unlock_level == level:
+			pending_learned.append(s)
+
+## Is the skill in this slot usable at the character's current level?
+func is_skill_known(index: int) -> bool:
+	if index < 0 or index >= skills.size():
+		return false
+	var s: Skill = skills[index]
+	return s != null and level >= s.unlock_level
+
+## Every skill the character can actually use right now, in slot order.
+func known_skills() -> Array[Skill]:
+	var out: Array[Skill] = []
+	for i in skills.size():
+		if is_skill_known(i):
+			out.append(skills[i])
+	return out
+
+## Skills whose unlock level is exactly `lvl` — what a level-up teaches.
+func skills_unlocked_at(lvl: int) -> Array[Skill]:
+	var out: Array[Skill] = []
+	for s in skills:
+		if s != null and s.unlock_level == lvl:
+			out.append(s)
+	return out
+
+## The next skill this character will learn and the level it arrives at, as
+## {skill, level}, or an empty dictionary once everything is learned.
+func next_skill_to_learn() -> Dictionary:
+	var best: Skill = null
+	for s in skills:
+		if s == null or s.unlock_level <= level:
+			continue
+		if best == null or s.unlock_level < best.unlock_level:
+			best = s
+	return {} if best == null else {"skill": best, "level": best.unlock_level}
 
 # Total XP earned across this character's whole life: every threshold crossed to
 # reach the current level, plus current progress toward the next. Mirrors the

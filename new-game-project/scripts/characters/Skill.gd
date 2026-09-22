@@ -54,6 +54,15 @@ enum StatusType {
 # Set positive like 20.0 for +20%, or negative like -10.0 for -10%
 @export var resonance_gain_override: float = -1.0
 
+# P8: the character level at which this skill becomes usable. 1 means "known
+# from the start", which is the default — so enemy skills and every existing
+# .tres are unaffected and only heroes opt into a learning curve.
+#
+# Hero skills keep their POSITIONAL slot in Character.skills (0-3 attacks, 4-7
+# specials) whether or not they are learned yet; the menus filter on this rather
+# than the array shrinking, which would re-slot every skill after it.
+@export var unlock_level: int = 1
+
 func calculate_value(user: Character) -> int:
 	match skill_type:
 		SkillType.DAMAGE:

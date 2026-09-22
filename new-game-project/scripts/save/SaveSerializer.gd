@@ -22,6 +22,7 @@ static func serialize_skill(s: Skill) -> Dictionary:
 		"status_to_apply": s.status_to_apply,
 		"status_chance": s.status_chance,
 		"resonance_gain_override": s.resonance_gain_override,
+		"unlock_level": s.unlock_level,
 	}
 
 static func deserialize_skill(d: Dictionary) -> Skill:
@@ -38,6 +39,9 @@ static func deserialize_skill(d: Dictionary) -> Skill:
 	s.secondary_element = int(d.get("secondary_element", 0))
 	s.status_to_apply = d.get("status_to_apply", "")
 	s.status_chance = float(d.get("status_chance", 0.0))
+	# Defaults to 1 so a save written before P8 loads with every skill known,
+	# rather than silently locking the player out of skills they already had.
+	s.unlock_level = int(d.get("unlock_level", 1))
 	s.resonance_gain_override = float(d.get("resonance_gain_override", -1.0))
 	return s
 

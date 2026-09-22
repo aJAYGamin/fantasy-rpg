@@ -39,7 +39,7 @@ static func build_hero_view_model(c: Character) -> Dictionary:
 	var attacks: Array = []
 	var specials: Array = []
 	for i in range(c.skills.size()):
-		var vm := _skill_view_model(c.skills[i])
+		var vm := _skill_view_model(c.skills[i], c.is_skill_known(i))
 		# Hero skill convention: indices 0-3 are attacks, 4+ are specials.
 		if i < 4:
 			attacks.append(vm)
@@ -92,8 +92,13 @@ static func build_hero_view_model(c: Character) -> Dictionary:
 		"specials": specials,
 	}
 
-static func _skill_view_model(s: Skill) -> Dictionary:
+## `known` and `unlock_level` let the card render a not-yet-learned skill as
+## locked, so the player can see what the hero is working toward instead of the
+## slot simply being absent.
+static func _skill_view_model(s: Skill, known: bool = true) -> Dictionary:
 	return {
+		"known": known,
+		"unlock_level": s.unlock_level,
 		"name": s.skill_name,
 		"description": s.description,
 		"type_display": s.get_skill_type_display(),
@@ -473,13 +478,22 @@ func _make_skill_card(s: Dictionary) -> Control:
 	v.add_theme_constant_override("separation", 2)
 	card.add_child(v)
 
+	# A not-yet-learned skill still occupies its slot, shown dimmed with the level
+	# it arrives at, so the player can see what the hero is working toward.
+	var known: bool = bool(s.get("known", true))
+	if not known:
+		card.modulate = Color(1, 1, 1, 0.45)
+
 	var top := HBoxContainer.new()
 	top.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_theme_constant_override("separation", 6)
 	var name_lbl := _label(s["name"], BattleUITheme.font_bold(), 13, elem_color.lerp(Color.WHITE, 0.25))
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(name_lbl)
-	if int(s["mp_cost"]) > 0:
+	if not known:
+		top.add_child(_label("Lv %d" % int(s.get("unlock_level", 1)), BattleUITheme.font_bold(), 12,
+			BattleUITheme.TEXT_SUBTITLE, HORIZONTAL_ALIGNMENT_RIGHT))
+	elif int(s["mp_cost"]) > 0:
 		top.add_child(_label("MP %d" % int(s["mp_cost"]), BattleUITheme.font_bold(), 12, Color(0.50, 0.70, 1.0), HORIZONTAL_ALIGNMENT_RIGHT))
 	v.add_child(top)
 

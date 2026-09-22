@@ -46,6 +46,7 @@ const SUITE_PATHS := [
 	"res://tests/suites/test_shop.gd",
 	"res://tests/suites/test_props.gd",
 	"res://tests/suites/test_input_profiles.gd",
+	"res://tests/suites/test_skill_learning.gd",
 ]
 
 func _ready() -> void:

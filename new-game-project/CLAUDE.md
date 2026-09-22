@@ -640,6 +640,26 @@ BattleScene (Node2D)
     roamers fade (`set_faded`) but keep wandering, then normal play resumes.
   - Handoff: `pending_battle_*` + `pending_roamer_id`; `BattleScene._on_battle_ended` records
     `last_battle_won`. Safe zones still suppress spawns + auto-save on entry. Suite `roaming_enemy`.
+- **Phase P8 — Skill learning** (`Skill.unlock_level`, `Character._learn_skills_at_level`):
+  heroes carry all 8 skill slots from the start but a slot only becomes usable once
+  `level` reaches its `unlock_level`. Keeping the array whole preserves the positional
+  contract the battle menus depend on (0-3 attacks, 4-7 specials) — shrinking it would
+  re-slot every later skill. `unlock_level` defaults to **1**, so enemy skills, every
+  `data/skills/*.tres`, and pre-P8 saves are unaffected and only heroes opt in.
+  - Curve lives in `PartyFactory.SKILL_UNLOCK_LEVELS` (shared by all three heroes so
+    pacing is easy to balance): slots unlock at `[1,1,2,7,1,4,10,15]`. Heroes open with
+    2 attacks + 1 special, and **level 2 always teaches something** — an empty first
+    level-up makes the feature look broken.
+  - `Character`: `is_skill_known(i)`, `known_skills()`, `skills_unlocked_at(lvl)`,
+    `next_skill_to_learn()`. `pending_learned` collects what a `gain_experience()` call
+    taught (covering a multi-level jump) and is cleared at the start of the next award;
+    it is battle-temp and NOT serialized — `level` + each `unlock_level` are the durable
+    facts. `AttackMenu` filters both menus through `is_skill_known`.
+  - `SaveSerializer` persists `unlock_level` (defaulting to 1 on read) — without it a
+    load silently unlocked a hero's entire kit.
+  - UI: `LevelUpScreen` adds "✦ Learned X!" lines; `StatsScreen` still shows locked
+    skills but dimmed with the level they arrive at, so the player sees what's coming.
+    Suite `skill_learning`.
 
 ### Planned (next phases)
 > **Next session should start here.** **Art is deliberately parked — do not apply it.**
@@ -650,7 +670,8 @@ BattleScene (Node2D)
 > generate more art unless explicitly asked. See **Art pipeline (parked)** below for
 > what already exists so it isn't rebuilt.
 >
-> **P8 (skill learning) is the art-free phase to do next.**
+> **P8 is done.** The next art-free phase is P10 (story & cutscenes); the
+> dialogue and quest systems it builds on already exist.
 
 - **Phase P7 (part 2) — Fallster Plains map + transitions + goblin castle** (needs the
   SpriteFlow map art first). Plan agreed with the user:
@@ -665,8 +686,6 @@ BattleScene (Node2D)
   - Add more `MapArea` .tres files + map-to-map transitions; pin roamer territories to
     sensible spots; add **fixed-composition** encounters for tutorial/story/boss battles
     (`EncounterGroup` currently only has "flexible" mode — add an `is_fixed` path).
-- **Phase P8 — Skill learning** (art-free): implement `Character._learn_skills_at_level()`
-  (currently a stub) so heroes learn new skills on level-up; surface it in the LevelUpScreen.
 - **Phase P9 — Real art**: player sprite, enemy/hero portraits + battle sprites
   (placeholders are colored squares / letter-tiles today), custom cursor, and **placing
   the prop library that already exists** (see below). Map art is done.

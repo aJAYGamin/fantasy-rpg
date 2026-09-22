@@ -4,8 +4,38 @@ extends RefCounted
 ## PartyFactory — builds the default starting party.
 ## Heroes live in GameManager.party once created; this is only called for a fresh game.
 
+## P8 — when each hero skill slot is learned, indexed by its position in
+## Character.skills (0-3 are the attack menu, 4-7 the special menu).
+##
+## Heroes open with three usable skills (two attacks and one special) and gain
+## the rest over the early-to-mid game. The first level-up teaches something on
+## purpose: an empty first level-up makes the system look broken.
+##
+## Shared by all three heroes so the pacing is predictable to balance. If a hero
+## ever needs its own curve, give _create_* its own table and pass it to
+## _apply_unlock_levels.
+const SKILL_UNLOCK_LEVELS: Array[int] = [
+	1,   # 0 attack  — starting
+	1,   # 1 attack  — starting
+	2,   # 2 attack
+	7,   # 3 attack
+	1,   # 4 special — starting
+	4,   # 5 special
+	10,  # 6 special
+	15,  # 7 special
+]
+
+## Stamps the learning curve onto a hero's skills. Slots beyond the table stay
+## at their Skill default of 1 (known immediately) rather than being unreachable.
+static func _apply_unlock_levels(hero: Character, table: Array[int] = SKILL_UNLOCK_LEVELS) -> void:
+	for i in hero.skills.size():
+		if i < table.size() and hero.skills[i] != null:
+			hero.skills[i].unlock_level = table[i]
+
 static func create_default_party() -> Array[Character]:
 	var party: Array[Character] = [_create_aria(), _create_kael(), _create_lyra()]
+	for hero in party:
+		_apply_unlock_levels(hero)
 	# TEST SEED: stock the shared party inventory (the leader, party[0], holds all
 	# items) so the pause-menu Items screen and the battle item menu have content
 	# from a fresh game. Replace with real starting-loot balancing for actual play.
