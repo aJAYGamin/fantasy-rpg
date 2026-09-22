@@ -194,6 +194,60 @@ static func _copy_action_to(src: String, dst: String) -> void:
 	for ev in InputMap.action_get_events(src):
 		InputMap.action_add_event(dst, ev)
 
+# --- Per-device snapshots (used by InputProfiles) ----------------------------
+# A "profile" is one device's half of the bindings, so these three move that
+# half in and out of the live InputMap without disturbing the other device.
+
+## The default bindings for one device only, as {action: [event dicts]}.
+static func device_defaults(keyboard: bool) -> Dictionary:
+	var defs := defaults()
+	var out := {}
+	for meta in ACTIONS:
+		var action: String = meta["action"]
+		var arr: Array = []
+		for d in defs.get(action, []):
+			if (String(d.get("type", "")) == "key") == keyboard:
+				arr.append(d.duplicate())
+		out[action] = arr
+	return out
+
+## Reads one device's current bindings out of the live InputMap. This is how an
+## in-progress profile is captured before switching away from it.
+static func capture_device(keyboard: bool) -> Dictionary:
+	var out := {}
+	for meta in ACTIONS:
+		var action: String = meta["action"]
+		var arr: Array = []
+		if InputMap.has_action(action):
+			for ev in InputMap.action_get_events(action):
+				if (ev is InputEventKey) == keyboard:
+					var d := serialize_event(ev)
+					if not d.is_empty():
+						arr.append(d)
+		out[action] = arr
+	return out
+
+## Writes one device's bindings into the live InputMap, leaving the other
+## device's events untouched — so switching keyboard profiles never disturbs
+## the controller, and vice versa.
+static func apply_device(bindings: Dictionary, keyboard: bool) -> void:
+	for meta in ACTIONS:
+		var action: String = meta["action"]
+		if not InputMap.has_action(action):
+			InputMap.add_action(action)
+		var kept: Array[InputEvent] = []
+		for e in InputMap.action_get_events(action):
+			if (e is InputEventKey) != keyboard:
+				kept.append(e)   # the other device's events survive
+		InputMap.action_erase_events(action)
+		for e in kept:
+			InputMap.action_add_event(action, e)
+		for d in bindings.get(action, []):
+			var ev := build_event(d)
+			if ev != null:
+				InputMap.action_add_event(action, ev)
+	_mirror_ui()
+
 # --- Config persistence ------------------------------------------------------
 static func load_custom(cfg: ConfigFile) -> Dictionary:
 	var out := {}

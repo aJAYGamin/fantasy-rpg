@@ -28,6 +28,11 @@ var _mouse_status_label: Label = null  # mouse activity
 # --- Remap state ---
 var _kb_buttons: Dictionary = {}    # action -> Button (keyboard binding)
 var _pad_buttons: Dictionary = {}   # action -> Button (controller binding)
+# Keybind profile pickers + rename fields, one pair per device.
+var _kb_profile_pick: OptionButton = null
+var _kb_profile_name: LineEdit = null
+var _pad_profile_pick: OptionButton = null
+var _pad_profile_name: LineEdit = null
 var _listening: bool = false
 var _listen_action: String = ""
 var _listen_keyboard: bool = true
@@ -281,11 +286,14 @@ func _build_keyboard(v: VBoxContainer) -> void:
 	v.add_child(_status_row("Mouse", _mouse_status_label))
 
 	v.add_child(_divider())
+	v.add_child(_profile_block(true))
+
+	v.add_child(_divider())
 	v.add_child(_label("Click a binding, then press a key. Esc cancels.", BattleUITheme.font_regular(), 11, NOTE_COLOR, HORIZONTAL_ALIGNMENT_CENTER))
 	for meta in InputMapConfig.ACTIONS:
 		v.add_child(_kb_remap_row(meta["action"], meta["label"]))
 
-	var reset_all := BattleUITheme.make_button("Reset Keyboard to Defaults", 12)
+	var reset_all := BattleUITheme.make_button("Reset This Profile to Defaults", 12)
 	reset_all.custom_minimum_size = Vector2(0, 34)
 	reset_all.pressed.connect(_on_reset_keyboard)
 	v.add_child(reset_all)
@@ -301,14 +309,93 @@ func _build_controller(v: VBoxContainer) -> void:
 	v.add_child(_label("Right stick is reserved for future camera control.", BattleUITheme.font_regular(), 11, NOTE_COLOR, HORIZONTAL_ALIGNMENT_CENTER))
 
 	v.add_child(_divider())
+	v.add_child(_profile_block(false))
+
+	v.add_child(_divider())
 	v.add_child(_label("Click a binding, then press a controller button/stick. Esc cancels.", BattleUITheme.font_regular(), 11, NOTE_COLOR, HORIZONTAL_ALIGNMENT_CENTER))
 	for meta in InputMapConfig.ACTIONS:
 		v.add_child(_pad_remap_row(meta["action"], meta["label"]))
 
-	var reset_all := BattleUITheme.make_button("Reset Controller to Defaults", 12)
+	var reset_all := BattleUITheme.make_button("Reset This Profile to Defaults", 12)
 	reset_all.custom_minimum_size = Vector2(0, 34)
 	reset_all.pressed.connect(_on_reset_controller)
 	v.add_child(reset_all)
+
+# --- Keybind profiles ---------------------------------------------------------
+# Three profiles per device, switched independently. Switching captures the
+# in-progress bindings into the outgoing slot first (InputProfiles.switch_to),
+# so an edit is never lost by changing profile.
+func _profile_block(keyboard: bool) -> VBoxContainer:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	box.add_child(_label("Three profiles you can switch between at any time.",
+		BattleUITheme.font_regular(), 11, NOTE_COLOR, HORIZONTAL_ALIGNMENT_CENTER))
+
+	var profiles: InputProfiles = GameManager.input_profiles
+	var names := PackedStringArray()
+	for i in InputProfiles.COUNT:
+		names.append(profiles.name_for(keyboard, i))
+	var pick := _make_option(names, profiles.active_index(keyboard),
+		func(idx): _on_profile_selected(keyboard, idx))
+	var field := _name_field(profiles.name_for(keyboard, profiles.active_index(keyboard)),
+		func(text): _on_profile_renamed(keyboard, text))
+
+	if keyboard:
+		_kb_profile_pick = pick
+		_kb_profile_name = field
+	else:
+		_pad_profile_pick = pick
+		_pad_profile_name = field
+
+	box.add_child(_labeled_row("Active Profile", pick))
+	box.add_child(_labeled_row("Rename", field))
+	return box
+
+func _on_profile_selected(keyboard: bool, index: int) -> void:
+	GameManager.input_profiles.switch_to(keyboard, index)
+	GameManager.save_input_config()
+	# The newly-selected profile's bindings are now live, so the rows must redraw.
+	_refresh_controls_labels()
+	_refresh_profile_name_field(keyboard)
+
+func _on_profile_renamed(keyboard: bool, text: String) -> void:
+	var profiles: InputProfiles = GameManager.input_profiles
+	var idx := profiles.active_index(keyboard)
+	# set_name returns what was actually stored (trimmed, capped, or the numbered
+	# default when blank), so echo that back rather than the raw input.
+	var stored := profiles.set_name(keyboard, idx, text)
+	var pick: OptionButton = _kb_profile_pick if keyboard else _pad_profile_pick
+	if is_instance_valid(pick) and idx < pick.item_count:
+		pick.set_item_text(idx, stored)
+	var field: LineEdit = _kb_profile_name if keyboard else _pad_profile_name
+	if is_instance_valid(field) and field.text != stored:
+		field.text = stored
+	GameManager.save_input_config()
+
+func _refresh_profile_name_field(keyboard: bool) -> void:
+	var profiles: InputProfiles = GameManager.input_profiles
+	var field: LineEdit = _kb_profile_name if keyboard else _pad_profile_name
+	if is_instance_valid(field):
+		field.text = profiles.name_for(keyboard, profiles.active_index(keyboard))
+
+## A themed single-line text box. Commits on Enter or when focus leaves, so the
+## player can click away without losing what they typed.
+func _name_field(initial: String, on_commit: Callable) -> LineEdit:
+	var le := LineEdit.new()
+	le.text = initial
+	le.max_length = InputProfiles.MAX_NAME_LENGTH
+	le.custom_minimum_size = Vector2(190, 30)
+	le.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	le.add_theme_font_override("font", BattleUITheme.font_regular())
+	le.add_theme_font_size_override("font_size", 12)
+	le.add_theme_color_override("font_color", BattleUITheme.TEXT_PRIMARY)
+	le.add_theme_stylebox_override("normal",
+		BattleUITheme.panel_style(BattleUITheme.BUTTON_BORDER, BattleUITheme.BUTTON_BG, 1, 6))
+	le.add_theme_stylebox_override("focus",
+		BattleUITheme.panel_style(BattleUITheme.PANEL_BORDER, BattleUITheme.BUTTON_HOVER_BG, 2, 6))
+	le.text_submitted.connect(func(t): on_commit.call(t); le.release_focus())
+	le.focus_exited.connect(func(): on_commit.call(le.text))
+	return le
 
 # --- Rows ---------------------------------------------------------------------
 func _volume_row(label_text: String, initial: float, on_set: Callable) -> HBoxContainer:
@@ -503,13 +590,15 @@ func _reset_pad_one(action: String) -> void:
 	GameManager.save_input_config()
 	_refresh_controls_labels()
 
+# Resets only the ACTIVE profile for that device; the other two are untouched,
+# so a misclick can't wipe every setup the player has made.
 func _on_reset_keyboard() -> void:
-	InputMapConfig.reset_all_keyboard()
+	GameManager.input_profiles.reset_active(true)
 	GameManager.save_input_config()
 	_refresh_controls_labels()
 
 func _on_reset_controller() -> void:
-	InputMapConfig.reset_all_controller()
+	GameManager.input_profiles.reset_active(false)
 	GameManager.save_input_config()
 	_refresh_controls_labels()
 

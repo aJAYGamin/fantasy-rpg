@@ -472,17 +472,30 @@ func _update_fps_overlay():
 	_fps_label.visible = settings.show_fps
 
 # ─── Input remapping ─────────────────────────────────────
+# Three switchable keybind profiles per device; the live InputMap mirrors the
+# two active ones. SettingsScreen edits these.
+var input_profiles := InputProfiles.new()
+
 func _load_input_config() -> void:
 	var cfg = ConfigFile.new()
 	if cfg.load(USER_CONFIG_PATH) == OK:
-		InputMapConfig.apply(InputMapConfig.load_custom(cfg))
+		# from_config migrates a pre-profiles [input] section into profile 1, so
+		# an existing player keeps the bindings they already set.
+		input_profiles.from_config(cfg)
 	else:
-		InputMapConfig.apply({})
+		input_profiles.reset_everything()
+	input_profiles.apply_active()
 
-# Writes the current InputMap bindings to config (merge-preserving other sections).
+# Writes the current bindings to config (merge-preserving other sections). The
+# live InputMap is captured into the active profiles first, so an edit made
+# since the last switch is included.
 func save_input_config() -> void:
 	var cfg = ConfigFile.new()
 	cfg.load(USER_CONFIG_PATH)
+	input_profiles.sync_from_input_map()
+	input_profiles.to_config(cfg)
+	# Keep the flat [input] section in step so anything still reading it (and a
+	# downgrade to an older build) sees the active bindings.
 	InputMapConfig.save_to_config(cfg)
 	cfg.save(USER_CONFIG_PATH)
 
