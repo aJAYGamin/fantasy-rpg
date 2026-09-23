@@ -144,17 +144,20 @@ func _do_rest(phase: int) -> void:
 
 	var t := TimeOfDay.new()
 	t.set_minutes(GameManager.clock.minutes)
-	_root.add_child(_note("The party wakes at %s, %s." % [t.clock_text(), t.phase_name()]))
+	_root.add_child(_line("The party wakes up in the %s" % t.phase_name()))
 	_root.add_child(_gap())
 
 	var healed: Dictionary = result["healed"]
 	if healed.is_empty():
 		_root.add_child(_note("No one was well enough to benefit."))
 	else:
+		# Each hero in their own accent colour, matching how they read everywhere
+		# else in the game.
 		for name in healed:
 			var h: Dictionary = healed[name]
-			_root.add_child(_line("%s  +%d HP  +%d MP" % [name, int(h["hp"]), int(h["mp"])]))
-	_root.add_child(_note("Resonance +%d" % int(GameManager.REST_RESONANCE)))
+			var row := _line("%s   +%d HP   +%d MP" % [name, int(h["hp"]), int(h["mp"])])
+			row.add_theme_color_override("font_color", HeroPalette.accent_for(String(name)))
+			_root.add_child(row)
 	_root.add_child(_gap())
 
 	var go := BattleUITheme.make_button("Continue", 14)

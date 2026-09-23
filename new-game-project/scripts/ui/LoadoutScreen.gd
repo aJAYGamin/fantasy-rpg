@@ -172,6 +172,12 @@ func _slot_row(is_special: bool, slot: int) -> HBoxContainer:
 
 	# Clearing is free wherever it's allowed; hidden entirely on the pause page
 	# rather than shown disabled, since nothing there can change the loadout.
+	if s != null:
+		var info := BattleUITheme.make_button("?", 11)
+		info.custom_minimum_size = Vector2(28, SLOT_H)
+		info.pressed.connect(func(): _show_details(s))
+		row.add_child(info)
+
 	if _editor.can_clear():
 		var x := BattleUITheme.make_button("✕", 12)
 		x.custom_minimum_size = Vector2(30, SLOT_H)
@@ -229,7 +235,75 @@ func _pool_row(pool_index: int) -> HBoxContainer:
 	btn.disabled = not _editor.can_equip() or _selected_slot < 0
 	btn.pressed.connect(func(): _on_pool_pressed(pool_index))
 	row.add_child(btn)
+
+	# Details stay reachable even when the move itself can't be equipped right
+	# now — reading what something does is exactly what a player wants while
+	# deciding whether to spend a swap on it.
+	var info := BattleUITheme.make_button("?", 11)
+	info.custom_minimum_size = Vector2(28, SLOT_H)
+	info.pressed.connect(func(): _show_details(s))
+	row.add_child(info)
 	return row
+
+## Full description, element, target and costs for one move. Costs are listed
+## explicitly rather than only as a number on the row, since a move may later
+## cost something other than MP.
+func _show_details(s: Skill) -> void:
+	var host := self
+	var existing := host.get_node_or_null("MoveDetail")
+	if existing != null:
+		existing.queue_free()
+
+	var wrap := Control.new()
+	wrap.name = "MoveDetail"
+	wrap.set_anchors_preset(Control.PRESET_FULL_RECT)
+	wrap.mouse_filter = Control.MOUSE_FILTER_STOP
+	host.add_child(wrap)
+
+	var shade := ColorRect.new()
+	shade.color = Color(0, 0, 0, 0.45)
+	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	wrap.add_child(shade)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	wrap.add_child(center)
+
+	var panel := BattleUITheme.make_panel()
+	panel.custom_minimum_size = Vector2(380, 0)
+	center.add_child(panel)
+
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	panel.add_child(v)
+
+	var elem := ElementalSystem.get_element_color(s.element)
+	v.add_child(_label(s.skill_name, BattleUITheme.font_bold(), 17,
+		elem.lerp(Color.WHITE, 0.25), HORIZONTAL_ALIGNMENT_CENTER))
+	v.add_child(_label("%s  ·  %s %s  ·  %s" % [
+			s.get_skill_type_display(),
+			ElementalSystem.get_element_icon(s.element),
+			ElementalSystem.get_element_name(s.element),
+			s.get_target_description()],
+		BattleUITheme.font_regular(), 11, BattleUITheme.TEXT_SUBTITLE, HORIZONTAL_ALIGNMENT_CENTER))
+	v.add_child(_divider())
+
+	var desc := _label(s.description, BattleUITheme.font_regular(), 12,
+		BattleUITheme.TEXT_PRIMARY, HORIZONTAL_ALIGNMENT_CENTER)
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(desc)
+	v.add_child(_divider())
+
+	v.add_child(_label("Cost", BattleUITheme.font_bold(), 11,
+		BattleUITheme.TEXT_SUBTITLE, HORIZONTAL_ALIGNMENT_CENTER))
+	var cost_text := "%d MP" % s.mp_cost if s.mp_cost > 0 else "Free"
+	v.add_child(_label(cost_text, BattleUITheme.font_bold(), 14,
+		Color(0.50, 0.70, 1.0), HORIZONTAL_ALIGNMENT_CENTER))
+
+	var close := BattleUITheme.make_button("Close", 12)
+	close.custom_minimum_size = Vector2(0, 32)
+	close.pressed.connect(func(): wrap.queue_free())
+	v.add_child(close)
 
 # --- actions ------------------------------------------------------------------
 
@@ -277,10 +351,15 @@ func _budget_text() -> String:
 	return "Swaps left: %d" % left
 
 func _hint_text() -> String:
-	if not _editor.can_equip() and _editor.swaps_remaining() == 0:
-		return "Out of swaps — you can still rearrange and clear slots."
-	if _editor.can_equip():
-		return "Pick a slot, then a move to place there. Pick two slots to reorder."
+	match _editor.mode:
+		LoadoutEditor.Mode.TRAINER:
+			# Explicitly unlimited: the campfire wording nearby made this read as
+			# a two-swap limit, which does not apply to a trainer.
+			return "Change moves as often as you like. Pick a slot, then a move."
+		LoadoutEditor.Mode.CAMPFIRE:
+			if not _editor.can_equip():
+				return "Out of swaps here — clearing and reordering are still free."
+			return "%d swap(s) left. Clearing and reordering cost nothing." % _editor.swaps_remaining()
 	return "Pick two slots to reorder them."
 
 # --- primitives ---------------------------------------------------------------

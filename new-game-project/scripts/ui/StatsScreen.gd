@@ -354,7 +354,7 @@ func _build_right_column(vm: Dictionary, _palette: Dictionary) -> Control:
 	col.add_child(_build_skill_grid(vm["attacks"]))
 	col.add_child(_section_header("Specials"))
 	col.add_child(_build_skill_grid(vm["specials"]))
-	col.add_child(_label("Pick two moves in the same list to swap their order.",
+	col.add_child(_label("Use ⇅ on two moves in the same list to swap their order.",
 		BattleUITheme.font_regular(), 10, BattleUITheme.TEXT_SUBTITLE))
 
 	return col
@@ -500,35 +500,40 @@ func _make_meter_row(label: String, value: float, max_value: float, fill: Color,
 
 func _make_skill_card(s: Dictionary) -> Control:
 	var elem_color := ElementalSystem.get_element_color(s["element"])
-	# A Button rather than a plain panel so the card can be picked to reorder,
-	# and so controller focus reaches it like any other control.
-	var card := Button.new()
-	card.flat = true
+	# MUST stay a PanelContainer: it sizes itself to its content. Making the card
+	# itself a Button collapsed every label on top of the next, because a Button
+	# is not a Container and never lays its children out. Reordering therefore
+	# lives on a small button in the header instead, which also keeps the card
+	# reachable by the focus guard (it only manages BaseButton/Slider/OptionButton).
+	var card := PanelContainer.new()
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	card.custom_minimum_size = Vector2(236, 0)
 	var slot := int(s.get("slot", -1))
 	var is_special := bool(s.get("is_special", false))
 	var selected := (slot >= 0 and slot == _sel_slot and is_special == _sel_special)
-	if slot >= 0:
-		card.pressed.connect(func(): _on_card_pressed(is_special, slot))
 	var border := BattleUITheme.PANEL_BORDER if selected else BattleUITheme.BUTTON_BORDER
 	var style := BattleUITheme.panel_style(border, BattleUITheme.SUBPANEL_BG, 2 if selected else 1, 8)
 	style.content_margin_top = 4
 	style.content_margin_bottom = 4
 	style.content_margin_left = 10
 	style.content_margin_right = 10
-	for state in ["normal", "hover", "pressed", "focus"]:
-		card.add_theme_stylebox_override(state, style)
+	card.add_theme_stylebox_override("panel", style)
 
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 2)
-	v.mouse_filter = Control.MOUSE_FILTER_IGNORE   # clicks belong to the card
 	card.add_child(v)
 
 	var top := HBoxContainer.new()
 	top.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_theme_constant_override("separation", 6)
+	if slot >= 0:
+		# Select this card, then another in the same list, to swap their order.
+		var move_btn := BattleUITheme.make_button("⇅" if not selected else "▸", 11)
+		move_btn.custom_minimum_size = Vector2(24, 22)
+		move_btn.tooltip_text = "Reorder"
+		move_btn.pressed.connect(func(): _on_card_pressed(is_special, slot))
+		top.add_child(move_btn)
 	var name_lbl := _label(s["name"], BattleUITheme.font_bold(), 13, elem_color.lerp(Color.WHITE, 0.25))
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(name_lbl)
