@@ -32,6 +32,7 @@ const SUITE_PATHS := [
 	"res://tests/suites/test_settings.gd",
 	"res://tests/suites/test_input_map.gd",
 	"res://tests/suites/test_focus_guard.gd",
+	"res://tests/suites/test_hold_repeat.gd",
 	"res://tests/suites/test_auto_save.gd",
 	"res://tests/suites/test_level_up_screen.gd",
 	"res://tests/suites/test_defeat_flow.gd",

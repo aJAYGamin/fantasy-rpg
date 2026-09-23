@@ -43,7 +43,7 @@ blocked on map art), then P8 skill-learning, P9 real art, P10 story/cutscenes. S
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **732 tests, 24 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~2280 tests, 33 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -62,7 +62,8 @@ scripts/
     ItemsScreen.gd            # class_name ItemsScreen — pause-menu Items page, 4 tabs + field-use (P2)
     EquipmentScreen.gd        # class_name EquipmentScreen — pause-menu per-hero equip page, 5 slots (P3)
     SettingsScreen.gd         # class_name SettingsScreen — settings hub (Game/Controls/Audio/Display/Performance) (P4)
-    FocusUtil.gd              # class_name FocusUtil — L1/R1 category-cycle detection for controller nav (P4)
+    FocusUtil.gd              # class_name FocusUtil — L1/R1 category-cycle detection + held-state queries (P4)
+    HoldRepeat.gd             # class_name HoldRepeat — auto-repeat timing for held nav / category cycling
     SaveIndicator.gd          # class_name SaveIndicator — bottom-right auto-save status badge (P5)
   settings/
     SettingsModel.gd          # class_name SettingsModel — audio/display/perf/difficulty/sticks data + config + apply (P4)
@@ -471,7 +472,7 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **732 tests / 24 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~2280 tests / 33 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,
@@ -600,7 +601,27 @@ BattleScene (Node2D)
     focused). `FocusUtil` holds the L1/R1 detection. Screens detach old children immediately on rebuild
     (not deferred queue_free) so stale full-rect overlays can't swallow clicks. Back = controller B /
     Esc (`ui_cancel`) everywhere; battle sub-menus + target select honor it too.
-  - Suites: `settings`, `input_map`, `focus_guard`.
+    - **Disabled controls are FOCUS_NONE**, not merely un-grabbable. Godot's neighbor search only skips
+      FOCUS_NONE, so a greyed button left focusable is a dead end that swallows the d-pad (the main
+      menu's disabled Continue blocked every option under it).
+    - **The top scope is re-walked every frame**, not only when the active scope changes. Menus rebuild
+      their contents constantly (item tabs, the next hero's page, the skill grid) and fresh controls are
+      born FOCUS_ALL; a change-only walk left them inconsistent — the Items "?" buttons were reachable in
+      whichever tab happened to be built last and nowhere else. `Control.set_focus_mode` early-returns
+      when unchanged, so the walk is cheap.
+    - **Remembered focus:** `set_preferred_focus(scope, ctrl)` names where the guard should land on its
+      NEXT re-grab in that scope, so backing out of a sub-view returns to the entry you left from instead
+      of the top of the list. One-shot (consumed on use) so ordinary rebuilds don't keep yanking focus
+      back. `PauseMenu` records the entry that opened each sub-view; `SettingsScreen` keys off the
+      category name (`_returning_from`) because its buttons are rebuilt per view.
+    - **Held-direction auto-repeat:** `HoldRepeat` (`scripts/ui/HoldRepeat.gd`) + `GameManager._update_nav_repeat`
+      keep moving focus while `ui_up`/`ui_down`/`ui_left`/`ui_right` is held — initial delay, a normal
+      cadence, then a faster one after `ACCELERATE_AFTER` (3s) for long lists. It drives
+      `find_valid_focus_neighbor` directly rather than synthesizing events, so it inherits the same skip
+      rules as a real press. Keyboard and controller both, never in pure-mouse mode. The same helper
+      repeats L1/R1 (or Q/E) category cycling on the Stats / Items / Equipment screens, via
+      `FocusUtil.prev_category_held()` / `next_category_held()`; `_input` still owns the first press.
+  - Suites: `settings`, `input_map`, `focus_guard`, `hold_repeat`.
 - **Phase P5 — Auto-save** (`scripts/save/AutoSaveSystem.gd` `class_name AutoSaveSystem`;
   `scripts/ui/SaveIndicator.gd` `class_name SaveIndicator`): auto-saves to the active slot on
   entering a town/safe zone. `MapArea.safe_zones: Array[Rect2]` lists town rects in world space

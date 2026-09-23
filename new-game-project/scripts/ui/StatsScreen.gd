@@ -36,6 +36,9 @@ var _content_host: Control = null
 var _editor := LoadoutEditor.new(LoadoutEditor.Mode.PAUSE)
 var _sel_slot: int = -1
 var _sel_special: bool = false
+## Auto-repeat for held L1/R1 (or Q/E) hero cycling.
+var _prev_repeat := HoldRepeat.new()
+var _next_repeat := HoldRepeat.new()
 
 # --- View model (pure, testable) ---------------------------------------------
 
@@ -157,6 +160,16 @@ func _input(event: InputEvent) -> void:
 	elif FocusUtil.is_next_category(event):
 		_select((_selected + 1) % _party.size())
 		get_viewport().set_input_as_handled()
+
+# Holding a shoulder button (or Q/E) keeps cycling heroes instead of stopping
+# after one. `_input` above still handles the first press; this only repeats.
+func _process(delta: float) -> void:
+	if not visible or _party.size() <= 1:
+		return
+	if _prev_repeat.poll(FocusUtil.prev_category_held(), delta):
+		_select((_selected - 1 + _party.size()) % _party.size())
+	if _next_repeat.poll(FocusUtil.next_category_held(), delta):
+		_select((_selected + 1) % _party.size())
 
 # --- Chrome (built once) ------------------------------------------------------
 
@@ -578,13 +591,23 @@ func _make_skill_card(s: Dictionary) -> Control:
 		hit.flat = true
 		hit.tooltip_text = "Click to pick this move, then click another to swap them"
 		hit.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		for state in ["normal", "pressed", "focus", "disabled"]:
+		for state in ["normal", "pressed", "disabled"]:
 			hit.add_theme_stylebox_override(state, StyleBoxEmpty.new())
 		# Hover gets a faint wash so it reads as clickable, matching the item rows.
 		var hover := StyleBoxFlat.new()
 		hover.bg_color = Color(1, 1, 1, 0.05)
 		hover.set_corner_radius_all(8)
 		hit.add_theme_stylebox_override("hover", hover)
+		# The focus ring MUST be visible: this overlay is what the controller
+		# actually lands on, and with an empty "focus" box the card gave no sign of
+		# where focus was, which made reordering look controller-hostile even
+		# though the button was reachable and A already worked.
+		var focus_box := StyleBoxFlat.new()
+		focus_box.bg_color = Color(0.85, 0.70, 1.0, 0.10)
+		focus_box.border_color = BattleUITheme.TEXT_ACCENT
+		focus_box.set_border_width_all(2)
+		focus_box.set_corner_radius_all(8)
+		hit.add_theme_stylebox_override("focus", focus_box)
 		hit.pressed.connect(func(): _on_card_pressed(is_special, slot))
 		card.add_child(hit)
 	return card

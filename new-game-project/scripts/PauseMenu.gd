@@ -27,6 +27,10 @@ var _confirm_modal: Control = null
 # menu. Like the confirm prompt, Esc backs out of it to the pause menu instead
 # of closing the whole pause menu.
 var _sub_view: Control = null
+# The menu entry that opened the current sub-view / confirm prompt. Coming back
+# should land on it rather than jumping to the top of the list, which on a
+# controller meant re-navigating down to where you already were.
+var _last_menu_button: Button = null
 
 func _ready() -> void:
 	_cinzel = load("res://fonts/Cinzel-Regular.ttf")
@@ -86,6 +90,7 @@ func _dismiss_confirm() -> void:
 	# Showing _main_content again lets the focus guard re-grab it automatically.
 	if _main_content and is_instance_valid(_main_content):
 		_main_content.show()
+		_restore_menu_focus()
 
 # Closes the active sub-screen and restores the main pause menu.
 func _dismiss_sub_view() -> void:
@@ -94,6 +99,7 @@ func _dismiss_sub_view() -> void:
 	_sub_view = null
 	if _main_content and is_instance_valid(_main_content):
 		_main_content.show()
+		_restore_menu_focus()
 
 # Opens the per-hero Stats screen as a sub-view (replaces the main menu, doesn't
 # stack). Back button / Esc return here via _dismiss_sub_view.
@@ -308,8 +314,20 @@ func _styled_button(text: String, danger: bool) -> Button:
 func _menu_button(text: String, on_pressed: Callable, danger: bool = false) -> Button:
 	var b = _styled_button(text, danger)
 	b.custom_minimum_size = Vector2(280, 36)
-	b.pressed.connect(on_pressed)
+	# Record which entry was used before running it, so whatever it opens knows
+	# where focus should return to.
+	b.pressed.connect(func():
+		_last_menu_button = b
+		on_pressed.call())
 	return b
+
+# Point the focus guard back at the entry the player left from. Called whenever
+# the main menu is restored; a null/stale button just falls back to the top.
+func _restore_menu_focus() -> void:
+	if _main_content == null or not is_instance_valid(_main_content):
+		return
+	if _last_menu_button != null and is_instance_valid(_last_menu_button):
+		GameManager.set_preferred_focus(_main_content, _last_menu_button)
 
 # --- Confirm modal (same pattern as SaveSlotMenu) ---
 func _show_confirm(title_text: String, message: String, confirm_text: String, danger: bool, on_confirm: Callable) -> void:

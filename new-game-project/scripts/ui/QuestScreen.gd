@@ -138,7 +138,12 @@ func _select_tab(index: int) -> void:
 func _build_content() -> void:
 	if _content_host == null:
 		return
+	# Detach IMMEDIATELY, not just queue_free (which is deferred): the outgoing
+	# rows otherwise stay laid out on top of the fresh ones for a frame and
+	# swallow clicks aimed at the new content, and the focus guard can still walk
+	# into them. Same fix as SettingsScreen._build.
 	for c in _content_host.get_children():
+		_content_host.remove_child(c)
 		c.queue_free()
 	if _selected_tab == TAB_ACTIVE:
 		_build_active_tab()
