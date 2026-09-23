@@ -630,6 +630,10 @@ BattleScene (Node2D)
       rules as a real press. Keyboard and controller both, never in pure-mouse mode. The same helper
       repeats L1/R1 (or Q/E) category cycling on the Stats / Items / Equipment screens, via
       `FocusUtil.prev_category_held()` / `next_category_held()`; `_input` still owns the first press.
+      Category cycling uses `HoldRepeat.for_category()` — a MUCH longer initial delay (0.9s vs 0.42s),
+      because each step swaps the whole page. With the list timings a ~0.5s press advanced two tabs and
+      a ~0.9s press lapped all four and landed back where it started, which reads exactly like the tab
+      wrap being broken. Any press up to ~1s must move exactly one category.
   - Suites: `settings`, `input_map`, `focus_guard`, `hold_repeat`.
 - **Phase P5 — Auto-save** (`scripts/save/AutoSaveSystem.gd` `class_name AutoSaveSystem`;
   `scripts/ui/SaveIndicator.gd` `class_name SaveIndicator`): auto-saves to the active slot on

@@ -41,8 +41,8 @@ var _content_host: Control = null
 # navigation doesn't lose its place.
 var _selected_slot_btn: Button = null
 ## Auto-repeat for held L1/R1 (or Q/E) hero cycling.
-var _prev_repeat := HoldRepeat.new()
-var _next_repeat := HoldRepeat.new()
+var _prev_repeat := HoldRepeat.for_category()
+var _next_repeat := HoldRepeat.for_category()
 
 # --- Pure helper (testable) ---------------------------------------------------
 

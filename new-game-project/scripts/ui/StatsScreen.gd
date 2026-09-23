@@ -37,8 +37,8 @@ var _editor := LoadoutEditor.new(LoadoutEditor.Mode.PAUSE)
 var _sel_slot: int = -1
 var _sel_special: bool = false
 ## Auto-repeat for held L1/R1 (or Q/E) hero cycling.
-var _prev_repeat := HoldRepeat.new()
-var _next_repeat := HoldRepeat.new()
+var _prev_repeat := HoldRepeat.for_category()
+var _next_repeat := HoldRepeat.for_category()
 
 # --- View model (pure, testable) ---------------------------------------------
 
