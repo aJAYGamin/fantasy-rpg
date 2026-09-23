@@ -129,8 +129,16 @@ func test_battles_until_refresh_counts_down() -> void:
 	assert_eq(GameManager.battles_until_rest_refresh(), GameManager.REST_REFRESH_BATTLES,
 		"full wait at the start")
 	GameManager.register_battle_completed()
-	assert_eq(GameManager.battles_until_rest_refresh(), GameManager.REST_REFRESH_BATTLES - 1,
-		"one battle closer")
+	if GameManager.REST_REFRESH_BATTLES <= 1:
+		# With a one-battle refresh there is no intermediate state: that battle
+		# refills immediately and the counter resets to a full wait.
+		assert_eq(GameManager.battles_until_rest_refresh(), GameManager.REST_REFRESH_BATTLES,
+			"a single battle refills and resets the wait")
+		assert_eq(GameManager.rest_swaps_remaining, GameManager.REST_SWAP_ALLOWANCE,
+			"and the allowance is back")
+	else:
+		assert_eq(GameManager.battles_until_rest_refresh(), GameManager.REST_REFRESH_BATTLES - 1,
+			"one battle closer")
 	_restore(snap)
 
 func test_refill_is_idempotent() -> void:

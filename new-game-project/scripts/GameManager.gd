@@ -847,7 +847,9 @@ func award_rewards(rewards: Dictionary):
 #
 # Town NPCs are unrestricted; the allowance only gates rest areas.
 const REST_SWAP_ALLOWANCE := 2
-const REST_REFRESH_BATTLES := 5
+# TEMPORARY TEST SETTING — was 5, dropped to 1 so a campfire can be used again
+# after a single battle while play-testing. RESTORE TO 5 BEFORE SHIPPING.
+const REST_REFRESH_BATTLES := 1
 ## Fractions restored by a rest, of each character's maximum.
 const REST_HP_FRACTION := 0.25
 const REST_MP_FRACTION := 0.25
