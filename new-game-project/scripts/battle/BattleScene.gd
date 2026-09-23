@@ -729,6 +729,9 @@ func _on_battle_ended(player_won: bool, rewards: Dictionary):
 	# Record the outcome so the overworld knows whether a roaming enemy that
 	# started this fight should stay gone (won) or remain (lost/fled).
 	GameManager.last_battle_won = player_won
+	# Counts toward refreshing the rest-area swap allowance. Every completed
+	# battle counts, won or not — fleeing still cost the player time.
+	GameManager.register_battle_completed()
 	_toggle_action_menu(false)
 	# Clear ALL temporary battle effects from the party — mutex statuses
 	# (poison/scorched/frostbite/stun/sleep/paralysis), buffs, debuffs, sleep
