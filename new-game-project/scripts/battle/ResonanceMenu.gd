@@ -130,33 +130,41 @@ func _build_menu():
 		solo_desc = _current_hero.get_meta("ultimate_desc")
 
 	var solo_colors: Array = _element_colors_for_heroes([_current_hero])
+	var solo_ready: bool = _resonance_system.is_full(_current_hero)
 	var solo_row := _create_resonance_btn(
 		"✦ " + solo_name,
 		solo_desc,
 		solo_colors,
-		cinzel, cinzel_bold
+		cinzel, cinzel_bold,
+		solo_ready
 	)
 	solo_row.get_meta("main_btn").pressed.connect(_on_solo_ultimate)
 	vbox.add_child(solo_row)
 
 	# --- Combined resonance options ---
-	var full_heroes := _resonance_system.get_full_resonance_characters()
-	full_heroes = full_heroes.filter(func(h): return h != _current_hero)
+	# Every partner is listed, whether or not the pair can fire yet; a duo the
+	# player can't use is shown greyed so they know it exists.
+	var partners: Array = []
+	for h in _battle_manager.party:
+		if h != _current_hero and h.is_alive():
+			partners.append(h)
 
-	if not full_heroes.is_empty():
+	if not partners.is_empty():
 		# Decorative tier divider (amber, matching the ✦✦ duo theme).
 		vbox.add_child(_make_section_divider("✦ Duo Resonance ✦", Color(0.95, 0.78, 0.35)))
 
-		for partner in full_heroes:
+		for partner in partners:
 			var pair_key := _get_pair_key(_current_hero, partner)
 			var combined_name: String = COMBINED_ATTACK_NAMES.get(pair_key, "Resonance Strike")
 			var combined_desc := "%s and %s combine their resonance!" % [_current_hero.character_name, partner.character_name]
 			var pair_colors: Array = _element_colors_for_heroes([_current_hero, partner])
+			var pair_ready: bool = _resonance_system.is_full(_current_hero) and _resonance_system.is_full(partner)
 			var combined_row := _create_resonance_btn(
 				"✦✦ " + combined_name,
 				combined_desc,
 				pair_colors,
-				cinzel, cinzel_bold
+				cinzel, cinzel_bold,
+				pair_ready
 			)
 			combined_row.get_meta("main_btn").pressed.connect(_on_combined_resonance.bind(partner))
 			vbox.add_child(combined_row)
@@ -166,7 +174,10 @@ func _build_menu():
 
 # Builds a button with element-gradient-colored attack name + a "?" info button.
 # colors[] is the list of element colors to gradient across (1, 2, or 3 entries).
-func _create_resonance_btn(title: String, subtitle: String, colors: Array, cinzel, cinzel_bold) -> HBoxContainer:
+## `enabled` false renders the row greyed out and unpressable: every resonance
+## attack stays listed so the player can see what the team is building toward,
+## rather than options appearing and vanishing as meters fill.
+func _create_resonance_btn(title: String, subtitle: String, colors: Array, cinzel, cinzel_bold, enabled: bool = true) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_theme_constant_override("separation", 4)
@@ -203,6 +214,16 @@ func _create_resonance_btn(title: String, subtitle: String, colors: Array, cinze
 
 	row.add_child(btn)
 
+	# Unavailable rows: unpressable and dimmed, but the gradient name still reads
+	# so the player can tell WHICH attack they're working toward. The "?" info
+	# button stays live on purpose — reading what a locked attack does is exactly
+	# what a player wants while the meters fill.
+	if not enabled:
+		btn.disabled = true
+		btn.focus_mode = Control.FOCUS_NONE
+		btn.modulate = Color(1, 1, 1, 0.42)
+		rich.modulate = Color(1, 1, 1, 0.75)
+
 	# "?" info button — same themed style, slim.
 	var info_btn := _make_themed_button("?", cinzel)
 	info_btn.custom_minimum_size = Vector2(22, 28)
@@ -210,6 +231,7 @@ func _create_resonance_btn(title: String, subtitle: String, colors: Array, cinze
 	row.add_child(info_btn)
 
 	row.set_meta("main_btn", btn)
+	row.set_meta("enabled", enabled)
 	return row
 
 # Decorative section divider: a centered tier label flanked by thin lines that
@@ -370,9 +392,13 @@ func _add_triple_resonance(vbox: VBoxContainer, cinzel, cinzel_bold):
 	var all_heroes: Array = _battle_manager.party
 	if all_heroes.size() < 3:
 		return
+	# Shown even when the team isn't charged — the trio attack is the headline
+	# payoff, so hiding it until it happens to be ready buries it.
+	var triple_ready := true
 	for hero in all_heroes:
 		if not _resonance_system.is_full(hero):
-			return
+			triple_ready = false
+			break
 	var triple_key := _get_triple_key(all_heroes)
 	var triple_name: String = COMBINED_ATTACK_NAMES.get(triple_key, "United Resonance")
 	var triple_desc := "All heroes unleash their resonance together!"
@@ -385,7 +411,8 @@ func _add_triple_resonance(vbox: VBoxContainer, cinzel, cinzel_bold):
 		"✦✦✦ " + triple_name,
 		triple_desc,
 		triple_colors,
-		cinzel, cinzel_bold
+		cinzel, cinzel_bold,
+		triple_ready
 	)
 	triple_row.get_meta("main_btn").pressed.connect(_on_triple_resonance.bind(all_heroes))
 	vbox.add_child(triple_row)

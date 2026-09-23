@@ -12,15 +12,20 @@ func _skill(name: String, unlock: int) -> Skill:
 	s.unlock_level = unlock
 	return s
 
-## A hero with the real 8-slot shape: 4 attacks then 4 specials.
+## A hero shaped like the real ones: the first half of the pool are attacks,
+## the second half specials. Categories matter because the stats page and the
+## battle menus split on category now, not on index.
 func _hero(unlocks: Array) -> Character:
 	var c := Character.new()
 	c.character_name = "Tester"
 	c.base_hp = 100
 	c.level = 1
 	var list: Array[Skill] = []
+	var half := unlocks.size() / 2
 	for i in unlocks.size():
-		list.append(_skill("Skill%d" % i, int(unlocks[i])))
+		var sk := _skill("Skill%d" % i, int(unlocks[i]))
+		sk.category = Skill.SkillCategory.SPECIAL if i >= half else Skill.SkillCategory.ATTACK
+		list.append(sk)
 	c.skills = list
 	return c
 
@@ -119,7 +124,7 @@ func test_party_curve_is_applied() -> void:
 	var party := PartyFactory.create_default_party()
 	assert_eq(party.size(), 3, "three heroes")
 	for hero in party:
-		assert_eq(hero.skills.size(), 8, "%s keeps all 8 slots" % hero.character_name)
+		assert_eq(hero.skills.size(), 12, "%s keeps its whole pool" % hero.character_name)
 		for i in 8:
 			assert_eq(hero.skills[i].unlock_level, PartyFactory.SKILL_UNLOCK_LEVELS[i],
 				"%s slot %d uses the shared curve" % [hero.character_name, i])
@@ -148,7 +153,7 @@ func test_first_level_up_teaches_something() -> void:
 		"some slot unlocks at level 2 so the first level-up teaches a skill")
 
 func test_curve_covers_every_slot_and_is_reachable() -> void:
-	assert_eq(PartyFactory.SKILL_UNLOCK_LEVELS.size(), 8, "one entry per slot")
+	assert_eq(PartyFactory.SKILL_UNLOCK_LEVELS.size(), 12, "one entry per pool slot")
 	for lvl in PartyFactory.SKILL_UNLOCK_LEVELS:
 		assert_true(lvl >= 1, "no slot unlocks below level 1")
 		assert_true(lvl <= 30, "every slot is reachable in a normal playthrough")

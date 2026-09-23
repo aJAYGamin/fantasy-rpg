@@ -40,11 +40,14 @@ static func build_hero_view_model(c: Character) -> Dictionary:
 	var specials: Array = []
 	for i in range(c.skills.size()):
 		var vm := _skill_view_model(c.skills[i], c.is_skill_known(i))
-		# Hero skill convention: indices 0-3 are attacks, 4+ are specials.
-		if i < 4:
-			attacks.append(vm)
-		else:
+		# `skills` is a mixed pool now, so the menu a move belongs to comes from
+		# its category, not its index. `equipped` lets the page distinguish the
+		# four moves actually carried into battle from the rest of the pool.
+		vm["equipped"] = c.is_equipped(i)
+		if c.skills[i].is_special_category():
 			specials.append(vm)
+		else:
+			attacks.append(vm)
 
 	var ult_name := "Ultimate"
 	if c.has_meta("ultimate_name"):

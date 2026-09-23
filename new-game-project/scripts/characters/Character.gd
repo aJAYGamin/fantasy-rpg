@@ -68,6 +68,118 @@ var sleep_turn: int = 0
 # from which what-is-known is always re-derivable.
 var pending_learned: Array[Skill] = []
 
+# --- Moveset & equipped loadout ---
+# `skills` is the POOL of everything this character can learn (up to MAX_SKILLS),
+# each gated by its own Skill.unlock_level. Only EQUIP_SLOTS of each category are
+# usable in battle at once; these arrays hold indices INTO `skills`, or -1 for an
+# empty slot. Indices are stable because the pool only ever grows — "deleting" a
+# move clears a slot, it never forgets the skill.
+const MAX_SKILLS := 20
+const EQUIP_SLOTS := 4
+
+var equipped_attacks: Array[int] = [-1, -1, -1, -1]
+var equipped_specials: Array[int] = [-1, -1, -1, -1]
+
+func _equipped_array(is_special: bool) -> Array[int]:
+	return equipped_specials if is_special else equipped_attacks
+
+## Pool indices of every skill the character has actually learned in a category.
+func learned_pool_indices(is_special: bool) -> Array[int]:
+	var out: Array[int] = []
+	for i in skills.size():
+		if not is_skill_known(i):
+			continue
+		if skills[i].is_special_category() == is_special:
+			out.append(i)
+	return out
+
+## The skill in an equipped slot, or null when the slot is empty.
+func equipped_skill(is_special: bool, slot: int) -> Skill:
+	var arr := _equipped_array(is_special)
+	if slot < 0 or slot >= arr.size():
+		return null
+	var idx: int = arr[slot]
+	if idx < 0 or idx >= skills.size() or not is_skill_known(idx):
+		return null
+	return skills[idx]
+
+## Equipped skills of a category, in slot order, skipping empty slots. This is
+## what the battle menus offer.
+func equipped_skills(is_special: bool) -> Array[Skill]:
+	var out: Array[Skill] = []
+	for slot in _equipped_array(is_special).size():
+		var s := equipped_skill(is_special, slot)
+		if s != null:
+			out.append(s)
+	return out
+
+func is_equipped(pool_index: int) -> bool:
+	return equipped_attacks.has(pool_index) or equipped_specials.has(pool_index)
+
+## Puts a learned skill into a slot — the operation the rest-area limit counts as
+## a "swap". Refuses unknown skills and category mismatches. Equipping something
+## already in another slot of the same category MOVES it, so a skill can never
+## occupy two slots at once.
+func equip_skill(is_special: bool, slot: int, pool_index: int) -> bool:
+	var arr := _equipped_array(is_special)
+	if slot < 0 or slot >= arr.size():
+		return false
+	if pool_index < 0 or pool_index >= skills.size() or not is_skill_known(pool_index):
+		return false
+	if skills[pool_index].is_special_category() != is_special:
+		return false
+	for i in arr.size():
+		if arr[i] == pool_index and i != slot:
+			arr[i] = -1
+	arr[slot] = pool_index
+	return true
+
+## Clears a slot. Free at a rest area — only equipping costs.
+func unequip_slot(is_special: bool, slot: int) -> bool:
+	var arr := _equipped_array(is_special)
+	if slot < 0 or slot >= arr.size() or arr[slot] == -1:
+		return false
+	arr[slot] = -1
+	return true
+
+## Reorders two slots within a category. Also free — it changes menu order, not
+## which moves the character has.
+func swap_slots(is_special: bool, a: int, b: int) -> bool:
+	var arr := _equipped_array(is_special)
+	if a < 0 or b < 0 or a >= arr.size() or b >= arr.size() or a == b:
+		return false
+	var tmp: int = arr[a]
+	arr[a] = arr[b]
+	arr[b] = tmp
+	return true
+
+## Fills empty slots with learned-but-unequipped skills, in pool order. Called
+## after seeding a hero and after a level-up, so a newly learned move is usable
+## straight away when there is room rather than silently sitting in the pool.
+func auto_equip_unslotted() -> void:
+	for is_special in [false, true]:
+		var arr := _equipped_array(is_special)
+		for idx in learned_pool_indices(is_special):
+			if is_equipped(idx):
+				continue
+			for slot in arr.size():
+				if arr[slot] == -1:
+					arr[slot] = idx
+					break
+
+## Drops references to skills that are no longer valid (a shrunken pool, or a
+## slot holding a skill the character has not reached the level for yet).
+func prune_equipped() -> void:
+	for is_special in [false, true]:
+		var arr := _equipped_array(is_special)
+		for slot in arr.size():
+			var idx: int = arr[slot]
+			if idx < 0:
+				continue
+			if idx >= skills.size() or not is_skill_known(idx) \
+					or skills[idx].is_special_category() != is_special:
+				arr[slot] = -1
+
 # --- Transient combat effects (NOT statuses; no chip, never serialized) ---
 # Defend: halves incoming damage until this character's next turn starts.
 var is_defending: bool = false
@@ -338,6 +450,11 @@ func _learn_skills_at_level():
 	for s in skills:
 		if s != null and s.unlock_level == level:
 			pending_learned.append(s)
+	# A move the player can't use until they visit a menu feels like a bug, so
+	# claim any free slot. Once all four are taken the new move waits in the pool
+	# for a deliberate swap at an NPC or rest area.
+	if not pending_learned.is_empty():
+		auto_equip_unslotted()
 
 ## Is the skill in this slot usable at the character's current level?
 func is_skill_known(index: int) -> bool:

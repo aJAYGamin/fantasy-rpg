@@ -57,11 +57,20 @@ enum StatusType {
 # P8: the character level at which this skill becomes usable. 1 means "known
 # from the start", which is the default — so enemy skills and every existing
 # .tres are unaffected and only heroes opt into a learning curve.
-#
-# Hero skills keep their POSITIONAL slot in Character.skills (0-3 attacks, 4-7
-# specials) whether or not they are learned yet; the menus filter on this rather
-# than the array shrinking, which would re-slot every skill after it.
 @export var unlock_level: int = 1
+
+# Which battle menu this skill belongs to. Character.skills is a mixed POOL of
+# everything a hero can learn (up to Character.MAX_SKILLS), so the menu a skill
+# belongs to can no longer be inferred from its index the way it was when every
+# hero had exactly 4 attacks then 4 specials.
+enum SkillCategory { ATTACK, SPECIAL }
+@export var category: SkillCategory = SkillCategory.ATTACK
+
+func is_attack_category() -> bool:
+	return category == SkillCategory.ATTACK
+
+func is_special_category() -> bool:
+	return category == SkillCategory.SPECIAL
 
 func calculate_value(user: Character) -> int:
 	match skill_type:

@@ -45,8 +45,8 @@ func test_skill_split() -> void:
 	var vm := StatsScreen.build_hero_view_model(aria)
 	var attacks: Array = vm["attacks"]
 	var specials: Array = vm["specials"]
-	assert_eq(attacks.size(), 4, "first 4 skills are attacks")
-	assert_eq(specials.size(), 4, "remaining skills are specials")
+	assert_eq(attacks.size(), 6, "all six pool attacks are listed")
+	assert_eq(specials.size(), 6, "all six pool specials are listed")
 	assert_eq(attacks[0]["name"], "Aqua Slash", "Aria's first attack is Aqua Slash")
 	assert_eq(specials[0]["name"], "Tidal Requiem", "Aria's first special is Tidal Requiem")
 

@@ -23,6 +23,7 @@ static func serialize_skill(s: Skill) -> Dictionary:
 		"status_chance": s.status_chance,
 		"resonance_gain_override": s.resonance_gain_override,
 		"unlock_level": s.unlock_level,
+		"category": int(s.category),
 	}
 
 static func deserialize_skill(d: Dictionary) -> Skill:
@@ -42,6 +43,9 @@ static func deserialize_skill(d: Dictionary) -> Skill:
 	# Defaults to 1 so a save written before P8 loads with every skill known,
 	# rather than silently locking the player out of skills they already had.
 	s.unlock_level = int(d.get("unlock_level", 1))
+	# Pre-moveset saves have no category; ATTACK is the enum default and matches
+	# how those saves' skills were laid out (attacks first).
+	s.category = int(d.get("category", Skill.SkillCategory.ATTACK))
 	s.resonance_gain_override = float(d.get("resonance_gain_override", -1.0))
 	return s
 
@@ -182,6 +186,8 @@ static func serialize_character(c: Character) -> Dictionary:
 		"experience_to_next": c.experience_to_next,
 		"status_effects": status_data,
 		"skills": skill_data,
+		"equipped_attacks": c.equipped_attacks.duplicate(),
+		"equipped_specials": c.equipped_specials.duplicate(),
 		"inventory": serialize_inventory(c.inventory),
 	}
 	# Hero-specific meta (used by ResonanceMenu / StatsScreen)
@@ -225,6 +231,20 @@ static func deserialize_character(d: Dictionary) -> Character:
 	for sd in d.get("skills", []):
 		typed_skills.append(deserialize_skill(sd))
 	c.skills = typed_skills
+	# Restore the loadout, then repair it: a save from before the loadout existed
+	# has no slots, and a pool that changed shape could leave a slot pointing at a
+	# skill that is now the wrong category or not yet learned. prune + auto_equip
+	# always leaves a playable loadout rather than an empty attack menu.
+	var eq_a = d.get("equipped_attacks", null)
+	var eq_s = d.get("equipped_specials", null)
+	if eq_a is Array:
+		for i in mini(eq_a.size(), c.equipped_attacks.size()):
+			c.equipped_attacks[i] = int(eq_a[i])
+	if eq_s is Array:
+		for i in mini(eq_s.size(), c.equipped_specials.size()):
+			c.equipped_specials[i] = int(eq_s[i])
+	c.prune_equipped()
+	c.auto_equip_unslotted()
 
 	var inv_dict = d.get("inventory", {})
 	if inv_dict is Dictionary:
