@@ -363,6 +363,9 @@ func _update_focus_guard() -> void:
 		# nowhere else. Buttons also enable/disable at runtime. Control's setter
 		# early-returns when the mode is unchanged, so this costs almost nothing.
 		_set_scope_focusable(top, true)
+	# Recomputed every frame off the same fresh state: a rebuilt list has new
+	# controls at new positions, so yesterday's edges are not today's.
+	_wire_focus_wrap(top)
 
 	# Keep focus inside the top scope. Don't steal it mid-navigation: only grab
 	# when nothing valid in the scope currently holds it.
@@ -437,6 +440,85 @@ func _update_nav_repeat(delta: float) -> void:
 ## Test hook: run one auto-repeat tick synchronously.
 func update_nav_repeat_for_test(delta: float) -> void:
 	_update_nav_repeat(delta)
+
+# ─── Wrap-around menu navigation ─────────────────────────
+# Godot's focus search is purely geometric and stops dead at the edge of a menu,
+# so the last entry had nowhere to go — you could not get from "Quit to Main
+# Menu" back round to "Resume" without walking all the way up.
+#
+# Rather than intercepting the navigation keys (which would have to duplicate
+# Godot's own edge cases), this wires an explicit `focus_neighbor_*` ONLY onto
+# the controls that have no geometric neighbour on that side. Everything in the
+# middle keeps the normal search, so 2-column grids and side-by-side rows still
+# navigate naturally — and because Godot's own navigation and this file's
+# auto-repeat both go through find_valid_focus_neighbor, they wrap identically.
+#
+# The links we add are recorded in meta so they can be cleared before each
+# recompute: a stale link would otherwise make the "has no neighbour" test lie,
+# and hand-authored neighbours from a .tscn are never touched.
+const _WRAP_META := "focus_wrap_sides"
+const _WRAP_SIDES := [SIDE_TOP, SIDE_BOTTOM, SIDE_LEFT, SIDE_RIGHT]
+
+func _wire_focus_wrap(scope: Control) -> void:
+	var items: Array = []
+	_collect_focusable(scope, items)
+
+	# Clear the links we added last time, so the geometric test below is honest.
+	for c in items:
+		if c.has_meta(_WRAP_META):
+			for side in c.get_meta(_WRAP_META):
+				c.set_focus_neighbor(side, NodePath())
+			c.remove_meta(_WRAP_META)
+	if items.size() < 2:
+		return
+
+	for side in _WRAP_SIDES:
+		for c in items:
+			if c.find_valid_focus_neighbor(side) != null:
+				continue  # not an edge on this side — leave it alone
+			var target := _wrap_target(items, c, side)
+			if target == null or target == c:
+				continue
+			c.set_focus_neighbor(side, c.get_path_to(target))
+			var sides: Array = c.get_meta(_WRAP_META) if c.has_meta(_WRAP_META) else []
+			sides.append(side)
+			c.set_meta(_WRAP_META, sides)
+
+## The control to jump to when `from` runs off the `side` edge: the far end of
+## the menu in that direction. Ties are broken by staying closest on the other
+## axis, so wrapping down the left column of a grid lands back at its top rather
+## than skipping across to the other column.
+func _wrap_target(items: Array, from: Control, side: int) -> Control:
+	var from_rect := from.get_global_rect()
+	var from_mid := from_rect.position + from_rect.size * 0.5
+	var best: Control = null
+	var best_extreme := 0.0
+	var best_offset := 0.0
+	for c in items:
+		if c == from:
+			continue
+		var r: Rect2 = c.get_global_rect()
+		var extreme: float
+		var offset: float
+		match side:
+			SIDE_BOTTOM:  # fell off the bottom -> go to the topmost
+				extreme = -r.position.y
+				offset = absf(r.position.x + r.size.x * 0.5 - from_mid.x)
+			SIDE_TOP:
+				extreme = r.end.y
+				offset = absf(r.position.x + r.size.x * 0.5 - from_mid.x)
+			SIDE_RIGHT:  # fell off the right -> go to the leftmost
+				extreme = -r.position.x
+				offset = absf(r.position.y + r.size.y * 0.5 - from_mid.y)
+			_:  # SIDE_LEFT
+				extreme = r.end.x
+				offset = absf(r.position.y + r.size.y * 0.5 - from_mid.y)
+		if best == null or extreme > best_extreme \
+				or (is_equal_approx(extreme, best_extreme) and offset < best_offset):
+			best = c
+			best_extreme = extreme
+			best_offset = offset
+	return best
 
 # Recursively set focus_mode on the interactive controls under `root`.
 func _set_scope_focusable(root: Node, focusable: bool) -> void:

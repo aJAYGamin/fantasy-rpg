@@ -43,7 +43,7 @@ blocked on map art), then P8 skill-learning, P9 real art, P10 story/cutscenes. S
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~2280 tests, 33 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~2300 tests, 33 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -472,7 +472,7 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~2280 tests / 33 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~2300 tests / 33 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,
@@ -614,6 +614,15 @@ BattleScene (Node2D)
       of the top of the list. One-shot (consumed on use) so ordinary rebuilds don't keep yanking focus
       back. `PauseMenu` records the entry that opened each sub-view; `SettingsScreen` keys off the
       category name (`_returning_from`) because its buttons are rebuilt per view.
+    - **Wrap-around navigation:** `_wire_focus_wrap` gives a control an explicit `focus_neighbor_*`
+      ONLY on sides where the geometric search finds nothing, so the last menu entry loops to the
+      first (and back) while the middle of a menu, 2-column grids and side-by-side rows keep
+      navigating normally. Ties prefer staying on the same column/row. The links are recorded in meta
+      and cleared before each recompute — a stale link would make the "has no neighbour" test lie —
+      and hand-authored neighbours from a `.tscn` are never touched. Godot's own navigation and the
+      auto-repeat below both go through `find_valid_focus_neighbor`, so they wrap identically.
+      (The Items/Stats/Equipment *category tabs* already looped separately, via the `%` in their
+      L1/R1 handlers.)
     - **Held-direction auto-repeat:** `HoldRepeat` (`scripts/ui/HoldRepeat.gd`) + `GameManager._update_nav_repeat`
       keep moving focus while `ui_up`/`ui_down`/`ui_left`/`ui_right` is held — initial delay, a normal
       cadence, then a faster one after `ACCELERATE_AFTER` (3s) for long lists. It drives

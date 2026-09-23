@@ -348,7 +348,9 @@ func _nav_scope(count: int) -> Dictionary:
 	return _list_scope(specs)
 
 func test_holding_down_keeps_moving_focus() -> void:
-	var s := _nav_scope(8)
+	# Long enough that the hold below cannot lap the list and wrap back to the
+	# start, which would make the final-position assertion meaningless.
+	var s := _nav_scope(20)
 	var root: Control = s["root"]
 	var btns: Array = s["buttons"]
 	GameManager.register_focus_scope(root)
@@ -391,7 +393,11 @@ func test_repeat_skips_disabled_rows() -> void:
 	GameManager.update_focus_guard_for_test()
 	btns[0].grab_focus()
 
-	_hold_direction(root, "ui_down", 1.0)
+	# Exactly one repeat: with only two usable rows, a longer hold would wrap
+	# around and lap them, so the landing spot would depend on the timing.
+	var one_step := HoldRepeat.INITIAL_DELAY + HoldRepeat.REPEAT_INTERVAL * 0.5
+	var moves := _hold_direction(root, "ui_down", one_step)
+	assert_eq(moves, 1, "one repeat fired")
 	var owner := root.get_viewport().gui_get_focus_owner()
 	assert_ne(owner, btns[1], "a held direction never parks on a greyed row")
 	assert_ne(owner, btns[2], "nor on the next greyed row")
@@ -435,3 +441,135 @@ func test_repeat_ignores_focus_outside_the_active_scope() -> void:
 
 	GameManager.set_controller_mode_for_test(false)
 	_cleanup([bg_root, fg_root])
+
+# --- Wrap-around navigation ----------------------------------------------------
+# Godot's focus search is geometric and stops at the edge of a menu, so the last
+# entry had nowhere to go — you could not get from "Quit to Main Menu" round to
+# "Resume". The guard adds an explicit neighbor only where there is no geometric
+# one, so the middle of a menu keeps navigating normally.
+
+func _walk(from: Control, side: int, steps: int) -> Array:
+	var out: Array = []
+	var cur: Control = from
+	for i in steps:
+		if cur == null:
+			break
+		out.append(cur)
+		cur = cur.find_valid_focus_neighbor(side)
+	return out
+
+func test_last_entry_wraps_to_the_first() -> void:
+	var s := _list_scope([["Resume", false], ["Save", false], ["Quit", false]])
+	var root: Control = s["root"]
+	var btns: Array = s["buttons"]
+	GameManager.register_focus_scope(root)
+	GameManager.set_controller_mode_for_test(true)
+	GameManager.update_focus_guard_for_test()
+
+	assert_eq(btns[2].find_valid_focus_neighbor(SIDE_BOTTOM), btns[0],
+		"down from the last entry comes back to the first")
+	assert_eq(btns[0].find_valid_focus_neighbor(SIDE_TOP), btns[2],
+		"up from the first entry goes to the last")
+
+	GameManager.set_controller_mode_for_test(false)
+	_cleanup([root])
+
+func test_the_middle_of_a_menu_is_untouched() -> void:
+	# The wrap must only apply at the edges; linking everything explicitly would
+	# break grids and side-by-side rows.
+	var s := _list_scope([["A", false], ["B", false], ["C", false]])
+	var root: Control = s["root"]
+	var btns: Array = s["buttons"]
+	GameManager.register_focus_scope(root)
+	GameManager.set_controller_mode_for_test(true)
+	GameManager.update_focus_guard_for_test()
+
+	assert_eq(btns[1].find_valid_focus_neighbor(SIDE_BOTTOM), btns[2], "B still goes down to C")
+	assert_eq(btns[1].find_valid_focus_neighbor(SIDE_TOP), btns[0], "and up to A")
+
+	GameManager.set_controller_mode_for_test(false)
+	_cleanup([root])
+
+func test_a_full_loop_visits_every_entry_once() -> void:
+	var s := _list_scope([["Resume", false], ["Save", false], ["Stats", false], ["Quit", false]])
+	var root: Control = s["root"]
+	var btns: Array = s["buttons"]
+	GameManager.register_focus_scope(root)
+	GameManager.set_controller_mode_for_test(true)
+	GameManager.update_focus_guard_for_test()
+
+	var seen := _walk(btns[0], SIDE_BOTTOM, 4)
+	assert_eq(seen.size(), 4, "four steps stay inside the menu")
+	for b in btns:
+		assert_true(seen.has(b), "'%s' is reached in one pass" % (b as Button).text)
+	assert_eq(_walk(btns[0], SIDE_BOTTOM, 5)[4], btns[0], "the fifth step is back at the start")
+
+	GameManager.set_controller_mode_for_test(false)
+	_cleanup([root])
+
+func test_wrap_skips_disabled_entries() -> void:
+	var s := _list_scope([["Greyed", true], ["Middle", false], ["Last", false]])
+	var root: Control = s["root"]
+	var btns: Array = s["buttons"]
+	GameManager.register_focus_scope(root)
+	GameManager.set_controller_mode_for_test(true)
+	GameManager.update_focus_guard_for_test()
+
+	assert_eq(btns[2].find_valid_focus_neighbor(SIDE_BOTTOM), btns[1],
+		"wrapping lands on the first USABLE entry, not the greyed one above it")
+
+	GameManager.set_controller_mode_for_test(false)
+	_cleanup([root])
+
+func test_wrap_is_recomputed_when_the_menu_changes() -> void:
+	# A stale wrap link would make the "has no neighbor" test lie, so the edges
+	# have to be recomputed against the current list.
+	var s := _list_scope([["A", false], ["B", false]])
+	var root: Control = s["root"]
+	var btns: Array = s["buttons"]
+	GameManager.register_focus_scope(root)
+	GameManager.set_controller_mode_for_test(true)
+	GameManager.update_focus_guard_for_test()
+	assert_eq(btns[1].find_valid_focus_neighbor(SIDE_BOTTOM), btns[0], "B wraps to A while B is last")
+
+	# A new entry is appended below B, as a rebuilt list would do.
+	var c := Button.new()
+	c.text = "C"
+	c.position = Vector2(0, 88)
+	c.size = Vector2(200, 40)
+	root.add_child(c)
+	GameManager.update_focus_guard_for_test()
+	assert_eq(btns[1].find_valid_focus_neighbor(SIDE_BOTTOM), c, "B now goes down to the new entry")
+	assert_eq(c.find_valid_focus_neighbor(SIDE_BOTTOM), btns[0], "and C takes over the wrap")
+
+	GameManager.set_controller_mode_for_test(false)
+	_cleanup([root])
+
+func test_a_single_entry_does_not_wrap_to_itself() -> void:
+	var s := _list_scope([["Only", false]])
+	var root: Control = s["root"]
+	var btns: Array = s["buttons"]
+	GameManager.register_focus_scope(root)
+	GameManager.set_controller_mode_for_test(true)
+	GameManager.update_focus_guard_for_test()
+	assert_eq(btns[0].find_valid_focus_neighbor(SIDE_BOTTOM), null, "a lone entry has nowhere to go")
+	GameManager.set_controller_mode_for_test(false)
+	_cleanup([root])
+
+func test_held_direction_loops_the_menu() -> void:
+	# The auto-repeat goes through the same neighbor search, so it wraps too.
+	var s := _list_scope([["A", false], ["B", false], ["C", false]])
+	var root: Control = s["root"]
+	var btns: Array = s["buttons"]
+	GameManager.register_focus_scope(root)
+	GameManager.set_controller_mode_for_test(true)
+	GameManager.update_focus_guard_for_test()
+	btns[0].grab_focus()
+
+	var moves := _hold_direction(root, "ui_down", 2.0)
+	assert_true(moves > btns.size(),
+		"a long hold laps the menu instead of stopping at the end (moved %d over %d entries)"
+			% [moves, btns.size()])
+
+	GameManager.set_controller_mode_for_test(false)
+	_cleanup([root])

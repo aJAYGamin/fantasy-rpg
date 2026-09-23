@@ -244,3 +244,49 @@ func test_controller_can_reorder_with_the_focused_card() -> void:
 	assert_eq(after[1], before[0], "both slots updated")
 	GameManager.set_controller_mode_for_test(false)
 	_close_screen(screen)
+
+func test_focus_ring_lines_up_with_the_card_border() -> void:
+	# A PanelContainer lays children into its CONTENT rect, so without expand
+	# margins the ring drew inset from the card's border instead of on it. Checked
+	# against the stylebox rather than live rects so it does not depend on a
+	# layout pass having run.
+	var party := PartyFactory.create_default_party()
+	var screen := _open_screen(party)
+	var hits: Array = []
+	_collect_hit_buttons(screen, hits)
+	assert_true(hits.size() > 0, "there are cards to check")
+
+	var hit: Button = hits[0]
+	var card := hit.get_parent() as PanelContainer
+	assert_true(card != null, "the click target sits directly in the card panel")
+	var panel: StyleBox = card.get_theme_stylebox("panel")
+	var ring: StyleBox = hit.get_theme_stylebox("focus")
+
+	assert_eq(ring.expand_margin_left, panel.content_margin_left, "ring reaches the card's left border")
+	assert_eq(ring.expand_margin_right, panel.content_margin_right, "ring reaches the right border")
+	assert_eq(ring.expand_margin_top, panel.content_margin_top, "ring reaches the top border")
+	assert_eq(ring.expand_margin_bottom, panel.content_margin_bottom, "ring reaches the bottom border")
+	_close_screen(screen)
+
+func test_move_cards_loop_on_a_controller() -> void:
+	var party := PartyFactory.create_default_party()
+	var screen := _open_screen(party)
+	GameManager.set_controller_mode_for_test(true)
+	GameManager.update_focus_guard_for_test()
+
+	var hits: Array = []
+	_collect_hit_buttons(screen, hits)
+	# Walk down from the first card far enough to run off the bottom of the grid.
+	var cur: Control = hits[0]
+	var visited: Array = []
+	for i in hits.size() * 2 + 4:
+		if cur == null:
+			break
+		visited.append(cur)
+		cur = cur.find_valid_focus_neighbor(SIDE_BOTTOM)
+	assert_true(visited.size() > hits.size(),
+		"navigation keeps going past the last card instead of dead-ending (%d steps over %d cards)"
+			% [visited.size(), hits.size()])
+
+	GameManager.set_controller_mode_for_test(false)
+	_close_screen(screen)

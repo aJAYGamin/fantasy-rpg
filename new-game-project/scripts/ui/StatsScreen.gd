@@ -607,6 +607,13 @@ func _make_skill_card(s: Dictionary) -> Control:
 		focus_box.border_color = BattleUITheme.TEXT_ACCENT
 		focus_box.set_border_width_all(2)
 		focus_box.set_corner_radius_all(8)
+		# A PanelContainer lays children into its CONTENT rect, i.e. inset by the
+		# card's content margins, so the ring drew visibly inside the card's
+		# border. Expanding by exactly those margins puts it back on the border.
+		focus_box.expand_margin_left = style.content_margin_left
+		focus_box.expand_margin_right = style.content_margin_right
+		focus_box.expand_margin_top = style.content_margin_top
+		focus_box.expand_margin_bottom = style.content_margin_bottom
 		hit.add_theme_stylebox_override("focus", focus_box)
 		hit.pressed.connect(func(): _on_card_pressed(is_special, slot))
 		card.add_child(hit)
