@@ -138,22 +138,6 @@ func _open_equipment() -> void:
 	screen.setup(GameManager.party)
 	call_deferred("_focus_sub_view")
 
-# Moves is a look-and-reorder page: the player can see every move they know and
-# reorder the slots freely, but changing WHICH moves are carried is deliberately
-# reserved for a camp or a town trainer.
-func _open_moves() -> void:
-	if GameManager.party.is_empty():
-		show_toast("No party yet.", true)
-		return
-	if _main_content and is_instance_valid(_main_content):
-		_main_content.hide()
-	var screen := LoadoutScreen.new()
-	_sub_view = screen
-	screen.back_requested.connect(_dismiss_sub_view)
-	add_child(screen)
-	screen.setup(LoadoutEditor.Mode.PAUSE)
-	call_deferred("_focus_sub_view")
-
 # Opens the Quests screen as a sub-view (replace-don't-stack). No party guard —
 # quests are global state.
 func _open_quests() -> void:
@@ -221,7 +205,6 @@ func _rebuild() -> void:
 	v.add_child(_menu_button("Stats", _open_stats))
 	v.add_child(_menu_button("Items", _open_items))
 	v.add_child(_menu_button("Equipment", _open_equipment))
-	v.add_child(_menu_button("Moves", _open_moves))
 	v.add_child(_menu_button("Quests", _open_quests))
 	v.add_child(_menu_button("Settings", _open_settings))
 	v.add_child(_menu_button("Quit to Main Menu", _on_quit, true))

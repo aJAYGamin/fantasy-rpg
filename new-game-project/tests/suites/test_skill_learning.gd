@@ -183,25 +183,23 @@ func test_pre_p8_save_loads_with_everything_known() -> void:
 
 # ------------------------------------------------------------ UI surfaces
 
-func test_stats_view_model_marks_locked_skills() -> void:
+func test_stats_page_lists_only_equipped_moves() -> void:
+	# Locked and merely-learned moves are both absent: the page shows the kit the
+	# character fights with, which is also the only thing that can be reordered.
 	var c := _hero([1, 9, 1, 9, 1, 9, 1, 9])
 	c.character_name = "Aria"
 	c.level = 1
+	c.auto_equip_unslotted()
 	var vm := StatsScreen.build_hero_view_model(c)
 	var attacks: Array = vm["attacks"]
-	var specials: Array = vm["specials"]
-	assert_eq(attacks.size(), 4, "all four attack slots are shown")
-	assert_eq(specials.size(), 4, "all four special slots are shown")
-	assert_true(bool(attacks[0]["known"]), "slot 0 is known")
-	assert_false(bool(attacks[1]["known"]), "slot 1 is locked")
-	assert_eq(int(attacks[1]["unlock_level"]), 9, "the card can show the level it needs")
+	assert_eq(attacks.size(), c.equipped_skills(false).size(), "only equipped attacks appear")
+	assert_true(attacks.size() < 4, "the level-9 moves are not listed at level 1")
+	for a in attacks:
+		assert_true(int(a["slot"]) >= 0, "every listed move carries a slot to reorder by")
 
-func test_locked_skills_still_occupy_their_slot_in_the_view_model() -> void:
-	# The stats page deliberately shows locked skills rather than hiding them,
-	# so the player can see what is coming.
+func test_stats_page_hides_everything_when_nothing_is_equipped() -> void:
 	var c := _hero([9, 9, 9, 9, 9, 9, 9, 9])
 	c.level = 1
 	var vm := StatsScreen.build_hero_view_model(c)
-	assert_eq((vm["attacks"] as Array).size(), 4, "locked attacks are still listed")
-	for a in vm["attacks"]:
-		assert_false(bool(a["known"]), "and each is marked locked")
+	assert_true((vm["attacks"] as Array).is_empty(), "no unlearned move is listed")
+	assert_true((vm["specials"] as Array).is_empty(), "nor any unlearned special")

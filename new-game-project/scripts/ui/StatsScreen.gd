@@ -30,6 +30,12 @@ var _party: Array = []
 var _selected: int = 0
 var _tab_buttons: Array[Button] = []
 var _content_host: Control = null
+# Reordering the equipped slots happens here. Permissions still come from
+# LoadoutEditor in PAUSE mode, so this page can never do more than rearrange
+# however the rules change later.
+var _editor := LoadoutEditor.new(LoadoutEditor.Mode.PAUSE)
+var _sel_slot: int = -1
+var _sel_special: bool = false
 
 # --- View model (pure, testable) ---------------------------------------------
 
@@ -38,16 +44,22 @@ var _content_host: Control = null
 static func build_hero_view_model(c: Character) -> Dictionary:
 	var attacks: Array = []
 	var specials: Array = []
-	for i in range(c.skills.size()):
-		var vm := _skill_view_model(c.skills[i], c.is_skill_known(i))
-		# `skills` is a mixed pool now, so the menu a move belongs to comes from
-		# its category, not its index. `equipped` lets the page distinguish the
-		# four moves actually carried into battle from the rest of the pool.
-		vm["equipped"] = c.is_equipped(i)
-		if c.skills[i].is_special_category():
-			specials.append(vm)
-		else:
-			attacks.append(vm)
+	# Only what the character actually carries. The learned-but-unequipped rest of
+	# the pool is deliberately absent: this page shows the kit you fight with and
+	# lets you reorder it, and a move that isn't in a slot has no slot to reorder.
+	# Swapping the pool in and out belongs to a camp or a trainer.
+	for is_special in [false, true]:
+		for slot in Character.EQUIP_SLOTS:
+			var sk := c.equipped_skill(is_special, slot)
+			if sk == null:
+				continue
+			var vm := _skill_view_model(sk, true)
+			vm["slot"] = slot
+			vm["is_special"] = is_special
+			if is_special:
+				specials.append(vm)
+			else:
+				attacks.append(vm)
 
 	var ult_name := "Ultimate"
 	if c.has_meta("ultimate_name"):
@@ -342,6 +354,8 @@ func _build_right_column(vm: Dictionary, _palette: Dictionary) -> Control:
 	col.add_child(_build_skill_grid(vm["attacks"]))
 	col.add_child(_section_header("Specials"))
 	col.add_child(_build_skill_grid(vm["specials"]))
+	col.add_child(_label("Pick two moves in the same list to swap their order.",
+		BattleUITheme.font_regular(), 10, BattleUITheme.TEXT_SUBTITLE))
 
 	return col
 
@@ -357,6 +371,26 @@ func _build_skill_grid(skills: Array) -> Control:
 	for s in skills:
 		grid.add_child(_make_skill_card(s))
 	return grid
+
+## Select-then-swap, the same interaction the loadout screen uses: pick a card,
+## pick another in the same list, and they trade places. Picking the selected
+## card again cancels.
+func _on_card_pressed(is_special: bool, slot: int) -> void:
+	var hero: Character = _party[_selected] if _selected < _party.size() else null
+	if hero == null:
+		return
+	if _sel_slot == slot and _sel_special == is_special:
+		_sel_slot = -1
+		_build_content(hero)
+		return
+	if _sel_slot >= 0 and _sel_special == is_special:
+		_editor.rearrange(hero, is_special, _sel_slot, slot)
+		_sel_slot = -1
+		_build_content(hero)
+		return
+	_sel_slot = slot
+	_sel_special = is_special
+	_build_content(hero)
 
 # --- Builders -----------------------------------------------------------------
 
@@ -466,26 +500,31 @@ func _make_meter_row(label: String, value: float, max_value: float, fill: Color,
 
 func _make_skill_card(s: Dictionary) -> Control:
 	var elem_color := ElementalSystem.get_element_color(s["element"])
-	var card := PanelContainer.new()
+	# A Button rather than a plain panel so the card can be picked to reorder,
+	# and so controller focus reaches it like any other control.
+	var card := Button.new()
+	card.flat = true
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	card.custom_minimum_size = Vector2(236, 0)
-	var style := BattleUITheme.panel_style(BattleUITheme.BUTTON_BORDER, BattleUITheme.SUBPANEL_BG, 1, 8)
+	var slot := int(s.get("slot", -1))
+	var is_special := bool(s.get("is_special", false))
+	var selected := (slot >= 0 and slot == _sel_slot and is_special == _sel_special)
+	if slot >= 0:
+		card.pressed.connect(func(): _on_card_pressed(is_special, slot))
+	var border := BattleUITheme.PANEL_BORDER if selected else BattleUITheme.BUTTON_BORDER
+	var style := BattleUITheme.panel_style(border, BattleUITheme.SUBPANEL_BG, 2 if selected else 1, 8)
 	style.content_margin_top = 4
 	style.content_margin_bottom = 4
 	style.content_margin_left = 10
 	style.content_margin_right = 10
-	card.add_theme_stylebox_override("panel", style)
+	for state in ["normal", "hover", "pressed", "focus"]:
+		card.add_theme_stylebox_override(state, style)
 
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 2)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE   # clicks belong to the card
 	card.add_child(v)
-
-	# A not-yet-learned skill still occupies its slot, shown dimmed with the level
-	# it arrives at, so the player can see what the hero is working toward.
-	var known: bool = bool(s.get("known", true))
-	if not known:
-		card.modulate = Color(1, 1, 1, 0.45)
 
 	var top := HBoxContainer.new()
 	top.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -493,10 +532,7 @@ func _make_skill_card(s: Dictionary) -> Control:
 	var name_lbl := _label(s["name"], BattleUITheme.font_bold(), 13, elem_color.lerp(Color.WHITE, 0.25))
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(name_lbl)
-	if not known:
-		top.add_child(_label("Lv %d" % int(s.get("unlock_level", 1)), BattleUITheme.font_bold(), 12,
-			BattleUITheme.TEXT_SUBTITLE, HORIZONTAL_ALIGNMENT_RIGHT))
-	elif int(s["mp_cost"]) > 0:
+	if int(s["mp_cost"]) > 0:
 		top.add_child(_label("MP %d" % int(s["mp_cost"]), BattleUITheme.font_bold(), 12, Color(0.50, 0.70, 1.0), HORIZONTAL_ALIGNMENT_RIGHT))
 	v.add_child(top)
 

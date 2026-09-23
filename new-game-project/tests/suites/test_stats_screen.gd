@@ -41,14 +41,21 @@ func test_hp_mp_exp_text() -> void:
 	assert_eq(vm["exp_text"], "%d / %d" % [aria.experience, aria.experience_to_next], "XP text formatted")
 
 func test_skill_split() -> void:
+	# The page lists the EQUIPPED kit, not the whole learned pool: a move with no
+	# slot has no order to rearrange, and swapping the pool belongs to a camp or
+	# a trainer.
 	var aria := _aria()
 	var vm := StatsScreen.build_hero_view_model(aria)
 	var attacks: Array = vm["attacks"]
 	var specials: Array = vm["specials"]
-	assert_eq(attacks.size(), 6, "all six pool attacks are listed")
-	assert_eq(specials.size(), 6, "all six pool specials are listed")
+	assert_eq(attacks.size(), aria.equipped_skills(false).size(), "equipped attacks listed")
+	assert_eq(specials.size(), aria.equipped_skills(true).size(), "equipped specials listed")
+	assert_true(attacks.size() < 6, "the unequipped rest of the pool is not shown")
 	assert_eq(attacks[0]["name"], "Aqua Slash", "Aria's first attack is Aqua Slash")
 	assert_eq(specials[0]["name"], "Tidal Requiem", "Aria's first special is Tidal Requiem")
+	# Each entry knows its slot so a click can reorder it.
+	assert_eq(int(attacks[0]["slot"]), 0, "first attack reports slot 0")
+	assert_false(bool(attacks[0]["is_special"]), "and which list it belongs to")
 
 func test_skill_view_model_shape() -> void:
 	var aria := _aria()
