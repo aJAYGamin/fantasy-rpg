@@ -23,6 +23,9 @@ var _editor: LoadoutEditor = null
 var _hero_index: int = 0
 var _selected_slot: int = -1
 var _selected_is_special: bool = false
+## Which row, if any, has its details expanded — "slot:a:2" / "pool:7". Only one
+## at a time, so the lists never grow past the panel.
+var _detail_key: String = ""
 var _status: Label = null
 var _budget: Label = null
 ## True only when THIS screen paused the tree. Opened from the pause menu the
@@ -152,12 +155,22 @@ func _slot_column() -> VBoxContainer:
 		col.add_child(_slot_row(true, slot))
 	return col
 
-func _slot_row(is_special: bool, slot: int) -> HBoxContainer:
+func _slot_row(is_special: bool, slot: int) -> Control:
 	var hero := _hero()
+	var s: Skill = hero.equipped_skill(is_special, slot) if hero != null else null
+	var key := "slot:%s:%d" % ["s" if is_special else "a", slot]
+
+	# The details sit directly above their own row rather than in a popup, so the
+	# move being described stays on screen next to everything it's compared with.
+	var wrap := VBoxContainer.new()
+	wrap.add_theme_constant_override("separation", 3)
+	if s != null and _detail_key == key:
+		wrap.add_child(_detail_panel(s))
+
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 4)
+	wrap.add_child(row)
 
-	var s: Skill = hero.equipped_skill(is_special, slot) if hero != null else null
 	var selected := (_selected_slot == slot and _selected_is_special == is_special)
 	var text := s.skill_name if s != null else "— empty —"
 	var btn := BattleUITheme.make_button(("▸ " if selected else "") + text, 12)
@@ -173,9 +186,9 @@ func _slot_row(is_special: bool, slot: int) -> HBoxContainer:
 	# Clearing is free wherever it's allowed; hidden entirely on the pause page
 	# rather than shown disabled, since nothing there can change the loadout.
 	if s != null:
-		var info := BattleUITheme.make_button("?", 11)
+		var info := BattleUITheme.make_button("▾" if _detail_key == key else "?", 11)
 		info.custom_minimum_size = Vector2(28, SLOT_H)
-		info.pressed.connect(func(): _show_details(s))
+		info.pressed.connect(func(): _toggle_details(key))
 		row.add_child(info)
 
 	if _editor.can_clear():
@@ -184,7 +197,7 @@ func _slot_row(is_special: bool, slot: int) -> HBoxContainer:
 		x.disabled = s == null
 		x.pressed.connect(func(): _on_clear(is_special, slot))
 		row.add_child(x)
-	return row
+	return wrap
 
 func _pool_column() -> VBoxContainer:
 	var col := VBoxContainer.new()
@@ -215,11 +228,20 @@ func _pool_column() -> VBoxContainer:
 			Color(0.55, 0.50, 0.62), HORIZONTAL_ALIGNMENT_CENTER))
 	return col
 
-func _pool_row(pool_index: int) -> HBoxContainer:
+func _pool_row(pool_index: int) -> Control:
 	var hero := _hero()
 	var s: Skill = hero.skills[pool_index]
+	var key := "pool:%d" % pool_index
+
+	var wrap := VBoxContainer.new()
+	wrap.add_theme_constant_override("separation", 3)
+	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if _detail_key == key:
+		wrap.add_child(_detail_panel(s))
+
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 4)
+	wrap.add_child(row)
 
 	var equipped := hero.is_equipped(pool_index)
 	var label := s.skill_name
@@ -239,71 +261,54 @@ func _pool_row(pool_index: int) -> HBoxContainer:
 	# Details stay reachable even when the move itself can't be equipped right
 	# now — reading what something does is exactly what a player wants while
 	# deciding whether to spend a swap on it.
-	var info := BattleUITheme.make_button("?", 11)
+	var info := BattleUITheme.make_button("▾" if _detail_key == key else "?", 11)
 	info.custom_minimum_size = Vector2(28, SLOT_H)
-	info.pressed.connect(func(): _show_details(s))
+	info.pressed.connect(func(): _toggle_details(key))
 	row.add_child(info)
-	return row
+	return wrap
 
-## Full description, element, target and costs for one move. Costs are listed
-## explicitly rather than only as a number on the row, since a move may later
-## cost something other than MP.
-func _show_details(s: Skill) -> void:
-	var host := self
-	var existing := host.get_node_or_null("MoveDetail")
-	if existing != null:
-		existing.queue_free()
-
-	var wrap := Control.new()
-	wrap.name = "MoveDetail"
-	wrap.set_anchors_preset(Control.PRESET_FULL_RECT)
-	wrap.mouse_filter = Control.MOUSE_FILTER_STOP
-	host.add_child(wrap)
-
-	var shade := ColorRect.new()
-	shade.color = Color(0, 0, 0, 0.45)
-	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
-	wrap.add_child(shade)
-
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	wrap.add_child(center)
-
-	var panel := BattleUITheme.make_panel()
-	panel.custom_minimum_size = Vector2(380, 0)
-	center.add_child(panel)
+## Full description, element, target and costs for one move, rendered inline
+## directly above its own row. A popup would cover the very list the player is
+## comparing against, so this expands in place instead; `_detail_key` keeps it to
+## one open panel at a time.
+func _detail_panel(s: Skill) -> PanelContainer:
+	var elem := ElementalSystem.get_element_color(s.element)
+	var panel := PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var style := BattleUITheme.panel_style(elem.lerp(BattleUITheme.PANEL_BORDER, 0.5),
+		BattleUITheme.SUBPANEL_BG, 1, 6)
+	style.content_margin_top = 6
+	style.content_margin_bottom = 6
+	style.content_margin_left = 9
+	style.content_margin_right = 9
+	panel.add_theme_stylebox_override("panel", style)
 
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 6)
+	v.add_theme_constant_override("separation", 3)
 	panel.add_child(v)
 
-	var elem := ElementalSystem.get_element_color(s.element)
-	v.add_child(_label(s.skill_name, BattleUITheme.font_bold(), 17,
-		elem.lerp(Color.WHITE, 0.25), HORIZONTAL_ALIGNMENT_CENTER))
 	v.add_child(_label("%s  ·  %s %s  ·  %s" % [
 			s.get_skill_type_display(),
 			ElementalSystem.get_element_icon(s.element),
 			ElementalSystem.get_element_name(s.element),
 			s.get_target_description()],
-		BattleUITheme.font_regular(), 11, BattleUITheme.TEXT_SUBTITLE, HORIZONTAL_ALIGNMENT_CENTER))
-	v.add_child(_divider())
+		BattleUITheme.font_bold(), 10, elem.lerp(Color.WHITE, 0.35)))
 
-	var desc := _label(s.description, BattleUITheme.font_regular(), 12,
-		BattleUITheme.TEXT_PRIMARY, HORIZONTAL_ALIGNMENT_CENTER)
+	var desc := _label(s.description, BattleUITheme.font_regular(), 11,
+		BattleUITheme.TEXT_PRIMARY)
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(desc)
-	v.add_child(_divider())
 
-	v.add_child(_label("Cost", BattleUITheme.font_bold(), 11,
-		BattleUITheme.TEXT_SUBTITLE, HORIZONTAL_ALIGNMENT_CENTER))
-	var cost_text := "%d MP" % s.mp_cost if s.mp_cost > 0 else "Free"
-	v.add_child(_label(cost_text, BattleUITheme.font_bold(), 14,
-		Color(0.50, 0.70, 1.0), HORIZONTAL_ALIGNMENT_CENTER))
+	# Costs are spelled out rather than left as the bare number on the row, since a
+	# move may later cost something other than MP.
+	var cost_text := "Cost:  %d MP" % s.mp_cost if s.mp_cost > 0 else "Cost:  Free"
+	v.add_child(_label(cost_text, BattleUITheme.font_bold(), 11, Color(0.50, 0.70, 1.0)))
+	return panel
 
-	var close := BattleUITheme.make_button("Close", 12)
-	close.custom_minimum_size = Vector2(0, 32)
-	close.pressed.connect(func(): wrap.queue_free())
-	v.add_child(close)
+func _toggle_details(key: String) -> void:
+	_detail_key = "" if _detail_key == key else key
+	_build()
+
 
 # --- actions ------------------------------------------------------------------
 

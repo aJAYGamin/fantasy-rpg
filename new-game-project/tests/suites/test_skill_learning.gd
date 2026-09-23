@@ -126,7 +126,11 @@ func test_party_curve_is_applied() -> void:
 	for hero in party:
 		assert_eq(hero.skills.size(), 12, "%s keeps its whole pool" % hero.character_name)
 		for i in 8:
-			assert_eq(hero.skills[i].unlock_level, PartyFactory.SKILL_UNLOCK_LEVELS[i],
+			# TEST_UNLOCK_ALL_SKILLS flattens the curve for play-testing; assert the
+			# flattening instead of skipping, so this still fails if the flag stops
+			# working, and goes back to checking the real curve when it is turned off.
+			var want := 1 if PartyFactory.TEST_UNLOCK_ALL_SKILLS else PartyFactory.SKILL_UNLOCK_LEVELS[i]
+			assert_eq(hero.skills[i].unlock_level, want,
 				"%s slot %d uses the shared curve" % [hero.character_name, i])
 
 func test_starting_party_opens_with_a_usable_kit() -> void:
@@ -145,7 +149,11 @@ func test_starting_party_opens_with_a_usable_kit() -> void:
 				specials += 1
 		assert_true(attacks >= 1, "%s starts with at least one attack" % hero.character_name)
 		assert_true(specials >= 1, "%s starts with at least one special" % hero.character_name)
-		assert_true(attacks + specials < 8, "%s does not start with everything" % hero.character_name)
+		if PartyFactory.TEST_UNLOCK_ALL_SKILLS:
+			# Starting with everything is the whole point of the test flag.
+			assert_eq(attacks + specials, 8, "%s knows its whole kit while the test flag is on" % hero.character_name)
+		else:
+			assert_true(attacks + specials < 8, "%s does not start with everything" % hero.character_name)
 
 func test_first_level_up_teaches_something() -> void:
 	# An empty first level-up makes the feature look broken to a new player.

@@ -257,7 +257,12 @@ func _select(index: int) -> void:
 func _build_content(hero: Character) -> void:
 	if _content_host == null:
 		return
+	# Detach IMMEDIATELY, not just queue_free (which is deferred): reordering
+	# rebuilds this host from inside a card button's own `pressed` handler, so the
+	# outgoing cards would still be laid out on top of the new ones for a frame and
+	# swallow the second click of the swap — the reorder looked completely dead.
 	for c in _content_host.get_children():
+		_content_host.remove_child(c)
 		c.queue_free()
 
 	var vm := build_hero_view_model(hero)
@@ -349,13 +354,23 @@ func _build_right_column(vm: Dictionary, _palette: Dictionary) -> Control:
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.add_theme_constant_override("separation", 6)
 
+	# The hint leads the column and tracks the selection, so the second half of the
+	# interaction is spelled out at the moment it's needed rather than only up front.
+	var hint_text := "Click a move, then another in the same list, to swap their order."
+	var hint_color := BattleUITheme.TEXT_SUBTITLE
+	if _sel_slot >= 0:
+		hint_text = "Now click another %s to swap it with the highlighted one — or click it again to cancel." \
+			% ("special" if _sel_special else "attack")
+		hint_color = BattleUITheme.TEXT_ACCENT
+	var hint := _label(hint_text, BattleUITheme.font_regular(), 10, hint_color)
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(hint)
+
 	# Attacks / Specials — two cards per row to fill the horizontal space.
 	col.add_child(_section_header("Attacks"))
 	col.add_child(_build_skill_grid(vm["attacks"]))
 	col.add_child(_section_header("Specials"))
 	col.add_child(_build_skill_grid(vm["specials"]))
-	col.add_child(_label("Use ⇅ on two moves in the same list to swap their order.",
-		BattleUITheme.font_regular(), 10, BattleUITheme.TEXT_SUBTITLE))
 
 	return col
 
@@ -528,12 +543,11 @@ func _make_skill_card(s: Dictionary) -> Control:
 	top.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_theme_constant_override("separation", 6)
 	if slot >= 0:
-		# Select this card, then another in the same list, to swap their order.
-		var move_btn := BattleUITheme.make_button("⇅" if not selected else "▸", 11)
-		move_btn.custom_minimum_size = Vector2(24, 22)
-		move_btn.tooltip_text = "Reorder"
-		move_btn.pressed.connect(func(): _on_card_pressed(is_special, slot))
-		top.add_child(move_btn)
+		# Non-interactive marker only. The click target is the whole card (added at
+		# the end of this function) rather than this glyph: a 24x22 hit box was far
+		# too easy to miss, which made reordering look broken.
+		top.add_child(_label("▸" if selected else "⇅", BattleUITheme.font_bold(), 11,
+			BattleUITheme.TEXT_ACCENT if selected else Color(0.55, 0.50, 0.62)))
 	var name_lbl := _label(s["name"], BattleUITheme.font_bold(), 13, elem_color.lerp(Color.WHITE, 0.25))
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(name_lbl)
@@ -554,6 +568,25 @@ func _make_skill_card(s: Dictionary) -> Control:
 		# No fixed min width — wrap to whatever width the grid cell gives the card.
 		desc.custom_minimum_size = Vector2(0, 0)
 		v.add_child(desc)
+
+	# Whole-card click target. A PanelContainer lays every child out into the same
+	# rect, so this Button sits exactly on top of `v` without changing the card's
+	# size (it has no minimum of its own) — and being added last it is hit first.
+	# The labels underneath are MOUSE_FILTER_IGNORE, so nothing competes with it.
+	if slot >= 0:
+		var hit := Button.new()
+		hit.flat = true
+		hit.tooltip_text = "Click to pick this move, then click another to swap them"
+		hit.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		for state in ["normal", "pressed", "focus", "disabled"]:
+			hit.add_theme_stylebox_override(state, StyleBoxEmpty.new())
+		# Hover gets a faint wash so it reads as clickable, matching the item rows.
+		var hover := StyleBoxFlat.new()
+		hover.bg_color = Color(1, 1, 1, 0.05)
+		hover.set_corner_radius_all(8)
+		hit.add_theme_stylebox_override("hover", hover)
+		hit.pressed.connect(func(): _on_card_pressed(is_special, slot))
+		card.add_child(hit)
 	return card
 
 func _make_tab(hero_name: String, index: int) -> Button:

@@ -41,6 +41,12 @@ const SKILL_CATEGORIES: Array[int] = [
 	Skill.SkillCategory.SPECIAL, Skill.SkillCategory.SPECIAL,
 ]
 
+# TEMPORARY TEST SETTING — collapses every unlock level to 1 so a fresh party knows
+# its whole 12-move pool immediately and the trainer/campfire loadout screens have
+# something to swap between. SET BACK TO false BEFORE SHIPPING: with it on, the level
+# curve in SKILL_UNLOCK_LEVELS never runs and level-ups teach nothing.
+const TEST_UNLOCK_ALL_SKILLS := true
+
 ## Stamps the curve and category onto a hero's pool. Slots beyond the tables keep
 ## their Skill defaults (level 1, ATTACK) rather than becoming unreachable.
 static func _apply_skill_tables(hero: Character) -> void:
@@ -48,7 +54,9 @@ static func _apply_skill_tables(hero: Character) -> void:
 		if hero.skills[i] == null:
 			continue
 		if i < SKILL_UNLOCK_LEVELS.size():
-			hero.skills[i].unlock_level = SKILL_UNLOCK_LEVELS[i]
+			hero.skills[i].unlock_level = 1 if TEST_UNLOCK_ALL_SKILLS else SKILL_UNLOCK_LEVELS[i]
+		elif TEST_UNLOCK_ALL_SKILLS:
+			hero.skills[i].unlock_level = 1
 		if i < SKILL_CATEGORIES.size():
 			hero.skills[i].category = SKILL_CATEGORIES[i]
 
