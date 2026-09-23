@@ -114,3 +114,43 @@ func test_timings_are_sane() -> void:
 		"the fast stage is faster than the normal one")
 	assert_true(HoldRepeat.ACCELERATE_AFTER > HoldRepeat.INITIAL_DELAY,
 		"acceleration comes after repeating has already started")
+
+# ------------------------------------------------------------ category profile
+# Switching hero / item tab swaps the whole page, so it repeats far more slowly
+# than moving a highlight down a list. A press that runs a little long must not
+# advance twice: overshooting the tab you aimed for reads exactly like the wrap
+# being broken, which is how this surfaced.
+
+func test_category_profile_is_slower_than_list_scrolling() -> void:
+	assert_true(HoldRepeat.CATEGORY_INITIAL_DELAY > HoldRepeat.INITIAL_DELAY,
+		"a tab takes longer to start repeating than a list row")
+	assert_true(HoldRepeat.CATEGORY_REPEAT_INTERVAL > HoldRepeat.REPEAT_INTERVAL,
+		"and repeats less often")
+	assert_true(HoldRepeat.CATEGORY_FAST_INTERVAL > HoldRepeat.FAST_INTERVAL,
+		"even once accelerated")
+
+func test_a_deliberate_press_changes_one_category() -> void:
+	# Half a second on a shoulder button is an ordinary press, not a scroll.
+	var r := HoldRepeat.for_category()
+	assert_eq(_hold(r, 0.5), 0, "a half-second press does not advance a second tab")
+
+func test_a_long_press_still_changes_one_category() -> void:
+	var r := HoldRepeat.for_category()
+	assert_eq(_hold(r, HoldRepeat.CATEGORY_INITIAL_DELAY - 0.05), 0,
+		"even a deliberately long press stays on one tab")
+
+func test_holding_a_shoulder_button_still_cycles() -> void:
+	# The feature the player asked for is not lost: a real hold keeps moving.
+	var r := HoldRepeat.for_category()
+	assert_true(_hold(r, 2.0) >= 2, "holding keeps cycling categories")
+
+func test_four_tabs_are_not_lapped_by_a_short_hold() -> void:
+	# With four item tabs, a hold short enough to feel like one press must not
+	# travel far enough to make the landing tab unpredictable.
+	var r := HoldRepeat.for_category()
+	assert_true(_hold(r, 0.8) < 4, "a brief hold cannot lap the four item tabs")
+
+func test_custom_profile_is_honored() -> void:
+	var r := HoldRepeat.new(0.2, 0.1, 0.05)
+	assert_eq(_hold(r, 0.15), 0, "nothing before the custom delay")
+	assert_true(_hold(r, 0.5) >= 3, "then repeats at the custom interval")

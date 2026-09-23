@@ -40,8 +40,8 @@ var _content_host: Control = null
 var _picker: Control = null
 var _picker_dim: Control = null
 ## Auto-repeat for held L1/R1 (or Q/E) tab cycling.
-var _prev_repeat := HoldRepeat.new()
-var _next_repeat := HoldRepeat.new()
+var _prev_repeat := HoldRepeat.for_category()
+var _next_repeat := HoldRepeat.for_category()
 
 # --- Pure helpers (testable) --------------------------------------------------
 
