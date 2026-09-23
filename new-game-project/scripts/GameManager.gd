@@ -620,6 +620,7 @@ func start_new_game(slot: int):
 	clock.set_minutes(TimeOfDay.START_MINUTES)
 	rest_swaps_remaining = REST_SWAP_ALLOWANCE
 	battles_since_rest_refresh = 0
+	rest_available = true
 	story_flags = {}
 	play_time_seconds = 0.0
 	save_overworld_scene_path = ""
@@ -855,8 +856,20 @@ const REST_RESONANCE := 10.0
 
 var rest_swaps_remaining: int = REST_SWAP_ALLOWANCE
 var battles_since_rest_refresh: int = 0
+## False once a campfire has been used, until REST_REFRESH_BATTLES more battles
+## are fought. Gates the whole campfire interaction, not just the swaps.
+var rest_available: bool = true
 
 signal rest_swaps_changed(remaining: int)
+
+## Can the party use a rest area right now?
+func can_rest() -> bool:
+	return rest_available
+
+## Prompt shown when a campfire is approached but is still on cooldown.
+func rest_unavailable_text() -> String:
+	return "Cannot rest now"
+
 
 func can_spend_rest_swap() -> bool:
 	return rest_swaps_remaining > 0
@@ -877,6 +890,7 @@ func register_battle_completed() -> void:
 	battles_since_rest_refresh += 1
 	if battles_since_rest_refresh >= REST_REFRESH_BATTLES:
 		battles_since_rest_refresh = 0
+		rest_available = true
 		refill_rest_swaps()
 
 func refill_rest_swaps() -> void:
@@ -892,7 +906,21 @@ func battles_until_rest_refresh() -> int:
 ## Restores a quarter of each living hero's max HP and MP and a little
 ## resonance. Returns per-hero totals so the campfire dialogue can report them.
 ## The downed are not revived — a rest is a top-up, not a full heal.
-func rest_at_camp() -> Dictionary:
+## Rests until the start of `until_phase`, restoring a quarter of each living
+## hero's max HP and MP and a flat +10 resonance, then putting the campfire on
+## cooldown for REST_REFRESH_BATTLES battles. Returns per-hero totals plus how
+## much game time passed, for the confirmation text.
+func rest_at_camp(until_phase: int = TimeOfDay.Phase.DAY) -> Dictionary:
+	var elapsed := clock.advance_to_phase(until_phase)
+	rest_available = false
+	battles_since_rest_refresh = 0
+	return {
+		"healed": _apply_rest_heal(),
+		"minutes_passed": elapsed,
+		"phase": until_phase,
+	}
+
+func _apply_rest_heal() -> Dictionary:
 	var healed := {}
 	for c in party:
 		if not c.is_alive():
@@ -919,6 +947,7 @@ func save_game():
 		"time_minutes": clock.minutes,
 		"rest_swaps_remaining": rest_swaps_remaining,
 		"battles_since_rest_refresh": battles_since_rest_refresh,
+		"rest_available": rest_available,
 		"story_flags": story_flags,
 		"play_time": play_time_seconds,
 		"species_memory": species_memory,
@@ -958,6 +987,7 @@ func load_game() -> bool:
 	clock.set_minutes(float(data.get("time_minutes", TimeOfDay.START_MINUTES)))
 	rest_swaps_remaining = clampi(int(data.get("rest_swaps_remaining", REST_SWAP_ALLOWANCE)), 0, REST_SWAP_ALLOWANCE)
 	battles_since_rest_refresh = maxi(0, int(data.get("battles_since_rest_refresh", 0)))
+	rest_available = bool(data.get("rest_available", true))
 	story_flags = data.get("story_flags", {})
 	species_memory = data.get("species_memory", {})
 	play_time_seconds = data.get("play_time", 0.0)
@@ -1013,6 +1043,7 @@ func _build_save_dict() -> Dictionary:
 		"time_minutes": clock.minutes,
 		"rest_swaps_remaining": rest_swaps_remaining,
 		"battles_since_rest_refresh": battles_since_rest_refresh,
+		"rest_available": rest_available,
 		"story_flags": story_flags,
 		"current_map": current_map,
 		"overworld_scene_path": save_overworld_scene_path,
@@ -1077,6 +1108,7 @@ func load_from_slot(slot: int) -> bool:
 	clock.set_minutes(float(data.get("time_minutes", TimeOfDay.START_MINUTES)))
 	rest_swaps_remaining = clampi(int(data.get("rest_swaps_remaining", REST_SWAP_ALLOWANCE)), 0, REST_SWAP_ALLOWANCE)
 	battles_since_rest_refresh = maxi(0, int(data.get("battles_since_rest_refresh", 0)))
+	rest_available = bool(data.get("rest_available", true))
 	story_flags = data.get("story_flags", {})
 	current_map = data.get("current_map", "world_map")
 	play_time_seconds = float(data.get("metadata", {}).get("playtime_seconds", 0.0))

@@ -42,6 +42,26 @@ var minutes: float = START_MINUTES
 func advance_real(delta_seconds: float) -> void:
 	minutes = fposmod(minutes + delta_seconds * GAME_MINUTES_PER_REAL_SECOND, MINUTES_PER_DAY)
 
+## The clock reading a phase begins at.
+static func phase_start_minutes(p: int) -> float:
+	match p:
+		Phase.DAWN: return DAWN_START
+		Phase.DAY: return DAY_START
+		Phase.DUSK: return DUSK_START
+		Phase.NIGHT: return NIGHT_START
+	return DAY_START
+
+## Winds the clock FORWARD to the start of a phase, rolling into tomorrow when
+## that time has already passed today — resting until dawn at 10pm should land
+## on the coming dawn, not rewind eleven hours.
+func advance_to_phase(p: int) -> float:
+	var target := phase_start_minutes(p)
+	var elapsed := target - minutes
+	if elapsed <= 0.0:
+		elapsed += MINUTES_PER_DAY
+	minutes = fposmod(target, MINUTES_PER_DAY)
+	return elapsed
+
 func set_minutes(m: float) -> void:
 	minutes = fposmod(m, MINUTES_PER_DAY)
 

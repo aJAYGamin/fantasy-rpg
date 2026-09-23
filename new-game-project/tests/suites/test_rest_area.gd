@@ -14,12 +14,16 @@ func _snapshot() -> Dictionary:
 		"party": GameManager.party,
 		"swaps": GameManager.rest_swaps_remaining,
 		"battles": GameManager.battles_since_rest_refresh,
+		"avail": GameManager.rest_available,
+		"minutes": GameManager.clock.minutes,
 	}
 
 func _restore(s: Dictionary) -> void:
 	GameManager.party = s["party"]
 	GameManager.rest_swaps_remaining = s["swaps"]
 	GameManager.battles_since_rest_refresh = s["battles"]
+	GameManager.rest_available = s["avail"]
+	GameManager.clock.set_minutes(s["minutes"])
 
 func _hero(hp: int, mp: int) -> Character:
 	var c := Character.new()
@@ -73,7 +77,7 @@ func test_rest_does_not_revive_the_downed() -> void:
 	var down := _hero(0, 0)
 	var up := _hero(10, 10)
 	GameManager.party = [down, up]
-	var healed := GameManager.rest_at_camp()
+	var healed: Dictionary = GameManager.rest_at_camp()["healed"]
 	assert_eq(down.current_hp, 0, "a downed hero stays down — a rest is not a revive")
 	assert_true(up.current_hp > 10, "the living are still healed")
 	assert_false(healed.has(down.character_name) and healed.size() == 2,
@@ -85,7 +89,7 @@ func test_rest_reports_what_it_restored() -> void:
 	var h := _hero(10, 5)
 	h.character_name = "Aria"
 	GameManager.party = [h]
-	var healed := GameManager.rest_at_camp()
+	var healed: Dictionary = GameManager.rest_at_camp()["healed"]
 	assert_true(healed.has("Aria"), "the hero is reported by name")
 	assert_true(int(healed["Aria"]["hp"]) > 0, "hp restored is reported")
 	assert_true(int(healed["Aria"]["mp"]) > 0, "mp restored is reported")
@@ -198,3 +202,66 @@ func test_corrupt_allowance_is_clamped() -> void:
 	var data := {"rest_swaps_remaining": 99}
 	var swaps := clampi(int(data.get("rest_swaps_remaining", 2)), 0, GameManager.REST_SWAP_ALLOWANCE)
 	assert_eq(swaps, GameManager.REST_SWAP_ALLOWANCE, "an out-of-range value is clamped")
+
+# ------------------------------------------------------- campfire cooldown
+
+func test_campfire_goes_on_cooldown_after_a_rest() -> void:
+	# "Cannot rest now" until five more battles are fought.
+	var snap := _snapshot()
+	GameManager.party = [_hero(10, 10)]
+	GameManager.rest_available = true
+	assert_true(GameManager.can_rest(), "a fresh campfire is usable")
+	GameManager.rest_at_camp(TimeOfDay.Phase.DAY)
+	assert_false(GameManager.can_rest(), "used up straight after resting")
+	for i in range(GameManager.REST_REFRESH_BATTLES - 1):
+		GameManager.register_battle_completed()
+		assert_false(GameManager.can_rest(), "still on cooldown after %d battles" % (i + 1))
+	GameManager.register_battle_completed()
+	assert_true(GameManager.can_rest(), "available again after five battles")
+	_restore(snap)
+
+func test_resting_refreshes_the_battle_counter() -> void:
+	var snap := _snapshot()
+	GameManager.party = [_hero(10, 10)]
+	GameManager.battles_since_rest_refresh = 3
+	GameManager.rest_available = true
+	GameManager.rest_at_camp(TimeOfDay.Phase.DAY)
+	assert_eq(GameManager.battles_since_rest_refresh, 0,
+		"the five-battle wait starts from the rest, not from the last refill")
+	_restore(snap)
+
+func test_unavailable_prompt_text() -> void:
+	assert_eq(GameManager.rest_unavailable_text(), "Cannot rest now",
+		"the exact wording shown at a campfire on cooldown")
+
+# ------------------------------------------------------- resting to a phase
+
+func test_rest_advances_the_clock_to_the_chosen_phase() -> void:
+	var snap := _snapshot()
+	GameManager.party = [_hero(10, 10)]
+	GameManager.rest_available = true
+	GameManager.clock.set_minutes(600.0)                    # 10:00
+	GameManager.rest_at_camp(TimeOfDay.Phase.NIGHT)
+	assert_eq(GameManager.clock.phase(), TimeOfDay.Phase.NIGHT, "it is now night")
+	assert_near(GameManager.clock.minutes, TimeOfDay.NIGHT_START, 0.01,
+		"the clock sits exactly at the phase start")
+	_restore(snap)
+
+func test_resting_to_an_earlier_phase_rolls_into_tomorrow() -> void:
+	# Resting until dawn at 10pm should reach the COMING dawn, not rewind.
+	var snap := _snapshot()
+	GameManager.party = [_hero(10, 10)]
+	GameManager.rest_available = true
+	GameManager.clock.set_minutes(1320.0)                   # 22:00
+	var result := GameManager.rest_at_camp(TimeOfDay.Phase.DAWN)
+	assert_eq(GameManager.clock.phase(), TimeOfDay.Phase.DAWN, "woke at dawn")
+	assert_true(float(result["minutes_passed"]) > 0.0, "time moved forward, never backward")
+	assert_near(float(result["minutes_passed"]), 420.0, 1.0, "22:00 to 05:00 is seven hours")
+	_restore(snap)
+
+func test_every_phase_is_a_valid_rest_target() -> void:
+	for p in [TimeOfDay.Phase.DAWN, TimeOfDay.Phase.DAY, TimeOfDay.Phase.DUSK, TimeOfDay.Phase.NIGHT]:
+		var t := TimeOfDay.new()
+		t.set_minutes(0.0)
+		t.advance_to_phase(p)
+		assert_eq(t.phase(), p, "resting to phase %d lands in it" % p)
