@@ -39,6 +39,9 @@ var _content_host: Control = null
 # collapses the CenterContainer and pins the panel to the top-left.
 var _picker: Control = null
 var _picker_dim: Control = null
+## Auto-repeat for held L1/R1 (or Q/E) tab cycling.
+var _prev_repeat := HoldRepeat.new()
+var _next_repeat := HoldRepeat.new()
 
 # --- Pure helpers (testable) --------------------------------------------------
 
@@ -148,6 +151,16 @@ func _input(event: InputEvent) -> void:
 		_select_tab((_selected_tab + 1) % TAB_DEFS.size())
 		get_viewport().set_input_as_handled()
 
+# Holding a shoulder button (or Q/E) keeps cycling tabs; `_input` owns the first
+# press, this only repeats.
+func _process(delta: float) -> void:
+	if not visible or _picker != null:
+		return
+	if _prev_repeat.poll(FocusUtil.prev_category_held(), delta):
+		_select_tab((_selected_tab - 1 + TAB_DEFS.size()) % TAB_DEFS.size())
+	if _next_repeat.poll(FocusUtil.next_category_held(), delta):
+		_select_tab((_selected_tab + 1) % TAB_DEFS.size())
+
 # --- Chrome (built once) ------------------------------------------------------
 
 func _build_chrome() -> void:
@@ -237,7 +250,12 @@ func _select_tab(index: int) -> void:
 func _build_content() -> void:
 	if _content_host == null:
 		return
+	# Detach IMMEDIATELY, not just queue_free (which is deferred): the outgoing
+	# rows otherwise stay laid out on top of the fresh ones for a frame and
+	# swallow clicks aimed at the new content, and the focus guard can still walk
+	# into them. Same fix as SettingsScreen._build.
 	for c in _content_host.get_children():
+		_content_host.remove_child(c)
 		c.queue_free()
 
 	var category: int = TAB_DEFS[_selected_tab][1]
@@ -287,8 +305,12 @@ func _make_item_slot(item: Item) -> Control:
 
 	var desc_btn := BattleUITheme.make_button("?", 11)
 	desc_btn.custom_minimum_size = Vector2(28, 28)
-	# Controller skips the "?" so vertical navigation lands on the Use button.
-	BattleUITheme.mark_no_focus(desc_btn)
+	desc_btn.tooltip_text = "Show description"
+	# Deliberately FOCUSABLE. It used to be marked no-focus so that vertical
+	# navigation landed on Use, but three of the four tabs hold items that have no
+	# Use button at all, which left their rows with nothing a controller could
+	# reach and the description unreadable without a mouse. Left/right moves
+	# between "?" and Use within a row; up/down moves between rows.
 	desc_btn.pressed.connect(func(): desc.visible = not desc.visible)
 	row.add_child(desc_btn)
 

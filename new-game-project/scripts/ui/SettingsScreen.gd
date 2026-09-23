@@ -19,6 +19,10 @@ var _standalone: bool = false
 var _res_option: OptionButton = null
 # Current view: root / game / controls / keyboard / controller / audio / display / performance.
 var _view: String = "root"
+# The category we just backed out of. The list views use it to hand focus back to
+# the entry the player came from instead of the top of the list — the buttons are
+# rebuilt on every view change, so this is keyed by name rather than by node.
+var _returning_from: String = ""
 
 # --- Live status labels (refreshed in _process) ---
 var _device_label: Label = null       # controller
@@ -194,6 +198,7 @@ func _on_back() -> void:
 	if parent == "":
 		back_requested.emit()
 	else:
+		_returning_from = _view
 		_view = parent
 		_build()
 
@@ -215,6 +220,8 @@ func _build_root(outer: VBoxContainer) -> void:
 		b.custom_minimum_size = Vector2(0, 44)
 		b.pressed.connect(func(): _open_category(key))
 		list.add_child(b)
+		_claim_return_focus(key, b)
+	_returning_from = ""
 
 # Controls hub: Keyboard / Controller buttons.
 func _build_controls_menu(outer: VBoxContainer) -> void:
@@ -227,6 +234,14 @@ func _build_controls_menu(outer: VBoxContainer) -> void:
 		b.custom_minimum_size = Vector2(0, 44)
 		b.pressed.connect(func(): _open_category(key))
 		list.add_child(b)
+		_claim_return_focus(key, b)
+	_returning_from = ""
+
+# If `key` is the category we just backed out of, tell the focus guard to land
+# on `b` after this rebuild instead of the first entry.
+func _claim_return_focus(key: String, b: Button) -> void:
+	if _returning_from != "" and key == _returning_from:
+		GameManager.set_preferred_focus(self, b)
 
 func _open_category(cat: String) -> void:
 	_view = cat

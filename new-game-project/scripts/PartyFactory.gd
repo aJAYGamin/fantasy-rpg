@@ -41,11 +41,12 @@ const SKILL_CATEGORIES: Array[int] = [
 	Skill.SkillCategory.SPECIAL, Skill.SkillCategory.SPECIAL,
 ]
 
-# TEMPORARY TEST SETTING — collapses every unlock level to 1 so a fresh party knows
-# its whole 12-move pool immediately and the trainer/campfire loadout screens have
-# something to swap between. SET BACK TO false BEFORE SHIPPING: with it on, the level
-# curve in SKILL_UNLOCK_LEVELS never runs and level-ups teach nothing.
-const TEST_UNLOCK_ALL_SKILLS := true
+# Play-testing toggle, OFF for normal play. Flipping it to true collapses every
+# unlock level to 1, so a fresh party knows its whole 12-move pool and the
+# trainer/campfire loadout screens have something to swap between immediately.
+# While it is on the curve in SKILL_UNLOCK_LEVELS never runs and level-ups teach
+# nothing, so it must stay false in a shipped build.
+const TEST_UNLOCK_ALL_SKILLS := false
 
 ## Stamps the curve and category onto a hero's pool. Slots beyond the tables keep
 ## their Skill defaults (level 1, ATTACK) rather than becoming unreachable.

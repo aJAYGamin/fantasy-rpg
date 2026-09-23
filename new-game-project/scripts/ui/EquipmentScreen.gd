@@ -40,6 +40,9 @@ var _content_host: Control = null
 # The currently-selected slot's button — refocused after a rebuild so controller
 # navigation doesn't lose its place.
 var _selected_slot_btn: Button = null
+## Auto-repeat for held L1/R1 (or Q/E) hero cycling.
+var _prev_repeat := HoldRepeat.new()
+var _next_repeat := HoldRepeat.new()
 
 # --- Pure helper (testable) ---------------------------------------------------
 
@@ -84,6 +87,16 @@ func _input(event: InputEvent) -> void:
 	elif FocusUtil.is_next_category(event):
 		_select((_selected + 1) % _party.size())
 		get_viewport().set_input_as_handled()
+
+# Holding a shoulder button (or Q/E) keeps cycling heroes; `_input` owns the
+# first press, this only repeats.
+func _process(delta: float) -> void:
+	if not visible or _party.size() <= 1:
+		return
+	if _prev_repeat.poll(FocusUtil.prev_category_held(), delta):
+		_select((_selected - 1 + _party.size()) % _party.size())
+	if _next_repeat.poll(FocusUtil.next_category_held(), delta):
+		_select((_selected + 1) % _party.size())
 
 func _pool() -> Inventory:
 	return _party[0].inventory if not _party.is_empty() else null
@@ -178,7 +191,12 @@ func _select_slot(idx_def: int) -> void:
 func _build_content() -> void:
 	if _content_host == null:
 		return
+	# Detach IMMEDIATELY, not just queue_free (which is deferred): the outgoing
+	# rows otherwise stay laid out on top of the fresh ones for a frame and
+	# swallow clicks aimed at the new content, and the focus guard can still walk
+	# into them. Same fix as SettingsScreen._build.
 	for c in _content_host.get_children():
+		_content_host.remove_child(c)
 		c.queue_free()
 	_selected_slot_btn = null
 

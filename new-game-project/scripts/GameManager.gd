@@ -184,6 +184,7 @@ func _process(delta):
 	if _fps_label != null and _fps_label.visible:
 		_fps_label.text = "FPS %d" % Engine.get_frames_per_second()
 	_update_focus_guard()
+	_update_nav_repeat(delta)
 
 # Called by overworld/interior scenes (true on enter, false on exit) so the clock +
 # its overlay only run there, not in battle or the main menu.
@@ -207,6 +208,39 @@ func time_clock_visible() -> bool:
 # (category tabs) are never focusable — they cycle with L1/R1.
 var _focus_scopes: Array = []
 var _focus_top_last: Control = null
+## Scope Control -> the control the guard should grab the NEXT time it re-grabs
+## focus in that scope, instead of the first one. A menu sets this before opening
+## a sub-view so that coming back lands on the entry the player left from rather
+## than jumping to the top of the list. One-shot: consumed on use, so ordinary
+## rebuilds inside the scope don't keep yanking focus backwards.
+var _preferred_focus: Dictionary = {}
+
+## Remember where focus should return to in `scope` (see _preferred_focus).
+func set_preferred_focus(scope: Control, ctrl: Control) -> void:
+	if scope == null or ctrl == null:
+		return
+	_preferred_focus[scope] = ctrl
+
+func clear_preferred_focus(scope: Control) -> void:
+	_preferred_focus.erase(scope)
+
+func has_preferred_focus(scope: Control) -> bool:
+	return _preferred_focus.has(scope)
+
+## Consume the remembered control for `scope`, or null if there isn't a usable
+## one. Validated here so a freed or now-disabled entry falls back cleanly.
+func _take_preferred_focus(scope: Control) -> Control:
+	if not _preferred_focus.has(scope):
+		return null
+	var ctrl: Control = _preferred_focus[scope]
+	_preferred_focus.erase(scope)
+	if not is_instance_valid(ctrl) or not ctrl.is_visible_in_tree():
+		return null
+	if ctrl.focus_mode == Control.FOCUS_NONE:
+		return null
+	if ctrl is BaseButton and (ctrl as BaseButton).disabled:
+		return null
+	return ctrl
 
 func register_focus_scope(ctrl: Control) -> void:
 	if ctrl == null:
@@ -225,6 +259,11 @@ func register_focus_scope(ctrl: Control) -> void:
 
 func unregister_focus_scope(ctrl: Control) -> void:
 	_focus_scopes = _focus_scopes.filter(func(s): return s["ctrl"] != ctrl and is_instance_valid(s["ctrl"]))
+	_preferred_focus.erase(ctrl)
+	# Drop entries whose scope or target died with the closing menu.
+	for key in _preferred_focus.keys():
+		if not is_instance_valid(key) or not is_instance_valid(_preferred_focus[key]):
+			_preferred_focus.erase(key)
 
 func _prune_focus_scopes() -> void:
 	_focus_scopes = _focus_scopes.filter(func(s): return is_instance_valid(s["ctrl"]))
@@ -315,6 +354,18 @@ func _update_focus_guard() -> void:
 			if is_instance_valid(c):
 				_set_scope_focusable(c, c == top)
 		_focus_top_last = top
+	else:
+		# Refresh the TOP scope every frame even when it hasn't changed. Menus
+		# rebuild their contents constantly (item tabs, the next hero's page, the
+		# skill grid after a reorder) and those fresh controls are born FOCUS_ALL,
+		# so a walk that only ran on scope change left them inconsistent — the "?"
+		# buttons were reachable in whichever tab happened to be built last and
+		# nowhere else. Buttons also enable/disable at runtime. Control's setter
+		# early-returns when the mode is unchanged, so this costs almost nothing.
+		_set_scope_focusable(top, true)
+	# Recomputed every frame off the same fresh state: a rebuilt list has new
+	# controls at new positions, so yesterday's edges are not today's.
+	_wire_focus_wrap(top)
 
 	# Keep focus inside the top scope. Don't steal it mid-navigation: only grab
 	# when nothing valid in the scope currently holds it.
@@ -327,16 +378,160 @@ func _update_focus_guard() -> void:
 		# next hero's panel, target buttons). Re-apply focusability so the new
 		# controls are grabbable, then grab the first.
 		_set_scope_focusable(top, true)
-		var first := _first_focusable(top)
-		if first != null:
-			first.grab_focus()
+		# A scope that just came back from a sub-view names where focus belongs;
+		# everything else starts at the first entry.
+		var want := _take_preferred_focus(top)
+		if want == null:
+			want = _first_focusable(top)
+		if want != null:
+			want.grab_focus()
+
+# ─── Held-direction auto-repeat ──────────────────────────
+# Godot moves focus once per press and then stops: holding the d-pad or an arrow
+# key does nothing more, so getting down a long list means tapping once per row.
+# This repeats the move while the direction is held, accelerating after a few
+# seconds (see HoldRepeat). It drives focus directly through the neighbor search
+# rather than synthesizing input events, so it obeys exactly the same skip rules
+# as a real press — including stepping over disabled and no-focus controls.
+#
+# Keyboard and controller both get this: `ui_up`/`ui_down`/`ui_left`/`ui_right`
+# are bound for both devices, and the repeat only runs while focus navigation is
+# active, so it never fires during pure mouse play.
+const _NAV_SIDES := {
+	"ui_up": SIDE_TOP,
+	"ui_down": SIDE_BOTTOM,
+	"ui_left": SIDE_LEFT,
+	"ui_right": SIDE_RIGHT,
+}
+var _nav_repeats: Dictionary = {}
+
+func _update_nav_repeat(delta: float) -> void:
+	if not focus_nav_active():
+		for r in _nav_repeats.values():
+			r.reset()
+		return
+	var tree := get_tree()
+	if tree == null:
+		return
+	var vp := tree.root.get_viewport()
+	if vp == null:
+		return
+
+	for action in _NAV_SIDES:
+		if not _nav_repeats.has(action):
+			_nav_repeats[action] = HoldRepeat.new()
+		var rep: HoldRepeat = _nav_repeats[action]
+		var pressed := InputMap.has_action(action) and Input.is_action_pressed(action)
+		if not rep.poll(pressed, delta):
+			continue
+		# Only steer focus that is already inside the active scope; the guard owns
+		# everything else, and stealing focus from outside it would let a held
+		# direction wander into a background menu.
+		var owner := vp.gui_get_focus_owner()
+		if owner == null or not is_instance_valid(owner):
+			continue
+		var top := top_focus_scope()
+		if top == null or not top.is_ancestor_of(owner):
+			continue
+		var next := owner.find_valid_focus_neighbor(_NAV_SIDES[action])
+		if next != null and next != owner:
+			next.grab_focus()
+
+## Test hook: run one auto-repeat tick synchronously.
+func update_nav_repeat_for_test(delta: float) -> void:
+	_update_nav_repeat(delta)
+
+# ─── Wrap-around menu navigation ─────────────────────────
+# Godot's focus search is purely geometric and stops dead at the edge of a menu,
+# so the last entry had nowhere to go — you could not get from "Quit to Main
+# Menu" back round to "Resume" without walking all the way up.
+#
+# Rather than intercepting the navigation keys (which would have to duplicate
+# Godot's own edge cases), this wires an explicit `focus_neighbor_*` ONLY onto
+# the controls that have no geometric neighbour on that side. Everything in the
+# middle keeps the normal search, so 2-column grids and side-by-side rows still
+# navigate naturally — and because Godot's own navigation and this file's
+# auto-repeat both go through find_valid_focus_neighbor, they wrap identically.
+#
+# The links we add are recorded in meta so they can be cleared before each
+# recompute: a stale link would otherwise make the "has no neighbour" test lie,
+# and hand-authored neighbours from a .tscn are never touched.
+const _WRAP_META := "focus_wrap_sides"
+const _WRAP_SIDES := [SIDE_TOP, SIDE_BOTTOM, SIDE_LEFT, SIDE_RIGHT]
+
+func _wire_focus_wrap(scope: Control) -> void:
+	var items: Array = []
+	_collect_focusable(scope, items)
+
+	# Clear the links we added last time, so the geometric test below is honest.
+	for c in items:
+		if c.has_meta(_WRAP_META):
+			for side in c.get_meta(_WRAP_META):
+				c.set_focus_neighbor(side, NodePath())
+			c.remove_meta(_WRAP_META)
+	if items.size() < 2:
+		return
+
+	for side in _WRAP_SIDES:
+		for c in items:
+			if c.find_valid_focus_neighbor(side) != null:
+				continue  # not an edge on this side — leave it alone
+			var target := _wrap_target(items, c, side)
+			if target == null or target == c:
+				continue
+			c.set_focus_neighbor(side, c.get_path_to(target))
+			var sides: Array = c.get_meta(_WRAP_META) if c.has_meta(_WRAP_META) else []
+			sides.append(side)
+			c.set_meta(_WRAP_META, sides)
+
+## The control to jump to when `from` runs off the `side` edge: the far end of
+## the menu in that direction. Ties are broken by staying closest on the other
+## axis, so wrapping down the left column of a grid lands back at its top rather
+## than skipping across to the other column.
+func _wrap_target(items: Array, from: Control, side: int) -> Control:
+	var from_rect := from.get_global_rect()
+	var from_mid := from_rect.position + from_rect.size * 0.5
+	var best: Control = null
+	var best_extreme := 0.0
+	var best_offset := 0.0
+	for c in items:
+		if c == from:
+			continue
+		var r: Rect2 = c.get_global_rect()
+		var extreme: float
+		var offset: float
+		match side:
+			SIDE_BOTTOM:  # fell off the bottom -> go to the topmost
+				extreme = -r.position.y
+				offset = absf(r.position.x + r.size.x * 0.5 - from_mid.x)
+			SIDE_TOP:
+				extreme = r.end.y
+				offset = absf(r.position.x + r.size.x * 0.5 - from_mid.x)
+			SIDE_RIGHT:  # fell off the right -> go to the leftmost
+				extreme = -r.position.x
+				offset = absf(r.position.y + r.size.y * 0.5 - from_mid.y)
+			_:  # SIDE_LEFT
+				extreme = r.end.x
+				offset = absf(r.position.y + r.size.y * 0.5 - from_mid.y)
+		if best == null or extreme > best_extreme \
+				or (is_equal_approx(extreme, best_extreme) and offset < best_offset):
+			best = c
+			best_extreme = extreme
+			best_offset = offset
+	return best
 
 # Recursively set focus_mode on the interactive controls under `root`.
 func _set_scope_focusable(root: Node, focusable: bool) -> void:
 	for child in root.get_children():
 		if child is BaseButton or child is Slider or child is OptionButton:
 			var ctl := child as Control
-			if ctl.has_meta(BattleUITheme.NO_FOCUS_META):
+			# A DISABLED button must be FOCUS_NONE, not merely un-grabbable:
+			# Godot's neighbor search only skips FOCUS_NONE controls, so a greyed
+			# button left at FOCUS_ALL becomes a dead end that swallows the d-pad
+			# (the main menu's greyed-out Continue blocked every option under it).
+			var blocked := ctl.has_meta(BattleUITheme.NO_FOCUS_META) \
+				or (ctl is BaseButton and (ctl as BaseButton).disabled)
+			if blocked:
 				ctl.focus_mode = Control.FOCUS_NONE
 			else:
 				ctl.focus_mode = Control.FOCUS_ALL if focusable else Control.FOCUS_NONE
@@ -847,9 +1042,9 @@ func award_rewards(rewards: Dictionary):
 #
 # Town NPCs are unrestricted; the allowance only gates rest areas.
 const REST_SWAP_ALLOWANCE := 2
-# TEMPORARY TEST SETTING — was 5, dropped to 1 so a campfire can be used again
-# after a single battle while play-testing. RESTORE TO 5 BEFORE SHIPPING.
-const REST_REFRESH_BATTLES := 1
+# Battles that must be fought before a rest area's swap allowance refills, so a
+# campfire can't be farmed for unlimited loadout changes.
+const REST_REFRESH_BATTLES := 5
 ## Fractions restored by a rest, of each character's maximum.
 const REST_HP_FRACTION := 0.25
 const REST_MP_FRACTION := 0.25

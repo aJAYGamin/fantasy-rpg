@@ -158,3 +158,66 @@ func test_apply_field_item_erases_at_zero() -> void:
 	assert_eq(potion.quantity, 0, "last use zeroes the quantity")
 	assert_false(inv.items.has(potion), "item removed from inventory at zero quantity")
 	screen.free()
+
+# --- Controller reachability of the "?" description toggles --------------------
+# The "?" used to be marked no-focus so vertical navigation landed on Use. But
+# three of the four tabs hold items with no Use button at all, so their rows had
+# nothing a controller could reach and the description was mouse-only.
+
+func _open_items() -> ItemsScreen:
+	var screen := ItemsScreen.new()
+	GameManager.add_child(screen)
+	screen.setup(GameManager.party)
+	return screen
+
+func _close_items(screen: ItemsScreen) -> void:
+	GameManager.unregister_focus_scope(screen)
+	screen.queue_free()
+
+func _focusable_question_marks(n: Node, out: Array) -> void:
+	if n is Button and (n as Button).text == "?" and (n as Button).focus_mode != Control.FOCUS_NONE:
+		out.append(n)
+	for c in n.get_children():
+		_focusable_question_marks(c, out)
+
+func _count_question_marks(n: Node) -> int:
+	var found: Array = []
+	_focusable_question_marks(n, found)
+	return found.size()
+
+func test_question_marks_are_controller_reachable_in_every_tab() -> void:
+	GameManager.ensure_default_party()
+	var screen := _open_items()
+	GameManager.set_controller_mode_for_test(true)
+	var checked := 0
+	for tab in ItemsScreen.TAB_DEFS.size():
+		screen.call("_select_tab", tab)
+		GameManager.update_focus_guard_for_test()
+		var host: Control = screen.get("_content_host")
+		# Tabs with no items have nothing to reach, which is fine.
+		var items: Array = ItemsScreen.categorize(screen.get("_inventory"))[ItemsScreen.TAB_DEFS[tab][1]]
+		if items.is_empty():
+			continue
+		checked += 1
+		assert_eq(_count_question_marks(host), items.size(),
+			"tab %d: every item's description toggle is reachable" % tab)
+	assert_true(checked >= 2, "checked at least two populated tabs (checked %d)" % checked)
+	GameManager.set_controller_mode_for_test(false)
+	_close_items(screen)
+
+func test_a_row_without_a_use_button_is_still_reachable() -> void:
+	# The regression that made three tabs dead ends on a controller.
+	GameManager.ensure_default_party()
+	var screen := _open_items()
+	GameManager.set_controller_mode_for_test(true)
+	for tab in ItemsScreen.TAB_DEFS.size():
+		screen.call("_select_tab", tab)
+		GameManager.update_focus_guard_for_test()
+		var host: Control = screen.get("_content_host")
+		var items: Array = ItemsScreen.categorize(screen.get("_inventory"))[ItemsScreen.TAB_DEFS[tab][1]]
+		if items.is_empty():
+			continue
+		assert_true(_count_question_marks(host) > 0,
+			"tab %d has at least one control a controller can land on" % tab)
+	GameManager.set_controller_mode_for_test(false)
+	_close_items(screen)
