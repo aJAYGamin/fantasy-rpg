@@ -12,15 +12,20 @@ func _skill(name: String, unlock: int) -> Skill:
 	s.unlock_level = unlock
 	return s
 
-## A hero with the real 8-slot shape: 4 attacks then 4 specials.
+## A hero shaped like the real ones: the first half of the pool are attacks,
+## the second half specials. Categories matter because the stats page and the
+## battle menus split on category now, not on index.
 func _hero(unlocks: Array) -> Character:
 	var c := Character.new()
 	c.character_name = "Tester"
 	c.base_hp = 100
 	c.level = 1
 	var list: Array[Skill] = []
+	var half := unlocks.size() / 2
 	for i in unlocks.size():
-		list.append(_skill("Skill%d" % i, int(unlocks[i])))
+		var sk := _skill("Skill%d" % i, int(unlocks[i]))
+		sk.category = Skill.SkillCategory.SPECIAL if i >= half else Skill.SkillCategory.ATTACK
+		list.append(sk)
 	c.skills = list
 	return c
 
@@ -119,9 +124,13 @@ func test_party_curve_is_applied() -> void:
 	var party := PartyFactory.create_default_party()
 	assert_eq(party.size(), 3, "three heroes")
 	for hero in party:
-		assert_eq(hero.skills.size(), 8, "%s keeps all 8 slots" % hero.character_name)
+		assert_eq(hero.skills.size(), 12, "%s keeps its whole pool" % hero.character_name)
 		for i in 8:
-			assert_eq(hero.skills[i].unlock_level, PartyFactory.SKILL_UNLOCK_LEVELS[i],
+			# TEST_UNLOCK_ALL_SKILLS flattens the curve for play-testing; assert the
+			# flattening instead of skipping, so this still fails if the flag stops
+			# working, and goes back to checking the real curve when it is turned off.
+			var want := 1 if PartyFactory.TEST_UNLOCK_ALL_SKILLS else PartyFactory.SKILL_UNLOCK_LEVELS[i]
+			assert_eq(hero.skills[i].unlock_level, want,
 				"%s slot %d uses the shared curve" % [hero.character_name, i])
 
 func test_starting_party_opens_with_a_usable_kit() -> void:
@@ -140,7 +149,11 @@ func test_starting_party_opens_with_a_usable_kit() -> void:
 				specials += 1
 		assert_true(attacks >= 1, "%s starts with at least one attack" % hero.character_name)
 		assert_true(specials >= 1, "%s starts with at least one special" % hero.character_name)
-		assert_true(attacks + specials < 8, "%s does not start with everything" % hero.character_name)
+		if PartyFactory.TEST_UNLOCK_ALL_SKILLS:
+			# Starting with everything is the whole point of the test flag.
+			assert_eq(attacks + specials, 8, "%s knows its whole kit while the test flag is on" % hero.character_name)
+		else:
+			assert_true(attacks + specials < 8, "%s does not start with everything" % hero.character_name)
 
 func test_first_level_up_teaches_something() -> void:
 	# An empty first level-up makes the feature look broken to a new player.
@@ -148,7 +161,7 @@ func test_first_level_up_teaches_something() -> void:
 		"some slot unlocks at level 2 so the first level-up teaches a skill")
 
 func test_curve_covers_every_slot_and_is_reachable() -> void:
-	assert_eq(PartyFactory.SKILL_UNLOCK_LEVELS.size(), 8, "one entry per slot")
+	assert_eq(PartyFactory.SKILL_UNLOCK_LEVELS.size(), 12, "one entry per pool slot")
 	for lvl in PartyFactory.SKILL_UNLOCK_LEVELS:
 		assert_true(lvl >= 1, "no slot unlocks below level 1")
 		assert_true(lvl <= 30, "every slot is reachable in a normal playthrough")
@@ -178,25 +191,23 @@ func test_pre_p8_save_loads_with_everything_known() -> void:
 
 # ------------------------------------------------------------ UI surfaces
 
-func test_stats_view_model_marks_locked_skills() -> void:
+func test_stats_page_lists_only_equipped_moves() -> void:
+	# Locked and merely-learned moves are both absent: the page shows the kit the
+	# character fights with, which is also the only thing that can be reordered.
 	var c := _hero([1, 9, 1, 9, 1, 9, 1, 9])
 	c.character_name = "Aria"
 	c.level = 1
+	c.auto_equip_unslotted()
 	var vm := StatsScreen.build_hero_view_model(c)
 	var attacks: Array = vm["attacks"]
-	var specials: Array = vm["specials"]
-	assert_eq(attacks.size(), 4, "all four attack slots are shown")
-	assert_eq(specials.size(), 4, "all four special slots are shown")
-	assert_true(bool(attacks[0]["known"]), "slot 0 is known")
-	assert_false(bool(attacks[1]["known"]), "slot 1 is locked")
-	assert_eq(int(attacks[1]["unlock_level"]), 9, "the card can show the level it needs")
+	assert_eq(attacks.size(), c.equipped_skills(false).size(), "only equipped attacks appear")
+	assert_true(attacks.size() < 4, "the level-9 moves are not listed at level 1")
+	for a in attacks:
+		assert_true(int(a["slot"]) >= 0, "every listed move carries a slot to reorder by")
 
-func test_locked_skills_still_occupy_their_slot_in_the_view_model() -> void:
-	# The stats page deliberately shows locked skills rather than hiding them,
-	# so the player can see what is coming.
+func test_stats_page_hides_everything_when_nothing_is_equipped() -> void:
 	var c := _hero([9, 9, 9, 9, 9, 9, 9, 9])
 	c.level = 1
 	var vm := StatsScreen.build_hero_view_model(c)
-	assert_eq((vm["attacks"] as Array).size(), 4, "locked attacks are still listed")
-	for a in vm["attacks"]:
-		assert_false(bool(a["known"]), "and each is marked locked")
+	assert_true((vm["attacks"] as Array).is_empty(), "no unlearned move is listed")
+	assert_true((vm["specials"] as Array).is_empty(), "nor any unlearned special")

@@ -4,38 +4,69 @@ extends RefCounted
 ## PartyFactory — builds the default starting party.
 ## Heroes live in GameManager.party once created; this is only called for a fresh game.
 
-## P8 — when each hero skill slot is learned, indexed by its position in
-## Character.skills (0-3 are the attack menu, 4-7 the special menu).
+## When each pool skill is learned, and which battle menu it belongs to, indexed
+## by its position in Character.skills.
 ##
-## Heroes open with three usable skills (two attacks and one special) and gain
-## the rest over the early-to-mid game. The first level-up teaches something on
-## purpose: an empty first level-up makes the system look broken.
+## `skills` is a POOL (up to Character.MAX_SKILLS) — heroes learn more moves than
+## they can carry, and only Character.EQUIP_SLOTS of each category are usable at
+## once. Each hero currently defines 12: six attacks and six specials, so there
+## is a real choice to make at an NPC or campfire rather than a forced loadout.
 ##
-## Shared by all three heroes so the pacing is predictable to balance. If a hero
-## ever needs its own curve, give _create_* its own table and pass it to
-## _apply_unlock_levels.
+## Heroes open with three usable moves (two attacks, one special) and the first
+## level-up always teaches something — an empty first level-up makes the system
+## look broken. Shared by all three heroes so the pacing is easy to balance.
 const SKILL_UNLOCK_LEVELS: Array[int] = [
-	1,   # 0 attack  — starting
-	1,   # 1 attack  — starting
-	2,   # 2 attack
-	7,   # 3 attack
-	1,   # 4 special — starting
-	4,   # 5 special
-	10,  # 6 special
-	15,  # 7 special
+	1,   #  0 attack  — starting
+	1,   #  1 attack  — starting
+	2,   #  2 attack
+	7,   #  3 attack
+	1,   #  4 special — starting
+	4,   #  5 special
+	10,  #  6 special
+	15,  #  7 special
+	5,   #  8 attack   (pool-only until swapped in)
+	12,  #  9 attack
+	8,   # 10 special
+	18,  # 11 special
 ]
 
-## Stamps the learning curve onto a hero's skills. Slots beyond the table stay
-## at their Skill default of 1 (known immediately) rather than being unreachable.
-static func _apply_unlock_levels(hero: Character, table: Array[int] = SKILL_UNLOCK_LEVELS) -> void:
+## Which menu each pool slot feeds. Parallel to SKILL_UNLOCK_LEVELS. With six of
+## each against four slots, the player always has something to swap.
+const SKILL_CATEGORIES: Array[int] = [
+	Skill.SkillCategory.ATTACK,  Skill.SkillCategory.ATTACK,
+	Skill.SkillCategory.ATTACK,  Skill.SkillCategory.ATTACK,
+	Skill.SkillCategory.SPECIAL, Skill.SkillCategory.SPECIAL,
+	Skill.SkillCategory.SPECIAL, Skill.SkillCategory.SPECIAL,
+	Skill.SkillCategory.ATTACK,  Skill.SkillCategory.ATTACK,
+	Skill.SkillCategory.SPECIAL, Skill.SkillCategory.SPECIAL,
+]
+
+# TEMPORARY TEST SETTING — collapses every unlock level to 1 so a fresh party knows
+# its whole 12-move pool immediately and the trainer/campfire loadout screens have
+# something to swap between. SET BACK TO false BEFORE SHIPPING: with it on, the level
+# curve in SKILL_UNLOCK_LEVELS never runs and level-ups teach nothing.
+const TEST_UNLOCK_ALL_SKILLS := true
+
+## Stamps the curve and category onto a hero's pool. Slots beyond the tables keep
+## their Skill defaults (level 1, ATTACK) rather than becoming unreachable.
+static func _apply_skill_tables(hero: Character) -> void:
 	for i in hero.skills.size():
-		if i < table.size() and hero.skills[i] != null:
-			hero.skills[i].unlock_level = table[i]
+		if hero.skills[i] == null:
+			continue
+		if i < SKILL_UNLOCK_LEVELS.size():
+			hero.skills[i].unlock_level = 1 if TEST_UNLOCK_ALL_SKILLS else SKILL_UNLOCK_LEVELS[i]
+		elif TEST_UNLOCK_ALL_SKILLS:
+			hero.skills[i].unlock_level = 1
+		if i < SKILL_CATEGORIES.size():
+			hero.skills[i].category = SKILL_CATEGORIES[i]
 
 static func create_default_party() -> Array[Character]:
 	var party: Array[Character] = [_create_aria(), _create_kael(), _create_lyra()]
 	for hero in party:
-		_apply_unlock_levels(hero)
+		_apply_skill_tables(hero)
+		# Fill the four attack and four special slots from what they know at
+		# level 1, so a fresh party can fight without visiting a menu first.
+		hero.auto_equip_unslotted()
 	# TEST SEED: stock the shared party inventory (the leader, party[0], holds all
 	# items) so the pause-menu Items screen and the battle item menu have content
 	# from a fresh game. Replace with real starting-loot balancing for actual play.
@@ -98,7 +129,25 @@ static func _create_aria() -> Character:
 		Skill.StatusType.HEAL, ElementalSystem.Element.LIGHT,
 		1.5, 30, Skill.TargetType.ALL_ALLIES)
 
-	hero.skills = [slash, frost, tide_pulse, heal_spell, requiem, hydro_pierce, aria_barrier, mass_heal] as Array[Skill]
+	# --- pool-only moves (slots 8-11): learned later, swapped in deliberately ---
+	var riptide = _make_skill("Riptide Lash", "A whipping coil of water that lashes a single foe.",
+		Skill.SkillType.DAMAGE, Skill.AttackType.STRIKE, ElementalSystem.Element.WATER,
+		1.6, 8, Skill.TargetType.SINGLE_ENEMY)
+
+	var glacial = _make_skill("Glacial Shard", "Hurls a spear of ice that bites deep.",
+		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.ICE,
+		2.0, 14, Skill.TargetType.SINGLE_ENEMY, "frostbite", 0.25)
+
+	var abyssal = _make_status_skill("Abyssal Veil", "Drags the enemy line into crushing depths, softening their guard.",
+		Skill.StatusType.DEBUFF, ElementalSystem.Element.WATER,
+		1.0, 22, Skill.TargetType.ALL_ENEMIES, "defense_debuff")
+
+	var maelstrom = _make_skill("Maelstrom", "A churning vortex that batters every enemy.",
+		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.WATER,
+		3.0, 35, Skill.TargetType.ALL_ENEMIES)
+
+	hero.skills = [slash, frost, tide_pulse, heal_spell, requiem, hydro_pierce, aria_barrier, mass_heal,
+		riptide, glacial, abyssal, maelstrom] as Array[Skill]
 	return hero
 
 static func _create_kael() -> Character:
@@ -155,7 +204,25 @@ static func _create_kael() -> Character:
 		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.FIRE,
 		1.8, 32, Skill.TargetType.ALL_ENEMIES, "burn", 0.7)
 
-	hero.skills = [flame_strike, shield_bash, war_cry, inferno, phoenix, molten, iron_will, flame_wall] as Array[Skill]
+	# --- pool-only moves (slots 8-11) ---
+	var cinder = _make_skill("Cinder Cleave", "A heavy downward cut trailing embers.",
+		Skill.SkillType.DAMAGE, Skill.AttackType.STRIKE, ElementalSystem.Element.FIRE,
+		1.7, 10, Skill.TargetType.SINGLE_ENEMY)
+
+	var guard_crush = _make_skill("Guard Crush", "A brutal shoulder blow that breaks a foe's stance.",
+		Skill.SkillType.DAMAGE, Skill.AttackType.STRIKE, ElementalSystem.Element.NORMAL,
+		1.5, 12, Skill.TargetType.SINGLE_ENEMY, "defense_debuff", 0.45)
+
+	var ember_ward = _make_status_skill("Ember Ward", "Wreathes the party in protective flame.",
+		Skill.StatusType.BUFF, ElementalSystem.Element.FIRE,
+		1.0, 18, Skill.TargetType.ALL_ALLIES, "defense_buff")
+
+	var scorched = _make_skill("Scorched Earth", "Slams the ground, engulfing every enemy in fire.",
+		Skill.SkillType.DAMAGE, Skill.AttackType.STRIKE, ElementalSystem.Element.FIRE,
+		2.8, 32, Skill.TargetType.ALL_ENEMIES, "scorched", 0.3)
+
+	hero.skills = [flame_strike, shield_bash, war_cry, inferno, phoenix, molten, iron_will, flame_wall,
+		cinder, guard_crush, ember_ward, scorched] as Array[Skill]
 	return hero
 
 static func _create_lyra() -> Character:
@@ -214,7 +281,25 @@ static func _create_lyra() -> Character:
 		Skill.StatusType.BUFF, ElementalSystem.Element.WIND,
 		1.0, 22, Skill.TargetType.ALL_ALLIES, "speed_buff")
 
-	hero.skills = [wind_slash, mend, gust, barrier, gale, cyclone, grand_mend, tailwind] as Array[Skill]
+	# --- pool-only moves (slots 8-11) ---
+	var zephyr = _make_skill("Zephyr Cut", "A quick crescent of sharpened air.",
+		Skill.SkillType.DAMAGE, Skill.AttackType.STRIKE, ElementalSystem.Element.WIND,
+		1.5, 8, Skill.TargetType.SINGLE_ENEMY)
+
+	var volley = _make_skill("Feather Volley", "Looses a scattering flight of razor feathers.",
+		Skill.SkillType.DAMAGE, Skill.AttackType.RANGED, ElementalSystem.Element.WIND,
+		1.8, 13, Skill.TargetType.ALL_ENEMIES)
+
+	var breeze = _make_status_skill("Restoring Breeze", "A warm current that keeps mending an ally.",
+		Skill.StatusType.HEAL, ElementalSystem.Element.WIND,
+		1.2, 18, Skill.TargetType.SINGLE_ALLY, "regenerate")
+
+	var sanctuary = _make_status_skill("Sanctuary", "Hallowed air blunts incoming magic.",
+		Skill.StatusType.BUFF, ElementalSystem.Element.LIGHT,
+		1.0, 24, Skill.TargetType.ALL_ALLIES, "arcane_buff")
+
+	hero.skills = [wind_slash, mend, gust, barrier, gale, cyclone, grand_mend, tailwind,
+		zephyr, volley, breeze, sanctuary] as Array[Skill]
 	return hero
 
 # --- Starter inventory (test seed) ---

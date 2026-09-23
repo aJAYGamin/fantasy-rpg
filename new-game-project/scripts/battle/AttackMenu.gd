@@ -40,12 +40,9 @@ func setup(battle_mgr: BattleManager, res_system: ResonanceSystem):
 func show_attacks(hero: Character):
 	_current_hero = hero
 	_is_attack_menu = true
-	# First 4 slots are attacks (index 0-3). Slots the hero has not yet reached
-	# the level for are skipped, so the menu only ever offers usable skills.
-	_skills = []
-	for i in range(min(4, hero.skills.size())):
-		if hero.is_skill_known(i):
-			_skills.append(hero.skills[i])
+	# The four EQUIPPED attack slots, not the pool: a hero may know more moves
+	# than they can carry, and the loadout decides which are usable in battle.
+	_skills = hero.equipped_skills(false)
 	_build_menu("— Choose Attack —")
 	show()
 	GameManager.register_focus_scope(self)
@@ -53,11 +50,8 @@ func show_attacks(hero: Character):
 func show_specials(hero: Character):
 	_current_hero = hero
 	_is_attack_menu = false
-	# Next 4 slots are specials (index 4-7), likewise filtered by unlock level.
-	_skills = []
-	for i in range(4, min(8, hero.skills.size())):
-		if hero.is_skill_known(i):
-			_skills.append(hero.skills[i])
+	# Likewise the four EQUIPPED special slots.
+	_skills = hero.equipped_skills(true)
 	_build_menu("— Choose Special —")
 	show()
 	GameManager.register_focus_scope(self)

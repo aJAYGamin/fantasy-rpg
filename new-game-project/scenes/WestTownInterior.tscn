@@ -7,6 +7,7 @@
 [ext_resource type="Script" uid="uid://dmyv4jd0wgae5" path="res://scripts/overworld/EditorCollisionViz.gd" id="5_viz"]
 [ext_resource type="Script" path="res://scripts/overworld/NPC.gd" id="6_npc"]
 [ext_resource type="Script" path="res://scripts/overworld/QuestGiver.gd" id="7_giver"]
+[ext_resource type="Script" path="res://scripts/overworld/MoveTrainer.gd" id="8_trainer"]
 
 [sub_resource type="RectangleShape2D" id="Shape_horizontal_wall"]
 size = Vector2(2200, 100)
@@ -99,3 +100,10 @@ script = ExtResource("7_giver")
 npc_name = "Townsperson"
 quest_id = "cull_goblins"
 lines = PackedStringArray("Welcome to West Town, traveler!")
+
+[node name="MoveTrainer" type="StaticBody2D" parent="."]
+position = Vector2(700, 820)
+script = ExtResource("8_trainer")
+npc_name = "Move Trainer"
+lines = PackedStringArray("Techniques are only as good as the hands that carry them.", "Tell me what you'd take into the field, and I'll drill it until it's second nature.")
+body_color = Color(0.58, 0.5, 0.86, 1)

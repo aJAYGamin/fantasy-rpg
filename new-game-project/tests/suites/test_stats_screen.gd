@@ -41,14 +41,21 @@ func test_hp_mp_exp_text() -> void:
 	assert_eq(vm["exp_text"], "%d / %d" % [aria.experience, aria.experience_to_next], "XP text formatted")
 
 func test_skill_split() -> void:
+	# The page lists the EQUIPPED kit, not the whole learned pool: a move with no
+	# slot has no order to rearrange, and swapping the pool belongs to a camp or
+	# a trainer.
 	var aria := _aria()
 	var vm := StatsScreen.build_hero_view_model(aria)
 	var attacks: Array = vm["attacks"]
 	var specials: Array = vm["specials"]
-	assert_eq(attacks.size(), 4, "first 4 skills are attacks")
-	assert_eq(specials.size(), 4, "remaining skills are specials")
+	assert_eq(attacks.size(), aria.equipped_skills(false).size(), "equipped attacks listed")
+	assert_eq(specials.size(), aria.equipped_skills(true).size(), "equipped specials listed")
+	assert_true(attacks.size() < 6, "the unequipped rest of the pool is not shown")
 	assert_eq(attacks[0]["name"], "Aqua Slash", "Aria's first attack is Aqua Slash")
 	assert_eq(specials[0]["name"], "Tidal Requiem", "Aria's first special is Tidal Requiem")
+	# Each entry knows its slot so a click can reorder it.
+	assert_eq(int(attacks[0]["slot"]), 0, "first attack reports slot 0")
+	assert_false(bool(attacks[0]["is_special"]), "and which list it belongs to")
 
 func test_skill_view_model_shape() -> void:
 	var aria := _aria()
@@ -82,3 +89,98 @@ func test_resonance_fallbacks_without_meta() -> void:
 	var vm := StatsScreen.build_hero_view_model(c)
 	assert_eq(vm["resonance_name"], "Ultimate", "resonance name falls back without meta")
 	assert_eq(vm["bio"], "", "bio is empty without meta")
+
+# --- reorder wiring (regression) ----------------------------------------------
+# These build the REAL screen and press the buttons found in the built tree,
+# rather than calling _on_card_pressed directly. The reorder logic was always
+# correct; what broke was that nothing reachable was wired to it, so a test that
+# calls the handler itself would have passed while the screen sat dead.
+
+func _collect_hit_buttons(n: Node, out: Array) -> void:
+	if n is Button and String((n as Button).tooltip_text).contains("swap"):
+		out.append(n)
+	for c in n.get_children():
+		_collect_hit_buttons(c, out)
+
+func _open_screen(party: Array) -> StatsScreen:
+	var screen := StatsScreen.new()
+	GameManager.add_child(screen)
+	screen.setup(party, 0)
+	return screen
+
+func _close_screen(screen: StatsScreen) -> void:
+	GameManager.unregister_focus_scope(screen)
+	screen.queue_free()
+
+func _attack_names(h: Character) -> Array:
+	var names: Array = []
+	for s in h.equipped_skills(false):
+		names.append(s.skill_name)
+	return names
+
+func test_every_equipped_card_has_a_click_target() -> void:
+	var party := PartyFactory.create_default_party()
+	var screen := _open_screen(party)
+	var hits: Array = []
+	_collect_hit_buttons(screen, hits)
+	var expected: int = party[0].equipped_skills(false).size() + party[0].equipped_skills(true).size()
+	assert_eq(hits.size(), expected, "one click target per equipped move (%d)" % expected)
+	for b in hits:
+		assert_false((b as Button).disabled, "the card's click target is enabled")
+		assert_true((b as Button).is_visible_in_tree(), "the card's click target is visible")
+	_close_screen(screen)
+
+func test_pressing_two_cards_swaps_them() -> void:
+	var party := PartyFactory.create_default_party()
+	var hero: Character = party[0]
+	var before := _attack_names(hero)
+	if before.size() < 2:
+		assert_true(true, "hero needs two equipped attacks to swap (skipped)")
+		return
+	var screen := _open_screen(party)
+
+	var hits: Array = []
+	_collect_hit_buttons(screen, hits)
+	hits[0].emit_signal("pressed")
+
+	# The press rebuilds the grid, so the old buttons are gone — re-find them the
+	# way a second real click would land on the freshly built card.
+	hits.clear()
+	_collect_hit_buttons(screen, hits)
+	hits[1].emit_signal("pressed")
+
+	var after := _attack_names(hero)
+	assert_eq(after[0], before[1], "first slot now holds what was in the second")
+	assert_eq(after[1], before[0], "second slot now holds what was in the first")
+	_close_screen(screen)
+
+func test_pressing_the_same_card_twice_cancels() -> void:
+	var party := PartyFactory.create_default_party()
+	var hero: Character = party[0]
+	var before := _attack_names(hero)
+	var screen := _open_screen(party)
+
+	var hits: Array = []
+	_collect_hit_buttons(screen, hits)
+	hits[0].emit_signal("pressed")
+	hits.clear()
+	_collect_hit_buttons(screen, hits)
+	hits[0].emit_signal("pressed")
+
+	assert_eq(_attack_names(hero), before, "selecting then deselecting changes nothing")
+	_close_screen(screen)
+
+func test_rebuild_detaches_old_cards_immediately() -> void:
+	# A deferred queue_free leaves the outgoing cards laid out on top of the new
+	# ones for a frame, which would swallow the second click of a swap.
+	var party := PartyFactory.create_default_party()
+	var screen := _open_screen(party)
+	var hits: Array = []
+	_collect_hit_buttons(screen, hits)
+	var stale: Button = hits[0]
+	assert_true(stale.is_inside_tree(), "the card is live before the rebuild")
+	stale.emit_signal("pressed")
+	# Its own card is still its parent; what matters is that the card was detached
+	# from the screen, so the whole subtree is out of the SceneTree right away.
+	assert_false(stale.is_inside_tree(), "the rebuilt-away card leaves the tree at once")
+	_close_screen(screen)

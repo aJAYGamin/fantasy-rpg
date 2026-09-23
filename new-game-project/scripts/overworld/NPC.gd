@@ -15,6 +15,10 @@ extends StaticBody2D
 @export var dialogue_nodes: Array = []
 @export var body_size: Vector2 = Vector2(48, 56)
 @export var interact_radius: float = 76.0
+## Floating prompt shown in range. Overridable per instance, and a subclass can
+## override current_prompt() to make it reflect state (a campfire on cooldown
+## reads differently from one ready to use).
+@export var prompt_text: String = "✦ Talk"
 @export var body_color: Color = Color(0.62, 0.52, 0.82)
 
 # Waypoint marker colours (match the Quests menu): pastel yellow = story quest,
@@ -53,7 +57,7 @@ func _ready() -> void:
 	_name_lbl.visible = false
 	add_child(_name_lbl)
 
-	_prompt = _world_label("✦ Talk", 13, BattleUITheme.TEXT_ACCENT)
+	_prompt = _world_label(current_prompt(), 13, BattleUITheme.TEXT_ACCENT)
 	_prompt.position = Vector2(-90, -body_size.y * 0.5 - 46)
 	_prompt.visible = false
 	add_child(_prompt)
@@ -100,11 +104,18 @@ func _on_body_exited(body: Node) -> void:
 # Name + prompt are visible together only when the player is close and no dialogue
 # is running. Accepts an optional arg so it can connect to both dialogue signals
 # (dialogue_started passes an id; dialogue_ended passes nothing).
+## What the floating prompt reads. Subclasses override this to reflect state.
+func current_prompt() -> String:
+	return prompt_text
+
 func _update_tags(_unused = null) -> void:
 	var show_tags: bool = _player_in_range and not DialogueManager.is_active()
 	if _name_lbl:
 		_name_lbl.visible = show_tags
 	if _prompt:
+		# Refreshed every time rather than once at build, so a state-dependent
+		# prompt is correct the moment the player walks up.
+		_prompt.text = current_prompt()
 		_prompt.visible = show_tags
 
 # Shows + colours the floating waypoint marker for whichever active quest (if any)
