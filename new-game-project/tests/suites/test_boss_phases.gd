@@ -649,3 +649,66 @@ func test_the_enemy_cap_holds_cumulatively_across_phases() -> void:
 	bm.check_boss_phases()                       # phase 2: 10 more requested, capped
 	assert_eq(bm.enemies.size(), BattleManager.MAX_BATTLE_ENEMIES, "cumulative total still caps at 10")
 	bm.free()
+
+# --------------------------------------------------- Power 4: field effects
+
+func test_a_field_effect_afflicts_a_hero() -> void:
+	var b := _boss()
+	b.phases[0].turn_effect = "poison"
+	b.phases[0].turn_effect_chance = 1.0
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	var hit := bm.apply_boss_field_effect(b)
+	assert_true(hit != null, "a guaranteed effect lands")
+	assert_true(hit.is_status("poison"), "and applies its token")
+	bm.free()
+
+func test_a_zero_chance_field_effect_never_fires() -> void:
+	var b := _boss()
+	b.phases[0].turn_effect = "poison"
+	b.phases[0].turn_effect_chance = 0.0
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	assert_eq(bm.apply_boss_field_effect(b), null, "chance 0 never fires")
+	bm.free()
+
+func test_no_field_effect_when_the_phase_declares_none() -> void:
+	var b := _boss()
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	assert_eq(bm.apply_boss_field_effect(b), null, "an empty token is a no-op")
+	bm.free()
+
+func test_a_field_effect_never_targets_a_downed_hero() -> void:
+	var b := _boss()
+	b.phases[0].turn_effect = "poison"
+	b.phases[0].turn_effect_chance = 1.0
+	var bm := _manager(b)
+	bm.party[0].current_hp = 0
+	bm.check_boss_phases()
+	assert_eq(bm.apply_boss_field_effect(b), null, "with no living hero, nothing is afflicted")
+	bm.free()
+
+func test_a_field_effect_routes_through_the_status_rules() -> void:
+	# Going through _apply_skill_status means element immunity and the mutex
+	# one-status rule apply for free. A Fire hero cannot be scorched.
+	var b := _boss()
+	b.phases[0].turn_effect = "scorched"
+	b.phases[0].turn_effect_chance = 1.0
+	var bm := _manager(b)
+	bm.party[0].element = ElementalSystem.Element.FIRE
+	bm.check_boss_phases()
+	bm.apply_boss_field_effect(b)
+	assert_false(bm.party[0].is_status("scorched"), "Fire is immune to scorched")
+	bm.free()
+
+func test_a_buff_token_works_as_a_field_effect() -> void:
+	var b := _boss()
+	b.phases[0].turn_effect = "attack_debuff"
+	b.phases[0].turn_effect_chance = 1.0
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	var hit := bm.apply_boss_field_effect(b)
+	assert_true(hit != null, "the effect landed")
+	assert_true(StatusSystem.is_effectively_debuffed(hit, StatusSystem.STAT_ATK), "debuff tokens work too")
+	bm.free()

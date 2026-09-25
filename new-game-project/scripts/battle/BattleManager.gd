@@ -69,6 +69,9 @@ func _next_turn():
 
 	current_actor = turn_order[current_turn_index]
 
+	if current_actor is Enemy and (current_actor as Enemy).is_boss():
+		apply_boss_field_effect(current_actor as Enemy)
+
 	# Defend lasts until the defender's next turn — it protected them through the
 	# intervening enemy turns, so clear it now that they're acting again.
 	current_actor.clear_defend()
@@ -547,6 +550,31 @@ func _summon_from_spec(boss: Enemy, spec: Dictionary) -> void:
 		add.current_hp = add.max_hp()
 		add.current_mp = add.max_mp()
 		enemies.append(add)
+
+## Rolls the active phase's field effect against a random living hero. Returns
+## the afflicted hero, or null when nothing happened.
+##
+## Hooked to the boss's OWN turn rather than "each round": the turn-order model
+## has no explicit round boundary, and this way the effect fires exactly once per
+## cycle and stops naturally when the boss dies. It resolves BEFORE the boss
+## chooses its action, so a hero paralysed here is already paralysed when the
+## boss picks a target.
+func apply_boss_field_effect(boss: Enemy) -> Character:
+	if not boss.is_boss() or not boss.is_alive():
+		return null
+	var phase := boss.current_phase()
+	if phase == null or phase.turn_effect == "":
+		return null
+	if randf() > phase.turn_effect_chance:
+		return null
+	var alive := party.filter(func(h): return h.is_alive())
+	if alive.is_empty():
+		return null
+	var target: Character = alive[randi() % alive.size()]
+	# Reuse the skill path: element immunity, the mutex rule, the never-afflict-
+	# the-downed guard and the banner all come with it.
+	_apply_skill_status(target, phase.turn_effect)
+	return target
 
 # Resolves a Skill.status_to_apply token against a target. Buff/debuff tokens
 # (e.g. "attack_buff", "magic_debuff") route to apply_buff/apply_debuff so the
