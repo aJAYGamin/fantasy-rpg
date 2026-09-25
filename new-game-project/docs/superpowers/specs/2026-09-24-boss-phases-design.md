@@ -49,7 +49,9 @@ extends Resource
 @export var stat_multipliers: Dictionary = {}    # {"attack": 1.5, "speed": 1.2}
 @export var summons: Array[Dictionary] = []      # [{path, count, level}]
 @export var turn_effect: String = ""         # StatusSystem apply-token
-@export var turn_effect_chance: float = 0.0  # 0..1, rolled each round
+@export var turn_effect_chance: float = 0.0  # 0..1, rolled on the boss's turn
+@export var max_hp_multiplier: float = 0.0   # >0 = TRANSFORM into a stronger form
+@export var restore_hp: bool = false         # refill to the new max on entry
 ```
 
 Every field except `enter_at_hp` is optional. An omitted field means "this phase
@@ -69,38 +71,49 @@ defaulting to `-1` meaning "not yet entered any phase".
 
 ### `Character` addition
 
-`phase_multipliers: Dictionary` — battle-temp, cleared by
-`clear_battle_effects()` alongside `buffs`/`debuffs`.
+`phase_multipliers: Dictionary` and `max_hp_multiplier: float` — both
+battle-temp, cleared by `clear_battle_effects()` alongside `buffs`/`debuffs`.
+`max_hp()` folds in `max_hp_multiplier`; the five power getters fold in
+`phase_multipliers`.
 
 ## Behaviour
 
-### Phase selection
+### Phase selection — forward-only
 
-`Enemy.phase_for_hp(fraction: float) -> int` is a **pure function** — no battle
-required, so the interesting rules are testable directly.
+`Enemy.should_advance(fraction: float) -> bool` and `advance_phase()` are pure and
+testable with no battle running.
 
-The active phase is the **last** phase in the array whose
-`enter_at_hp >= fraction`. Phases are authored in descending order, with the
-first at `1.0`:
+Phases advance **one step at a time, forward only**: the boss enters the next
+phase when `hp_fraction <= phases[active + 1].enter_at_hp`. `active_phase` starts
+at `-1`, and phase 0 is authored at `enter_at_hp = 1.0` so it is entered on the
+first check.
 
 | phases | HP 1.0 | 0.6 | 0.5 | 0.3 | 0.25 | 0.1 |
 |---|---|---|---|---|---|---|
 | `[1.0, 0.5, 0.25]` | 0 | 0 | 1 | 1 | 2 | 2 |
 
-At battle start `active_phase` is `-1`, so the first check enters phase 0 like any
-other transition and applies its powers. Phase 0 is normally authored empty
-(no banner, no summons, no multipliers), which makes that entry invisible — but a
-boss that wants an opening line or an opening buff can simply fill phase 0 in.
+**Why forward-only rather than recomputing from HP.** Recomputing ("the active
+phase is the last one whose `enter_at_hp >= fraction`") cannot express
+transformation. A transform refills HP, so the fraction returns to 1.0 and the
+formula computes phase 0 — the boss reverts to its opening form, and if a
+never-regress rule pins it instead, no later phase can ever fire and the boss is
+frozen for the rest of the fight. Advancing forward from where the boss already
+is has no such failure.
 
-Two rules that exist to prevent visible glitches:
+Two consequences, both improvements:
 
-1. **Phases never regress.** If a boss is healed back above a threshold it keeps
-   its current phase. Without this, damage/heal oscillation around a boundary
-   would re-fire banners and re-summon adds.
-2. **A hit that crosses two thresholds lands on the deepest one and fires only
-   that phase's entry.** A single huge hit from full HP to 10% enters phase 2 and
-   shows phase 2's banner; it does not also run phase 1's summons. Skipping a
-   phase's rewards-in-kind is the intended reading — the boss was overwhelmed.
+1. **Phases never regress, by construction.** Healing a boss above a threshold
+   cannot re-fire banners or re-summon adds, and this needs no special case.
+2. **Every crossed phase fires, in order.** A hit from 60% to 5% runs phase 1's
+   entry and then phase 2's, rather than skipping to the deepest. This is a
+   change from the first draft of this spec, and transformation is why: skipping
+   meant bursting a boss past its transform threshold skipped the transform
+   entirely, which trivialises the fight. Queued banners display sequentially
+   through the existing status-banner pacing.
+
+   A transform stops the cascade on its own: it refills HP, so the next phase's
+   condition is immediately false. Transformation is a natural checkpoint rather
+   than a special case in the code.
 
 ### Transition
 
@@ -131,7 +144,9 @@ enemies keep the old behaviour unchanged; only enemies with phases use phases.
 
 `stat_multipliers` accepts the five combat stats only: `attack`, `defense`,
 `magic`, `arcane`, `speed`. **`max_hp`/`max_mp` are deliberately excluded** —
-changing max HP mid-fight would move the very thresholds that drive phases.
+changing max HP here would silently move the very thresholds that drive phases.
+A boss that should grow its HP pool does so through **Power 5 —
+Transformation**, which changes max HP and refills deliberately.
 
 The multiplier composes in `Character`'s power getters alongside
 `StatusSystem.compose_stat` and `combat_stat_multiplier`, so a phase boost stacks
@@ -147,10 +162,15 @@ the boss's level), and appends to `BattleManager.enemies`.
 This works with little new plumbing because `_build_turn_order()` rebuilds from
 `enemies` every round and `BattleScene._rebuild_enemy_cards()` already exists.
 
-**Cap:** total living enemies is capped at `BattleManager.MAX_BATTLE_ENEMIES = 6`
-(a new constant; the existing overworld `MAX_ROAMERS = 4` is unrelated). Summons
-beyond the cap are silently skipped — the enemy card row and turn-order panel
-are not built for unbounded combatants.
+**Cap:** total enemies is capped at `BattleManager.MAX_BATTLE_ENEMIES = 10`, so a
+boss can summon between 0 and 9. Ten is not an invented number — the enemy card
+row is already built for exactly that (`BattleScene.gd:388`: *"10 enemies fill
+the row"*, cards sized `10 x 124 + 9 x 2 = 1258` for the 1280-wide viewport).
+
+The cap is enforced **when summoning**, not when rendering. `_setup_enemy_cards`
+currently truncates with `mini(enemies.size(), 10)`, which would leave an 11th
+enemy alive in the fight with no card and no visible HP — fixable only by never
+creating it.
 
 Summoned enemies are ordinary enemies: they can be killed, drop loot, and grant
 EXP. They are added after the boss in turn order and act from the next round.
@@ -171,6 +191,28 @@ effect is already paralysed when the boss picks a target.
 Routing through `parse_apply_token` means element immunity, the mutex
 one-status-at-a-time rule and the "never afflict a downed character" guard all
 apply for free, with no duplicated logic.
+
+### Power 5 — Transformation
+
+A phase with `max_hp_multiplier > 0` is a **transformation**: the boss becomes a
+stronger version of itself rather than merely escalating.
+
+On entry:
+1. `Character.max_hp_multiplier` (battle-temp) is set, scaling `max_hp()`.
+2. If `restore_hp`, `current_hp` is set to the new `max_hp()`.
+
+`max_hp` remains **excluded from `stat_multipliers`** — changing it there would
+silently move the thresholds driving the phases. Transformation reaches it
+through its own explicit field, so growing max HP is always a deliberate,
+readable authoring decision rather than a side effect.
+
+Transformation composes with the other powers: the same phase can also swap the
+moveset, boost combat stats and summon, so "second form" is authored as one
+phase rather than needing a parallel concept.
+
+Because a transform restores HP, the boss returns to a full bar in its new form
+and the phase cascade halts there — the fight visibly restarts, which is the
+point.
 
 ## UI
 
