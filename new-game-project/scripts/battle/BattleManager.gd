@@ -518,7 +518,35 @@ func _enter_boss_phase(boss: Enemy, phase: BossPhase) -> void:
 		if phase.restore_hp:
 			boss.current_hp = boss.max_hp()
 
+	for spec in phase.summons:
+		_summon_from_spec(boss, spec)
+
 	emit_signal("boss_phase_changed", boss, phase)
+
+## Spawns one summon spec: {"path": String, "count": int, "level": int}.
+## `level` defaults to the boss's. A missing or unloadable path is skipped
+## rather than raised — a typo in a .tres must not end the battle.
+func _summon_from_spec(boss: Enemy, spec: Dictionary) -> void:
+	var path := str(spec.get("path", ""))
+	if path == "":
+		return
+	if not ResourceLoader.exists(path):
+		push_warning("Boss summon skipped — no such resource: %s" % path)
+		return
+	var template = load(path)
+	if template == null or not (template is Enemy):
+		push_warning("Boss summon skipped — not an Enemy: %s" % path)
+		return
+	var count := int(spec.get("count", 1))
+	var lvl := int(spec.get("level", boss.level))
+	for i in count:
+		if enemies.size() >= MAX_BATTLE_ENEMIES:
+			return
+		var add: Enemy = template.duplicate(true)
+		add.level = lvl
+		add.current_hp = add.max_hp()
+		add.current_mp = add.max_mp()
+		enemies.append(add)
 
 # Resolves a Skill.status_to_apply token against a target. Buff/debuff tokens
 # (e.g. "attack_buff", "magic_debuff") route to apply_buff/apply_debuff so the

@@ -518,3 +518,92 @@ func test_a_non_boss_enemy_still_enrages_below_25_percent_hp() -> void:
 	var decision := EnemyAI.choose_action(e, [hero] as Array[Character], [e] as Array[Character])
 	assert_true(decision.get("is_enraged"), "an ordinary enemy under 25% HP is still enraged")
 	assert_eq(decision.get("skill").skill_name, "Heavy Blow", "enraged still picks the highest-power damaging skill")
+
+# --------------------------------------------------- Power 3: summons
+
+const SPEARMAN := "res://data/enemies/goblin_spearman.tres"
+
+func test_a_phase_summons_reinforcements() -> void:
+	var b := _boss()
+	b.phases[1].summons = [{"path": SPEARMAN, "count": 2}]
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	assert_eq(bm.enemies.size(), 1, "no adds yet")
+	b.current_hp = 50
+	bm.check_boss_phases()
+	assert_eq(bm.enemies.size(), 3, "two reinforcements joined the fight")
+	bm.free()
+
+func test_summons_inherit_the_boss_level_by_default() -> void:
+	var b := _boss()
+	b.level = 7
+	b.phases[1].summons = [{"path": SPEARMAN, "count": 1}]
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 50
+	bm.check_boss_phases()
+	assert_eq(bm.enemies[1].level, 7, "an add matches the boss's level")
+	bm.free()
+
+func test_an_explicit_summon_level_wins() -> void:
+	var b := _boss()
+	b.level = 7
+	b.phases[1].summons = [{"path": SPEARMAN, "count": 1, "level": 3}]
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 50
+	bm.check_boss_phases()
+	assert_eq(bm.enemies[1].level, 3, "the spec's level overrides the boss's")
+	bm.free()
+
+func test_summons_start_at_full_health() -> void:
+	var b := _boss()
+	b.phases[1].summons = [{"path": SPEARMAN, "count": 1}]
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 50
+	bm.check_boss_phases()
+	var add: Character = bm.enemies[1]
+	assert_eq(add.current_hp, add.max_hp(), "an add arrives at full HP")
+	bm.free()
+
+func test_summons_enter_the_turn_order() -> void:
+	var b := _boss()
+	b.phases[1].summons = [{"path": SPEARMAN, "count": 2}]
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 50
+	bm.check_boss_phases()
+	bm._build_turn_order()
+	assert_eq(bm.turn_order.size(), 4, "hero + boss + two adds all act")
+	bm.free()
+
+func test_the_enemy_cap_is_enforced_when_summoning() -> void:
+	# Enforced at spawn, NOT at render: _setup_enemy_cards truncates with
+	# mini(enemies.size(), 10), which would leave an 11th enemy alive in the
+	# fight with no card and no visible HP bar.
+	var b := _boss()
+	b.phases[1].summons = [{"path": SPEARMAN, "count": 30}]
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 50
+	bm.check_boss_phases()
+	assert_eq(bm.enemies.size(), BattleManager.MAX_BATTLE_ENEMIES, "capped at 10 combatants")
+	bm.free()
+
+# --------------------------------------------------- Review Focus #2
+
+func test_a_bad_summon_path_is_skipped_without_crashing() -> void:
+	# A typo in a .tres must not end the battle.
+	var b := _boss()
+	b.phases[1].summons = [
+		{"path": "res://data/enemies/does_not_exist.tres", "count": 2},
+		{"path": "", "count": 1},
+		{"path": SPEARMAN, "count": 1},
+	]
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 50
+	bm.check_boss_phases()
+	assert_eq(bm.enemies.size(), 2, "the good summon still arrives; the bad ones are skipped")
+	bm.free()
