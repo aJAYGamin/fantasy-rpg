@@ -13,14 +13,14 @@ scrap. The Goblin Castle exists as a scene but has nothing in it worth the trip.
 A boss must be authorable **entirely as data in one `.tres` file**. Adding a
 second or third boss should cost no code. Every phase power is **optional**, so
 each boss opts into only the ones that suit it — the user was explicit that not
-all bosses should do all four things.
+all bosses should do all five things.
 
 ### Success criteria
 
 - A Goblin Warlord fight exists in the Goblin Castle that visibly changes
   behaviour twice as it loses HP.
 - A new boss can be added by writing a `.tres` alone.
-- The four phase powers (moveset, stats, summons, field effects) each work
+- The five phase powers (moveset, stats, summons, field effects, transformation) each work
   independently and can be combined.
 - Nothing regresses: the existing 2307 tests stay green.
 
@@ -232,9 +232,14 @@ point.
 |---|---|---|
 | 1 | 100% | Base moveset. Banner on battle start suppressed. |
 | 2 | 50% | Summons 2× `goblin_spearman`; banner. |
-| 3 | 25% | `stat_multipliers` ATK ×1.5, SPD ×1.2 + a heavier moveset; banner. |
+| 3 | 25% | **Transformation** — max HP ×1.5, refill to full, ATK ×1.5 / SPD ×1.2, heavier moveset, banner. |
 
-Chosen so the live fight exercises all four powers at least once.
+Chosen so the live fight exercises all five powers at least once, and so the
+transform lands as the fight's climax: the party has the boss nearly dead, and it
+stands back up bigger.
+
+Phase 3's `enter_at_hp` is measured against the boss's ORIGINAL max HP; after the
+transform its bar is full again at the new, larger maximum.
 
 ## Testing
 
@@ -244,14 +249,23 @@ New suite `tests/suites/test_boss_phases.gd`, registered in `TestRunner.gd`:
 - An enemy with no phases is not a boss and is unaffected throughout.
 - A transition fires **once** per entry, not on every hit within a phase.
 - Healing back above a threshold does not regress the phase.
-- A single hit crossing two thresholds lands on the deepest and fires one entry.
+- A single hit crossing two thresholds fires BOTH entries, in order.
+- **Transformation:** max HP grows, HP refills to the new max, and the boss does
+  NOT revert to an earlier phase now that its fraction is 1.0 again.
+- **Transformation halts the cascade:** a hit that would otherwise cross a
+  transform and the phase beyond it stops at the transform.
+- A later phase still fires after a transform, once HP falls again against the
+  NEW max HP.
 - Moveset swap: the AI draws from the phase's skills when present, base when not.
 - Stat multipliers compose with buffs, debuffs and difficulty rather than
   replacing them; excluded stats (`max_hp`) are ignored.
-- Summons append to the enemy list, respect the cap, and enter turn order.
+- Summons append to the enemy list, enter turn order, and **respect the cap at
+  spawn time** — a boss that would exceed 10 enemies summons only up to the limit,
+  so no combatant ever exists without a card.
 - Field effects respect element immunity and the mutex rule, and never target a
   downed hero.
-- `clear_battle_effects()` clears `phase_multipliers`.
+- `clear_battle_effects()` clears `phase_multipliers` AND `max_hp_multiplier`, so
+  a transformed boss does not leak its grown HP pool into a later encounter.
 
 Per the project Testing Policy, a regression test accompanies any bug found on
 the way.
