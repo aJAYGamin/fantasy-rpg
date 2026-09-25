@@ -394,3 +394,127 @@ func test_transforming_at_one_hp_ends_at_the_new_full() -> void:
 	assert_eq(b.current_hp, b.max_hp(), "refilled to the NEW maximum")
 	assert_true(b.current_hp > 100, "which is larger than the original pool")
 	bm.free()
+
+# --------------------------------------------------- Power 1: moveset
+
+func _skill(name: String) -> Skill:
+	var s := Skill.new()
+	s.skill_name = name
+	s.power = 10.0
+	return s
+
+func test_a_phase_moveset_replaces_the_base_skills() -> void:
+	var b := _boss()
+	b.skills = [_skill("Base Swing")]
+	b.phases[1].skills = [_skill("Desperate Cleave")]
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	var opening := EnemyAI.usable_skills(b)
+	assert_eq(opening[0].skill_name, "Base Swing", "phase 0 has no list, so base skills are used")
+	b.current_hp = 50
+	bm.check_boss_phases()
+	var wounded := EnemyAI.usable_skills(b)
+	assert_eq(wounded.size(), 1, "phase 1 supplies exactly its own list")
+	assert_eq(wounded[0].skill_name, "Desperate Cleave", "and it is the phase's skill")
+	bm.free()
+
+func test_an_empty_phase_moveset_falls_back_to_base() -> void:
+	var b := _boss()
+	b.skills = [_skill("Base Swing")]
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	assert_eq(EnemyAI.usable_skills(b)[0].skill_name, "Base Swing", "[] means keep base skills")
+	bm.free()
+
+func test_a_non_boss_enemy_uses_its_own_skills() -> void:
+	# Guards the enrage removal: ordinary enemies must be entirely unaffected.
+	var e := Enemy.new()
+	e.base_hp = 50
+	e.level = 1
+	e.current_hp = 1
+	e.skills = [_skill("Bite")]
+	var list := EnemyAI.usable_skills(e)
+	assert_eq(list.size(), 1, "a plain enemy draws from its own skills")
+	assert_eq(list[0].skill_name, "Bite", "even at low HP, with no phases to consult")
+
+func test_a_boss_in_no_phase_uses_its_base_skills() -> void:
+	# Review Focus #5 again, at the consumer: current_phase() is null here.
+	var b := _boss([0.8, 0.4])
+	b.skills = [_skill("Base Swing")]
+	assert_eq(EnemyAI.usable_skills(b)[0].skill_name, "Base Swing", "a null phase falls back safely")
+
+func test_choose_action_draws_from_the_phase_moveset() -> void:
+	# usable_skills() alone isn't proof _choose_skill actually consults it — a
+	# fix that repaired only the emptiness check (enemy.skills.is_empty()) but
+	# left the candidate list itself reading enemy.skills would still pass the
+	# tests above (they call usable_skills() directly) while quietly handing
+	# out the base skill here. Drive the real decision path instead.
+	var b := _boss()
+	b.skills = [_skill("Base Swing")]
+	b.phases[1].skills = [_skill("Desperate Cleave")]
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 50
+	bm.check_boss_phases()               # now in phase 1
+	var hero := Character.new()
+	hero.character_name = "Hero"
+	hero.base_hp = 100
+	hero.current_hp = 100
+	var decision := EnemyAI.choose_action(b, [hero] as Array[Character], [b] as Array[Character])
+	assert_eq(decision.get("skill").skill_name, "Desperate Cleave", "choose_action draws from the phase moveset, not the base list")
+	bm.free()
+
+func test_choose_action_uses_phase_skills_even_when_base_skills_is_empty() -> void:
+	# Guards the other call site: if the emptiness check still reads
+	# enemy.skills.is_empty() instead of usable_skills(enemy).is_empty(), a
+	# boss with no base moveset but a populated phase moveset would bail out
+	# to no action at all instead of using the phase's skills.
+	var b := _boss()
+	b.skills = []
+	b.phases[1].skills = [_skill("Desperate Cleave")]
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 50
+	bm.check_boss_phases()
+	var hero := Character.new()
+	hero.character_name = "Hero"
+	hero.base_hp = 100
+	hero.current_hp = 100
+	var decision := EnemyAI.choose_action(b, [hero] as Array[Character], [b] as Array[Character])
+	assert_ne(decision.get("skill"), null, "phase moveset is used even though base skills is empty")
+	assert_eq(decision.get("skill").skill_name, "Desperate Cleave", "and it's the phase's skill")
+	bm.free()
+
+func test_a_boss_below_25_percent_hp_is_not_force_enraged() -> void:
+	# Guards the enrage removal itself: is_enraged must be false for bosses
+	# regardless of HP, or the phase moveset and the old hard-coded enrage
+	# would fight each other invisibly.
+	var b := _boss()
+	b.skills = [_skill("Base Swing")]
+	b.current_hp = 10  # 10% HP, well under the old 25% enrage threshold
+	var hero := Character.new()
+	hero.character_name = "Hero"
+	hero.base_hp = 100
+	hero.current_hp = 100
+	var decision := EnemyAI.choose_action(b, [hero] as Array[Character], [b] as Array[Character])
+	assert_false(decision.get("is_enraged"), "bosses no longer use the hard-coded HP enrage")
+
+func test_a_non_boss_enemy_still_enrages_below_25_percent_hp() -> void:
+	# Pins the ordinary-enemy path precisely because the boss codepath now
+	# diverges from it: an enemy without phases must keep the hard-coded
+	# enrage exactly as before, always picking its highest-power damaging skill.
+	var e := Enemy.new()
+	e.base_hp = 100
+	e.level = 1
+	var weak := _skill("Weak Jab")
+	var heavy := _skill("Heavy Blow")
+	heavy.power = 50.0
+	e.skills = [weak, heavy]
+	e.current_hp = 10  # under 25%
+	var hero := Character.new()
+	hero.character_name = "Hero"
+	hero.base_hp = 100
+	hero.current_hp = 100
+	var decision := EnemyAI.choose_action(e, [hero] as Array[Character], [e] as Array[Character])
+	assert_true(decision.get("is_enraged"), "an ordinary enemy under 25% HP is still enraged")
+	assert_eq(decision.get("skill").skill_name, "Heavy Blow", "enraged still picks the highest-power damaging skill")

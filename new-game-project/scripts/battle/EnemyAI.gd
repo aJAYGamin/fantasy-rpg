@@ -49,9 +49,12 @@ static func choose_action(enemy: Character, party: Array[Character], enemies: Ar
 	var encounters = _get_encounters(enemy) if enemy is Enemy else 0
 	var echo_tier = _get_echo_tier(encounters)
 
-	# Low HP enrage — always use strongest attack
-	var hp_pct = float(enemy.current_hp) / float(enemy.max_hp())
-	var is_enraged = hp_pct < 0.25
+	# Low-HP enrage, for enemies WITHOUT phases. A boss expresses the same idea
+	# through its phase data instead; keeping both would leave two parallel,
+	# invisibly-interacting mechanisms for "fights differently when hurt".
+	var is_enraged := false
+	if not (enemy is Enemy and (enemy as Enemy).is_boss()):
+		is_enraged = float(enemy.current_hp) / float(enemy.max_hp()) < 0.25
 
 	# Choose skill
 	var chosen_skill = _choose_skill(enemy, alive_party, echo_tier, is_enraged)
@@ -72,11 +75,22 @@ static func _get_echo_tier(encounters: int) -> int:
 	elif encounters >= ECHO_TIER_1: return 1
 	return 0
 
+## The skills an enemy may draw from this turn. A boss in a phase that supplies
+## its own list uses that list; everything else uses the enemy's own skills.
+## Tolerates current_phase() being null — a boss whose first phase is authored
+## below full HP is in no phase at all until it takes damage.
+static func usable_skills(enemy: Character) -> Array:
+	if enemy is Enemy and (enemy as Enemy).is_boss():
+		var phase := (enemy as Enemy).current_phase()
+		if phase != null and not phase.skills.is_empty():
+			return phase.skills
+	return enemy.skills
+
 static func _choose_skill(enemy: Character, alive_party: Array, echo_tier: int, is_enraged: bool) -> Skill:
-	if enemy.skills.is_empty():
+	if usable_skills(enemy).is_empty():
 		return null
 
-	var usable = enemy.skills.filter(func(s): return s.can_use(enemy))
+	var usable = usable_skills(enemy).filter(func(s): return s.can_use(enemy))
 	if usable.is_empty():
 		return null
 
