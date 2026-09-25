@@ -22,6 +22,42 @@ const MEMORY_THRESHOLD_3 = 15  # Fully adapted
 @export var drop_table: Array[Dictionary] = []
 # Format: [{"item_name": "Health Potion", "chance": 0.3, "quantity": 1}]
 
+## Multi-phase boss behaviour. An enemy with phases IS a boss — there is no
+## separate flag to fall out of sync with the data.
+@export var phases: Array[BossPhase] = []
+
+## Battle-temp: which phase is active. -1 = none entered yet. Never serialized.
+var active_phase: int = -1
+
+func is_boss() -> bool:
+	return not phases.is_empty()
+
+func hp_fraction() -> float:
+	var m := max_hp()
+	if m <= 0:
+		return 0.0
+	return float(current_hp) / float(m)
+
+## Phases advance FORWARD ONLY, one step at a time. Recomputing the active phase
+## from HP cannot express a transformation: refilling HP returns the fraction to
+## 1.0, so a recomputing formula would drop the boss back to its opening form.
+func should_advance_phase() -> bool:
+	var nxt := active_phase + 1
+	if nxt >= phases.size():
+		return false
+	return hp_fraction() <= phases[nxt].enter_at_hp
+
+func advance_phase() -> BossPhase:
+	if active_phase + 1 >= phases.size():
+		return null
+	active_phase += 1
+	return phases[active_phase]
+
+func current_phase() -> BossPhase:
+	if active_phase < 0 or active_phase >= phases.size():
+		return null
+	return phases[active_phase]
+
 func _init():
 	super._init()
 
