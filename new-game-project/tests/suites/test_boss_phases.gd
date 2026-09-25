@@ -746,6 +746,10 @@ func test_the_turn_order_panel_is_reseeded_on_a_phase_change() -> void:
 	# TurnOrderIndicator.setup() runs once at battle start, so a summoned enemy
 	# would fight without ever appearing in the turn order.
 	var indicator = load("res://scripts/battle/TurnOrderIndicator.gd").new()
+	# GameManager is a live autoload always in the tree, so parenting the
+	# indicator to it runs a real _ready() (builds _slot_container etc.) —
+	# same idiom as test_stats_screen.gd:_open_screen / test_items_screen.gd:_open_items.
+	GameManager.add_child(indicator)
 	var hero := Character.new()
 	hero.character_name = "Hero"
 	hero.base_hp = 50

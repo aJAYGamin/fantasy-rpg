@@ -60,13 +60,6 @@ func _build_turn_order(party: Array[Character], enemies: Array[Character]):
 	_turn_order.sort_custom(func(a, b): return a.speed() > b.speed())
 
 func _rebuild_slots():
-	# _slot_container is normally built in _ready(); a script instantiated
-	# directly via .new() (as tests do, to exercise setup() without a live
-	# SceneTree) never gets a _ready() call, so guard here too.
-	if _slot_container == null:
-		_slot_container = Control.new()
-		_slot_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		add_child(_slot_container)
 	for child in _slot_container.get_children():
 		child.queue_free()
 	if _turn_order.is_empty():
