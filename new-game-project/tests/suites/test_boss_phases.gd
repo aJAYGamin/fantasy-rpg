@@ -607,3 +607,45 @@ func test_a_bad_summon_path_is_skipped_without_crashing() -> void:
 	bm.check_boss_phases()
 	assert_eq(bm.enemies.size(), 2, "the good summon still arrives; the bad ones are skipped")
 	bm.free()
+
+# --------------------------------------------------- Fix round 1: distinct instances
+
+func test_summons_are_distinct_instances_not_a_shared_template() -> void:
+	# A wrong implementation might do `enemies.append(template)` instead of
+	# `template.duplicate(true)` — appending the SAME loaded Resource object on
+	# every iteration. Enemy is a Resource, so two summons sharing one object
+	# would share one HP pool: damaging one would damage both, and area damage
+	# would hit the same pool twice. The behavioural check (damage one, assert
+	# the sibling's HP is untouched) is the strong form; identity is a supplement.
+	var b := _boss()
+	b.phases[1].summons = [{"path": SPEARMAN, "count": 2}]
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 50
+	bm.check_boss_phases()
+	var add1: Character = bm.enemies[1]
+	var add2: Character = bm.enemies[2]
+	assert_ne(add1, add2, "each summon is its own object, not a shared template")
+	add1.current_hp = 1
+	assert_eq(add2.current_hp, add2.max_hp(), "damaging one summon leaves its sibling's HP untouched")
+	bm.free()
+
+# --------------------------------------------------- Fix round 1: cumulative cap
+
+func test_the_enemy_cap_holds_cumulatively_across_phases() -> void:
+	# Only a single-spec count:30 case was covered before — this proves the cap
+	# also holds when adds already present from an earlier phase are topped up
+	# by a later phase's summons, not just within one spec's own loop.
+	var b := _boss()
+	b.phases[1].summons = [{"path": SPEARMAN, "count": 5}]
+	b.phases[2].summons = [{"path": SPEARMAN, "count": 10}]
+	var bm := _manager(b)
+	bm.check_boss_phases()                       # phase 0, no summons
+	assert_eq(bm.enemies.size(), 1, "no adds yet")
+	b.current_hp = 50
+	bm.check_boss_phases()                       # phase 1: boss + 5 adds
+	assert_eq(bm.enemies.size(), 6, "phase 1's five reinforcements joined")
+	b.current_hp = 10
+	bm.check_boss_phases()                       # phase 2: 10 more requested, capped
+	assert_eq(bm.enemies.size(), BattleManager.MAX_BATTLE_ENEMIES, "cumulative total still caps at 10")
+	bm.free()
