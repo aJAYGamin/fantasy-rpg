@@ -774,3 +774,46 @@ func test_a_silent_phase_shows_no_banner() -> void:
 	var p := BossPhase.new()
 	p.banner_text = ""
 	assert_eq(p.banner_text, "", "an empty banner_text means transition silently")
+
+# --------------------------------------------------- the first boss
+
+const WARLORD := "res://data/enemies/goblin_warlord.tres"
+
+func test_the_warlord_loads_as_a_boss() -> void:
+	var w: Enemy = load(WARLORD)
+	assert_true(w != null, "the warlord resource loads")
+	assert_true(w.is_boss(), "and it has phases")
+	assert_eq(w.phases.size(), 3, "three phases")
+
+func test_the_warlord_exercises_every_power() -> void:
+	var w: Enemy = load(WARLORD)
+	var summons := false
+	var stats := false
+	var moveset := false
+	var transform := false
+	for p in w.phases:
+		if not p.summons.is_empty(): summons = true
+		if not p.stat_multipliers.is_empty(): stats = true
+		if not p.skills.is_empty(): moveset = true
+		if p.is_transformation(): transform = true
+	assert_true(summons, "a phase summons")
+	assert_true(stats, "a phase boosts stats")
+	assert_true(moveset, "a phase changes the moveset")
+	assert_true(transform, "a phase transforms")
+
+func test_the_warlord_phases_are_in_descending_order() -> void:
+	# Forward-only advancement assumes descending thresholds; an out-of-order
+	# ladder would make a later phase unreachable.
+	var w: Enemy = load(WARLORD)
+	for i in range(1, w.phases.size()):
+		assert_true(w.phases[i].enter_at_hp <= w.phases[i - 1].enter_at_hp,
+			"phase %d's threshold is not above the one before it" % i)
+
+func test_the_warlord_summons_within_the_cap() -> void:
+	var w: Enemy = load(WARLORD)
+	var total := 1
+	for p in w.phases:
+		for s in p.summons:
+			total += int(s.get("count", 1))
+	assert_true(total <= BattleManager.MAX_BATTLE_ENEMIES,
+		"the warlord and everything it summons fit in %d slots" % BattleManager.MAX_BATTLE_ENEMIES)
