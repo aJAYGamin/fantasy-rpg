@@ -712,3 +712,61 @@ func test_a_buff_token_works_as_a_field_effect() -> void:
 	assert_true(hit != null, "the effect landed")
 	assert_true(StatusSystem.is_effectively_debuffed(hit, StatusSystem.STAT_ATK), "debuff tokens work too")
 	bm.free()
+
+# --------------------------------------------------- presentation
+
+func test_a_boss_card_fills_the_row() -> void:
+	var b := _boss()
+	var scene := BattleScene.new()
+	var card := scene._create_enemy_card(b)
+	assert_eq(card.size_flags_horizontal, Control.SIZE_EXPAND_FILL, "a boss card fills the row")
+	scene.free()
+
+func test_an_ordinary_enemy_card_stays_fixed_width() -> void:
+	var e := Enemy.new()
+	e.base_hp = 30
+	e.level = 1
+	var scene := BattleScene.new()
+	var card := scene._create_enemy_card(e)
+	assert_eq(card.custom_minimum_size.x, 124.0, "a normal card keeps its fixed width")
+	scene.free()
+
+## RULING (task-7 controller): the brief's original version of this test ended
+## with `assert_true(true, "...")`, which asserts nothing and would pass against
+## any implementation, including one where setup() never rebuilds the turn
+## order at all. Replaced with real assertions against
+## `TurnOrderIndicator.combatant_count()` — a small accessor added for this
+## purpose, since the visible 3-slot scrolling display (prev/current/next,
+## wrapping) always shows exactly 3 child slots regardless of roster size and
+## so can't distinguish a 2-combatant roster from a 3-combatant one. The
+## underlying `_turn_order` array is the thing that actually changes size when
+## setup() is re-run with a grown roster, so that's what combatant_count()
+## exposes.
+func test_the_turn_order_panel_is_reseeded_on_a_phase_change() -> void:
+	# TurnOrderIndicator.setup() runs once at battle start, so a summoned enemy
+	# would fight without ever appearing in the turn order.
+	var indicator = load("res://scripts/battle/TurnOrderIndicator.gd").new()
+	var hero := Character.new()
+	hero.character_name = "Hero"
+	hero.base_hp = 50
+	hero.level = 1
+	hero.current_hp = hero.max_hp()
+	var b := _boss()
+	var party: Array[Character] = [hero]
+	var foes: Array[Character] = [b]
+	indicator.setup(party, foes)
+	assert_eq(indicator.combatant_count(), 2, "starts tracking hero + boss")
+	var add := Enemy.new()
+	add.character_name = "Spearman"
+	add.base_hp = 20
+	add.level = 1
+	add.current_hp = add.max_hp()
+	foes.append(add)
+	indicator.setup(party, foes)
+	assert_eq(indicator.combatant_count(), 3, "re-seeding with a grown roster picks up the reinforcement")
+	indicator.free()
+
+func test_a_silent_phase_shows_no_banner() -> void:
+	var p := BossPhase.new()
+	p.banner_text = ""
+	assert_eq(p.banner_text, "", "an empty banner_text means transition silently")

@@ -43,6 +43,14 @@ func setup(party: Array[Character], enemies: Array[Character]):
 	_current_index = 0
 	_rebuild_slots()
 
+## Test/inspection accessor: how many combatants the indicator is currently
+## tracking. The visible display always shows exactly 3 slots (prev/current/
+## next, wrapping) regardless of roster size, so slot-container child count
+## can't tell you whether a re-seed actually picked up a grown roster —
+## this reads the underlying turn order itself.
+func combatant_count() -> int:
+	return _turn_order.size()
+
 func _build_turn_order(party: Array[Character], enemies: Array[Character]):
 	_turn_order.clear()
 	for c in party:
@@ -52,6 +60,13 @@ func _build_turn_order(party: Array[Character], enemies: Array[Character]):
 	_turn_order.sort_custom(func(a, b): return a.speed() > b.speed())
 
 func _rebuild_slots():
+	# _slot_container is normally built in _ready(); a script instantiated
+	# directly via .new() (as tests do, to exercise setup() without a live
+	# SceneTree) never gets a _ready() call, so guard here too.
+	if _slot_container == null:
+		_slot_container = Control.new()
+		_slot_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(_slot_container)
 	for child in _slot_container.get_children():
 		child.queue_free()
 	if _turn_order.is_empty():

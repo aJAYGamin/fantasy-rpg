@@ -1,3 +1,4 @@
+class_name BattleScene
 extends Node2D
 
 ## BattleScene.gd — The Amethyst Requiem
@@ -85,6 +86,7 @@ func _ready():
 	battle_manager.battle_ended.connect(_on_battle_ended)
 	battle_manager.enemy_move_preview.connect(_on_enemy_move_preview)
 	battle_manager.status_effect_triggered.connect(_on_status_triggered)
+	battle_manager.boss_phase_changed.connect(_on_boss_phase_changed)
 
 	attack_btn.pressed.connect(_on_attack_pressed)
 	special_btn.pressed.connect(_on_special_pressed)
@@ -386,7 +388,7 @@ func _setup_enemy_cards(enemies: Array[Character]):
 		child.queue_free()
 
 	# Cards are fixed-width and centered. 10 enemies fill the row; fewer cluster in the middle.
-	# Bosses/key enemies will later flag as "is_boss" to use SIZE_EXPAND_FILL instead.
+	# A boss (is_boss() — has phases) gets SIZE_EXPAND_FILL instead; see _create_enemy_card.
 	enemy_info_row.alignment = BoxContainer.ALIGNMENT_CENTER
 
 	var count = mini(enemies.size(), 10)
@@ -398,7 +400,12 @@ func _create_enemy_card(enemy: Character) -> PanelContainer:
 	var card = PanelContainer.new()
 	# Fixed width — cards no longer stretch when there are few enemies.
 	# 10 cards × 124 + 9 × 2 spacing = 1258, fits comfortably in the 1280-wide viewport.
-	card.custom_minimum_size = Vector2(124, 70)
+	# A boss takes the whole row — the presence of phases is what marks it.
+	if enemy is Enemy and (enemy as Enemy).is_boss():
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card.custom_minimum_size = Vector2(0, 86)
+	else:
+		card.custom_minimum_size = Vector2(124, 70)
 	# Themed chrome — border colored by the enemy's RARITY (common=grey,
 	# uncommon=green, rare=blue, epic=purple, mythic=red, legendary=gold,
 	# celestial=white) so the player can read an enemy's tier at a glance.
@@ -771,6 +778,18 @@ func _return_to_overworld():
 	if path == "":
 		path = "res://scenes/OverworldScene.tscn"
 	get_tree().change_scene_to_file(path)
+
+## A boss crossed into a new phase: banner it, then rebuild the card row so any
+## reinforcements it summoned appear and the boss's own bar reflects a
+## transformation's larger HP pool.
+func _on_boss_phase_changed(_enemy: Character, phase: BossPhase) -> void:
+	if phase.banner_text != "":
+		_show_status_banner(phase.banner_text, BattleUITheme.TEXT_ACCENT, 1.9)
+	_rebuild_enemy_cards()
+	# The turn-order panel is built once by setup() at battle start, so a
+	# summoned enemy would otherwise never get a slot. Re-seed it from the
+	# current roster.
+	turn_order_indicator.setup(battle_manager.party, battle_manager.enemies)
 
 func _on_status_triggered(character: Character, result: Dictionary):
 	var event_type: String = result.get("type", "")
