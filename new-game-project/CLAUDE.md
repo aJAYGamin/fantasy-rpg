@@ -514,7 +514,12 @@ scaffolding. Reach for the skill that matches the phase of work:
 `brainstorming` classifies work as **spike / bounded / architectural** and gates
 implementation on the user approving that path's artifact. Respect the gate: a
 bounded change needs a short design agreed in chat; a new subsystem needs a
-written spec in `docs/superpowers/specs/` before any code.
+written spec before any code. **Specs live at `<repo-root>/.claude/docs/superpowers/specs/`**
+(not under `new-game-project/`), alongside the other Claude project files — note the
+repo root is one level ABOVE the Godot project. Name them
+`YYYY-MM-DD-<topic>-design.md`. They are committed and are the durable record of
+*why* a system works the way it does, so read the relevant one before changing a
+system it covers.
 
 > **DO NOT use `superpowers:using-git-worktrees` on this project.** It conflicts
 > with the standing workflow below: branches are created **inside the main
