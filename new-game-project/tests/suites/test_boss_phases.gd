@@ -231,22 +231,27 @@ func test_entering_a_phase_applies_its_stat_multipliers() -> void:
 # Controller-authorised extra (review found only attack_power had a direct
 # "a phase multiplier scales this stat" assertion through the engine — this
 # would not have caught an implementation that wired only 4 of the 5 getters).
-func test_entering_a_phase_applies_multipliers_to_defense_magic_and_arcane() -> void:
+# Fix-round Minor 4 folded speed into the same test: dropping phase_mult from
+# speed() would have stayed green otherwise.
+func test_entering_a_phase_applies_multipliers_to_defense_magic_arcane_and_speed() -> void:
 	var b := _boss()
 	b.base_defense = 20
 	b.base_magic = 20
 	b.base_arcane = 20
-	b.phases[1].stat_multipliers = {"defense": 2.0, "magic": 2.0, "arcane": 2.0}
+	b.base_speed = 20
+	b.phases[1].stat_multipliers = {"defense": 2.0, "magic": 2.0, "arcane": 2.0, "speed": 2.0}
 	var bm := _manager(b)
 	bm.check_boss_phases()
 	var before_def := b.defense_power()
 	var before_mag := b.magic_power()
 	var before_arc := b.arcane_power()
+	var before_spd := b.speed()
 	b.current_hp = 50
 	bm.check_boss_phases()
 	assert_eq(b.defense_power(), before_def * 2, "phase 1's DEF multiplier is live")
 	assert_eq(b.magic_power(), before_mag * 2, "phase 1's MAG multiplier is live")
 	assert_eq(b.arcane_power(), before_arc * 2, "phase 1's ARC multiplier is live")
+	assert_eq(b.speed(), before_spd * 2, "phase 1's SPD multiplier is live")
 	bm.free()
 
 func test_a_later_phase_replaces_the_previous_multipliers() -> void:
@@ -260,6 +265,31 @@ func test_a_later_phase_replaces_the_previous_multipliers() -> void:
 	bm.check_boss_phases()
 	assert_eq(b.phase_mult("attack"), 1.0, "phase 1's ATK boost is gone, not accumulated")
 	assert_eq(b.phase_mult("speed"), 2.0, "phase 2's SPD boost is live")
+	bm.free()
+
+# --------------------------------------------------- _next_turn hook
+#
+# Fix-round IMPORTANT 1: every test above drives the engine by calling
+# check_boss_phases() directly, so none of them would notice if the single
+# line wiring it into _next_turn() were ever deleted — confirmed by the
+# reviewer, who replaced that line with a comment and watched the full suite
+# stay green. This test drives the real gameplay path instead.
+
+func test_next_turn_hook_advances_boss_phases() -> void:
+	# current_actor lands on the hero (not the boss), so _next_turn() never
+	# reaches _execute_enemy_turn() — which awaits a timer and would hang
+	# outside a running SceneTree. That keeps this test synchronous while
+	# still exercising the real call: check_boss_phases() is the first
+	# statement of _next_turn(), not something this test invokes itself.
+	var b := _boss()
+	b.active_phase = 0                 # already resolved into phase 0 by hand,
+	                                    # bypassing the engine entirely so far
+	var bm := _manager(b)
+	bm.turn_order = [bm.party[0]]      # hero's turn, never the boss's
+	bm.current_turn_index = 0
+	b.current_hp = 40                  # crosses the 0.5 threshold into phase 1
+	bm._next_turn()
+	assert_eq(b.active_phase, 1, "the _next_turn() hook advanced the boss's phase")
 	bm.free()
 
 # --------------------------------------------------- transformation
@@ -314,6 +344,25 @@ func test_a_later_phase_still_fires_against_the_new_max_hp() -> void:
 	b.current_hp = int(b.max_hp() * 0.05)       # 5% of the NEW pool
 	bm.check_boss_phases()
 	assert_eq(b.active_phase, 3, "the last phase fires against the new maximum")
+	bm.free()
+
+# Fix-round IMPORTANT 2 (controller ruling): NOT a bug. Growing max HP without
+# refilling means the SAME current_hp becomes a SMALLER fraction of the new,
+# larger pool — the boss genuinely is proportionally closer to death, so later
+# phases are correct to fire immediately in the same cascade. Only a refilling
+# transformation (restore_hp = true, see test_transformation_halts_the_cascade
+# above) resets the fraction to 1.0 and halts the cascade. Pinned here, named
+# so it reads as deliberate rather than an oversight, per the spec update at
+# .claude/docs/superpowers/specs/2026-09-24-boss-phases-design.md.
+func test_a_non_refilling_transformation_does_not_halt_the_cascade() -> void:
+	var b := _boss([1.0, 0.5, 0.25, 0.1])
+	b.phases[2].max_hp_multiplier = 2.0
+	# restore_hp intentionally left at its default false
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 20
+	bm.check_boss_phases()
+	assert_eq(b.active_phase, 3, "the cascade runs on into phase 3, not halted")
 	bm.free()
 
 # --------------------------------------------------- Review Focus #1 and #4

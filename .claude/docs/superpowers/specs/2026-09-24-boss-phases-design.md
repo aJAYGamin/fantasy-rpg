@@ -111,9 +111,13 @@ Two consequences, both improvements:
    entirely, which trivialises the fight. Queued banners display sequentially
    through the existing status-banner pacing.
 
-   A transform stops the cascade on its own: it refills HP, so the next phase's
-   condition is immediately false. Transformation is a natural checkpoint rather
-   than a special case in the code.
+   A transform that refills HP (`restore_hp = true`) stops the cascade on its
+   own: the fraction returns to 1.0, so the next phase's condition is
+   immediately false — a natural checkpoint rather than a special case in the
+   code. A transform authored WITHOUT a refill does not halt anything: max HP
+   grows under an unchanged `current_hp`, the fraction drops, and later phases
+   are correct to fire immediately in the same cascade — the boss genuinely is
+   proportionally closer to death.
 
 ### Transition
 
@@ -210,9 +214,11 @@ Transformation composes with the other powers: the same phase can also swap the
 moveset, boost combat stats and summon, so "second form" is authored as one
 phase rather than needing a parallel concept.
 
-Because a transform restores HP, the boss returns to a full bar in its new form
-and the phase cascade halts there — the fight visibly restarts, which is the
-point.
+When `restore_hp` is set, the boss returns to a full bar in its new form and the
+phase cascade halts there — the fight visibly restarts, which is the point. A
+transformation authored with `restore_hp = false` does not get this halt: HP
+stays where it was against a larger maximum, so the fraction drops and the
+cascade runs straight on into the next phase.
 
 ## UI
 

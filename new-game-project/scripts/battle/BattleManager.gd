@@ -501,9 +501,10 @@ func check_boss_phases() -> void:
 		if not boss.is_boss() or not boss.is_alive():
 			continue
 		while boss.should_advance_phase():
+			# advance_phase() returns null exactly when should_advance_phase()
+			# is false (both gate on the same `active_phase + 1 >= size`
+			# check), so a non-null phase is guaranteed here.
 			var phase := boss.advance_phase()
-			if phase == null:
-				break
 			_enter_boss_phase(boss, phase)
 
 func _enter_boss_phase(boss: Enemy, phase: BossPhase) -> void:
