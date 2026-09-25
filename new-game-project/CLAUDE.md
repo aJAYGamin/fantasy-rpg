@@ -48,7 +48,7 @@ art LAST. See **Roadmap** near the bottom for the agreed order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~2300 tests, 33 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~2408 tests, 40 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -244,6 +244,72 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   Legendary=gold, Celestial=white/silver. **Enemy card borders use this color.**
 - `get_color(tier)`, **`tier_name(tier)`** (⚠️ not `get_name` — that collided with
   a built-in), `get_exp_multiplier`, `get_loot_multiplier`.
+
+### Boss Phases — `scripts/characters/BossPhase.gd`, `Enemy.phases`
+- A boss is just an `Enemy` with `phases: Array[BossPhase]` populated.
+  `is_boss()` is `not phases.is_empty()` — there is no separate boss flag to
+  fall out of sync with the data. A `.tres` alone defines a new boss; no
+  per-boss code.
+- Each `BossPhase` optionally exercises any of **five powers**, all off by
+  default (an omitted field means "this phase does not use that power"):
+  1. **Moveset** — `skills`; `[]` keeps the enemy's own list. Served by
+     `EnemyAI.usable_skills(enemy)`.
+  2. **Stats** — `stat_multipliers`, only the five combat stats
+     (`attack`/`defense`/`magic`/`arcane`/`speed`). Composed in `Character`'s
+     stat getters alongside `StatusSystem.compose_stat` and
+     `combat_stat_multiplier`, so it **stacks**, not overrides. `max_hp` is
+     deliberately NOT accepted here — changing it would move the very HP
+     thresholds that drive phase transitions (see Transformation below).
+  3. **Summons** — `summons: [{"path", "count", "level"}]`, capped at
+     `BattleManager.MAX_BATTLE_ENEMIES = 10`, enforced **at summon time**
+     (`_summon_from_spec`), not at render time — `_setup_enemy_cards` truncates
+     to `mini(enemies.size(), 10)`, so an 11th enemy would otherwise be alive
+     with no card and no visible HP.
+  4. **Field effects** — `turn_effect` + `turn_effect_chance`, rolled on the
+     **boss's own turn** (`apply_boss_field_effect`, called from `_next_turn`
+     before the boss picks its action) rather than "each round" — the
+     turn-order model has no round boundary to hook. Delegates to
+     `_apply_skill_status`, inheriting element immunity, the mutex rule and the
+     downed-character guard for free.
+  5. **Transformation** — `max_hp_multiplier` + `restore_hp`. The only way to
+     change max HP.
+- **Advancement is FORWARD-ONLY** (`should_advance_phase()` / `advance_phase()`),
+  one step at a time — never recomputed from current HP. Recomputing can't
+  express a transformation: refilling HP returns the fraction to 1.0, so a
+  recomputing formula would drop the boss back to its opening form. Forward-only
+  also makes "a boss never regresses a phase" true by construction.
+- **Every crossed phase fires, in order** — `check_boss_phases` loops
+  `while should_advance_phase()`, so a hit from 60% to 5% runs both phases'
+  entries. Firing only the deepest phase would let burst damage skip a
+  transformation entirely.
+- A transformation with `restore_hp = true` halts the cascade with **no special
+  case** — refilling HP means the next threshold stops being satisfied. One
+  with `restore_hp = false` does NOT: max HP grows while current HP stays put,
+  so the fraction drops and a later phase can fire in the same cascade. That's
+  deliberate, and pinned by a test.
+- A dead boss never transitions — no transform, no summon, no banner
+  (`check_boss_phases` and `apply_boss_field_effect` both gate on `is_alive()`).
+- Phases are checked at **one choke point**, the top of `_next_turn()` — damage
+  lands in half a dozen places (player attack, player skill, enemy skill,
+  counter...), and hooking there also guarantees a boss never acts in a stale
+  phase.
+- `EnemyAI`'s hard-coded low-HP enrage now applies to **non-boss enemies only**.
+  A boss expresses the same idea through phase data; running both would leave
+  two parallel mechanisms for "fights differently when hurt" interacting
+  invisibly.
+- Turn order is **NOT** re-sorted mid-round when a phase changes `speed` — it
+  re-sorts only at `_start_new_round()`. Turn order locked for the round in
+  progress is the genre convention, and re-sorting mid-round could give an
+  actor two turns or none.
+- UI: a boss gets a full-width battle card (`_setup_enemy_cards`); phase entry
+  shows `banner_text` via the `boss_phase_changed` signal
+  (`_on_boss_phase_changed` in `BattleScene.gd`) — `""` transitions silently.
+- **First boss: Goblin Warlord** (`data/enemies/goblin_warlord.tres`) —
+  exercises **four** of the five powers (moveset, stats, summons,
+  transformation; no phase sets `turn_effect`). Its fixed encounter,
+  `data/encounters/goblin_warlord_fight.tres`, is **referenced nowhere** —
+  wiring it into the Goblin Castle was out of scope for this pass, so the
+  fight is not yet reachable in play. See Track B item 1 in the roadmap.
 
 ### Equipment — `scripts/inventory/Equipment.gd` (`class_name Equipment`)  (P3)
 - A piece of gear (Resource). `slot` (WEAPON/ARMOR/ACCESSORY), `rarity`
@@ -477,7 +543,7 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~2300 tests / 33 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~2408 tests / 40 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,
@@ -749,11 +815,14 @@ dialogue system **including its choice UI** (`DialogueBox`), the quest system
 profiles, movesets/loadouts, rest areas, and the controller-navigation pass.
 
 #### Track B — Systems breadth  ← **current**
-1. **Boss enemies.** `is_boss` on `Enemy`, a full-width battle card (the hook is
-   already noted at `BattleScene.gd` ~line 389), and **multi-phase behaviour** —
-   tactics/moveset change at HP thresholds. Hang the first one on the Goblin
-   Castle; `EncounterGroup.is_fixed` already exists for scripted boss fights.
-2. **Status-cleansing items and skills.** The antidote covers poison/burn only.
+1. **Boss enemies — DONE.** `is_boss()` on `Enemy` (an enemy with `phases` IS a
+   boss — no separate flag), a full-width battle card, and full multi-phase
+   behaviour: moveset, stats, summons, field effects, transformation. See
+   **Boss Phases** in Core Systems above. First boss: Goblin Warlord, exercising
+   four of the five powers. **Not yet reachable in play** — its fixed encounter
+   (`data/encounters/goblin_warlord_fight.tres`) is referenced nowhere; wiring
+   it into the Goblin Castle was out of scope here and is the obvious next step.
+2. **Status-cleansing items and skills — next.** The antidote covers poison/burn only.
    Extend cleansing to `scorched`, `frostbite`, `sleep` and especially
    `paralysis`, which currently clears **only at battle end** — a real hole.
 3. **More skills, with varied effects and costs.** Widen beyond the current

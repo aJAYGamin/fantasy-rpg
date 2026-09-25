@@ -552,7 +552,10 @@ func _summon_from_spec(boss: Enemy, spec: Dictionary) -> void:
 		enemies.append(add)
 
 ## Rolls the active phase's field effect against a random living hero. Returns
-## the afflicted hero, or null when nothing happened.
+## the rolled target, or null when no roll happened (no boss, dead boss, no
+## turn_effect, chance miss, or no living hero). A non-null return does NOT
+## mean a status landed — _apply_skill_status can still no-op below (element
+## immunity, the mutex rule), same as it would on the ordinary skill path.
 ##
 ## Hooked to the boss's OWN turn rather than "each round": the turn-order model
 ## has no explicit round boundary, and this way the effect fires exactly once per
