@@ -13,9 +13,14 @@ performance/difficulty/input remapping) with complete keyboard+controller naviga
 a proper defeat→load game-over, and **visible roaming overworld enemies** (replacing
 old random encounters).
 
-**Next up:** P7 part 2 (more maps + transitions + the enterable goblin-castle dungeon —
-blocked on map art), then P8 skill-learning, P9 real art, P10 story/cutscenes. See
-**Development Phases** at the bottom for the full done/planned list.
+Since then: the wider map set (Forest / Mountain Pass / Goblin Castle) with
+map-to-map transitions, town + shop + inn interiors, dialogue **with a choice UI**,
+quests, shops, time-of-day, per-device input profiles, 20-move pools with equipped
+loadouts, campfire rest areas, and a full controller-navigation pass.
+
+**Next up:** **Track B — systems breadth** (boss fights → status cleansing → new
+skill shapes), then Track C hardening, then Track A story progression, with real
+art LAST. See **Roadmap** near the bottom for the agreed order and its contents.
 
 > **Aesthetic rule (applies to everything):** anything added to the UI must be
 > visually appealing and match the game's amethyst aesthetic. Reuse
@@ -492,6 +497,34 @@ BattleScene (Node2D)
 - After script-only changes the user just reloads (Project → Reload Current Project)
   and runs; after `.tscn` changes, same.
 
+## Superpowers Skills (use these)
+
+The `superpowers` plugin is installed and **should be used** — it is not optional
+scaffolding. Reach for the skill that matches the phase of work:
+
+| Situation | Skill |
+|---|---|
+| Any new feature, mechanic, or behaviour change — BEFORE writing code | `superpowers:brainstorming` |
+| A spec is approved and the work is multi-step | `superpowers:writing-plans` |
+| Implementing a feature or bugfix | `superpowers:test-driven-development` |
+| Any bug, failing test, or surprising behaviour | `superpowers:systematic-debugging` |
+| About to say "done", "fixed", or "passing" | `superpowers:verification-before-completion` |
+| Work is complete and headed for `main` | `superpowers:requesting-code-review`, then `superpowers:finishing-a-development-branch` |
+
+`brainstorming` classifies work as **spike / bounded / architectural** and gates
+implementation on the user approving that path's artifact. Respect the gate: a
+bounded change needs a short design agreed in chat; a new subsystem needs a
+written spec in `docs/superpowers/specs/` before any code.
+
+> **DO NOT use `superpowers:using-git-worktrees` on this project.** It conflicts
+> with the standing workflow below: branches are created **inside the main
+> checkout directory**, never as separate worktree directories. Every other
+> superpowers skill applies normally.
+
+Testing guidance from `test-driven-development` layers on top of this project's
+own Testing Policy above — the policy (a suite per feature, registered in
+`TestRunner.gd`) still governs where tests live and how they run.
+
 ## Permissions / Settings & Git Workflow
 - Project allowlist: `<repo-root>/.claude/settings.json`. Allowlisted: safe read-only
   Bash (`cd`, `cat`, `grep`, `rg`, `ls`, `find`, `wc`, `head`, `tail`, `echo`,
@@ -695,38 +728,61 @@ BattleScene (Node2D)
     skills but dimmed with the level they arrive at, so the player sees what's coming.
     Suite `skill_learning`.
 
-### Planned (next phases)
-> **Next session should start here.** **Art is deliberately parked — do not apply it.**
-> A 70-prop library and one animation are generated, imported and committed under
-> `assets/props/`, but **nothing is placed in any scene on purpose.** The user decided
-> to finish the game's *code* first and do the detailed art pass at the end, using
-> temporary art in the meantime. So: don't place props, don't repaint maps, don't
-> generate more art unless explicitly asked. See **Art pipeline (parked)** below for
-> what already exists so it isn't rebuilt.
->
-> **P8 is done.** The next art-free phase is P10 (story & cutscenes); the
-> dialogue and quest systems it builds on already exist.
+### Roadmap (agreed order — work top-down)
 
-- **Phase P7 (part 2) — Fallster Plains map + transitions + goblin castle** (needs the
-  SpriteFlow map art first). Plan agreed with the user:
-  - The Fallster Plains map should contain: **2 big towns, 1 small village, 1 river, a
-    mountain range with a gate** (pass to another region), and **1 goblin castle** the
-    player can travel to and **enter as a dungeon** (the user explicitly wants it enterable).
-    Art must match the game's art style (see **Art Style** below). SpriteFlow settings +
-    prompts were already provided to the user.
-  - Wire the generated map into `OverworldScene` (replace the placeholder ColorRect
-    field/markers); place real interaction zones: town entrances, the mountain-gate as a
-    **map-to-map transition**, and the goblin castle as a **dungeon entrance**.
-  - Add more `MapArea` .tres files + map-to-map transitions; pin roamer territories to
-    sensible spots; add **fixed-composition** encounters for tutorial/story/boss battles
-    (`EncounterGroup` currently only has "flexible" mode — add an `is_fixed` path).
-- **Phase P9 — Real art**: player sprite, enemy/hero portraits + battle sprites
-  (placeholders are colored squares / letter-tiles today), custom cursor, and **placing
-  the prop library that already exists** (see below). Map art is done.
-- **Phase P10 — Story & cutscenes**: dialogue system (a `DialogueManager` stub exists in
-  `scripts/dialogue/` with a `choices_presented` signal but **no choice UI yet**), story
-  flags (`GameManager.story_flags`), scripted events; the AMETHYST element + triple-resonance
-  "Amethyst Requiem" are the narrative payoff.
+> **Next session starts at Track B.** Art stays parked until Track D: a 70-prop
+> library and one animation are committed under `assets/props/` but **nothing is
+> placed in any scene on purpose**. Don't place props, repaint maps, or generate
+> art unless explicitly asked. See **Art pipeline (parked)** below for what
+> already exists so it isn't rebuilt.
+
+**What is already done** (the older P7p2/P10 entries here were stale and have been
+corrected): the Fallster Plains map, its towns/village/shops/inn interiors, the
+Forest, Mountain Pass and Goblin Castle scenes, map-to-map transitions, the
+dialogue system **including its choice UI** (`DialogueBox`), the quest system
+(`Quest`/`QuestFactory`/`QuestLog` + `QuestScreen`), shops, time-of-day, input
+profiles, movesets/loadouts, rest areas, and the controller-navigation pass.
+
+#### Track B — Systems breadth  ← **current**
+1. **Boss enemies.** `is_boss` on `Enemy`, a full-width battle card (the hook is
+   already noted at `BattleScene.gd` ~line 389), and **multi-phase behaviour** —
+   tactics/moveset change at HP thresholds. Hang the first one on the Goblin
+   Castle; `EncounterGroup.is_fixed` already exists for scripted boss fights.
+2. **Status-cleansing items and skills.** The antidote covers poison/burn only.
+   Extend cleansing to `scorched`, `frostbite`, `sleep` and especially
+   `paralysis`, which currently clears **only at battle end** — a real hole.
+3. **More skills, with varied effects and costs.** Widen beyond the current
+   damage/heal/buff shapes: multi-turn effects, HP-cost or resonance-cost moves,
+   conditional power, self-debuff trade-offs. `Skill` already carries
+   `status_to_apply`, `status_chance` and `resonance_gain_override` to build on.
+
+#### Track C — Hardening
+- **Roamer state in saves** — currently in-memory only, so a hard quit respawns a
+  region. Write it into the save JSON.
+- **Virtual cursor + mouse sensitivity** (the deferred "Chunk D" of P4) — needs a
+  virtual cursor that reworks menu click routing.
+- **Stats screen format tweaks** — minor visual/format work the user deferred.
+- **Save/load edge cases** — every new field must reach `SaveSerializer` or it
+  silently resets on load.
+
+#### Track A — Story progression (second to last)
+- `GameManager.story_flags` exists but is **referenced by nothing** — the story
+  system is a declared variable and no more. Make it real: flags that gate NPC
+  dialogue, zones and quest advancement.
+- A **scripted-event / cutscene sequencer** on top of `DialogueManager` (move an
+  actor, wait, show dialogue, fade, set a flag).
+- Wire the main quest through it. The seed already exists in `QuestFactory`:
+  `amethyst_awakening` — *"A violet blight is creeping across Fallster, and the
+  Amethyst stirs in answer."* **The premise is the user's to define — ask before
+  building story content**, and build on this seed rather than replacing it
+  unless they say otherwise. The AMETHYST element and the triple-hero resonance
+  are the intended narrative payoff.
+
+#### Track D — Real art (last)
+- Place the existing 70-prop library; animate the remaining fire props.
+- Player sprite, hero/enemy portraits and battle sprites (placeholders are
+  coloured squares / letter tiles today), custom cursor.
+- Map art is already done.
 
 ### Art pipeline (parked — built, committed, deliberately NOT applied)
 Generated in SpriteFlow and committed, but **not placed in any scene**. Resume at P9.
@@ -772,20 +828,24 @@ Generated in SpriteFlow and committed, but **not placed in any scene**. Resume a
   stay painted: they merge into 4 connected masses of 1.65M px that can't be separated.
 
 ### Deferred / known follow-ups
-- **Virtual cursor + mouse sensitivity (was "Chunk D" of P4):** the user wants a themed
-  in-game cursor + a working mouse-sensitivity slider, agreed to do LAST (needs a virtual
-  cursor that reworks menu click routing). Not started.
-- **Stats screen format tweaks:** the user deferred minor visual/format tweaks to the P1
-  Stats screen "to some point later" — expect them.
+These are **scheduled as Track C** in the Roadmap above; the detail lives here.
+- **Virtual cursor + mouse sensitivity (was "Chunk D" of P4):** a themed in-game cursor
+  plus a working mouse-sensitivity slider. Needs a virtual cursor that reworks menu click
+  routing, which is why it keeps being pushed back. Not started.
+- **Stats screen format tweaks:** minor visual/format work on the P1 Stats screen that the
+  user deferred "to some point later" — expect them.
 - **Roamer state is in-memory only** (per session), not written into the save JSON. After a
-  hard quit + load, a region spawns fresh. Fine for now; revisit if defeated enemies should
-  persist through saves.
+  hard quit + load, a region spawns fresh.
+- **Two play-testing flags exist and are currently OFF** — `PartyFactory.TEST_UNLOCK_ALL_SKILLS`
+  (gives every hero its whole 12-move pool at level 1) and the shipping value of
+  `GameManager.REST_REFRESH_BATTLES` (5). Flip them only for play-testing, and turn them
+  back before committing anything that matters.
 
-### Backlog / ideas
-- Boss enemies (full-width cards, multi-phase, unique mechanics) — goblin-castle boss is a
-  natural first one.
-- Status-cleansing items/skills (antidote already exists for poison/burn — extend to
-  the new statuses), and a way to cure paralysis (currently only clears at battle end).
+### Backlog / ideas (not yet scheduled)
 - More heroes (add to `PartyFactory` + `HeroPalette.HERO_BASE_COLORS` +
-  `ResonanceMenu.COMBINED_ATTACK_NAMES`).
-- Shops (the difficulty model already reserves a `shop_price_mult` for Hard mode).
+  `ResonanceMenu.COMBINED_ATTACK_NAMES`) — broader blast radius than it looks:
+  battle-UI layout, resonance naming and save serialization all move.
+- Fixed-composition encounters are implemented (`EncounterGroup.is_fixed`) but
+  nothing uses them yet — Track B's boss is their first customer.
+- Boss enemies, status cleansing and new skill shapes have moved OUT of this list
+  and into **Track B** above.
