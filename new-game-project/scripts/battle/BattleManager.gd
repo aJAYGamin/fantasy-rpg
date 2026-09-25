@@ -11,6 +11,12 @@ signal action_performed(result: Dictionary)
 signal character_defeated(character: Character)
 signal battle_ended(player_won: bool, rewards: Dictionary)
 signal status_effect_triggered(character: Character, result: Dictionary)
+## A boss crossed into a new phase. BattleScene banners it and rebuilds cards.
+signal boss_phase_changed(enemy: Character, phase: BossPhase)
+
+## Hard cap on combatants. The enemy card row is built for exactly this many
+## (see BattleScene.gd: "10 enemies fill the row"), so a boss may summon 0-9.
+const MAX_BATTLE_ENEMIES := 10
 
 enum BattleState {
 	IDLE,
@@ -50,6 +56,7 @@ func _build_turn_order():
 	turn_order.sort_custom(func(a, b): return a.speed() > b.speed())
 
 func _next_turn():
+	check_boss_phases()
 	while current_turn_index < turn_order.size():
 		var actor = turn_order[current_turn_index]
 		if actor.is_alive():
@@ -479,6 +486,38 @@ func get_alive_party() -> Array[Character]:
 
 func get_alive_enemies() -> Array[Character]:
 	return enemies.filter(func(c): return c.is_alive())
+
+# --- Boss phases -------------------------------------------------------------
+# One choke point for every source of damage. Damage is applied in half a dozen
+# places (player attack, player skill, enemy skill, counter...), so rather than
+# hooking each, phases are checked at the top of every turn. That also means a
+# boss can never act while still in a stale phase.
+func check_boss_phases() -> void:
+	for e in enemies:
+		if not (e is Enemy):
+			continue
+		var boss := e as Enemy
+		# A defeated boss must not transform, summon or banner.
+		if not boss.is_boss() or not boss.is_alive():
+			continue
+		while boss.should_advance_phase():
+			var phase := boss.advance_phase()
+			if phase == null:
+				break
+			_enter_boss_phase(boss, phase)
+
+func _enter_boss_phase(boss: Enemy, phase: BossPhase) -> void:
+	# Replace, don't accumulate: the new phase's multipliers are the whole truth.
+	boss.phase_multipliers = phase.stat_multipliers.duplicate()
+
+	# Transformation. Set the multiplier BEFORE reading max_hp(), or the refill
+	# lands on the old maximum and leaves the boss on a sliver of its new pool.
+	if phase.is_transformation():
+		boss.max_hp_multiplier = phase.max_hp_multiplier
+		if phase.restore_hp:
+			boss.current_hp = boss.max_hp()
+
+	emit_signal("boss_phase_changed", boss, phase)
 
 # Resolves a Skill.status_to_apply token against a target. Buff/debuff tokens
 # (e.g. "attack_buff", "magic_debuff") route to apply_buff/apply_debuff so the

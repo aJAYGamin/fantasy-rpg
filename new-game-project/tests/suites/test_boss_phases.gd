@@ -174,3 +174,174 @@ func test_clear_battle_effects_clears_phase_state() -> void:
 	b.clear_battle_effects()
 	assert_true(b.phase_multipliers.is_empty(), "phase multipliers cleared")
 	assert_eq(b.max_hp_multiplier, 1.0, "max HP scaling reset")
+
+# --------------------------------------------------- transition engine
+
+## A BattleManager wired to a party and a single boss, without running a battle.
+func _manager(boss: Enemy) -> BattleManager:
+	var bm := BattleManager.new()
+	var hero := Character.new()
+	hero.character_name = "Hero"
+	hero.base_hp = 100
+	hero.level = 1
+	hero.current_hp = hero.max_hp()
+	var party: Array[Character] = [hero]
+	var foes: Array[Character] = [boss]
+	bm.party = party
+	bm.enemies = foes
+	return bm
+
+func test_entering_a_phase_emits_once() -> void:
+	var b := _boss()
+	var bm := _manager(b)
+	var fired: Array = []
+	bm.boss_phase_changed.connect(func(_e, p): fired.append(p))
+	bm.check_boss_phases()
+	assert_eq(fired.size(), 1, "entering phase 0 emits once")
+	bm.check_boss_phases()
+	assert_eq(fired.size(), 1, "a second check inside the same phase does not re-emit")
+	bm.free()
+
+func test_a_hit_crossing_two_thresholds_fires_both_entries() -> void:
+	# Changed from an earlier draft: firing only the deepest let a burst-damage
+	# party skip a transform entirely, which trivialises the fight.
+	var b := _boss()
+	var bm := _manager(b)
+	bm.check_boss_phases()            # phase 0
+	var fired: Array = []
+	bm.boss_phase_changed.connect(func(_e, p): fired.append(p))
+	b.current_hp = 10                 # crosses 0.5 AND 0.25
+	bm.check_boss_phases()
+	assert_eq(fired.size(), 2, "both crossed phases fire")
+	assert_eq(b.active_phase, 2, "and it ends in the deepest")
+	bm.free()
+
+func test_entering_a_phase_applies_its_stat_multipliers() -> void:
+	var b := _boss()
+	b.base_attack = 20
+	b.phases[1].stat_multipliers = {"attack": 2.0}
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	var before := b.attack_power()
+	b.current_hp = 50
+	bm.check_boss_phases()
+	assert_eq(b.attack_power(), before * 2, "phase 1's multiplier is live")
+	bm.free()
+
+# Controller-authorised extra (review found only attack_power had a direct
+# "a phase multiplier scales this stat" assertion through the engine — this
+# would not have caught an implementation that wired only 4 of the 5 getters).
+func test_entering_a_phase_applies_multipliers_to_defense_magic_and_arcane() -> void:
+	var b := _boss()
+	b.base_defense = 20
+	b.base_magic = 20
+	b.base_arcane = 20
+	b.phases[1].stat_multipliers = {"defense": 2.0, "magic": 2.0, "arcane": 2.0}
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	var before_def := b.defense_power()
+	var before_mag := b.magic_power()
+	var before_arc := b.arcane_power()
+	b.current_hp = 50
+	bm.check_boss_phases()
+	assert_eq(b.defense_power(), before_def * 2, "phase 1's DEF multiplier is live")
+	assert_eq(b.magic_power(), before_mag * 2, "phase 1's MAG multiplier is live")
+	assert_eq(b.arcane_power(), before_arc * 2, "phase 1's ARC multiplier is live")
+	bm.free()
+
+func test_a_later_phase_replaces_the_previous_multipliers() -> void:
+	var b := _boss()
+	b.base_attack = 20
+	b.phases[1].stat_multipliers = {"attack": 2.0}
+	b.phases[2].stat_multipliers = {"speed": 2.0}
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 10
+	bm.check_boss_phases()
+	assert_eq(b.phase_mult("attack"), 1.0, "phase 1's ATK boost is gone, not accumulated")
+	assert_eq(b.phase_mult("speed"), 2.0, "phase 2's SPD boost is live")
+	bm.free()
+
+# --------------------------------------------------- transformation
+
+func test_transformation_grows_max_hp_and_refills() -> void:
+	var b := _boss()
+	b.phases[2].max_hp_multiplier = 1.5
+	b.phases[2].restore_hp = true
+	var base_max := b.max_hp()
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 10
+	bm.check_boss_phases()
+	assert_eq(b.max_hp(), roundi(base_max * 1.5), "max HP grew")
+	assert_eq(b.current_hp, b.max_hp(), "and the bar is full again")
+	bm.free()
+
+func test_transformation_does_not_regress_the_phase() -> void:
+	# A refill returns the fraction to 1.0; a recomputing design would drop the
+	# boss back to phase 0 here.
+	var b := _boss()
+	b.phases[2].max_hp_multiplier = 1.5
+	b.phases[2].restore_hp = true
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 10
+	bm.check_boss_phases()
+	assert_eq(b.active_phase, 2, "still in the transformed phase at full HP")
+	bm.free()
+
+func test_transformation_halts_the_cascade() -> void:
+	# Four phases, with the transform third. One huge hit must stop AT the
+	# transform rather than running on into phase 3.
+	var b := _boss([1.0, 0.5, 0.25, 0.1])
+	b.phases[2].max_hp_multiplier = 2.0
+	b.phases[2].restore_hp = true
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 1
+	bm.check_boss_phases()
+	assert_eq(b.active_phase, 2, "stopped at the transform, not phase 3")
+	bm.free()
+
+func test_a_later_phase_still_fires_against_the_new_max_hp() -> void:
+	var b := _boss([1.0, 0.5, 0.25, 0.1])
+	b.phases[2].max_hp_multiplier = 2.0
+	b.phases[2].restore_hp = true
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 1
+	bm.check_boss_phases()                      # transform, now at 2x max
+	b.current_hp = int(b.max_hp() * 0.05)       # 5% of the NEW pool
+	bm.check_boss_phases()
+	assert_eq(b.active_phase, 3, "the last phase fires against the new maximum")
+	bm.free()
+
+# --------------------------------------------------- Review Focus #1 and #4
+
+func test_a_dead_boss_does_not_transition() -> void:
+	# The worst failure mode here is a corpse that summons reinforcements.
+	var b := _boss()
+	b.phases[1].max_hp_multiplier = 2.0
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	var fired: Array = []
+	bm.boss_phase_changed.connect(func(_e, p): fired.append(p))
+	b.current_hp = 0
+	bm.check_boss_phases()
+	assert_true(fired.is_empty(), "a defeated boss fires no phase entry")
+	assert_eq(b.active_phase, 0, "and does not advance")
+	bm.free()
+
+func test_transforming_at_one_hp_ends_at_the_new_full() -> void:
+	# Guards an ordering slip: reading max_hp() before setting the multiplier
+	# would leave the boss on a sliver of its new pool.
+	var b := _boss()
+	b.phases[1].max_hp_multiplier = 3.0
+	b.phases[1].restore_hp = true
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 1
+	bm.check_boss_phases()
+	assert_eq(b.current_hp, b.max_hp(), "refilled to the NEW maximum")
+	assert_true(b.current_hp > 100, "which is larger than the original pool")
+	bm.free()
