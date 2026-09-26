@@ -291,7 +291,9 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
      same x2.0 maths as every other buff — and cancels a debuff the party landed
      on that stat, exactly as a buff does anywhere else. **This is how a
      non-transforming phase is meant to escalate**: visible and answerable,
-     unlike a raw multiplier.
+     unlike a raw multiplier. `self_buffs` (the boss) and `turn_effect` (a hero)
+     are independent — a phase may raise its own ATK while lowering the party's,
+     or pick entirely different stats.
 - **Advancement is FORWARD-ONLY** (`should_advance_phase()` / `advance_phase()`),
   one step at a time — never recomputed from current HP. Recomputing can't
   express a transformation: refilling HP returns the fraction to 1.0, so a
@@ -922,6 +924,17 @@ Generated in SpriteFlow and committed, but **not placed in any scene**. Resume a
   built and then **reverted at the user's request** — it's recoverable in `d4d7444` if
   the prop-replacement plan is ever resumed. The forest borders were always going to
   stay painted: they merge into 4 connected masses of 1.65M px that can't be separated.
+
+### Auto-save triggers
+Auto-save fires on **entering a town/safe zone** (P5) and on **turning in a SIDE
+quest**. The quest rule lives in `AutoSaveSystem.wants_quest_autosave(quest)` and
+is wired in `OverworldScene._on_quest_completed`, which is where the scene path
+and player position needed for a save actually live. The STORY quest is excluded:
+it advances on scripted beats rather than a player turn-in, so it would fire at
+moments the player did not choose. **Both triggers still pass through
+`GameManager.can_autosave()`**, so the player's auto-save setting turns all of
+this off — `wants_quest_autosave` answers "is this worth saving", never "may we
+save".
 
 ### Deferred / known follow-ups
 These are **scheduled as Track C** in the Roadmap above; the detail lives here.

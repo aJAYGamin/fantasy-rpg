@@ -1128,3 +1128,37 @@ func test_self_buffs_clear_at_battle_end() -> void:
 	assert_false(StatusSystem.is_effectively_buffed(b, StatusSystem.STAT_ATK),
 		"a buff does not leak into the next encounter")
 	bm.free()
+
+func test_a_phase_can_buff_itself_and_debuff_the_party_on_the_same_stat() -> void:
+	# self_buffs (the boss) and turn_effect (a hero) are independent fields, so a
+	# phase may raise its own attack while lowering the party's — or pick
+	# entirely different stats. Nothing couples the two.
+	var b := _boss()
+	b.phases[1].self_buffs = ["attack"]
+	b.phases[1].turn_effect = "attack_debuff"
+	b.phases[1].turn_effect_chance = 1.0
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 50
+	bm.check_boss_phases()
+	var hit := bm.apply_boss_field_effect(b)
+	assert_true(StatusSystem.is_effectively_buffed(b, StatusSystem.STAT_ATK), "the boss buffed its own ATK")
+	assert_true(StatusSystem.is_effectively_debuffed(hit, StatusSystem.STAT_ATK), "and debuffed a hero's ATK")
+	bm.free()
+
+func test_a_phase_can_buff_and_debuff_different_stats() -> void:
+	var b := _boss()
+	b.phases[1].self_buffs = ["defense", "speed"]
+	b.phases[1].turn_effect = "magic_debuff"
+	b.phases[1].turn_effect_chance = 1.0
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 50
+	bm.check_boss_phases()
+	var hit := bm.apply_boss_field_effect(b)
+	assert_true(StatusSystem.is_effectively_buffed(b, StatusSystem.STAT_DEF), "boss DEF up")
+	assert_true(StatusSystem.is_effectively_buffed(b, StatusSystem.STAT_SPD), "boss SPD up")
+	assert_true(StatusSystem.is_effectively_debuffed(hit, StatusSystem.STAT_MAG), "hero MAG down")
+	assert_false(StatusSystem.is_effectively_debuffed(hit, StatusSystem.STAT_DEF),
+		"the hero's DEF is untouched — the two fields are independent")
+	bm.free()

@@ -107,6 +107,11 @@ func _ready() -> void:
 		player.position = area.default_spawn
 
 	_ensure_save_indicator()
+	# Finishing a side quest auto-saves. Connected here rather than in
+	# GameManager because the save needs this scene's path and the player's
+	# position — the same two things the safe-zone auto-save passes.
+	if not GameManager.quest_completed.is_connected(_on_quest_completed):
+		GameManager.quest_completed.connect(_on_quest_completed)
 	# Wire up the scene's MapZone nodes (save / transition / no-spawn) BEFORE spawning
 	# roamers so spawn suppression can see them.
 	_collect_and_wire_zones()
@@ -515,6 +520,16 @@ func _on_zone_body_entered(body: Node, zone: MapZone) -> void:
 		GameManager.autosave(scene_file_path, player.position)
 	if zone.is_transition():
 		_begin_transition(zone)
+
+## A quest was turned in. Side quests auto-save; AutoSaveSystem owns that rule,
+## and GameManager.can_autosave() still gates on the player's setting, so this
+## stays silent for anyone who turned auto-save off.
+func _on_quest_completed(quest) -> void:
+	if not AutoSaveSystem.wants_quest_autosave(quest):
+		return
+	if player == null or not is_instance_valid(player):
+		return
+	GameManager.autosave(scene_file_path, player.position)
 
 # --- Map-to-map transitions (P7p2) --------------------------------------------
 
