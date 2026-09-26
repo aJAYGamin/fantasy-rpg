@@ -48,7 +48,7 @@ art LAST. See **Roadmap** near the bottom for the agreed order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~3247 tests, 42 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~3397 tests, 43 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -210,6 +210,15 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
 - **Chips** (`StatusChipFactory.populate_row`): one mutex-status chip + one chip per
   non-cancelled buffed/debuffed stat, rendered under the resonance bar (heroes) /
   HP bar (enemies). Rebuilt on every action/tick.
+  - ⚠️ **Old chips are detached, not just `queue_free()`d.** An area attack emits
+    one `action_performed` per target in the same frame, and each refreshes
+    every panel. With `queue_free()` alone the stale chips stayed children
+    until the end of the frame, so a hero with 2 chips briefly had 8 and every
+    hero panel jumped wider on each enemy attack.
+  - **Hero panels never grow to fit chips.** `_update_hero_panel` passes
+    `populate_row` a `max_width` equal to the room the other rows already
+    claim. Chips past it fold into a trailing "+N" chip whose tooltip lists
+    them. Enemy cards pass no cap (0 = unlimited).
 - **Banners** (`BattleScene._show_status_banner`): centered fade-in/out overlay on
   a `StatusBannerLayer` CanvasLayer. Fires on: status applied ("X was Poisoned!"),
   skip-turn ("X reoriented themself" / "X is Asleep!" / "X is Paralyzed!"),
@@ -443,6 +452,11 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
 - UI: a boss gets a full-width battle card (`_setup_enemy_cards`); phase entry
   shows `banner_text` via the `boss_phase_changed` signal
   (`_on_boss_phase_changed` in `BattleScene.gd`) — `""` transitions silently.
+  The enemy move-name preview under a card (`_on_enemy_move_preview`) is
+  placed by `BattleScene.move_preview_rect`: as wide as an ordinary card
+  (`ENEMY_CARD_WIDTH`) or its text if longer, never wider than the card,
+  centred. It used to take the card's full width, so under the boss card it
+  stretched the length of the health bar.
 - **First boss: Goblin Warlord** (`data/enemies/goblin_warlord.tres`) —
   exercises **four** of the six powers (moveset, stats, summons,
   transformation; no phase sets `turn_effect` or `self_buffs`). **Reachable in
@@ -518,15 +532,17 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   means "let the player pick one"); `resolve_skill` ignores whatever they
   built for anything but `SINGLE_ENEMY`/`SINGLE_ALLY` and re-expands via
   `expand_targets` regardless.
-- **Dodge is rolled per target, inside `resolve_skill`, once — for DAMAGE
-  skills only.** A STATUS skill (heal/buff/debuff) is never dodge-rolled, on
-  either side. **Behaviour change this branch made:** the enemy turn's old
-  outer dodge (rolled before calling any skill) used to also cover an enemy's
-  own status moves, so an enemy could "dodge" its own SELF heal/buff; now that
-  the roll lives inside `resolve_skill` and is gated on `SkillType.DAMAGE`, it
-  can't. `_execute_enemy_turn` no longer rolls dodge before calling a skill
-  (only the enemy's plain no-skill attack still rolls its own outer dodge), so
-  a damage skill is never dodge-checked twice.
+- **The dodge rule (user's design): it depends on WHO a skill lands on, not
+  what kind of skill it is.** Any skill aimed at the user's opponents —
+  damage OR status (a debuff, say) — can be dodged, by heroes and enemies
+  alike. Any skill aimed at the user or its allies (heals, buffs, SELF moves)
+  always lands. `resolve_skill` rolls `EnemyAI.try_dodge` once per target,
+  only when `_opponents_of(user).has(target)`. A dodged damage skill's status
+  rider does not land either. The enemy turn's old outer dodge (rolled before
+  calling any skill) used to cover an enemy's own SELF heal/buff too, so an
+  enemy could "dodge" its own move; it no longer can. `_execute_enemy_turn` no
+  longer rolls dodge before calling a skill (only the enemy's plain no-skill
+  attack still rolls its own outer dodge), so no skill is dodge-checked twice.
 - **Action names are not cosmetic.** A damage skill emits `"skill_physical"`
   (STRIKE/RANGED) or `"skill_magic"` (MAGIC) on **both** sides — never
   `"attack"`. Required for heroes (`"attack"` would route to `on_attack`
@@ -723,11 +739,11 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~3247 tests / 42 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~3397 tests / 43 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,
-  auto_save, level_up_screen, defeat_flow, roaming_enemy, move_library, skill_resolver.
+  auto_save, level_up_screen, defeat_flow, roaming_enemy, move_library, skill_resolver, status_chips.
 - Tests touching GameManager must snapshot & restore global state.
 - When fixing a bug, add a regression test that fails before the fix.
 - **Adding a new `class_name` file:** the headless test runner won't see it until the
