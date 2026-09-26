@@ -103,27 +103,47 @@ func test_enemy_moves_are_unchanged_by_the_migration() -> void:
 				var diff := _move_diff(SaveSerializer.serialize_skill(e.phases[p].skills[i]), wp[i])
 				assert_eq(diff, "", "%s phase %d move %d unchanged" % [path, p, i])
 
+## Reads the uid text straight out of a .tres file's [gd_resource ...] header
+## line (its actual on-disk source of truth), instead of through
+## ResourceLoader.get_resource_uid() — that call answers from this machine's
+## local, gitignored .godot/uid_cache.bin, which keeps remembering a file's
+## OLD uid even after the uid= attribute has been silently dropped from the
+## header text. A fresh checkout has no such cache, so the header is the only
+## thing that matters. Returns "" when the header has no uid= attribute.
+func _header_uid(path: String) -> String:
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return ""
+	var header := f.get_line()
+	f.close()
+	var re := RegEx.new()
+	re.compile("uid=\"([^\"]+)\"")
+	var m := re.search(header)
+	return m.get_string(1) if m else ""
+
 func test_enemy_uids_survive_the_rewrite() -> void:
-	# Encounter groups reference enemies by uid. A rewrite that minted new uids
-	# would orphan every encounter that uses them.
+	# This guard is defensive, not load-bearing today: every one of the 16
+	# encounter-group references to these enemies is by path (see
+	# data/encounters/*.tres), and none of the ten real uids checked below
+	# appears anywhere outside its own file. It still earns its place,
+	# because a future reference by uid would silently orphan if a rewrite
+	# ever minted a new one.
 	#
 	# CONTROLLER RULING: four enemy files (earth_golem, goblin_warlord,
 	# light_golem, void_shade) had NO uid in their .tres header before this
 	# migration — the baseline recorded that as the literal string
-	# "uid://<invalid>". Godot mints a fresh uid the moment it re-saves a
-	# uid-less resource, so those four WILL change here even though nothing is
-	# wrong: they had no encounter-facing identity to preserve. Of those four,
-	# only goblin_warlord is referenced anywhere, and only by path (see
-	# data/encounters/goblin_warlord_fight.tres), so gaining a uid orphans
-	# nothing. Skip exactly those four; every enemy that DID have a real uid
-	# must still have that same uid after the rewrite.
+	# "uid://<invalid>". They did NOT change: they are still uid-less after
+	# the rewrite, and that absence is pinned below rather than merely
+	# tolerated. Every enemy that DID have a real uid must still have that
+	# exact uid, read from the header text, after the rewrite.
 	var b: Dictionary = _baseline().get("enemies", {})
 	for path in _enemy_paths():
 		var baseline_uid := String((b.get(path, {}) as Dictionary).get("uid", ""))
+		var header_uid := _header_uid(path)
 		if baseline_uid == "uid://<invalid>":
-			continue
-		var now := ResourceUID.id_to_text(ResourceLoader.get_resource_uid(path))
-		assert_eq(now, baseline_uid, "%s kept its uid" % path)
+			assert_eq(header_uid, "", "%s is still uid-less" % path)
+		else:
+			assert_eq(header_uid, baseline_uid, "%s kept its uid" % path)
 
 func test_blizzard_was_renamed_and_rewired() -> void:
 	assert_false(ResourceLoader.exists(LIB + "Skill_blizzard.tres"), "the old name is gone")
