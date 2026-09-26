@@ -48,7 +48,7 @@ art LAST. See **Roadmap** near the bottom for the agreed order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~2461 tests, 40 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~3247 tests, 42 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -117,14 +117,18 @@ scenes/
   MainMenu.tscn
   OverworldScene.tscn         # has a MapArea (Fallster Plains) assigned via @export
 data/                         # data-driven content (.tres resources)
-  enemies/                    # one .tres per enemy (10 enemies; stats + skills)
-  skills/                     # shared skill .tres files
+  enemies/                    # one .tres per enemy (10 enemies; skills are ext_resource refs into skills/)
+  skills/                     # the move library — one .tres per move, flat, snake_case (86 files) — see Move library
   encounters/                 # EncounterGroup .tres files
   maps/                       # MapArea .tres files (fallster_plains.tres)
+tools/                        # one-shot / offline scripts, run as scenes (not --script) — see Move library
+  extract_move_library.gd/.tscn   # built data/skills/ from live data + rewired enemy refs; idempotent
+  capture_move_baseline.gd/.tscn  # wrote tests/fixtures/move_library_baseline.json — NEVER re-run
 tests/
   TestRunner.tscn/.gd         # run this scene (F6) to execute all suites; register suites in SUITE_PATHS
   TestSuite.gd                # base class with assert_* helpers
   suites/                     # one test_<feature>.gd per system (24 suites)
+  fixtures/                   # move_library_baseline.json — pre-migration snapshot for the MoveLibrary suite
 assets/  backgrounds/ characters/ enemies/ icons/ ui/
 fonts/   music/
 ```
@@ -221,7 +225,61 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
 - `status_to_apply` (token, see above) + `status_chance` (roll for DAMAGE skills).
 - `calculate_value`, `is_heal/is_buff/is_debuff`, `is_physical/is_magic`, `get_resonance_gain`
   (default 10.0 for DAMAGE, 0 for STATUS; `resonance_gain_override` ≥ 0 to override).
-- `skills` is `@export` on Character. Hero skills: indices 0–3 = attacks, 4–7 = specials.
+- `skills` is `@export` on Character — a POOL (see Move library and Phase P8 below),
+  not a fixed attack/special split.
+
+### Move library — `data/skills/`
+- Every hero and enemy move is its own `.tres` **Resource file**, flat in
+  `data/skills/` (**86 files**), named snake_case after the move (e.g.
+  `data/skills/cyclone.tres`). No enemy `.tres` holds an inline skill
+  sub-resource; no hero move is built in code (`PartyFactory._make_skill` /
+  `_make_status_skill` are gone).
+- **Heroes hold copies, not the shared object.** `PartyFactory._move(file)` does
+  `load(path).duplicate(true)`, stamps `Skill.source_path` to the library path,
+  and `_apply_skill_tables` then stamps *that hero's own* `unlock_level`/
+  `category` onto the copy. **Why a copy:** if two heroes held the same
+  `mend.tres` instance, whichever hero was built second would overwrite the
+  first's unlock level. **Why not a `SkillSlot{skill, unlock_level, category}`
+  wrapper instead:** 7 scripts and 8 test files read a hero's pool as plain
+  `Skill` objects (including `Character.equipped_skill` and friends) — a
+  wrapper would change the type of every pool for no player-visible gain.
+- **Enemies reference library files directly** (`[ext_resource]`, no copy) — an
+  enemy has no per-enemy unlock level/category to stamp, and its battle
+  instance is already `.duplicate(true)`'d per fight, so nothing at runtime can
+  write back to the file.
+- `Skill.source_path` — the library path a hero's copy was loaded from (`""` on
+  a library file itself, or on a move with no file). Read by `SaveSerializer`
+  to save a hero's pool by reference instead of by value.
+- **Mend merge (user decision):** Aria's and Lyra's separate Mends collapsed
+  into one shared `mend.tres` (Light, power 1.8, 12 MP — Lyra's own cheaper
+  rate, since she's the dedicated healer) and one shared `grand_mend.tres`
+  (Light, power 1.5, 30 MP). Element is cosmetic for a heal — only the icon and
+  colour change, never the amount healed.
+- **Saves store moves by reference, with a snapshot fallback.** Each pool entry
+  keeps its full `serialize_skill` dict plus `source_path`.
+  `SaveSerializer.resolve_saved_skill` loads + duplicates the library file when
+  it still exists (so an edited move file reaches existing saves), and falls
+  back to the saved dict when it doesn't (a renamed/deleted move file never
+  breaks a save). A save with no `source_path` (pre-migration) re-links by
+  `skill_name` via `SaveSerializer.move_library_index()` — built **once per
+  load**, not once per pool entry — which is what re-points an old Wind Mend
+  save onto the shared Light `mend.tres`.
+- ⚠️ The loader must `duplicate(true)` (`load()` returns Godot's cached shared
+  instance) and must take `unlock_level`/`category` from the **save dict**,
+  never the file — library files carry neutral defaults (level 1, ATTACK), so
+  taking them from the file would unlock a hero's whole kit at level 1.
+- `ResourceLoader.list_directory()` enumerates `data/skills/`, not `DirAccess` —
+  an exported build remaps `.tres` to `.tres.remap`, which a raw directory
+  listing would show instead of the real filename.
+- **Two one-shot migration tools**, both run as **scenes**
+  (`--headless --path . res://tools/<name>.tscn`), not `--script` — both use
+  `get_tree()` (`await get_tree().process_frame`, `get_tree().quit()`), which
+  needs a live scene tree. `tools/extract_move_library.gd` built the library
+  and rewired every enemy `.tres` to reference it; it's **idempotent** (a
+  re-run writes nothing new). ⚠️ `tools/capture_move_baseline.gd` wrote the
+  pre-migration snapshot `tests/fixtures/move_library_baseline.json` — **must
+  never be re-run**: re-running it would overwrite the "before" state with the
+  "after" state, so the baseline tests would compare the library to itself.
 
 ### ElementalSystem — `scripts/characters/ElementalSystem.gd`
 - Elements: `NORMAL, FIRE, WATER, NATURE, ICE, LIGHTNING, EARTH, WIND, SOUND,
@@ -406,6 +464,30 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   Enemy: `enemy_use_skill` (no MP deduction). `_apply_skill_status` routes status tokens.
 - Signals: `battle_started`, `turn_started`, **`turn_ready_for_action`**,
   `action_performed`, `character_defeated`, `battle_ended`, `status_effect_triggered`.
+- **`resolve_skill(user, skill, chosen)` is the single skill resolver for
+  heroes AND enemies** — replaces two ~50-line near-copies that had already
+  drifted apart (SELF targeting only worked for enemies; dodge rolled in
+  different places; the same outcome emitted different action names).
+  `player_use_skill` / `enemy_use_skill` are thin wrappers: the player path
+  keeps its `state` check and calls `end_player_turn()` after resolving; the
+  enemy path just calls it.
+- **`expand_targets` is the only place target expansion happens**, always
+  relative to the *user's* side (`_opponents_of`/`_allies_of` decide side by
+  `party`/`enemies` membership): `SINGLE_ENEMY`/`SINGLE_ALLY` keep the chosen
+  target; `ALL_ENEMIES`/`ALL_ALLIES` expand to every living opponent/ally;
+  `SELF` → `[user]` (now works for heroes too — previously only the enemy path
+  supported it). **This fixed every enemy area attack hitting only one
+  hero** — a deliberate difficulty increase, accepted by the user.
+- **Dodge is rolled per target, inside `resolve_skill`, once.**
+  `_execute_enemy_turn` no longer rolls dodge before calling a skill (only the
+  enemy's plain no-skill attack still rolls its own outer dodge), so a skill is
+  never dodge-checked twice.
+- **Action names are not cosmetic.** A damage skill emits `"skill_physical"`
+  (STRIKE/RANGED) or `"skill_magic"` (MAGIC) on **both** sides — never
+  `"attack"`. Required for heroes (`"attack"` would route to `on_attack`
+  instead of `on_skill_used` and grant different resonance); harmless for
+  enemies (damage-number and `on_damage_taken` code already accept all three
+  action names, and the resonance hook skips non-heroes).
 
 ### EnemyAI (static)
 - `choose_action(enemy, party, enemies)` → `{skill, target, is_enraged, echo_tier}`.
@@ -594,11 +676,11 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~2461 tests / 40 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~3247 tests / 42 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,
-  auto_save, level_up_screen, defeat_flow, roaming_enemy.
+  auto_save, level_up_screen, defeat_flow, roaming_enemy, move_library, skill_resolver.
 - Tests touching GameManager must snapshot & restore global state.
 - When fixing a bug, add a regression test that fails before the fix.
 - **Adding a new `class_name` file:** the headless test runner won't see it until the
@@ -879,10 +961,24 @@ profiles, movesets/loadouts, rest areas, and the controller-navigation pass.
 2. **Status-cleansing items — DONE.** Every mutex status now has a cure. See
    **Status cleansing** in Core Systems above. Cleansing SKILLS are still open
    (a Lyra "Purify" move) if that is wanted later.
-3. **More skills, with varied effects and costs.** Widen beyond the current
-   damage/heal/buff shapes: multi-turn effects, HP-cost or resonance-cost moves,
-   conditional power, self-debuff trade-offs. `Skill` already carries
-   `status_to_apply`, `status_chance` and `resonance_gain_override` to build on.
+3. **More skills, with varied effects and costs.** Split into three specs (see
+   `.claude/docs/superpowers/specs/2026-09-26-move-library-and-unified-resolver-design.md`):
+   - **Spec A — move library + unified resolver — DONE.** Every move lives in
+     its own file (`data/skills/`, 86 files); `BattleManager.resolve_skill` is
+     the one resolver for heroes and enemies; enemy area attacks now hit the
+     whole party. See **Move library** and **BattleManager** in Core Systems
+     above.
+   - **Spec B — new mechanics — remaining.** Widen beyond the current
+     damage/heal/buff shapes: HP-cost or resonance-cost moves, multi-hit,
+     pierce, damage+heal, conditional power, self-debuff trade-offs. `Skill`
+     already carries `status_to_apply`, `status_chance` and
+     `resonance_gain_override` to build on. Also owns the four **"honest
+     skill" gaps** — moves whose description promises something the code
+     doesn't do: Cyclone (says it hits twice; doesn't), Hydro Pierce (says
+     pierce; no pierce mechanic exists), Gale Requiem (says heal + damage;
+     only damages), Frost Bolt (says it slows; doesn't).
+   - **Spec C — multi-turn effects — remaining.** Charge-up / delayed skills;
+     needs state that survives across turns.
 
 #### Track C — Hardening
 - **Roamer state in saves** — currently in-memory only, so a hard quit respawns a
