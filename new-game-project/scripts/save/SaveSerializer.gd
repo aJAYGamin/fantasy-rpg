@@ -24,6 +24,7 @@ static func serialize_skill(s: Skill) -> Dictionary:
 		"resonance_gain_override": s.resonance_gain_override,
 		"unlock_level": s.unlock_level,
 		"category": int(s.category),
+		"source_path": s.source_path,
 	}
 
 static func deserialize_skill(d: Dictionary) -> Skill:
@@ -47,7 +48,52 @@ static func deserialize_skill(d: Dictionary) -> Skill:
 	# how those saves' skills were laid out (attacks first).
 	s.category = int(d.get("category", Skill.SkillCategory.ATTACK))
 	s.resonance_gain_override = float(d.get("resonance_gain_override", -1.0))
+	s.source_path = String(d.get("source_path", ""))
 	return s
+
+const MOVE_LIBRARY := "res://data/skills/"
+
+## skill_name -> library path, used to re-link saves made before moves had
+## files. Built from ResourceLoader.list_directory rather than DirAccess: in an
+## exported build text resources are remapped, and a raw directory listing
+## shows "foo.tres.remap" instead of "foo.tres".
+static func move_library_index() -> Dictionary:
+	var index := {}
+	for f in ResourceLoader.list_directory(MOVE_LIBRARY):
+		if not f.ends_with(".tres"):
+			continue
+		var s = load(MOVE_LIBRARY + f)
+		if s is Skill:
+			index[s.skill_name] = MOVE_LIBRARY + f
+	return index
+
+## Rebuilds one saved pool entry. What the move DOES comes from its library file
+## when that file exists — so an edited move reaches existing saves. When the
+## file is gone, the saved dictionary is the snapshot, so a save never breaks.
+##
+## When this hero learns the move (unlock_level, category) ALWAYS comes from the
+## save: library files carry neutral defaults, and taking them from the file
+## would unlock every move at level 1.
+##
+## The file is duplicated, never used directly: load() returns Godot's cached
+## object, and handing it out would put every hero who knows the move back onto
+## one shared object.
+static func resolve_saved_skill(d: Dictionary, index: Dictionary) -> Skill:
+	var path := ""
+	if d.has("source_path"):
+		path = String(d["source_path"])
+	else:
+		# Saved before moves had files: re-link by name.
+		path = String(index.get(String(d.get("skill_name", "")), ""))
+	if path != "" and ResourceLoader.exists(path):
+		var template = load(path)
+		if template is Skill:
+			var copy: Skill = template.duplicate(true)
+			copy.source_path = path
+			copy.unlock_level = int(d.get("unlock_level", 1))
+			copy.category = int(d.get("category", Skill.SkillCategory.ATTACK))
+			return copy
+	return deserialize_skill(d)
 
 # --- Item ---
 static func serialize_item(item: Item) -> Dictionary:
@@ -238,9 +284,16 @@ static func deserialize_character(d: Dictionary) -> Character:
 		typed_status.append(str(s))
 	c.status_effects = typed_status
 
+	# Moves load by reference (see resolve_saved_skill). The name index is only
+	# needed for saves written before moves had files, so it is built lazily.
 	var typed_skills: Array[Skill] = []
+	var index := {}
+	var index_built := false
 	for sd in d.get("skills", []):
-		typed_skills.append(deserialize_skill(sd))
+		if not sd.has("source_path") and not index_built:
+			index = move_library_index()
+			index_built = true
+		typed_skills.append(resolve_saved_skill(sd, index))
 	c.skills = typed_skills
 	# Restore the loadout, then repair it: a save from before the loadout existed
 	# has no slots, and a pool that changed shape could leave a slot pointing at a

@@ -231,3 +231,97 @@ func test_shared_move_copies_do_not_interfere() -> void:
 	aria.unlock_level = 99
 	assert_eq(lyra.unlock_level, 1, "changing Aria's copy leaves Lyra's alone")
 	assert_eq((load(LIB + "mend.tres") as Skill).unlock_level, 1, "and leaves the file alone")
+
+# --------------------------------------------------- saves
+
+func _round_trip(hero: Character) -> Character:
+	return SaveSerializer.deserialize_character(SaveSerializer.serialize_character(hero))
+
+func test_a_saved_pool_keeps_its_files() -> void:
+	var lyra := _hero("Lyra")
+	var back := _round_trip(lyra)
+	assert_eq(back.skills.size(), lyra.skills.size(), "same pool size")
+	for i in lyra.skills.size():
+		assert_eq(back.skills[i].skill_name, lyra.skills[i].skill_name, "slot %d keeps its move" % i)
+		assert_eq(back.skills[i].source_path, lyra.skills[i].source_path, "and its file")
+
+func test_loaded_heroes_get_their_own_copies() -> void:
+	# REVIEW FOCUS 1. load() returns Godot's cached object; if loading did not
+	# duplicate it, a save/load would put Aria and Lyra back on ONE Mend object.
+	var aria := _round_trip(_hero("Aria"))
+	var lyra := _round_trip(_hero("Lyra"))
+	var a := _find(aria, "Mend")
+	var l := _find(lyra, "Mend")
+	assert_ne(a, l, "two loaded heroes, two objects")
+	assert_ne(a, load(LIB + "mend.tres"), "and neither is the cached file itself")
+	a.unlock_level = 99
+	assert_eq(l.unlock_level, 1, "so changing one cannot change the other")
+
+func test_unlock_level_comes_from_the_save_not_the_file() -> void:
+	# REVIEW FOCUS 2. Library files carry unlock_level 1; taking it from the file
+	# would unlock every move at level 1 — the original P8 bug.
+	var aria := _hero("Aria")
+	var back := _round_trip(aria)
+	for i in aria.skills.size():
+		assert_eq(back.skills[i].unlock_level, aria.skills[i].unlock_level, "slot %d keeps its unlock level" % i)
+		assert_eq(int(back.skills[i].category), int(aria.skills[i].category), "slot %d keeps its category" % i)
+	assert_eq(_find(back, "Maelstrom").unlock_level, 18, "a late move stays late")
+
+func test_an_edited_move_file_reaches_an_existing_save() -> void:
+	var saved := SaveSerializer.serialize_character(_hero("Lyra"))
+	var template: Skill = load(LIB + "cyclone.tres")
+	var original := template.power
+	template.power = 9.5
+	var back := SaveSerializer.deserialize_character(saved)
+	# Restore BEFORE asserting: load() returns the cached instance, so an
+	# unrestored edit would leak into every later test that loads Cyclone.
+	template.power = original
+	assert_true(is_equal_approx(_find(back, "Cyclone").power, 9.5), "the balance change reached the save")
+
+func test_a_missing_file_falls_back_to_the_snapshot() -> void:
+	var d := SaveSerializer.serialize_skill(_find(_hero("Lyra"), "Cyclone"))
+	d["source_path"] = "res://data/skills/was_deleted.tres"
+	d["power"] = 4.25
+	var s := SaveSerializer.resolve_saved_skill(d, {})
+	assert_eq(s.skill_name, "Cyclone", "the save still loads")
+	assert_true(is_equal_approx(s.power, 4.25), "from its snapshot")
+
+func test_a_legacy_save_relinks_by_name() -> void:
+	var d := SaveSerializer.serialize_skill(_find(_hero("Lyra"), "Cyclone"))
+	d.erase("source_path")                      # written before moves had files
+	d["power"] = 0.1
+	var s := SaveSerializer.resolve_saved_skill(d, SaveSerializer.move_library_index())
+	assert_eq(s.source_path, LIB + "cyclone.tres", "re-linked to its file")
+	assert_true(is_equal_approx(s.power, (load(LIB + "cyclone.tres") as Skill).power), "so it gets current balance")
+
+func test_a_legacy_wind_mend_becomes_the_shared_light_mend() -> void:
+	# REVIEW FOCUS 5. An intended, player-visible change: an old save's Wind
+	# Mend re-links to the merged Light Mend at 12 MP.
+	var d := {"skill_name": "Mend", "element": ElementalSystem.Element.WIND, "mp_cost": 12,
+			"unlock_level": 1, "category": Skill.SkillCategory.ATTACK}
+	var s := SaveSerializer.resolve_saved_skill(d, SaveSerializer.move_library_index())
+	assert_eq(int(s.element), int(ElementalSystem.Element.LIGHT), "now Light")
+	assert_eq(s.mp_cost, 12, "still 12 MP")
+	assert_eq(s.unlock_level, 1, "with the hero's own unlock level")
+
+func test_a_legacy_save_with_an_unknown_name_uses_its_snapshot() -> void:
+	var d := {"skill_name": "Forgotten Technique", "power": 3.3, "unlock_level": 4}
+	var s := SaveSerializer.resolve_saved_skill(d, SaveSerializer.move_library_index())
+	assert_eq(s.skill_name, "Forgotten Technique", "loads anyway")
+	assert_true(is_equal_approx(s.power, 3.3), "from the snapshot")
+
+func test_the_equipped_loadout_survives_a_reload() -> void:
+	var aria := _hero("Aria")
+	var back := _round_trip(aria)
+	for slot in Character.EQUIP_SLOTS:
+		var before := aria.equipped_skill(false, slot)
+		var after := back.equipped_skill(false, slot)
+		if before == null:
+			assert_eq(after, null, "empty attack slot %d stays empty" % slot)
+		else:
+			assert_eq(after.skill_name, before.skill_name, "attack slot %d keeps its move" % slot)
+
+func test_the_library_index_covers_every_move() -> void:
+	var index := SaveSerializer.move_library_index()
+	assert_eq(index.size(), 86, "every library move is indexed")
+	assert_eq(index.get("Mend", ""), LIB + "mend.tres", "and names map to files")
