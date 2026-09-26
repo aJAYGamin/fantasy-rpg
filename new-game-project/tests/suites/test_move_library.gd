@@ -164,3 +164,70 @@ func test_mend_is_the_merged_heal() -> void:
 	assert_eq(int(grand.element), int(ElementalSystem.Element.LIGHT), "Grand Mend is Light")
 	assert_eq(grand.mp_cost, 30, "Grand Mend keeps 30 MP")
 	assert_true(is_equal_approx(grand.power, 1.5), "Grand Mend keeps power 1.5")
+
+# --------------------------------------------------- hero pools
+
+func _hero(name: String) -> Character:
+	for h in PartyFactory.create_default_party():
+		if h.character_name == name:
+			return h
+	return null
+
+func _find(hero: Character, skill_name: String) -> Skill:
+	for s in hero.skills:
+		if s.skill_name == skill_name:
+			return s
+	return null
+
+## The approved differences from the baseline: the Mend / Grand Mend merge.
+## Keyed "<hero>:<slot>", each the fields allowed to differ and their new value.
+const MERGE_DELTAS := {
+	"Aria:3": {"mp_cost": 12},
+	"Lyra:1": {"element": ElementalSystem.Element.LIGHT},
+	"Lyra:6": {"element": ElementalSystem.Element.LIGHT},
+}
+
+func test_every_hero_move_is_a_copy_of_a_library_file() -> void:
+	for hero in PartyFactory.create_default_party():
+		for s in hero.skills:
+			assert_true(s.source_path.begins_with(LIB), "%s: %s knows its file" % [hero.character_name, s.skill_name])
+			assert_true(ResourceLoader.exists(s.source_path), "and that file exists")
+			assert_ne(s, load(s.source_path), "it is the hero's own copy, not the shared file")
+
+func test_hero_pools_match_the_baseline() -> void:
+	var b: Dictionary = _baseline().get("heroes", {})
+	for hero in PartyFactory.create_default_party():
+		var want: Array = b.get(hero.character_name, [])
+		assert_eq(hero.skills.size(), want.size(), "%s kept 12 moves" % hero.character_name)
+		for i in mini(hero.skills.size(), want.size()):
+			var key := "%s:%d" % [hero.character_name, i]
+			var allowed: Dictionary = MERGE_DELTAS.get(key, {})
+			var got := SaveSerializer.serialize_skill(hero.skills[i])
+			assert_eq(_move_diff(got, want[i], allowed.keys()), "", "%s unchanged" % key)
+			for field in allowed:
+				assert_eq(int(got[field]), int(allowed[field]), "%s %s is the merged value" % [key, field])
+
+func test_aria_and_lyra_share_one_mend_file() -> void:
+	var aria := _find(_hero("Aria"), "Mend")
+	var lyra := _find(_hero("Lyra"), "Mend")
+	assert_eq(aria.source_path, LIB + "mend.tres", "Aria's Mend comes from mend.tres")
+	assert_eq(lyra.source_path, LIB + "mend.tres", "so does Lyra's")
+
+func test_shared_move_copies_do_not_interfere() -> void:
+	# The regression the whole copy design exists to prevent. Sharing is by
+	# reference, so without copies the second hero built would overwrite the
+	# first hero's unlock level for both of them.
+	var party := PartyFactory.create_default_party()
+	var aria: Skill = null
+	var lyra: Skill = null
+	for h in party:
+		if h.character_name == "Aria":
+			aria = _find(h, "Mend")
+		elif h.character_name == "Lyra":
+			lyra = _find(h, "Mend")
+	assert_ne(aria, lyra, "two heroes, two objects")
+	assert_eq(aria.unlock_level, 7, "Aria learns Mend at 7 (pool slot 3)")
+	assert_eq(lyra.unlock_level, 1, "Lyra learns Mend at 1 (pool slot 1)")
+	aria.unlock_level = 99
+	assert_eq(lyra.unlock_level, 1, "changing Aria's copy leaves Lyra's alone")
+	assert_eq((load(LIB + "mend.tres") as Skill).unlock_level, 1, "and leaves the file alone")
