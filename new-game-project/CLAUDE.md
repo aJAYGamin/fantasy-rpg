@@ -117,7 +117,7 @@ scenes/
   MainMenu.tscn
   OverworldScene.tscn         # has a MapArea (Fallster Plains) assigned via @export
 data/                         # data-driven content (.tres resources)
-  enemies/                    # one .tres per enemy (10 enemies; skills are ext_resource refs into skills/)
+  enemies/                    # one .tres per enemy (14 enemies; skills are ext_resource refs into skills/)
   skills/                     # the move library — one .tres per move, flat, snake_case (86 files) — see Move library
   encounters/                 # EncounterGroup .tres files
   maps/                       # MapArea .tres files (fallster_plains.tres)
@@ -240,9 +240,10 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   `category` onto the copy. **Why a copy:** if two heroes held the same
   `mend.tres` instance, whichever hero was built second would overwrite the
   first's unlock level. **Why not a `SkillSlot{skill, unlock_level, category}`
-  wrapper instead:** 7 scripts and 8 test files read a hero's pool as plain
-  `Skill` objects (including `Character.equipped_skill` and friends) — a
-  wrapper would change the type of every pool for no player-visible gain.
+  wrapper instead:** when this was designed, 7 scripts and 8 test files read a
+  hero's pool as plain `Skill` objects (including `Character.equipped_skill`
+  and friends) — a wrapper would change the type of every pool for no
+  player-visible gain. (That count only grows as more code reads the pool.)
 - **Enemies reference library files directly** (`[ext_resource]`, no copy) — an
   enemy has no per-enemy unlock level/category to stamp, and its battle
   instance is already `.duplicate(true)`'d per fight, so nothing at runtime can
@@ -628,13 +629,15 @@ BattleScene (Node2D)
 
 ## Party / Enemy Setup
 - `PartyFactory.create_default_party()` → Aria (Mage/Water), Kael (Warrior/Fire),
-  Lyra (Healer/Wind); 8 skills each + ultimate meta (`ultimate_name`/`ultimate_desc`).
-  `base_arcane`: Aria 14, Lyra 12, Kael 5. Heroes start at full HP/MP.
-  (Currently all three start with `experience = 85` — one battle from a level-up,
-  for quick level-up testing; lower this for real play.)
+  Lyra (Healer/Wind); each a **12-move pool** built from library files via
+  `PartyFactory._move` (see **Move library** in Core Systems above) + ultimate
+  meta (`ultimate_name`/`ultimate_desc`). `base_arcane`: Aria 14, Lyra 12, Kael 5.
+  Heroes start at full HP/MP. (Currently all three start with `experience = 85`
+  — one battle from a level-up, for quick level-up testing; lower this for real
+  play.)
 - Wired buff skills: Tidal Barrier → `defense_buff`, War Cry → `attack_buff`,
   Wind Barrier → `defense_buff`, Tailwind → `speed_buff`, Iron Will → `regenerate`.
-- 10 enemies in `data/enemies/*.tres`, loaded + `.duplicate(true)`'d. Enemies have
+- 14 enemies in `data/enemies/*.tres`, loaded + `.duplicate(true)`'d. Enemies have
   **no MP** and `mp_cost = 0` on all skills. Status inflictors: Fire Drake→scorched,
   Frost Wyrm/Ice Golem→frostbite, Dark Wraith/Void Shade(Null Strike)→poison,
   Void Shade(Arcane Bolt)→magic_debuff, Wind Sprite(Cyclone Dart)→sleep,
@@ -912,15 +915,25 @@ own Testing Policy above — the policy (a suite per feature, registered in
   - Handoff: `pending_battle_*` + `pending_roamer_id`; `BattleScene._on_battle_ended` records
     `last_battle_won`. Safe zones still suppress spawns + auto-save on entry. Suite `roaming_enemy`.
 - **Phase P8 — Skill learning** (`Skill.unlock_level`, `Character._learn_skills_at_level`):
-  heroes carry all 8 skill slots from the start but a slot only becomes usable once
-  `level` reaches its `unlock_level`. Keeping the array whole preserves the positional
-  contract the battle menus depend on (0-3 attacks, 4-7 specials) — shrinking it would
-  re-slot every later skill. `unlock_level` defaults to **1**, so enemy skills, every
+  heroes carry their whole pool from the start — **12 moves** (6 ATTACK + 6
+  SPECIAL; category is stamped per-slot from `PartyFactory.SKILL_CATEGORIES`,
+  which is `[ATTACK×4, SPECIAL×4, ATTACK×2, SPECIAL×2]` by position, not one
+  contiguous split) — but a slot only becomes usable once `level` reaches its
+  `unlock_level`. Keeping the pool array whole (never shrinking it as moves
+  unlock) preserves the positional contracts built on it: `SKILL_UNLOCK_LEVELS`
+  / `SKILL_CATEGORIES` are matched to `hero.skills[i]` by index when the pool is
+  built, and the **equipped loadout** (`equipped_attacks`/`equipped_specials`,
+  4 slots each — see `Character.equip_skill`/`equipped_skill`) stores pool
+  *indices*, not the moves themselves — shrinking the pool would silently
+  re-point every later index at a different move. Battle menus (`AttackMenu`)
+  read the equipped loadout via `Character.equipped_skills(is_special)`, not a
+  fixed pool range. `unlock_level` defaults to **1**, so enemy skills, every
   `data/skills/*.tres`, and pre-P8 saves are unaffected and only heroes opt in.
-  - Curve lives in `PartyFactory.SKILL_UNLOCK_LEVELS` (shared by all three heroes so
-    pacing is easy to balance): slots unlock at `[1,1,2,7,1,4,10,15]`. Heroes open with
-    2 attacks + 1 special, and **level 2 always teaches something** — an empty first
-    level-up makes the feature look broken.
+  - Curve lives in `PartyFactory.SKILL_UNLOCK_LEVELS` (shared by all three heroes
+    so pacing is easy to balance, now 12 entries — one per pool slot):
+    `[1,1,2,7,1,4,10,15,5,12,8,18]`. Heroes open with 2 attacks + 1 special, and
+    **level 2 always teaches something** — an empty first level-up makes the
+    feature look broken.
   - `Character`: `is_skill_known(i)`, `known_skills()`, `skills_unlocked_at(lvl)`,
     `next_skill_to_learn()`. `pending_learned` collects what a `gain_experience()` call
     taught (covering a multi-level jump) and is cleared at the start of the next award;
