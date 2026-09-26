@@ -38,6 +38,12 @@ enum TargetType {
 @export var target_type: TargetType = TargetType.SINGLE_ALLY
 @export var effect_value: int = 0
 @export var effect_stat: String = ""
+
+## Status names an ANTIDOTE-type item removes, e.g. ["scorched"] or every mutex
+## status for a Panacea. Empty on every other item type. Driving cleansing off a
+## list rather than the item's name means a new cure is a data change, and the
+## menus can ask "would this help?" without knowing any item by name.
+@export var cures: Array[String] = []
 @export var quantity: int = 1
 @export var price: int = 0   # shop buy price (gold); 0 = not sold/worthless
 
@@ -67,10 +73,17 @@ func use(target: Character) -> Dictionary:
 			result["action"] = "buff"
 			result["value"] = effect_value
 		ItemType.ANTIDOTE:
-			target.remove_status("poison")
-			target.remove_status("burn")
+			# Clears every status this item is defined to cure. `cures` is the
+			# whole story: a Burn Salve lists one status, a Panacea lists them
+			# all. Nothing here hard-codes a status name.
+			var cleared: Array[String] = []
+			for status in cures:
+				if target.is_status(status):
+					target.remove_status(status)
+					cleared.append(status)
 			result["action"] = "antidote"
-			result["value"] = 0
+			result["value"] = cleared.size()
+			result["cured"] = cleared
 		ItemType.DAMAGE:
 			var dmg_result = target.take_damage(effect_value, ElementalSystem.Element.FIRE)
 			result["action"] = "attack"
@@ -89,11 +102,26 @@ func use(target: Character) -> Dictionary:
 
 # Which Items-screen tab this item belongs to. Derived from item_type so callers
 # never have to keep a separate category field in sync.
+## True when `character` currently has at least one status this item cures —
+## i.e. using it now would actually accomplish something. Menus gate their Use
+## button on this instead of naming statuses themselves.
+func can_cleanse(character) -> bool:
+	if character == null or cures.is_empty():
+		return false
+	for status in cures:
+		if character.is_status(status):
+			return true
+	return false
+
 func get_category() -> ItemCategory:
 	match item_type:
-		ItemType.HP_RESTORE, ItemType.MP_RESTORE, ItemType.REVIVAL, ItemType.ANTIDOTE:
+		ItemType.HP_RESTORE, ItemType.MP_RESTORE, ItemType.REVIVAL:
 			return ItemCategory.HEALING
-		ItemType.DAMAGE, ItemType.BUFF, ItemType.DEBUFF, ItemType.DODGE_BUFF:
+		# ANTIDOTE (status cleansing) is a BATTLE item, not a healing one:
+		# statuses are battle-temp and cleared when a fight ends, so a cleanse
+		# used in the overworld can never have anything to cure. It used to sit
+		# in the Healing tab where its Use button was permanently greyed.
+		ItemType.ANTIDOTE, ItemType.DAMAGE, ItemType.BUFF, ItemType.DEBUFF, ItemType.DODGE_BUFF:
 			return ItemCategory.BATTLE
 		ItemType.KEY:
 			return ItemCategory.KEY

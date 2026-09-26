@@ -81,7 +81,10 @@ static func can_target_hero(item: Item, hero: Character) -> bool:
 		Item.ItemType.MP_RESTORE:
 			return hero.is_alive() and hero.current_mp < hero.max_mp()
 		Item.ItemType.ANTIDOTE:
-			return hero.has_status("poison") or hero.has_status("burn")
+			# Unreachable in practice — cleansers are BATTLE items and
+			# can_field_use() rejects them before this runs. Kept correct rather
+			# than deleted so the rule lives in one place if that ever changes.
+			return item.can_cleanse(hero)
 		Item.ItemType.REVIVAL:
 			return not hero.is_alive()
 	return false

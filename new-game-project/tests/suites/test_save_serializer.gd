@@ -20,7 +20,7 @@ func _make_skill() -> Skill:
 	s.target_type = Skill.TargetType.SINGLE_ENEMY
 	s.power = 1.4
 	s.element = ElementalSystem.Element.FIRE
-	s.status_to_apply = "burn"
+	s.status_to_apply = "scorched"   # a REAL status; "burn" never existed
 	s.status_chance = 0.3
 	s.resonance_gain_override = -1.0
 	return s
