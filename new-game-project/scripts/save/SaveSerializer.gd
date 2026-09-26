@@ -64,6 +64,11 @@ static func move_library_index() -> Dictionary:
 			continue
 		var s = load(MOVE_LIBRARY + f)
 		if s is Skill:
+			# Last wins, same as before — but a name collision between two
+			# library files would otherwise silently drop one of them from the
+			# index with no signal at all.
+			if index.has(s.skill_name):
+				push_warning("move_library_index: \"%s\" is defined by both %s and %s — the index keeps the latter" % [s.skill_name, index[s.skill_name], MOVE_LIBRARY + f])
 			index[s.skill_name] = MOVE_LIBRARY + f
 	return index
 
@@ -78,6 +83,11 @@ static func move_library_index() -> Dictionary:
 ## The file is duplicated, never used directly: load() returns Godot's cached
 ## object, and handing it out would put every hero who knows the move back onto
 ## one shared object.
+##
+## A save is untrusted input: `source_path` only ever loads when it points
+## inside the move library. Anything else — a stale path, a corrupted save, a
+## path that happens to resolve to some other resource in the project — falls
+## back to the snapshot instead of load()ing whatever the save file names.
 static func resolve_saved_skill(d: Dictionary, index: Dictionary) -> Skill:
 	var path := ""
 	if d.has("source_path"):
@@ -85,7 +95,7 @@ static func resolve_saved_skill(d: Dictionary, index: Dictionary) -> Skill:
 	else:
 		# Saved before moves had files: re-link by name.
 		path = String(index.get(String(d.get("skill_name", "")), ""))
-	if path != "" and ResourceLoader.exists(path):
+	if path != "" and path.begins_with(MOVE_LIBRARY) and ResourceLoader.exists(path):
 		var template = load(path)
 		if template is Skill:
 			var copy: Skill = template.duplicate(true)

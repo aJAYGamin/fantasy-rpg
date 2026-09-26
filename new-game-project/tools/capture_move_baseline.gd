@@ -8,12 +8,29 @@ extends Node
 ##
 ## Writes tests/fixtures/move_library_baseline.json. Run it ONCE, on the
 ## pre-migration code. Re-running after the migration would overwrite the
-## reference with the migrated state and make the comparison meaningless.
+## reference with the migrated state and make the comparison meaningless —
+## so if that file already exists, this tool refuses to run and quits
+## instead of writing.
 
 const OUT := "res://tests/fixtures/move_library_baseline.json"
 
 func _ready() -> void:
 	await get_tree().process_frame
+
+	if FileAccess.file_exists(OUT):
+		var msg := "capture_move_baseline: refusing to run — %s already exists.\n" % OUT
+		msg += "This tool records the PRE-migration \"before\" snapshot that the MoveLibrary\n"
+		msg += "baseline tests diff the CURRENT state against. Re-running it now would\n"
+		msg += "overwrite that snapshot with the CURRENT (already-migrated) state, so the\n"
+		msg += "baseline tests would end up comparing the library to itself and could never\n"
+		msg += "fail again.\n"
+		msg += "To record a deliberate change to a move that IS in the baseline: for a hero\n"
+		msg += "move, add the changed field(s) to MERGE_DELTAS in tests/suites/test_move_library.gd;\n"
+		msg += "for an enemy move, hand-edit that entry in %s. New moves and new\n" % OUT
+		msg += "enemies need nothing. See CLAUDE.md's Move library section."
+		printerr(msg)
+		get_tree().quit(1)
+		return
 
 	var heroes := {}
 	for hero in PartyFactory.create_default_party():
