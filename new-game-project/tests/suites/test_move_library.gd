@@ -57,12 +57,54 @@ func _enemy_paths() -> Array[String]:
 			out.append("res://data/enemies/" + f)
 	return out
 
+## The enemy files the pre-migration baseline actually captured. Tests that
+## diff against the baseline must walk THIS, not the live directory — a new
+## enemy added since the migration has no baseline entry to compare against
+## and would otherwise fail these tests for a reason that has nothing to do
+## with the migration.
+func _baseline_enemy_paths() -> Array[String]:
+	var out: Array[String] = []
+	for path in (_baseline().get("enemies", {}) as Dictionary):
+		out.append(String(path))
+	return out
+
 func _is_library_move(s: Skill) -> bool:
 	# An inline sub-resource's path looks like "res://data/enemies/x.tres::Skill_y".
 	return s != null and s.resource_path.begins_with(LIB) and not s.resource_path.contains("::")
 
+## skill_name -> true for every move currently in the library. Used to check
+## "does this move have a file" without having to reconstruct a filename from
+## a display name (spaces, apostrophes: "Executioner's Drop" -> the file
+## executioner_s_drop.tres).
+func _library_skill_names() -> Dictionary:
+	var names := {}
+	for path in _library_files():
+		var s: Skill = load(path)
+		if s != null:
+			names[s.skill_name] = true
+	return names
+
 func test_the_library_holds_every_move() -> void:
-	assert_eq(_library_files().size(), 86, "34 hero + 51 enemy + blizzard = 86 moves")
+	# At least the 86 moves the migration produced — not exactly 86, so a
+	# legitimate new move added later does not fail this test.
+	assert_true(_library_files().size() >= 86, "34 hero + 51 enemy + blizzard = at least 86 moves")
+	var names := _library_skill_names()
+	var b := _baseline()
+	var heroes: Dictionary = b.get("heroes", {})
+	for hero_name in heroes:
+		for m in (heroes[hero_name] as Array):
+			var n := String((m as Dictionary).get("skill_name", ""))
+			assert_true(names.has(n), "%s's %s has a library file" % [hero_name, n])
+	var enemies: Dictionary = b.get("enemies", {})
+	for enemy_path in enemies:
+		var edata: Dictionary = enemies[enemy_path]
+		for m in (edata.get("skills", []) as Array):
+			var n := String((m as Dictionary).get("skill_name", ""))
+			assert_true(names.has(n), "%s: %s has a library file" % [enemy_path, n])
+		for ph in (edata.get("phase_skills", []) as Array):
+			for m in (ph as Array):
+				var n := String((m as Dictionary).get("skill_name", ""))
+				assert_true(names.has(n), "%s phase move %s has a library file" % [enemy_path, n])
 
 func test_every_library_file_is_a_skill() -> void:
 	for path in _library_files():
@@ -88,7 +130,10 @@ func test_every_enemy_move_is_a_library_file() -> void:
 
 func test_enemy_moves_are_unchanged_by_the_migration() -> void:
 	var b: Dictionary = _baseline().get("enemies", {})
-	for path in _enemy_paths():
+	for path in _baseline_enemy_paths():
+		assert_true(ResourceLoader.exists(path), "%s (baselined) still exists" % path)
+		if not ResourceLoader.exists(path):
+			continue
 		var expected: Dictionary = b.get(path, {})
 		var e: Enemy = load(path)
 		var want: Array = expected.get("skills", [])
@@ -137,7 +182,10 @@ func test_enemy_uids_survive_the_rewrite() -> void:
 	# tolerated. Every enemy that DID have a real uid must still have that
 	# exact uid, read from the header text, after the rewrite.
 	var b: Dictionary = _baseline().get("enemies", {})
-	for path in _enemy_paths():
+	for path in _baseline_enemy_paths():
+		assert_true(ResourceLoader.exists(path), "%s (baselined) still exists" % path)
+		if not ResourceLoader.exists(path):
+			continue
 		var baseline_uid := String((b.get(path, {}) as Dictionary).get("uid", ""))
 		var header_uid := _header_uid(path)
 		if baseline_uid == "uid://<invalid>":
@@ -154,6 +202,23 @@ func test_blizzard_was_renamed_and_rewired() -> void:
 			if s.resource_path == LIB + "blizzard.tres":
 				found = true
 		assert_true(found, "%s uses blizzard.tres" % path)
+
+## Pins the CLAUDE.md ⚠️ gotcha that enemies share the library's cached Skill
+## objects. `Resource.duplicate(true)` deep-copies INLINE sub-resources but NOT
+## file-backed (ext_resource) ones, so a "per-fight" battle copy of an enemy
+## (the same call every enemy-creation site makes: BattleScene.gd,
+## EncounterGroup.gd, BattleManager.gd's summons) still points at the very same
+## Blizzard object load() returns for the library file. If a future change
+## gives enemies real per-fight Skill copies, this test starts failing and the
+## CLAUDE.md note (and the spec's corrected sentence) must change with it.
+func test_enemy_battle_copies_share_the_library_skill() -> void:
+	var battle_copy: Enemy = load("res://data/enemies/ice_golem.tres").duplicate(true)
+	var blizzard: Skill = null
+	for s in battle_copy.skills:
+		if s.skill_name == "Blizzard":
+			blizzard = s
+	assert_true(blizzard != null, "the battle copy still has a Blizzard")
+	assert_eq(blizzard, load(LIB + "blizzard.tres"), "and it is the library's own cached object, not a copy")
 
 func test_mend_is_the_merged_heal() -> void:
 	var mend: Skill = load(LIB + "mend.tres")
@@ -286,6 +351,18 @@ func test_a_missing_file_falls_back_to_the_snapshot() -> void:
 	assert_eq(s.skill_name, "Cyclone", "the save still loads")
 	assert_true(is_equal_approx(s.power, 4.25), "from its snapshot")
 
+## A save is untrusted input: resolve_saved_skill must not load() a
+## source_path outside the move library, even one that points at a real,
+## loadable file. It must fall back to the saved snapshot exactly as it would
+## for a nonexistent path.
+func test_a_foreign_source_path_falls_back_to_the_snapshot() -> void:
+	var d := SaveSerializer.serialize_skill(_find(_hero("Lyra"), "Cyclone"))
+	d["source_path"] = "res://data/enemies/ice_golem.tres"
+	d["power"] = 7.75
+	var s := SaveSerializer.resolve_saved_skill(d, {})
+	assert_eq(s.skill_name, "Cyclone", "loads from its snapshot, not the foreign file")
+	assert_true(is_equal_approx(s.power, 7.75), "the snapshot's distinctive power, not the enemy's")
+
 func test_a_legacy_save_relinks_by_name() -> void:
 	var d := SaveSerializer.serialize_skill(_find(_hero("Lyra"), "Cyclone"))
 	d.erase("source_path")                      # written before moves had files
@@ -320,8 +397,18 @@ func test_the_equipped_loadout_survives_a_reload() -> void:
 			assert_eq(after, null, "empty attack slot %d stays empty" % slot)
 		else:
 			assert_eq(after.skill_name, before.skill_name, "attack slot %d keeps its move" % slot)
+	for slot in Character.EQUIP_SLOTS:
+		var before := aria.equipped_skill(true, slot)
+		var after := back.equipped_skill(true, slot)
+		if before == null:
+			assert_eq(after, null, "empty special slot %d stays empty" % slot)
+		else:
+			assert_eq(after.skill_name, before.skill_name, "special slot %d keeps its move" % slot)
 
 func test_the_library_index_covers_every_move() -> void:
 	var index := SaveSerializer.move_library_index()
-	assert_eq(index.size(), 86, "every library move is indexed")
+	# Equal to the number of files, not the literal 86 — so this test still
+	# catches a skill_name collision (the index would come out smaller than
+	# the file count) without failing when a legitimate new move is added.
+	assert_eq(index.size(), _library_files().size(), "every library file is indexed, with no name collisions")
 	assert_eq(index.get("Mend", ""), LIB + "mend.tres", "and names map to files")

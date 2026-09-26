@@ -175,6 +175,26 @@ func test_self_heals_the_hero_who_casts_it() -> void:
 	assert_true(bm.party[0].current_hp > 100, "SELF now works for heroes")
 	bm.free()
 
+func test_status_skills_are_never_dodge_rolled() -> void:
+	# Only DAMAGE skills roll dodge inside resolve_skill (see the skill_type ==
+	# DAMAGE gate around the try_dodge call). A STATUS skill — heal, buff or
+	# debuff — never rolls it, even at dodge_chance 1.0. This is also the
+	# branch's behaviour change: the enemy turn's old OUTER dodge (rolled
+	# before calling any skill) used to cover an enemy's own status moves too,
+	# so an enemy could "dodge" its own SELF heal/buff. Now that the roll lives
+	# inside resolve_skill and is gated on SkillType.DAMAGE, it no longer can.
+	var bm := _manager(1, 1)
+	bm.party[0].set_meta("dodge_chance", 1.0)
+	var s := _skill(Skill.TargetType.SELF, Skill.SkillType.STATUS)
+	s.status_type = Skill.StatusType.HEAL
+	bm.party[0].current_hp = 100
+	var hits := _capture(bm)
+	bm.resolve_skill(bm.party[0], s, [])
+	assert_true(bm.party[0].current_hp > 100, "healed despite dodge_chance 1.0")
+	var dodged := hits.filter(func(r): return r.get("action", "") == "dodge")
+	assert_true(dodged.is_empty(), "no dodge result for a SELF status skill")
+	bm.free()
+
 func test_dodge_is_rolled_per_target() -> void:
 	var bm := _manager(3, 1)
 	bm.party[1].set_meta("dodge_chance", 1.0)
