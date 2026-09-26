@@ -88,12 +88,19 @@ func test_field_use_revival_needs_ko() -> void:
 	ko.current_hp = 0
 	assert_true(ItemsScreen.can_field_use(revive, [alive, ko]), "revive usable when an ally is KO'd")
 
-func test_field_use_antidote_needs_status() -> void:
+func test_cleansers_are_never_field_usable() -> void:
+	# Statuses are battle-temp and cleared when a fight ends, so a cleanse used
+	# in the overworld could never have anything to cure. Cleansers are BATTLE
+	# items; they used to sit in the Healing tab with a permanently greyed Use
+	# button, which just looked broken.
 	var hero := _hero()
 	var antidote := _item("Antidote", Item.ItemType.ANTIDOTE, 0, 1)
-	assert_false(ItemsScreen.can_field_use(antidote, [hero]), "antidote blocked without status")
+	antidote.cures = [StatusSystem.POISON]
+	assert_false(ItemsScreen.can_field_use(antidote, [hero]), "blocked with no status")
 	hero.add_status("poison")
-	assert_true(ItemsScreen.can_field_use(antidote, [hero]), "antidote usable when ally poisoned")
+	assert_false(ItemsScreen.can_field_use(antidote, [hero]),
+		"and still blocked WITH one — cleansing belongs in battle")
+	assert_eq(antidote.get_category(), Item.ItemCategory.BATTLE, "it lives in the Battle tab")
 
 # --- can_target_hero ----------------------------------------------------------
 

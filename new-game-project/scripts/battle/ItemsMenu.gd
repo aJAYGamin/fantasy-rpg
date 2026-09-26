@@ -271,7 +271,7 @@ func _can_use_item(item: Item) -> bool:
 		Item.ItemType.ANTIDOTE:
 			# Only usable if at least one ally has a status condition
 			for hero in party:
-				if hero.has_status("poison") or hero.has_status("burn"):
+				if item.can_cleanse(hero):
 					return true
 			return false
 		Item.ItemType.REVIVAL:
@@ -380,7 +380,7 @@ func _get_test_items() -> Array:
 
 	var antidote = Item.new()
 	antidote.item_name = "Antidote"
-	antidote.description = "Cures poison and burn from one ally."
+	antidote.description = "A chalky cure-all for venom. Cures POISON from one ally."
 	antidote.item_type = Item.ItemType.ANTIDOTE
 	antidote.effect_value = 0
 	antidote.quantity = 2

@@ -58,6 +58,7 @@ static func serialize_item(item: Item) -> Dictionary:
 		"target_type": int(item.target_type),
 		"effect_value": item.effect_value,
 		"effect_stat": item.effect_stat,
+		"cures": item.cures,
 		"quantity": item.quantity,
 	}
 
@@ -69,6 +70,16 @@ static func deserialize_item(d: Dictionary) -> Item:
 	i.target_type = int(d.get("target_type", 0))
 	i.effect_value = int(d.get("effect_value", 0))
 	i.effect_stat = d.get("effect_stat", "")
+	# Defaults to [] for pre-cleansing saves; those only contained the old
+	# Antidote, which the migration below re-points at poison.
+	var saved_cures: Array = d.get("cures", [])
+	var typed_cures: Array[String] = []
+	for c in saved_cures:
+		typed_cures.append(String(c))
+	if typed_cures.is_empty() and int(d.get("item_type", 0)) == Item.ItemType.ANTIDOTE:
+		# Legacy save: an ANTIDOTE with no cures list would load inert.
+		typed_cures.append(StatusSystem.POISON)
+	i.cures = typed_cures
 	i.quantity = int(d.get("quantity", 1))
 	return i
 

@@ -201,9 +201,14 @@ static func _create_kael() -> Character:
 		Skill.StatusType.BUFF, ElementalSystem.Element.NORMAL,
 		1.0, 22, Skill.TargetType.ALL_ALLIES, "regenerate")
 
-	var flame_wall = _make_skill("Flame Wall", "Creates a wall of fire that poisons enemies.",
+	# Applies SCORCHED, not the phantom "burn" it used to name: add_status() does
+	# not validate against the known pool, so "burn" was appended as an inert
+	# string — no chip, no tick damage, no stat penalty, and no clear rule. The
+	# skill's 70% rider did nothing at all. Its old description said "poisons",
+	# which was wrong for a fire skill in both directions.
+	var flame_wall = _make_skill("Flame Wall", "A wall of fire that leaves enemies scorched.",
 		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.FIRE,
-		1.8, 32, Skill.TargetType.ALL_ENEMIES, "burn", 0.7)
+		1.8, 32, Skill.TargetType.ALL_ENEMIES, StatusSystem.SCORCHED, 0.7)
 
 	# --- pool-only moves (slots 8-11) ---
 	var cinder = _make_skill("Cinder Cleave", "A heavy downward cut trailing embers.",

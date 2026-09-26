@@ -245,6 +245,32 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
 - `get_color(tier)`, **`tier_name(tier)`** (⚠️ not `get_name` — that collided with
   a built-in), `get_exp_multiplier`, `get_loot_multiplier`.
 
+### Status cleansing — `Item.cures`, `ItemType.ANTIDOTE`
+- Cleansing is driven by each item's **`cures: Array[String]`**, never by its
+  name. `Item.use()` walks that list and removes whatever the target actually
+  has; `Item.can_cleanse(character)` answers "would using this accomplish
+  anything", which is what menus gate their Use button on. Adding a new cure is
+  a data change in `ItemFactory.DEFS`.
+- **Cleansers are BATTLE items, not healing ones.** Statuses are battle-temp and
+  cleared when a fight ends, so a cleanse used in the overworld could never have
+  anything to remove. `ItemType.ANTIDOTE` therefore maps to
+  `ItemCategory.BATTLE`; it used to sit in the Healing tab with a permanently
+  greyed Use button.
+- Coverage: Antidote (poison) · Burn Salve (scorched) · Warming Tonic
+  (frostbite) · Nerve Tonic (paralysis) · Smelling Salts (sleep + stun) ·
+  Panacea (all six). **Paralysis previously had no answer at all** — it cleared
+  only at battle end.
+- `cures` is persisted by `SaveSerializer`, with a migration: a pre-cleansing
+  save's `ANTIDOTE` has no `cures` key and would load inert, so it is
+  re-pointed at poison on read.
+- ⚠️ **There is no status called `burn`.** The six are `stun`, `poison`,
+  `paralysis`, `sleep`, `scorched`, `frostbite` (`StatusSystem.MUTEX_STATUSES`).
+  `"burn"` was referenced in six places and was a phantom: `add_status()` does
+  NOT validate against the known pool, so applying it appended an inert string
+  with no chip, no tick damage, no penalty and no clear rule. Kael's Flame Wall
+  applied it at 70% and therefore did nothing. **Prefer the `StatusSystem`
+  constants over string literals** so a typo cannot recreate this.
+
 ### Boss Phases — `scripts/characters/BossPhase.gd`, `Enemy.phases`
 - A boss is just an `Enemy` with `phases: Array[BossPhase]` populated.
   `is_boss()` is `not phases.is_empty()` — there is no separate boss flag to
@@ -850,9 +876,9 @@ profiles, movesets/loadouts, rest areas, and the controller-navigation pass.
    group is registered in `goblin_castle.tres` so roamer state persists.
    (`Territory_Boss` still names that ambush, not the warlord — renaming it
    would break the test that addresses it by node path.)
-2. **Status-cleansing items and skills — next.** The antidote covers poison/burn only.
-   Extend cleansing to `scorched`, `frostbite`, `sleep` and especially
-   `paralysis`, which currently clears **only at battle end** — a real hole.
+2. **Status-cleansing items — DONE.** Every mutex status now has a cure. See
+   **Status cleansing** in Core Systems above. Cleansing SKILLS are still open
+   (a Lyra "Purify" move) if that is wanted later.
 3. **More skills, with varied effects and costs.** Widen beyond the current
    damage/heal/buff shapes: multi-turn effects, HP-cost or resonance-cost moves,
    conditional power, self-debuff trade-offs. `Skill` already carries
