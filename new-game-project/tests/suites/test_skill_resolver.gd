@@ -107,3 +107,107 @@ func test_all_allies_includes_a_mid_battle_summon() -> void:
 	var got := bm.expand_targets(bm.enemies[0], _skill(Skill.TargetType.ALL_ALLIES), [])
 	assert_eq(got.size(), 2, "the summon counts as an ally")
 	bm.free()
+
+# --------------------------------------------------- resolution
+
+func _capture(bm: BattleManager) -> Array:
+	var out: Array = []
+	bm.action_performed.connect(func(r): out.append(r))
+	return out
+
+func test_an_enemy_area_attack_damages_every_hero() -> void:
+	# The bug, end to end.
+	var bm := _manager(3, 1)
+	var hits := _capture(bm)
+	var before: Array = bm.party.map(func(h): return h.current_hp)
+	bm.enemy_use_skill(bm.enemies[0], _skill(Skill.TargetType.ALL_ENEMIES), [bm.party[0]])
+	assert_eq(hits.size(), 3, "one result per hero")
+	for i in 3:
+		assert_true(bm.party[i].current_hp < before[i], "hero %d took damage" % i)
+	bm.free()
+
+func test_a_strike_skill_emits_skill_physical_on_both_sides() -> void:
+	# "attack" routes a HERO to on_attack instead of on_skill_used, which grants
+	# different resonance. Neither side may emit it for a skill.
+	var bm := _manager(1, 1)
+	var hits := _capture(bm)
+	bm.enemy_use_skill(bm.enemies[0], _skill(Skill.TargetType.SINGLE_ENEMY), [bm.party[0]])
+	bm.resolve_skill(bm.party[0], _skill(Skill.TargetType.SINGLE_ENEMY), [bm.enemies[0]])
+	assert_eq(hits[0]["action"], "skill_physical", "enemy strike")
+	assert_eq(hits[1]["action"], "skill_physical", "hero strike")
+	bm.free()
+
+func test_a_magic_skill_emits_skill_magic() -> void:
+	var bm := _manager(1, 1)
+	var hits := _capture(bm)
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.attack_type = Skill.AttackType.MAGIC
+	bm.resolve_skill(bm.party[0], s, [bm.enemies[0]])
+	assert_eq(hits[0]["action"], "skill_magic", "magic")
+	bm.free()
+
+func test_resonance_flag_is_set_once_per_action() -> void:
+	var bm := _manager(1, 4)
+	var hits := _capture(bm)
+	bm.resolve_skill(bm.party[0], _skill(Skill.TargetType.ALL_ENEMIES), [])
+	var firsts := hits.filter(func(r): return r.get("is_first_target", false))
+	assert_eq(firsts.size(), 1, "an area attack grants resonance once, not per target")
+	bm.free()
+
+func test_heroes_pay_mp_and_enemies_do_not() -> void:
+	var bm := _manager(1, 1)
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.mp_cost = 30
+	var hero_mp := bm.party[0].current_mp
+	var foe_mp := bm.enemies[0].current_mp
+	bm.resolve_skill(bm.party[0], s, [bm.enemies[0]])
+	bm.resolve_skill(bm.enemies[0], s, [bm.party[0]])
+	assert_eq(bm.party[0].current_mp, hero_mp - 30, "the hero paid")
+	assert_eq(bm.enemies[0].current_mp, foe_mp, "the enemy did not")
+	bm.free()
+
+func test_self_heals_the_hero_who_casts_it() -> void:
+	var bm := _manager(1, 1)
+	var s := _skill(Skill.TargetType.SELF, Skill.SkillType.STATUS)
+	s.status_type = Skill.StatusType.HEAL
+	bm.party[0].current_hp = 100
+	bm.resolve_skill(bm.party[0], s, [])
+	assert_true(bm.party[0].current_hp > 100, "SELF now works for heroes")
+	bm.free()
+
+func test_dodge_is_rolled_per_target() -> void:
+	var bm := _manager(3, 1)
+	bm.party[1].set_meta("dodge_chance", 1.0)
+	var hits := _capture(bm)
+	bm.enemy_use_skill(bm.enemies[0], _skill(Skill.TargetType.ALL_ENEMIES), [bm.party[0]])
+	var dodged := hits.filter(func(r): return r["action"] == "dodge")
+	assert_eq(dodged.size(), 1, "exactly the hero who dodges")
+	assert_eq(dodged[0]["target"], bm.party[1], "and it is that hero")
+	bm.free()
+
+func test_downed_targets_are_skipped() -> void:
+	var bm := _manager(1, 1)
+	bm.enemies[0].current_hp = 0
+	var hits := _capture(bm)
+	bm.resolve_skill(bm.party[0], _skill(Skill.TargetType.SINGLE_ENEMY), [bm.enemies[0]])
+	assert_true(hits.is_empty(), "no action on a downed target")
+	bm.free()
+
+func _function_body(src: String, name: String) -> String:
+	var start := src.find("func %s(" % name)
+	if start < 0:
+		return ""
+	var end := src.find("\nfunc ", start + 1)
+	return src.substr(start, (end - start) if end > 0 else -1)
+
+func test_an_enemy_skill_is_dodge_rolled_once_not_twice() -> void:
+	# _execute_enemy_turn awaits real timers, so it cannot be driven from a
+	# synchronous test; this pins the structure instead. Dodge is now rolled
+	# inside resolve_skill, so the enemy turn must not roll it again first —
+	# two rolls would make a 50% dodge land 75% of the time.
+	var src := FileAccess.get_file_as_string("res://scripts/battle/BattleManager.gd")
+	assert_true(_function_body(src, "resolve_skill").contains("try_dodge"), "the resolver rolls dodge")
+	var turn := _function_body(src, "_execute_enemy_turn")
+	var skill_branch := turn.substr(turn.find("if skill != null:"))
+	skill_branch = skill_branch.substr(0, skill_branch.find("\n\telse:"))
+	assert_false(skill_branch.contains("try_dodge"), "the enemy turn does not roll it again for a skill")

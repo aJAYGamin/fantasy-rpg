@@ -215,56 +215,54 @@ func _opponents_of(user: Character) -> Array[Character]:
 func _allies_of(user: Character) -> Array[Character]:
 	return party if party.has(user) else enemies
 
-func player_use_skill(user: Character, skill: Skill, targets: Array[Character]):
-	if state != BattleState.CHOOSING_ACTION and state != BattleState.CHOOSING_TARGET:
-		return
+# --- Skill resolution --------------------------------------------------------
+
+## The single skill resolver for heroes AND enemies. There used to be two
+## ~50-line near-copies that had already drifted: SELF targeting existed on one
+## side only, dodge was rolled in different places, and the same outcome
+## emitted different action names. Every skill mechanic lands here, once.
+func resolve_skill(user: Character, skill: Skill, chosen: Array[Character]) -> void:
 	if not skill.can_use(user):
 		return
+	var targets := expand_targets(user, skill, chosen)
+	# Enemies have no MP pool; Skill.can_use already exempts them.
+	if not (user is Enemy):
+		user.use_mp(skill.mp_cost)
 
-	user.use_mp(skill.mp_cost)
-
-	var first_target = true
+	var first := true
 	for target in targets:
-		# Skip already defeated targets
 		if not target.is_alive():
 			continue
-		var value = skill.calculate_value(user)
-		var result = {"actor": user, "target": target, "skill": skill, "is_first_target": first_target}
-		first_target = false
+		var result := {"actor": user, "target": target, "skill": skill, "is_first_target": first}
+		first = false
 
 		if skill.skill_type == Skill.SkillType.DAMAGE:
-			# Memory Echo: enemies with high species memory may dodge damage skills.
+			# Dodge per target, for both sides.
 			if EnemyAI.try_dodge(target):
 				result["action"] = "dodge"
 				result["value"] = 0
 				result["target_alive"] = target.is_alive()
 				emit_signal("action_performed", result)
 				continue
+			var value := skill.calculate_value(user)
 			match skill.attack_type:
 				Skill.AttackType.STRIKE, Skill.AttackType.RANGED:
-					var dmg_result = target.take_damage(value, skill.element, skill.secondary_element)
+					_record_damage(result, target.take_damage(value, skill.element, skill.secondary_element))
+					# "skill_physical", never "attack": for a HERO, "attack" routes to
+					# on_attack instead of on_skill_used and grants different resonance.
 					result["action"] = "skill_physical"
-					result["value"] = dmg_result.get("damage", 0)
-					result["multiplier"] = dmg_result.get("multiplier", 1.0)
-					result["effectiveness"] = dmg_result.get("effectiveness", "")
-					result["effectiveness_color"] = dmg_result.get("effectiveness_color", Color.WHITE)
 				Skill.AttackType.MAGIC:
-					var dmg_result = target.take_magic_damage(value, skill.element, skill.secondary_element)
+					_record_damage(result, target.take_magic_damage(value, skill.element, skill.secondary_element))
 					result["action"] = "skill_magic"
-					result["value"] = dmg_result.get("damage", 0)
-					result["multiplier"] = dmg_result.get("multiplier", 1.0)
-					result["effectiveness"] = dmg_result.get("effectiveness", "")
-					result["effectiveness_color"] = dmg_result.get("effectiveness_color", Color.WHITE)
 		elif skill.skill_type == Skill.SkillType.STATUS:
+			var value := skill.calculate_value(user)
 			match skill.status_type:
 				Skill.StatusType.HEAL:
-					var healed = target.heal(value)
 					result["action"] = "heal"
-					result["value"] = healed
+					result["value"] = target.heal(value)
 				Skill.StatusType.BUFF:
-					# A skill's status_to_apply token can be a stat-buff ("attack_buff"),
-					# a stat-debuff ("magic_debuff"), or a legacy named status
-					# ("regenerate"). Default to "regenerate" if no token specified.
+					# The token may be a stat buff ("attack_buff"), a stat debuff
+					# ("magic_debuff") or a legacy named status ("regenerate").
 					var token: String = skill.status_to_apply if skill.status_to_apply != "" else StatusSystem.REGENERATE
 					_apply_skill_status(target, token)
 					result["action"] = "buff"
@@ -275,8 +273,9 @@ func player_use_skill(user: Character, skill: Skill, targets: Array[Character]):
 					result["action"] = "debuff"
 					result["value"] = 0
 
-		# Status chance only applies on damage skills
-		if skill.skill_type == Skill.SkillType.DAMAGE and skill.status_to_apply != "" and randf() < skill.status_chance:
+		# A damage skill's status rider rolls per target.
+		if skill.skill_type == Skill.SkillType.DAMAGE and skill.status_to_apply != "" \
+				and randf() < skill.status_chance:
 			_apply_skill_status(target, skill.status_to_apply)
 
 		result["target_alive"] = target.is_alive()
@@ -284,6 +283,20 @@ func player_use_skill(user: Character, skill: Skill, targets: Array[Character]):
 		if not target.is_alive():
 			handle_defeat(target)
 
+func _record_damage(result: Dictionary, dmg: Dictionary) -> void:
+	result["value"] = dmg.get("damage", 0)
+	result["multiplier"] = dmg.get("multiplier", 1.0)
+	result["effectiveness"] = dmg.get("effectiveness", "")
+	result["effectiveness_color"] = dmg.get("effectiveness_color", Color.WHITE)
+
+func player_use_skill(user: Character, skill: Skill, targets: Array[Character]):
+	if state != BattleState.CHOOSING_ACTION and state != BattleState.CHOOSING_TARGET:
+		return
+	# Checked here as well as in resolve_skill so an unusable skill leaves the
+	# turn open, exactly as before.
+	if not skill.can_use(user):
+		return
+	resolve_skill(user, skill, targets)
 	end_player_turn()
 
 func player_use_item(user: Character, item: Item, target: Character):
@@ -295,59 +308,7 @@ func player_use_item(user: Character, item: Item, target: Character):
 	end_player_turn()
 
 func enemy_use_skill(enemy: Character, skill: Skill, targets: Array[Character]):
-	if not skill.can_use(enemy):
-		return
-	# Enemies have no MP pool — skip the deduction. Skill.can_use() already
-	# short-circuits MP cost for Enemy instances.
-	# Override target for SELF skills
-	var actual_targets = targets
-	if skill.target_type == Skill.TargetType.SELF:
-		actual_targets = [enemy]
-	var first_target = true
-	for target in actual_targets:
-		if not target.is_alive():
-			continue
-		var value = skill.calculate_value(enemy)
-		var result = {"actor": enemy, "target": target, "skill": skill, "is_first_target": first_target}
-		first_target = false
-		if skill.skill_type == Skill.SkillType.DAMAGE:
-			match skill.attack_type:
-				Skill.AttackType.STRIKE, Skill.AttackType.RANGED:
-					var dmg_result = target.take_damage(value, skill.element, skill.secondary_element)
-					result["action"] = "attack"
-					result["value"] = dmg_result.get("damage", 0)
-					result["multiplier"] = dmg_result.get("multiplier", 1.0)
-					result["effectiveness"] = dmg_result.get("effectiveness", "")
-					result["effectiveness_color"] = dmg_result.get("effectiveness_color", Color.WHITE)
-				Skill.AttackType.MAGIC:
-					var dmg_result = target.take_magic_damage(value, skill.element, skill.secondary_element)
-					result["action"] = "skill_magic"
-					result["value"] = dmg_result.get("damage", 0)
-					result["multiplier"] = dmg_result.get("multiplier", 1.0)
-					result["effectiveness"] = dmg_result.get("effectiveness", "")
-					result["effectiveness_color"] = dmg_result.get("effectiveness_color", Color.WHITE)
-		elif skill.skill_type == Skill.SkillType.STATUS:
-			match skill.status_type:
-				Skill.StatusType.HEAL:
-					var healed = target.heal(value)
-					result["action"] = "heal"
-					result["value"] = healed
-				Skill.StatusType.BUFF:
-					var token: String = skill.status_to_apply if skill.status_to_apply != "" else StatusSystem.REGENERATE
-					_apply_skill_status(target, token)
-					result["action"] = "buff"
-					result["value"] = 0
-				Skill.StatusType.DEBUFF:
-					if skill.status_to_apply != "":
-						_apply_skill_status(target, skill.status_to_apply)
-					result["action"] = "debuff"
-					result["value"] = 0
-		if skill.skill_type == Skill.SkillType.DAMAGE and skill.status_to_apply != "" and randf() < skill.status_chance:
-			_apply_skill_status(target, skill.status_to_apply)
-		result["target_alive"] = target.is_alive()
-		emit_signal("action_performed", result)
-		if not target.is_alive():
-			handle_defeat(target)
+	resolve_skill(enemy, skill, targets)
 
 func player_defend(character: Character):
 	character.start_defend()
@@ -387,17 +348,9 @@ func _execute_enemy_turn():
 	emit_signal("enemy_move_preview", enemy, "")
 
 	if skill != null:
-		if EnemyAI.try_dodge(target):
-			var dodge_result = {
-				"action": "dodge",
-				"actor": enemy,
-				"target": target,
-				"value": 0,
-				"target_alive": target.is_alive()
-			}
-			emit_signal("action_performed", dodge_result)
-		else:
-			enemy_use_skill(enemy, skill, [target])
+		# Dodge is rolled per target inside resolve_skill. Rolling it here as well
+		# would make every enemy skill dodge-checked twice.
+		enemy_use_skill(enemy, skill, [target])
 	else:
 		if EnemyAI.try_dodge(target):
 			var dodge_result = {
