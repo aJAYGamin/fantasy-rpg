@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_7sllg"]
+
+[resource]
+script = ExtResource("1_7sllg")
+skill_name = "Scorched Earth"
+description = "Slams the ground, engulfing every enemy in fire."
+mp_cost = 32
+target_type = 1
+power = 2.8
+element = 1
+status_to_apply = "scorched"
+status_chance = 0.3

@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_cvrnl"]
+
+[resource]
+script = ExtResource("1_cvrnl")
+skill_name = "Soul Drain"
+description = "Drains the life force of a hero."
+attack_type = 2
+power = 1.4
+element = 14
+status_to_apply = "poison"
+status_chance = 0.5

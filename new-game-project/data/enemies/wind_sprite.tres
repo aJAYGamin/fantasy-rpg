@@ -1,41 +1,12 @@
 [gd_resource type="Resource" script_class="Enemy" format=3 uid="uid://c0p11kyn3ludb"]
 
-[ext_resource type="Script" uid="uid://cjbcaorle0k6n" path="res://scripts/characters/Skill.gd" id="1_skill"]
-[ext_resource type="Script" uid="uid://bc8mpswi1cxid" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
-
-[sub_resource type="Resource" id="Skill_gust_slash"]
-script = ExtResource("1_skill")
-skill_name = "Gust Slash"
-description = "A razor-sharp wind that cuts deep."
-power = 1.1
-element = 7
-
-[sub_resource type="Resource" id="Skill_cyclone_dart"]
-script = ExtResource("1_skill")
-skill_name = "Cyclone Dart"
-description = "Launches a spinning dart of wind whose hum can lull foes to sleep."
-attack_type = 2
-power = 1.3
-element = 7
-status_to_apply = "sleep"
-status_chance = 0.35
-
-[sub_resource type="Resource" id="Skill_tempest"]
-script = ExtResource("1_skill")
-skill_name = "Tempest"
-description = "Unleashes a tempest on all heroes."
-attack_type = 2
-target_type = 1
-power = 0.9
-element = 7
-
-[sub_resource type="Resource" id="Skill_zephyr_veil"]
-script = ExtResource("1_skill")
-skill_name = "Zephyr Veil"
-description = "Rides the wind to recover HP."
-skill_type = 1
-target_type = 4
-element = 7
+[ext_resource type="Script" path="res://scripts/characters/BossPhase.gd" id="1_dvlnq"]
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+[ext_resource type="Script" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
+[ext_resource type="Resource" path="res://data/skills/gust_slash.tres" id="4_723x6"]
+[ext_resource type="Resource" path="res://data/skills/cyclone_dart.tres" id="5_4e4lb"]
+[ext_resource type="Resource" path="res://data/skills/tempest.tres" id="6_fvuip"]
+[ext_resource type="Resource" path="res://data/skills/zephyr_veil.tres" id="7_gjppw"]
 
 [resource]
 script = ExtResource("2_enemy")
@@ -51,4 +22,4 @@ base_magic = 15
 base_arcane = 10
 base_speed = 14
 element = 7
-skills = Array[ExtResource("1_skill")]([SubResource("Skill_gust_slash"), SubResource("Skill_cyclone_dart"), SubResource("Skill_tempest"), SubResource("Skill_zephyr_veil")])
+skills = Array[ExtResource("1_skill")]([ExtResource("4_723x6"), ExtResource("5_4e4lb"), ExtResource("6_fvuip"), ExtResource("7_gjppw")])

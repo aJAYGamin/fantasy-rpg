@@ -1,24 +1,11 @@
 [gd_resource type="Resource" script_class="Enemy" format=3 uid="uid://c5e7oht47crpx"]
 
-[ext_resource type="Script" uid="uid://cjbcaorle0k6n" path="res://scripts/characters/Skill.gd" id="1_skill"]
-[ext_resource type="Script" uid="uid://bc8mpswi1cxid" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
-
-[sub_resource type="Resource" id="Skill_savage_bite"]
-script = ExtResource("1_skill")
-skill_name = "Savage Bite"
-description = "Snaps powerful jaws at a hero."
-power = 1.2
-
-[sub_resource type="Resource" id="Skill_pounce"]
-script = ExtResource("1_skill")
-skill_name = "Pounce"
-description = "Leaps onto a hero with its full weight."
-power = 1.35
-
-[sub_resource type="Resource" id="Skill_rending_claws"]
-script = ExtResource("1_skill")
-skill_name = "Rending Claws"
-description = "Rakes a hero with both forepaws."
+[ext_resource type="Script" path="res://scripts/characters/BossPhase.gd" id="1_n70tg"]
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+[ext_resource type="Script" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
+[ext_resource type="Resource" path="res://data/skills/savage_bite.tres" id="4_pp3bt"]
+[ext_resource type="Resource" path="res://data/skills/pounce.tres" id="5_afmgr"]
+[ext_resource type="Resource" path="res://data/skills/rending_claws.tres" id="6_70rl0"]
 
 [resource]
 script = ExtResource("2_enemy")
@@ -36,4 +23,4 @@ base_defense = 4
 base_magic = 2
 base_arcane = 3
 base_speed = 12
-skills = Array[ExtResource("1_skill")]([SubResource("Skill_savage_bite"), SubResource("Skill_pounce"), SubResource("Skill_rending_claws")])
+skills = Array[ExtResource("1_skill")]([ExtResource("4_pp3bt"), ExtResource("5_afmgr"), ExtResource("6_70rl0")])

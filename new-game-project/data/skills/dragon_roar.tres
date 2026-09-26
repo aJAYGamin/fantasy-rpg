@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_j0mms"]
+
+[resource]
+script = ExtResource("1_j0mms")
+skill_name = "Dragon Roar"
+description = "A terrifying roar that scorches all heroes."
+attack_type = 2
+target_type = 1
+element = 1

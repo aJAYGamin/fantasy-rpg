@@ -40,3 +40,107 @@ func test_baseline_fixture_is_present_and_complete() -> void:
 	for name in ["Aria", "Kael", "Lyra"]:
 		assert_eq((heroes.get(name, []) as Array).size(), 12, "%s's full pool was captured" % name)
 	assert_eq((b.get("enemies", {}) as Dictionary).size(), 14, "all 14 enemy files were captured")
+
+# --------------------------------------------------- the library itself
+
+func _library_files() -> Array[String]:
+	var out: Array[String] = []
+	for f in ResourceLoader.list_directory(LIB):
+		if f.ends_with(".tres"):
+			out.append(LIB + f)
+	return out
+
+func _enemy_paths() -> Array[String]:
+	var out: Array[String] = []
+	for f in ResourceLoader.list_directory("res://data/enemies"):
+		if f.ends_with(".tres"):
+			out.append("res://data/enemies/" + f)
+	return out
+
+func _is_library_move(s: Skill) -> bool:
+	# An inline sub-resource's path looks like "res://data/enemies/x.tres::Skill_y".
+	return s != null and s.resource_path.begins_with(LIB) and not s.resource_path.contains("::")
+
+func test_the_library_holds_every_move() -> void:
+	assert_eq(_library_files().size(), 86, "34 hero + 51 enemy + blizzard = 86 moves")
+
+func test_every_library_file_is_a_skill() -> void:
+	for path in _library_files():
+		assert_true(load(path) is Skill, "%s loads as a Skill" % path)
+
+func test_library_files_carry_no_per_hero_data() -> void:
+	# When a hero learns a move is stamped on that hero's own copy. A file that
+	# carried it would leak one hero's unlock level to every user of the move.
+	for path in _library_files():
+		var s: Skill = load(path)
+		assert_eq(s.unlock_level, 1, "%s has the neutral unlock level" % path)
+		assert_eq(int(s.category), int(Skill.SkillCategory.ATTACK), "%s has the neutral category" % path)
+		assert_eq(s.source_path, "", "%s does not point at itself" % path)
+
+func test_every_enemy_move_is_a_library_file() -> void:
+	for path in _enemy_paths():
+		var e: Enemy = load(path)
+		for s in e.skills:
+			assert_true(_is_library_move(s), "%s: %s comes from the library" % [path, s.skill_name])
+		for ph in e.phases:
+			for s in ph.skills:
+				assert_true(_is_library_move(s), "%s phase move %s comes from the library" % [path, s.skill_name])
+
+func test_enemy_moves_are_unchanged_by_the_migration() -> void:
+	var b: Dictionary = _baseline().get("enemies", {})
+	for path in _enemy_paths():
+		var expected: Dictionary = b.get(path, {})
+		var e: Enemy = load(path)
+		var want: Array = expected.get("skills", [])
+		assert_eq(e.skills.size(), want.size(), "%s kept its move count" % path)
+		for i in mini(e.skills.size(), want.size()):
+			var diff := _move_diff(SaveSerializer.serialize_skill(e.skills[i]), want[i])
+			assert_eq(diff, "", "%s move %d unchanged" % [path, i])
+		var want_phases: Array = expected.get("phase_skills", [])
+		for p in mini(e.phases.size(), want_phases.size()):
+			var wp: Array = want_phases[p]
+			for i in mini(e.phases[p].skills.size(), wp.size()):
+				var diff := _move_diff(SaveSerializer.serialize_skill(e.phases[p].skills[i]), wp[i])
+				assert_eq(diff, "", "%s phase %d move %d unchanged" % [path, p, i])
+
+func test_enemy_uids_survive_the_rewrite() -> void:
+	# Encounter groups reference enemies by uid. A rewrite that minted new uids
+	# would orphan every encounter that uses them.
+	#
+	# CONTROLLER RULING: four enemy files (earth_golem, goblin_warlord,
+	# light_golem, void_shade) had NO uid in their .tres header before this
+	# migration — the baseline recorded that as the literal string
+	# "uid://<invalid>". Godot mints a fresh uid the moment it re-saves a
+	# uid-less resource, so those four WILL change here even though nothing is
+	# wrong: they had no encounter-facing identity to preserve. Of those four,
+	# only goblin_warlord is referenced anywhere, and only by path (see
+	# data/encounters/goblin_warlord_fight.tres), so gaining a uid orphans
+	# nothing. Skip exactly those four; every enemy that DID have a real uid
+	# must still have that same uid after the rewrite.
+	var b: Dictionary = _baseline().get("enemies", {})
+	for path in _enemy_paths():
+		var baseline_uid := String((b.get(path, {}) as Dictionary).get("uid", ""))
+		if baseline_uid == "uid://<invalid>":
+			continue
+		var now := ResourceUID.id_to_text(ResourceLoader.get_resource_uid(path))
+		assert_eq(now, baseline_uid, "%s kept its uid" % path)
+
+func test_blizzard_was_renamed_and_rewired() -> void:
+	assert_false(ResourceLoader.exists(LIB + "Skill_blizzard.tres"), "the old name is gone")
+	for path in ["res://data/enemies/ice_golem.tres", "res://data/enemies/frost_wyrm.tres"]:
+		var e: Enemy = load(path)
+		var found := false
+		for s in e.skills:
+			if s.resource_path == LIB + "blizzard.tres":
+				found = true
+		assert_true(found, "%s uses blizzard.tres" % path)
+
+func test_mend_is_the_merged_heal() -> void:
+	var mend: Skill = load(LIB + "mend.tres")
+	assert_eq(int(mend.element), int(ElementalSystem.Element.LIGHT), "Mend is Light")
+	assert_eq(mend.mp_cost, 12, "Mend costs Lyra's 12 MP")
+	assert_true(is_equal_approx(mend.power, 1.8), "Mend keeps power 1.8")
+	var grand: Skill = load(LIB + "grand_mend.tres")
+	assert_eq(int(grand.element), int(ElementalSystem.Element.LIGHT), "Grand Mend is Light")
+	assert_eq(grand.mp_cost, 30, "Grand Mend keeps 30 MP")
+	assert_true(is_equal_approx(grand.power, 1.5), "Grand Mend keeps power 1.5")

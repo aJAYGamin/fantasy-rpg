@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_4pd3l"]
+
+[resource]
+script = ExtResource("1_4pd3l")
+skill_name = "Gust"
+description = "Blows wind at all enemies dealing light damage."
+mp_cost = 10
+attack_type = 2
+target_type = 1
+power = 0.9
+element = 7

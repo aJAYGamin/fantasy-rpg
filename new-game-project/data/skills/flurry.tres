@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_cefu5"]
+
+[resource]
+script = ExtResource("1_cefu5")
+skill_name = "Flurry"
+description = "A frantic burst of stabs at one hero."
+power = 1.25

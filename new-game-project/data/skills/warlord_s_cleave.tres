@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_igslf"]
+
+[resource]
+script = ExtResource("1_igslf")
+skill_name = "Warlord's Cleave"
+description = "A brutal two-handed swing."
+power = 1.3

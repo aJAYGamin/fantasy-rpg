@@ -66,6 +66,12 @@ enum StatusType {
 enum SkillCategory { ATTACK, SPECIAL }
 @export var category: SkillCategory = SkillCategory.ATTACK
 
+## The library file this move was loaded from ("" for a move with no file).
+## Set on each hero's own copy; read by SaveSerializer to save the move by
+## reference, so an edited move file reaches existing saves. Library files
+## themselves leave it empty.
+@export var source_path: String = ""
+
 func is_attack_category() -> bool:
 	return category == SkillCategory.ATTACK
 

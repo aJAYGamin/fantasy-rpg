@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_isy53"]
+
+[resource]
+script = ExtResource("1_isy53")
+skill_name = "Iron Will"
+description = "Regenerates HP each turn for the party."
+mp_cost = 22
+skill_type = 1
+status_type = 1
+target_type = 3
+status_to_apply = "regenerate"

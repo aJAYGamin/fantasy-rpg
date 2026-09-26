@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_e2gps"]
+
+[resource]
+script = ExtResource("1_e2gps")
+skill_name = "Tidal Requiem"
+description = "Aria's ultimate — a torrent of pure aquatic energy."
+mp_cost = 40
+attack_type = 2
+target_type = 1
+power = 3.5
+element = 2

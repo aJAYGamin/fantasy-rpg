@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_xcjsi"]
+
+[resource]
+script = ExtResource("1_xcjsi")
+skill_name = "Executioner's Drop"
+description = "Brings the great axe down with both hands."
+power = 1.8

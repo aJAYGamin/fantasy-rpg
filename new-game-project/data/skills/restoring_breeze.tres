@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_8xoky"]
+
+[resource]
+script = ExtResource("1_8xoky")
+skill_name = "Restoring Breeze"
+description = "A warm current that keeps mending an ally."
+mp_cost = 18
+skill_type = 1
+target_type = 2
+power = 1.2
+element = 7
+status_to_apply = "regenerate"

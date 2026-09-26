@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_1u7o8"]
+
+[resource]
+script = ExtResource("1_1u7o8")
+skill_name = "Thunder Beak"
+description = "Strikes with a beak charged with lightning."
+attack_type = 2
+power = 1.4
+element = 5
+status_to_apply = "stun"
+status_chance = 0.3

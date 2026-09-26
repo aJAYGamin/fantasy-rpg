@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_wuxpi"]
+
+[resource]
+script = ExtResource("1_wuxpi")
+skill_name = "Feather Volley"
+description = "Looses a scattering flight of razor feathers."
+mp_cost = 13
+attack_type = 1
+target_type = 1
+power = 1.8
+element = 7

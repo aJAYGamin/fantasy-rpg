@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_cfjfj"]
+
+[resource]
+script = ExtResource("1_cfjfj")
+skill_name = "Riptide Lash"
+description = "A whipping coil of water that lashes a single foe."
+mp_cost = 8
+power = 1.6
+element = 2

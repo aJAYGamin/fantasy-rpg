@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_7qwwf"]
+
+[resource]
+script = ExtResource("1_7qwwf")
+skill_name = "Shadow Claw"
+description = "A claw strike infused with dark energy."
+power = 1.2
+element = 14

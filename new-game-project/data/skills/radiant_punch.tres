@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_bcw57"]
+
+[resource]
+script = ExtResource("1_bcw57")
+skill_name = "Radiant Punch"
+description = "A punch that burns with holy light."
+power = 1.1
+element = 13

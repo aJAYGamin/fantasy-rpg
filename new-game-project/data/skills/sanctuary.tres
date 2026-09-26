@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_d4b03"]
+
+[resource]
+script = ExtResource("1_d4b03")
+skill_name = "Sanctuary"
+description = "Hallowed air blunts incoming magic."
+mp_cost = 24
+skill_type = 1
+status_type = 1
+target_type = 3
+element = 13
+status_to_apply = "arcane_buff"

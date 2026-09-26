@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_53b6x"]
+
+[resource]
+script = ExtResource("1_53b6x")
+skill_name = "Void Mend"
+description = "Absorbs void energy to restore HP."
+skill_type = 1
+target_type = 4
+power = 1.1
+element = 9

@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_vtkux"]
+
+[resource]
+script = ExtResource("1_vtkux")
+skill_name = "Pounce"
+description = "Leaps onto a hero with its full weight."
+power = 1.35

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_h2qlu"]
+
+[resource]
+script = ExtResource("1_h2qlu")
+skill_name = "Flame Wall"
+description = "A wall of fire that leaves enemies scorched."
+mp_cost = 32
+attack_type = 2
+target_type = 1
+power = 1.8
+element = 1
+status_to_apply = "scorched"
+status_chance = 0.7

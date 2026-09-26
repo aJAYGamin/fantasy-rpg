@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_5isle"]
+
+[resource]
+script = ExtResource("1_5isle")
+skill_name = "Glacial Shard"
+description = "Hurls a spear of ice that bites deep."
+mp_cost = 14
+attack_type = 2
+power = 2.0
+element = 4
+status_to_apply = "frostbite"
+status_chance = 0.25

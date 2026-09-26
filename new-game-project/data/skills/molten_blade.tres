@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_e7mvm"]
+
+[resource]
+script = ExtResource("1_e7mvm")
+skill_name = "Molten Blade"
+description = "A blade heated to molten temperatures."
+mp_cost = 28
+power = 2.8
+element = 1

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_gb50s"]
+
+[resource]
+script = ExtResource("1_gb50s")
+skill_name = "Tempest"
+description = "Unleashes a tempest on all heroes."
+attack_type = 2
+target_type = 1
+power = 0.9
+element = 7

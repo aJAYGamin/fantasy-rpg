@@ -1,72 +1,37 @@
-[gd_resource type="Resource" script_class="Enemy" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="Enemy" format=3]
 
+[ext_resource type="Script" path="res://scripts/characters/BossPhase.gd" id="1_rsvqh"]
 [ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
 [ext_resource type="Script" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
-
-[sub_resource type="Resource" id="Skill_boulder_smash"]
-script = ExtResource("1_skill")
-skill_name = "Boulder Smash"
-description = "Slams a massive fist into one hero."
-mp_cost = 0
-skill_type = 0
-attack_type = 0
-status_type = 0
-target_type = 0
-power = 1.3
-element = 6
-status_to_apply = ""
-status_chance = 0.0
-resonance_gain_override = -1.0
-
-[sub_resource type="Resource" id="Skill_stone_spike"]
-script = ExtResource("1_skill")
-skill_name = "Stone Spike"
-description = "Drives a spike of rock into a hero."
-mp_cost = 0
-skill_type = 0
-attack_type = 2
-status_type = 0
-target_type = 0
-power = 1.3
-element = 6
-status_to_apply = ""
-status_chance = 0.0
-resonance_gain_override = -1.0
-
-[sub_resource type="Resource" id="Skill_earthquake"]
-script = ExtResource("1_skill")
-skill_name = "Earthquake"
-description = "Shakes the ground beneath all heroes."
-mp_cost = 0
-skill_type = 0
-attack_type = 2
-status_type = 0
-target_type = 1
-power = 1.0
-element = 6
-status_to_apply = ""
-status_chance = 0.0
-resonance_gain_override = -1.0
-
-[sub_resource type="Resource" id="Skill_earth_mend"]
-script = ExtResource("1_skill")
-skill_name = "Earth Mend"
-description = "Draws energy from the earth to heal."
-mp_cost = 0
-skill_type = 1
-attack_type = 0
-status_type = 0
-target_type = 4
-power = 1.4
-element = 6
-status_to_apply = ""
-status_chance = 0.0
-resonance_gain_override = -1.0
+[ext_resource type="Resource" path="res://data/skills/boulder_smash.tres" id="4_1r0wf"]
+[ext_resource type="Resource" path="res://data/skills/stone_spike.tres" id="5_hfw6d"]
+[ext_resource type="Resource" path="res://data/skills/earthquake.tres" id="6_sc8yd"]
+[ext_resource type="Resource" path="res://data/skills/earth_mend.tres" id="7_shw47"]
 
 [resource]
 script = ExtResource("2_enemy")
+species = "Earth Golem"
+rarity = 2
+base_exp_reward = 40
+base_gold_reward = 20
+drop_table = Array[Dictionary]([{
+"chance": 0.6,
+"item_name": "Monster Fang",
+"quantity": 1
+}, {
+"chance": 0.4,
+"item_name": "Glimmer Dust",
+"quantity": 1
+}, {
+"chance": 0.15,
+"item_name": "Knight's Plate",
+"quantity": 1
+}, {
+"chance": 0.08,
+"item_name": "Vitality Brooch",
+"quantity": 1
+}])
 character_name = "Earth Golem"
-character_class = "Warrior"
 base_hp = 80
 base_attack = 7
 base_defense = 8
@@ -74,11 +39,4 @@ base_magic = 6
 base_arcane = 4
 base_speed = 6
 element = 6
-extra_weakness = 0
-extra_resistance = 0
-skills = Array[Skill]([SubResource("Skill_boulder_smash"), SubResource("Skill_stone_spike"), SubResource("Skill_earthquake"), SubResource("Skill_earth_mend")])
-species = "Earth Golem"
-rarity = 2
-base_exp_reward = 40
-base_gold_reward = 20
-drop_table = Array[Dictionary]([{ "item_name": "Monster Fang", "chance": 0.6, "quantity": 1 }, { "item_name": "Glimmer Dust", "chance": 0.4, "quantity": 1 }, { "item_name": "Knight's Plate", "chance": 0.15, "quantity": 1 }, { "item_name": "Vitality Brooch", "chance": 0.08, "quantity": 1 }])
+skills = Array[ExtResource("1_skill")]([ExtResource("4_1r0wf"), ExtResource("5_hfw6d"), ExtResource("6_sc8yd"), ExtResource("7_shw47")])
