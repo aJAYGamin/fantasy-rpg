@@ -21,6 +21,17 @@ extends Resource
 ## [{"path": "res://data/enemies/x.tres", "count": 2, "level": 8}]
 @export var summons: Array[Dictionary] = []
 
+## Stats the boss buffs on ITSELF when it enters this phase — ON ENTRY ONLY,
+## never repeated per turn. Valid entries are the five buffable combat stats:
+## "attack", "defense", "magic", "arcane", "speed".
+##
+## This is how an ordinary (non-transforming) phase is meant to get stronger.
+## It goes through the game's normal buff system, so each one shows as a chip
+## under the boss's HP bar and uses the same x2.0 maths every other buff does —
+## visible and answerable, unlike the raw stat_multipliers that only a
+## transformation may use.
+@export var self_buffs: Array[String] = []
+
 ## StatusSystem apply-token rolled on the boss's own turn.
 @export var turn_effect: String = ""
 @export var turn_effect_chance: float = 0.0

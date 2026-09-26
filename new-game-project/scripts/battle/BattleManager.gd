@@ -552,6 +552,16 @@ func _enter_boss_phase(boss: Enemy, phase: BossPhase) -> void:
 		if phase.restore_hp:
 			boss.current_hp = boss.max_hp()
 
+	# Self-buffs, on entry only. apply_buff() already rejects anything outside
+	# StatusSystem.BUFFABLE_STATS, so a typo is a warning rather than a crash —
+	# but it would otherwise be silent, and a boss that quietly fails to buff
+	# itself is very hard to notice in play.
+	for stat in phase.self_buffs:
+		var result: Dictionary = boss.apply_buff(stat)
+		if result.get("action", "") == "invalid":
+			push_warning("BossPhase '%s' lists self_buff '%s', which is not a buffable stat. Valid: %s" % [
+				phase.phase_name, stat, str(StatusSystem.BUFFABLE_STATS)])
+
 	for spec in phase.summons:
 		_summon_from_spec(boss, spec)
 

@@ -250,7 +250,7 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   `is_boss()` is `not phases.is_empty()` — there is no separate boss flag to
   fall out of sync with the data. A `.tres` alone defines a new boss; no
   per-boss code.
-- Each `BossPhase` optionally exercises any of **five powers**, all off by
+- Each `BossPhase` optionally exercises any of **six powers**, all off by
   default (an omitted field means "this phase does not use that power"):
   1. **Moveset** — `skills`; `[]` keeps the enemy's own list. Served by
      `EnemyAI.usable_skills(enemy)`.
@@ -280,7 +280,18 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
      `_apply_skill_status`, inheriting element immunity, the mutex rule and the
      downed-character guard for free.
   5. **Transformation** — `max_hp_multiplier` + `restore_hp`. The only way to
-     change max HP.
+     change max HP, and the only phase permitted to touch raw stats (see 2).
+     When it refills, `check_boss_phases()` returns `BOSS_REFILL_DURATION` and
+     `_next_turn` blocks for it, so the bar visibly climbs and the player cannot
+     attack into it mid-animation.
+  6. **Self-buffs — ENTRY ONLY** — `self_buffs: Array[String]`, any of the five
+     buffable combat stats. Applied to the boss once when it enters the phase,
+     never repeated per turn (that is what `turn_effect` is for). Goes through
+     the ordinary `Character.apply_buff`, so each shows as a chip and uses the
+     same x2.0 maths as every other buff — and cancels a debuff the party landed
+     on that stat, exactly as a buff does anywhere else. **This is how a
+     non-transforming phase is meant to escalate**: visible and answerable,
+     unlike a raw multiplier.
 - **Advancement is FORWARD-ONLY** (`should_advance_phase()` / `advance_phase()`),
   one step at a time — never recomputed from current HP. Recomputing can't
   express a transformation: refilling HP returns the fraction to 1.0, so a
@@ -313,7 +324,7 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   shows `banner_text` via the `boss_phase_changed` signal
   (`_on_boss_phase_changed` in `BattleScene.gd`) — `""` transitions silently.
 - **First boss: Goblin Warlord** (`data/enemies/goblin_warlord.tres`) —
-  exercises **four** of the five powers (moveset, stats, summons,
+  exercises **four** of the six powers (moveset, stats, summons,
   transformation; no phase sets `turn_effect`). Its fixed encounter,
   `data/encounters/goblin_warlord_fight.tres`, is **referenced nowhere** —
   wiring it into the Goblin Castle was out of scope for this pass, so the
@@ -825,11 +836,14 @@ profiles, movesets/loadouts, rest areas, and the controller-navigation pass.
 #### Track B — Systems breadth  ← **current**
 1. **Boss enemies — DONE.** `is_boss()` on `Enemy` (an enemy with `phases` IS a
    boss — no separate flag), a full-width battle card, and full multi-phase
-   behaviour: moveset, stats, summons, field effects, transformation. See
-   **Boss Phases** in Core Systems above. First boss: Goblin Warlord, exercising
-   four of the five powers. **Not yet reachable in play** — its fixed encounter
-   (`data/encounters/goblin_warlord_fight.tres`) is referenced nowhere; wiring
-   it into the Goblin Castle was out of scope here and is the obvious next step.
+   behaviour: moveset, stats, summons, field effects, transformation, self-buffs.
+   See **Boss Phases** in Core Systems above. First boss: the Goblin Warlord,
+   exercising four of the six powers. **Reachable in play**: a second roamer
+   territory (`Territory_Warlord`, top-right of the castle, past the existing
+   3-goblin ambush) carries `data/encounters/goblin_warlord_fight.tres`, and the
+   group is registered in `goblin_castle.tres` so roamer state persists.
+   (`Territory_Boss` still names that ambush, not the warlord — renaming it
+   would break the test that addresses it by node path.)
 2. **Status-cleansing items and skills — next.** The antidote covers poison/burn only.
    Extend cleansing to `scorched`, `frostbite`, `sleep` and especially
    `paralysis`, which currently clears **only at battle end** — a real hole.

@@ -1044,3 +1044,87 @@ func test_a_transformation_may_still_change_stats() -> void:
 	bm.check_boss_phases()
 	assert_eq(b.attack_power(), before * 2, "a stronger form is allowed stronger numbers")
 	bm.free()
+
+# --------------------------------------------------- self-buffs on entry
+# How an ordinary (non-transforming) phase is meant to escalate: real buffs the
+# player can see as chips and answer, rather than the raw stat multipliers only
+# a transformation may use.
+
+func test_a_phase_buffs_the_boss_on_entry() -> void:
+	var b := _boss()
+	b.base_attack = 20
+	b.phases[1].self_buffs = ["attack"]
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	var before := b.attack_power()
+	b.current_hp = 50
+	bm.check_boss_phases()
+	assert_true(StatusSystem.is_effectively_buffed(b, StatusSystem.STAT_ATK), "the boss is visibly buffed")
+	assert_true(b.attack_power() > before, "and hits harder for it")
+	bm.free()
+
+func test_all_five_combat_stats_can_be_self_buffed() -> void:
+	var b := _boss()
+	b.phases[1].self_buffs = ["attack", "defense", "magic", "arcane", "speed"]
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 50
+	bm.check_boss_phases()
+	for stat in [StatusSystem.STAT_ATK, StatusSystem.STAT_DEF, StatusSystem.STAT_MAG,
+			StatusSystem.STAT_ARC, StatusSystem.STAT_SPD]:
+		assert_true(StatusSystem.is_effectively_buffed(b, stat), "%s is buffed" % stat)
+	bm.free()
+
+func test_self_buffs_are_entry_only_not_per_turn() -> void:
+	# The distinction that matters: turn_effect repeats every boss turn, a
+	# self_buff fires once when the phase is entered.
+	var b := _boss()
+	b.phases[1].self_buffs = ["attack"]
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 50
+	bm.check_boss_phases()
+	# Strip the buff as a dispel would, then run more turns in the same phase.
+	b.buffs.clear()
+	for i in 3:
+		bm.check_boss_phases()
+	assert_false(StatusSystem.is_effectively_buffed(b, StatusSystem.STAT_ATK),
+		"staying in the phase does not re-apply the buff")
+	bm.free()
+
+func test_an_unbuffable_stat_name_is_ignored() -> void:
+	var b := _boss()
+	b.phases[1].self_buffs = ["luck", "max_hp", "attack"]
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 50
+	bm.check_boss_phases()
+	assert_true(StatusSystem.is_effectively_buffed(b, StatusSystem.STAT_ATK),
+		"the valid entry still applies alongside the junk ones")
+	bm.free()
+
+func test_a_self_buff_cancels_a_debuff_the_party_landed() -> void:
+	# Consistent with every other buff in the game: applying one to a debuffed
+	# stat cancels the debuff rather than stacking against it.
+	var b := _boss()
+	b.apply_debuff(StatusSystem.STAT_ATK)
+	b.phases[1].self_buffs = ["attack"]
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 50
+	bm.check_boss_phases()
+	assert_false(StatusSystem.is_effectively_debuffed(b, StatusSystem.STAT_ATK),
+		"the party's debuff was cancelled by the boss buffing that stat")
+	bm.free()
+
+func test_self_buffs_clear_at_battle_end() -> void:
+	var b := _boss()
+	b.phases[1].self_buffs = ["attack"]
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 50
+	bm.check_boss_phases()
+	b.clear_battle_effects()
+	assert_false(StatusSystem.is_effectively_buffed(b, StatusSystem.STAT_ATK),
+		"a buff does not leak into the next encounter")
+	bm.free()
