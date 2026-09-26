@@ -245,9 +245,19 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   and friends) — a wrapper would change the type of every pool for no
   player-visible gain. (That count only grows as more code reads the pool.)
 - **Enemies reference library files directly** (`[ext_resource]`, no copy) — an
-  enemy has no per-enemy unlock level/category to stamp, and its battle
-  instance is already `.duplicate(true)`'d per fight, so nothing at runtime can
-  write back to the file.
+  enemy has no per-enemy unlock level/category to stamp.
+  ⚠️ **Enemies SHARE the library's cached `Skill` objects — their battle copy
+  is NOT a per-fight copy of the move.** `Resource.duplicate(true)` deep-copies
+  INLINE sub-resources but NOT file-backed (`ext_resource`) ones, so an enemy's
+  `.duplicate(true)`'d battle instance still points at the very same `Skill`
+  instance `load()` returns for that file — shared with every other battle
+  copy that references the same move (Ice Golem's and Frost Wyrm's `Blizzard`
+  are literally `==`), and with the template `PartyFactory._move` and
+  `SaveSerializer.resolve_saved_skill` copy *from* (so a runtime write here
+  would also leak into heroes built later in the session). **Skills are
+  read-only at runtime** — per-use / per-fight state (charge-up, conditional
+  power, anything that varies by user or by fight) belongs on the `Character`
+  or in `BattleManager`, never on a `Skill`.
 - `Skill.source_path` — the library path a hero's copy was loaded from (`""` on
   a library file itself, or on a move with no file). Read by `SaveSerializer`
   to save a hero's pool by reference instead of by value.
@@ -259,12 +269,21 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
 - **Saves store moves by reference, with a snapshot fallback.** Each pool entry
   keeps its full `serialize_skill` dict plus `source_path`.
   `SaveSerializer.resolve_saved_skill` loads + duplicates the library file when
-  it still exists (so an edited move file reaches existing saves), and falls
-  back to the saved dict when it doesn't (a renamed/deleted move file never
-  breaks a save). A save with no `source_path` (pre-migration) re-links by
-  `skill_name` via `SaveSerializer.move_library_index()` — built **once per
-  load**, not once per pool entry — which is what re-points an old Wind Mend
-  save onto the shared Light `mend.tres`.
+  `source_path` **begins with the move library path** and still exists (so an
+  edited move file reaches existing saves), and falls back to the saved dict
+  otherwise — a renamed/deleted move file never breaks a save, and neither
+  does a `source_path` a save file has no business pointing outside the
+  library (save data is untrusted input; `resolve_saved_skill` never `load()`s
+  a path it hasn't checked). A save with no `source_path` (pre-migration)
+  re-links by `skill_name` via `SaveSerializer.move_library_index()` — built
+  once per **legacy character being deserialized** (a function-local variable
+  inside `deserialize_character`, lazily built only if that character has a
+  pre-migration skill), not once per pool entry — which is what re-points an
+  old Wind Mend save onto the shared Light `mend.tres`.
+- `SaveSerializer.move_library_index()` last-wins on a `skill_name` collision
+  between two library files, and now `push_warning`s naming both files when
+  that happens — a collision would otherwise silently drop one move from the
+  index with no signal.
 - ⚠️ The loader must `duplicate(true)` (`load()` returns Godot's cached shared
   instance) and must take `unlock_level`/`category` from the **save dict**,
   never the file — library files carry neutral defaults (level 1, ATTACK), so
@@ -279,8 +298,22 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   and rewired every enemy `.tres` to reference it; it's **idempotent** (a
   re-run writes nothing new). ⚠️ `tools/capture_move_baseline.gd` wrote the
   pre-migration snapshot `tests/fixtures/move_library_baseline.json` — **must
-  never be re-run**: re-running it would overwrite the "before" state with the
-  "after" state, so the baseline tests would compare the library to itself.
+  never be re-run** (it now refuses and quits if the fixture already exists):
+  re-running it would overwrite the "before" state with the "after" state, so
+  the baseline tests would compare the library to itself.
+- **The `MoveLibrary` baseline tests in `test_move_library.gd` are
+  migration-equivalence guards, not balance locks.** They diff the CURRENT
+  library / hero pools / enemy files against the pre-migration snapshot to
+  prove the migration itself changed nothing except the approved Mend merge.
+  A deliberate balance edit to a move that IS in the baseline is *expected* to
+  fail one of these tests — record the change instead of chasing it as a
+  regression, and never re-run the capture tool to "fix" it: for a **hero**
+  move, add the changed field(s) to `MERGE_DELTAS` in `test_move_library.gd`,
+  in the same commit as the edit; for an **enemy** move, hand-edit that
+  entry's fields in `tests/fixtures/move_library_baseline.json`, in the same
+  commit. A **new** move or a **new** enemy needs nothing — these tests check
+  against the baseline's own names/keys, never the live directory, so an
+  addition is simply outside what they look at.
 
 ### ElementalSystem — `scripts/characters/ElementalSystem.gd`
 - Elements: `NORMAL, FIRE, WATER, NATURE, ICE, LIGHTNING, EARTH, WIND, SOUND,
@@ -472,17 +505,28 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   `player_use_skill` / `enemy_use_skill` are thin wrappers: the player path
   keeps its `state` check and calls `end_player_turn()` after resolving; the
   enemy path just calls it.
-- **`expand_targets` is the only place target expansion happens**, always
-  relative to the *user's* side (`_opponents_of`/`_allies_of` decide side by
+- **`expand_targets` is the authoritative target expansion** — always relative
+  to the *user's* side (`_opponents_of`/`_allies_of` decide side by
   `party`/`enemies` membership): `SINGLE_ENEMY`/`SINGLE_ALLY` keep the chosen
   target; `ALL_ENEMIES`/`ALL_ALLIES` expand to every living opponent/ally;
   `SELF` → `[user]` (now works for heroes too — previously only the enemy path
   supported it). **This fixed every enemy area attack hitting only one
   hero** — a deliberate difficulty increase, accepted by the user.
-- **Dodge is rolled per target, inside `resolve_skill`, once.**
-  `_execute_enemy_turn` no longer rolls dodge before calling a skill (only the
-  enemy's plain no-skill attack still rolls its own outer dodge), so a skill is
-  never dodge-checked twice.
+  `AttackMenu`/`ResonanceMenu` still build their own full target list for an
+  area/SELF skill — not duplicated game logic so much as the signal
+  `BattleScene._on_move_selected` uses to skip target selection (an empty list
+  means "let the player pick one"); `resolve_skill` ignores whatever they
+  built for anything but `SINGLE_ENEMY`/`SINGLE_ALLY` and re-expands via
+  `expand_targets` regardless.
+- **Dodge is rolled per target, inside `resolve_skill`, once — for DAMAGE
+  skills only.** A STATUS skill (heal/buff/debuff) is never dodge-rolled, on
+  either side. **Behaviour change this branch made:** the enemy turn's old
+  outer dodge (rolled before calling any skill) used to also cover an enemy's
+  own status moves, so an enemy could "dodge" its own SELF heal/buff; now that
+  the roll lives inside `resolve_skill` and is gated on `SkillType.DAMAGE`, it
+  can't. `_execute_enemy_turn` no longer rolls dodge before calling a skill
+  (only the enemy's plain no-skill attack still rolls its own outer dodge), so
+  a damage skill is never dodge-checked twice.
 - **Action names are not cosmetic.** A damage skill emits `"skill_physical"`
   (STRIKE/RANGED) or `"skill_magic"` (MAGIC) on **both** sides — never
   `"attack"`. Required for heroes (`"attack"` would route to `on_attack`

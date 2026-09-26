@@ -57,9 +57,14 @@ exactly as before except that enemy area attacks work.
 always calls `enemy_use_skill(enemy, skill, [target])` with one target, and
 `enemy_use_skill` expands nothing except `SELF`.
 
-Nine enemies have area skills this silently shrinks: dark wraith, earth golem,
-fire drake, sea serpent, storm eagle, light golem, wind sprite, void shade and
-the Goblin Warlord.
+Eleven enemies have area skills this silently shrinks: dark wraith, earth
+golem, fire drake, sea serpent, storm eagle, light golem, wind sprite, void
+shade, the Goblin Warlord, ice golem and frost wyrm. (Corrected 2026-09-26
+after the final review: the original count of nine missed ice golem and
+frost wyrm, whose area skill is `Blizzard` — it was already its own file
+before this migration, since a `blizzard.tres`-style shared file was the
+existing exception this migration generalized, which is likely why the two
+enemies using it were overlooked when counting.)
 
 **This is a deliberate difficulty increase.** Those encounters have been
 balanced, by accident, around area attacks hitting one hero. The user accepted
@@ -145,8 +150,9 @@ static func _move(path: String) -> Skill:
 Each enemy `.tres` replaces its inline `[sub_resource]` skills with
 `[ext_resource]` references to library files, the pattern `blizzard.tres`
 already uses. Enemies need no per-enemy fields on a move, so they reference
-the files directly. Battle copies are already `.duplicate(true)`'d per fight,
-so nothing at runtime can write back to a file.
+the files directly. (Corrected 2026-09-26 after the final review:
+`duplicate(true)` does not copy file-backed sub-resources, so enemy battle
+copies share the library objects; Skills are read-only at runtime.)
 
 ## Part 2 — The unified resolver
 

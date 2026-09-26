@@ -455,10 +455,13 @@ func level_up():
 	# Current HP/MP intentionally NOT restored — leveling raises max but keeps current.
 	_learn_skills_at_level()
 
-# P8 — skill learning. A hero always carries all 8 skill slots; a slot becomes
-# usable once `level` reaches its Skill.unlock_level. Keeping the array whole
-# preserves the positional contract the battle menus rely on (0-3 attacks,
-# 4-7 specials) — shrinking it would re-slot every later skill.
+# P8 — skill learning. A hero's `skills` pool holds every move it can ever
+# learn (up to MAX_SKILLS; 12 defined per hero today), each gated by its own
+# Skill.unlock_level — a pool entry becomes usable once `level` reaches it.
+# Which battle menu (attack vs. special) a pool slot feeds is positional, per
+# PartyFactory.SKILL_CATEGORIES, not a fixed split of the array. Keeping the
+# pool array whole preserves that positional contract — shrinking it would
+# re-slot every later skill.
 func _learn_skills_at_level():
 	for s in skills:
 		if s != null and s.unlock_level == level:
