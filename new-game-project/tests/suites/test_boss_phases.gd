@@ -738,6 +738,25 @@ func test_an_ordinary_enemy_card_stays_fixed_width() -> void:
 	assert_eq(card.custom_minimum_size.x, 124.0, "a normal card keeps its fixed width")
 	scene.free()
 
+func test_a_boss_move_preview_hugs_its_text() -> void:
+	# The preview used to take the card's full width, so under a boss card it
+	# stretched the length of the health bar.
+	var card := Rect2(10, 20, 700, 86)
+	var r := BattleScene.move_preview_rect(card, 90.0)
+	assert_eq(r.size.x, BattleScene.ENEMY_CARD_WIDTH, "a short name gets an ordinary card's width, not the boss bar's")
+	assert_eq(r.position.x, 10.0 + (700.0 - BattleScene.ENEMY_CARD_WIDTH) / 2.0, "centred under the card")
+	assert_eq(r.position.y, 20.0 + 86.0 + 4.0, "just below it")
+
+func test_a_long_boss_move_name_still_fits() -> void:
+	var r := BattleScene.move_preview_rect(Rect2(10, 20, 700, 86), 180.0)
+	assert_eq(r.size.x, 180.0, "wide enough for the whole name")
+	assert_eq(r.position.x, 10.0 + (700.0 - 180.0) / 2.0, "still centred")
+
+func test_an_ordinary_move_preview_matches_its_card() -> void:
+	var r := BattleScene.move_preview_rect(Rect2(300, 20, BattleScene.ENEMY_CARD_WIDTH, 70), 60.0)
+	assert_eq(r.size.x, BattleScene.ENEMY_CARD_WIDTH, "same width as the card, as before")
+	assert_eq(r.position.x, 300.0, "flush with the card")
+
 ## RULING (task-7 controller): the brief's original version of this test ended
 ## with `assert_true(true, "...")`, which asserts nothing and would pass against
 ## any implementation, including one where setup() never rebuilds the turn

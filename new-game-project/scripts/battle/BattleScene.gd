@@ -50,6 +50,8 @@ var _enemy_hp_bars: Dictionary = {}   # character -> ProgressBar
 var _enemy_status_rows: Dictionary = {} # character -> HBoxContainer
 var _bar_tweens: Dictionary = {}      # ProgressBar -> Tween (so we can cancel/restart on rapid updates)
 const BAR_TWEEN_DURATION: float = 0.3
+## Width of an ordinary enemy card. A boss card fills the row instead.
+const ENEMY_CARD_WIDTH: float = 124.0
 
 # Status banner display times (total visible time, including fade in/out).
 # Fade-in is 0.22, fade-out is 0.30, so hold time = duration - 0.52s.
@@ -391,7 +393,14 @@ func _update_hero_panel(panel: PanelContainer, hero: Character, animate: bool = 
 		status_row.add_theme_constant_override("separation", 4)
 		status_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		layout.add_child(status_row)
-	StatusChipFactory.populate_row(status_row, hero)
+	# The panel sizes itself to its content, so the chips get only the room the
+	# other rows already claim — many effects fold into a "+N" chip rather than
+	# widening this panel and shoving the other heroes' panels sideways.
+	var chip_room: float = layout.size.x
+	for row in layout.get_children():
+		if row != status_row:
+			chip_room = maxf(chip_room, row.get_combined_minimum_size().x)
+	StatusChipFactory.populate_row(status_row, hero, chip_room)
 
 func _setup_enemy_cards(enemies: Array[Character]):
 	for child in enemy_info_row.get_children():
@@ -415,7 +424,7 @@ func _create_enemy_card(enemy: Character) -> PanelContainer:
 		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		card.custom_minimum_size = Vector2(0, 86)
 	else:
-		card.custom_minimum_size = Vector2(124, 70)
+		card.custom_minimum_size = Vector2(ENEMY_CARD_WIDTH, 70)
 	# Themed chrome — border colored by the enemy's RARITY (common=grey,
 	# uncommon=green, rare=blue, epic=purple, mythic=red, legendary=gold,
 	# celestial=white) so the player can read an enemy's tier at a glance.
@@ -624,14 +633,25 @@ func _on_enemy_move_preview(enemy: Character, move_name: String):
 			if is_instance_valid(panel):
 				panel.queue_free()
 			return
-		var card_pos = card.global_position
 		var ui_pos = $BattleUI/UIRoot.global_position
-		panel.position = Vector2(
-			card_pos.x - ui_pos.x,
-			card_pos.y - ui_pos.y + card.size.y + 4
-		)
-		panel.custom_minimum_size = Vector2(card.size.x, 0)
+		var card_rect := Rect2(card.global_position - ui_pos, card.size)
+		var r := move_preview_rect(card_rect, panel.get_combined_minimum_size().x)
+		panel.position = r.position
+		panel.custom_minimum_size = Vector2(r.size.x, 0)
 		break
+
+## Where an enemy's move-name preview sits, in UIRoot space: just below its card
+## and centred on it. It is as wide as an ordinary card, or its text if longer,
+## but never wider than the card — so under an ordinary card it matches the card
+## exactly, and under a full-width boss card it no longer stretches the length
+## of the health bar.
+static func move_preview_rect(card: Rect2, content_width: float) -> Rect2:
+	var width := minf(card.size.x, maxf(content_width, ENEMY_CARD_WIDTH))
+	return Rect2(
+		card.position.x + (card.size.x - width) / 2.0,
+		card.end.y + 4.0,
+		width,
+		0.0)
 
 func _refresh_enemy_card(enemy: Character):
 	if not _enemy_hp_bars.has(enemy):

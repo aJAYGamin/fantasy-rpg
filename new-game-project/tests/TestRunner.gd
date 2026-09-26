@@ -54,6 +54,7 @@ const SUITE_PATHS := [
 	"res://tests/suites/test_boss_phases.gd",
 	"res://tests/suites/test_move_library.gd",
 	"res://tests/suites/test_skill_resolver.gd",
+	"res://tests/suites/test_status_chips.gd",
 ]
 
 func _ready() -> void:
