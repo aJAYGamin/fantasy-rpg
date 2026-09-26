@@ -542,14 +542,23 @@ func _summon_from_spec(boss: Enemy, spec: Dictionary) -> void:
 		return
 	var count := int(spec.get("count", 1))
 	var lvl := int(spec.get("level", boss.level))
+	# Cap against LIVING combatants only. BattleScene._rebuild_enemy_cards
+	# renders get_alive_enemies(), so a corpse from an earlier phase holds no
+	# card slot — counting it against the cap here would silently skip a
+	# later phase's summons even though the row still has room.
+	var living := 0
+	for e in enemies:
+		if e.is_alive():
+			living += 1
 	for i in count:
-		if enemies.size() >= MAX_BATTLE_ENEMIES:
+		if living >= MAX_BATTLE_ENEMIES:
 			return
 		var add: Enemy = template.duplicate(true)
 		add.level = lvl
 		add.current_hp = add.max_hp()
 		add.current_mp = add.max_mp()
 		enemies.append(add)
+		living += 1
 
 ## Rolls the active phase's field effect against a random living hero. Returns
 ## the rolled target, or null when no roll happened (no boss, dead boss, no

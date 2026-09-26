@@ -817,3 +817,75 @@ func test_the_warlord_summons_within_the_cap() -> void:
 			total += int(s.get("count", 1))
 	assert_true(total <= BattleManager.MAX_BATTLE_ENEMIES,
 		"the warlord and everything it summons fit in %d slots" % BattleManager.MAX_BATTLE_ENEMIES)
+
+# --------------------------------------------------- Whole-branch review, fix round 2
+
+# Finding 3: the summon cap counted every enemy, corpses included, but
+# BattleScene._rebuild_enemy_cards only ever renders get_alive_enemies() — a
+# dead add holds no card slot. Filling the row with adds, killing all of
+# them, then asking a later phase to summon again proves the cap now tracks
+# living combatants, not corpses.
+func test_the_summon_cap_counts_only_living_enemies() -> void:
+	var b := _boss([1.0, 0.5, 0.25])
+	b.phases[1].summons = [{"path": SPEARMAN, "count": 9}]
+	b.phases[2].summons = [{"path": SPEARMAN, "count": 5}]
+	var bm := _manager(b)
+	bm.check_boss_phases()                        # phase 0, no summons
+	b.current_hp = 50
+	bm.check_boss_phases()                        # phase 1: boss + 9 adds fills the row
+	assert_eq(bm.enemies.size(), 10, "phase 1's nine reinforcements filled all 10 slots")
+	# Kill every add. The corpses stay in bm.enemies — nothing removes a dead
+	# Character from the array, same as a real battle — but must not count
+	# toward the cap.
+	for i in range(1, bm.enemies.size()):
+		bm.enemies[i].current_hp = 0
+	assert_eq(bm.get_alive_enemies().size(), 1, "only the boss is still alive")
+	b.current_hp = 10
+	bm.check_boss_phases()                        # phase 2 tries to summon 5 more
+	assert_eq(bm.enemies.size(), 15, "phase 2 could still summon — corpses didn't block it")
+	assert_eq(bm.get_alive_enemies().size(), 6, "boss + the five new adds are alive")
+	bm.free()
+
+# Finding 1: BattleScene caches max_hp() per character once at battle start so
+# bars don't jitter mid-fight, but a transformation raises max_hp() —
+# _on_boss_phase_changed must refresh that one cache entry before the card
+# row rebuilds, or the bar clamps to a stale (smaller) maximum while
+# current_hp sits at the new, larger one. This drives the extracted helper
+# (_refresh_max_hp_cache) directly: _on_boss_phase_changed itself reaches
+# onready nodes (turn_order_indicator, battle_manager) that only exist once
+# the scene is inside a live tree, which a synchronous unit test can't set up.
+func test_refresh_max_hp_cache_updates_a_transformed_boss() -> void:
+	var b := _boss()
+	var scene := BattleScene.new()
+	scene._max_hp[b] = b.max_hp()      # simulates the cache taken in start_battle
+	var stale_max: float = scene._max_hp[b]
+
+	# Simulate what _enter_boss_phase does for a transformation.
+	b.max_hp_multiplier = 1.5
+	b.current_hp = b.max_hp()
+
+	scene._refresh_max_hp_cache(b)
+	assert_true(scene._max_hp[b] > stale_max, "the cache grew along with the transformation")
+	assert_eq(scene._max_hp[b], b.max_hp(), "the cache now matches the transformed maximum")
+	scene.free()
+
+# Finding 2: check_boss_phases() can emit boss_phase_changed twice in the same
+# synchronous frame (a hit crossing two thresholds), and any other status
+# banner can likewise arrive while one is already on screen.
+# _show_status_banner used to queue_free() whatever was showing so a new one
+# could take over — the first of two cascaded banners was destroyed before it
+# ever rendered a frame. The fix queues instead. The full fade timeline needs
+# a live SceneTree (awaits process_frame and tweens) that a synchronous test
+# can't drive, so — per the brief — this proves the queue's data structure
+# directly: what gets enqueued, in what order, and that nothing is dropped.
+func test_show_status_banner_queues_behind_an_active_banner() -> void:
+	var scene := BattleScene.new()
+	scene._banner_active = true   # simulate a banner already on screen
+	scene._show_status_banner("First", Color.WHITE, 1.0)
+	scene._show_status_banner("Second", Color.RED, 1.0)
+	scene._show_status_banner("Third", Color.BLUE, 1.0)
+	assert_eq(scene._banner_queue.size(), 3, "nothing was dropped")
+	assert_eq(scene._banner_queue[0]["text"], "First", "arrival order preserved (1)")
+	assert_eq(scene._banner_queue[1]["text"], "Second", "arrival order preserved (2)")
+	assert_eq(scene._banner_queue[2]["text"], "Third", "arrival order preserved (3)")
+	scene.free()
