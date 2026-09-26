@@ -48,7 +48,7 @@ art LAST. See **Roadmap** near the bottom for the agreed order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~2408 tests, 40 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~2461 tests, 40 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -81,7 +81,7 @@ scripts/
     EncounterGroup.gd         # Resource: weighted encounter (pool + count range + level gate)
   save/
     SaveSerializer.gd         # Pure static: Character/Skill/Item/Inventory ↔ Dictionary (full, option 1B)
-    AutoSaveSystem.gd         # class_name AutoSaveSystem — pure safe-zone enter detection for auto-save (P5)
+    AutoSaveSystem.gd         # class_name AutoSaveSystem — pure auto-save rules: safe-zone entry (P5) + side-quest turn-in
   battle/
     BattleScene.gd            # Main battle controller & UI wiring; status banners; hero panel theming
     BattleManager.gd          # Turn logic, state machine, action dispatch, status resolution
@@ -105,7 +105,7 @@ scripts/
     ElementalSystem.gd        # Element enum, weakness/resistance tables, colors, icons  (NOTE: in characters/, not systems/)
     Rarity.gd                 # Enemy rarity tiers (COMMON→CELESTIAL), multipliers, colors
   dialogue/
-    DialogueManager.gd        # STUB — node dialogue + `choices_presented` signal; no choice UI yet (future P10)
+    DialogueManager.gd        # Autoload: node dialogue + `choices_presented`; DialogueBox.gd renders the choice UI
   inventory/
     Inventory.gd              # Per-character item + equipment container (pool + equipped slots + equip/unequip)
     Item.gd                   # Item resource with use() logic + ItemCategory (GENERAL/HEALING/BATTLE/KEY)
@@ -327,10 +327,14 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   (`_on_boss_phase_changed` in `BattleScene.gd`) — `""` transitions silently.
 - **First boss: Goblin Warlord** (`data/enemies/goblin_warlord.tres`) —
   exercises **four** of the six powers (moveset, stats, summons,
-  transformation; no phase sets `turn_effect`). Its fixed encounter,
-  `data/encounters/goblin_warlord_fight.tres`, is **referenced nowhere** —
-  wiring it into the Goblin Castle was out of scope for this pass, so the
-  fight is not yet reachable in play. See Track B item 1 in the roadmap.
+  transformation; no phase sets `turn_effect` or `self_buffs`). **Reachable in
+  play**: `Territory_Warlord` in `GoblinCastle.tscn` (top-right, past the
+  existing 3-goblin ambush) carries the fixed encounter
+  `data/encounters/goblin_warlord_fight.tres`, which is also registered in
+  `goblin_castle.tres` so roamer state persists across battles.
+  ⚠️ `Territory_Boss` in that scene is the 3-goblin AMBUSH, not the warlord —
+  the name predates the real boss, and renaming it would break the
+  `test_map_transition` case that addresses it by node path.
 
 ### Equipment — `scripts/inventory/Equipment.gd` (`class_name Equipment`)  (P3)
 - A piece of gear (Resource). `slot` (WEAPON/ARMOR/ACCESSORY), `rarity`
@@ -564,7 +568,7 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~2408 tests / 40 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~2461 tests / 40 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,
