@@ -889,3 +889,39 @@ func test_show_status_banner_queues_behind_an_active_banner() -> void:
 	assert_eq(scene._banner_queue[1]["text"], "Second", "arrival order preserved (2)")
 	assert_eq(scene._banner_queue[2]["text"], "Third", "arrival order preserved (3)")
 	scene.free()
+
+# --------------------------------------------------- reachable in play
+# The boss existed but was authored unreachable: its fixed encounter was
+# referenced by nothing, so nothing in the game could start the fight. These
+# pin the wiring, because a scene reference is exactly the kind of thing that
+# breaks silently — the castle would just spawn nothing.
+
+func test_the_goblin_castle_spawns_the_warlord() -> void:
+	var scene: PackedScene = load("res://scenes/GoblinCastle.tscn")
+	assert_true(scene != null, "the castle scene loads")
+	var root := scene.instantiate()
+	var territories := root.find_child("RoamerTerritories", true, false)
+	assert_true(territories != null, "the castle has roamer territories")
+
+	var boss_groups: Array = []
+	for t in territories.get_children():
+		var grp = t.get("group")
+		if grp == null:
+			continue
+		for template in grp.enemy_pool:
+			if template != null and template.is_boss():
+				boss_groups.append(grp)
+	assert_eq(boss_groups.size(), 1, "exactly one territory carries a boss encounter")
+	var g = boss_groups[0]
+	assert_true(g.is_fixed, "a boss fight is a FIXED encounter, not a random draw")
+	assert_eq(g.enemy_pool.size(), 1, "the warlord fights alone (its adds arrive by phase)")
+	assert_eq(g.enemy_pool[0].character_name, "Goblin Warlord", "and it is the warlord")
+	root.free()
+
+func test_the_castle_boss_encounter_instantiates_one_boss() -> void:
+	var grp: EncounterGroup = load("res://data/encounters/goblin_warlord_fight.tres")
+	var spawned := grp.instantiate_encounter(1)
+	assert_eq(spawned.size(), 1, "one combatant at the start of the fight")
+	assert_true(spawned[0].is_boss(), "and it is a boss")
+	assert_eq(spawned[0].active_phase, -1, "a freshly spawned boss has entered no phase yet")
+	assert_eq(spawned[0].current_hp, spawned[0].max_hp(), "and starts at full health")
