@@ -236,14 +236,18 @@ func resolve_skill(user: Character, skill: Skill, chosen: Array[Character]) -> v
 		var result := {"actor": user, "target": target, "skill": skill, "is_first_target": first}
 		first = false
 
+		# Dodge depends on WHO the skill lands on, not what kind of skill it is:
+		# anything aimed at the user's opponents — damage or status — can be
+		# dodged, on both sides. Anything aimed at the user or its allies always
+		# lands. Rolled per target.
+		if _opponents_of(user).has(target) and EnemyAI.try_dodge(target):
+			result["action"] = "dodge"
+			result["value"] = 0
+			result["target_alive"] = target.is_alive()
+			emit_signal("action_performed", result)
+			continue
+
 		if skill.skill_type == Skill.SkillType.DAMAGE:
-			# Dodge per target, for both sides.
-			if EnemyAI.try_dodge(target):
-				result["action"] = "dodge"
-				result["value"] = 0
-				result["target_alive"] = target.is_alive()
-				emit_signal("action_performed", result)
-				continue
 			var value := skill.calculate_value(user)
 			match skill.attack_type:
 				Skill.AttackType.STRIKE, Skill.AttackType.RANGED:
