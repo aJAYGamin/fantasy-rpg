@@ -7,6 +7,7 @@
 [ext_resource type="Script" uid="uid://cm5gxsseoe83o" path="res://scripts/overworld/RoamerTerritory.gd" id="5_terr"]
 [ext_resource type="Resource" path="res://data/encounters/goblin_ambush.tres" id="6_ga"]
 [ext_resource type="Script" uid="uid://dmyv4jd0wgae5" path="res://scripts/overworld/EditorCollisionViz.gd" id="7_viz"]
+[ext_resource type="Resource" path="res://data/encounters/goblin_warlord_fight.tres" id="8_boss"]
 
 [sub_resource type="RectangleShape2D" id="Shape_horizontal_wall"]
 size = Vector2(2600, 100)
@@ -67,6 +68,13 @@ group = ExtResource("6_ga")
 
 [node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="RoamerTerritories/Territory_Boss" unique_id=863066081]
 polygon = PackedVector2Array(1300, 450, 2000, 450, 2000, 1050, 1300, 1050)
+
+[node name="Territory_Warlord" type="Area2D" parent="RoamerTerritories"]
+script = ExtResource("5_terr")
+group = ExtResource("8_boss")
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="RoamerTerritories/Territory_Warlord"]
+polygon = PackedVector2Array(1550, 120, 2300, 120, 2300, 400, 1550, 400)
 
 [node name="Zones" type="Node2D" parent="." unique_id=1715193761]
 

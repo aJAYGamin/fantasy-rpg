@@ -1,3 +1,4 @@
+class_name BattleScene
 extends Node2D
 
 ## BattleScene.gd — The Amethyst Requiem
@@ -57,6 +58,16 @@ const BAR_TWEEN_DURATION: float = 0.3
 const BANNER_DURATION_APPLIED: float = 1.55
 const BANNER_DURATION_SKIP: float    = 1.70
 const BANNER_DURATION_WAKE: float    = 1.55
+# Banner presentation queue. check_boss_phases() can emit boss_phase_changed
+# more than once in the same synchronous frame (a hit crossing two phase
+# thresholds), and an ordinary status banner can land while one of those is
+# still showing. _show_status_banner() used to queue_free() whatever was
+# showing so a new one could take over, which meant the first of two cascaded
+# banners was destroyed before it ever rendered a frame. Instead, every
+# request is appended here and _process_banner_queue drains it one at a time,
+# each getting its own full fade-in/hold/fade-out.
+var _banner_queue: Array[Dictionary] = []
+var _banner_active: bool = false
 var _enemy_hp_labels: Dictionary = {} # character -> Label
 # Keyed by Character ref so duplicate-named enemies (e.g. two Wind Sprites)
 # each have their own portrait lookup. Avoids relying on Godot's auto-rename suffixes.
@@ -85,6 +96,7 @@ func _ready():
 	battle_manager.battle_ended.connect(_on_battle_ended)
 	battle_manager.enemy_move_preview.connect(_on_enemy_move_preview)
 	battle_manager.status_effect_triggered.connect(_on_status_triggered)
+	battle_manager.boss_phase_changed.connect(_on_boss_phase_changed)
 
 	attack_btn.pressed.connect(_on_attack_pressed)
 	special_btn.pressed.connect(_on_special_pressed)
@@ -386,7 +398,7 @@ func _setup_enemy_cards(enemies: Array[Character]):
 		child.queue_free()
 
 	# Cards are fixed-width and centered. 10 enemies fill the row; fewer cluster in the middle.
-	# Bosses/key enemies will later flag as "is_boss" to use SIZE_EXPAND_FILL instead.
+	# A boss (is_boss() — has phases) gets SIZE_EXPAND_FILL instead; see _create_enemy_card.
 	enemy_info_row.alignment = BoxContainer.ALIGNMENT_CENTER
 
 	var count = mini(enemies.size(), 10)
@@ -398,7 +410,12 @@ func _create_enemy_card(enemy: Character) -> PanelContainer:
 	var card = PanelContainer.new()
 	# Fixed width — cards no longer stretch when there are few enemies.
 	# 10 cards × 124 + 9 × 2 spacing = 1258, fits comfortably in the 1280-wide viewport.
-	card.custom_minimum_size = Vector2(124, 70)
+	# A boss takes the whole row — the presence of phases is what marks it.
+	if enemy is Enemy and (enemy as Enemy).is_boss():
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card.custom_minimum_size = Vector2(0, 86)
+	else:
+		card.custom_minimum_size = Vector2(124, 70)
 	# Themed chrome — border colored by the enemy's RARITY (common=grey,
 	# uncommon=green, rare=blue, epic=purple, mythic=red, legendary=gold,
 	# celestial=white) so the player can read an enemy's tier at a glance.
@@ -718,7 +735,9 @@ func _rebuild_enemy_cards():
 		card.queue_free()
 	if alive_enemies.is_empty():
 		return
-	# Match _setup_enemy_cards: fixed-width cards, centered. No SIZE_EXPAND_FILL.
+	# Match _setup_enemy_cards: centered row. Cards are fixed-width EXCEPT a
+	# boss card, which _create_enemy_card gives SIZE_EXPAND_FILL to take the
+	# whole row.
 	enemy_info_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	for e in alive_enemies:
 		var card = _create_enemy_card(e)
@@ -772,6 +791,65 @@ func _return_to_overworld():
 		path = "res://scenes/OverworldScene.tscn"
 	get_tree().change_scene_to_file(path)
 
+## A boss crossed into a new phase: banner it, then rebuild the card row so any
+## reinforcements it summoned appear and the boss's own bar reflects a
+## transformation's larger HP pool.
+func _on_boss_phase_changed(enemy: Character, phase: BossPhase) -> void:
+	# What the bar was showing BEFORE the heal. Captured first because the
+	# rebuild below destroys the old bar, and a transformation has already set
+	# current_hp to the new maximum by the time we get here — without this the
+	# refill would snap from empty to full in a single frame.
+	var shown_before: float = -1.0
+	if _enemy_hp_bars.has(enemy) and is_instance_valid(_enemy_hp_bars[enemy]):
+		shown_before = _enemy_hp_bars[enemy].value
+
+	# max_hp() can grow (transformation's max_hp_multiplier) — refresh the
+	# cached maximum BEFORE the rebuild reads it, or the bar clamps to the
+	# stale (smaller) cache while current_hp sits at the new, larger max.
+	_refresh_max_hp_cache(enemy)
+	if phase.banner_text != "":
+		_show_status_banner(phase.banner_text, BattleUITheme.TEXT_ACCENT, 1.9)
+	_rebuild_enemy_cards()
+	# Reinforcements get a card from the rebuild above, but the battlefield
+	# sprites are built once at battle start — without this they fight from an
+	# empty patch of ground. ALIVE only, matching _rebuild_enemy_cards: the
+	# enemies array keeps corpses, so rebuilding from it resurrected the sprite
+	# of any summon the party had already killed.
+	_rebuild_enemy_portraits(battle_manager.get_alive_enemies())
+	# The turn-order panel is built once by setup() at battle start, so a
+	# summoned enemy would otherwise never get a slot. Re-seed it from the
+	# current roster.
+	turn_order_indicator.setup(battle_manager.party, battle_manager.enemies)
+
+	if phase.is_transformation() and phase.restore_hp:
+		_animate_boss_refill(enemy, shown_before)
+
+## Runs a transformed boss's health bar back up to its new full in real time.
+## BattleManager pauses the turn loop for BOSS_REFILL_DURATION while this plays,
+## so the player cannot attack into a bar that is still climbing.
+func _animate_boss_refill(enemy: Character, from_value: float) -> void:
+	if not _enemy_hp_bars.has(enemy):
+		return
+	var bar = _enemy_hp_bars[enemy]
+	if not is_instance_valid(bar):
+		return
+	var lbl = _enemy_hp_labels.get(enemy)
+	var new_max: float = float(_max_hp.get(enemy, enemy.max_hp()))
+	# Start from what the player last saw, not from the already-healed value.
+	bar.max_value = new_max
+	bar.value = from_value if from_value >= 0.0 else 0.0
+	if lbl != null and is_instance_valid(lbl):
+		lbl.text = "%d/%d" % [int(bar.value), int(new_max)]
+	var label_fn := func(v: float) -> String: return "%d/%d" % [int(v), int(new_max)]
+	_animate_bar(bar, lbl, float(enemy.current_hp), label_fn, BattleManager.BOSS_REFILL_DURATION)
+
+## _max_hp is cached once per character at battle start (see start_battle) so
+## bars don't jitter mid-fight. A boss transformation is the one thing that
+## moves max_hp() after that — this keeps that single cache entry in sync
+## without touching any other character's cached maximum.
+func _refresh_max_hp_cache(character: Character) -> void:
+	_max_hp[character] = character.max_hp()
+
 func _on_status_triggered(character: Character, result: Dictionary):
 	var event_type: String = result.get("type", "")
 	print("%s: %s %d" % [character.character_name, event_type, int(result.get("value", 0))])
@@ -812,11 +890,32 @@ func _on_status_triggered(character: Character, result: Dictionary):
 			BANNER_DURATION_APPLIED
 		)
 
-# Shows a large centered banner with a status-colored border for `duration`
-# seconds, then fades out. Safe to call repeatedly — any in-progress banner is
-# replaced. Banner sits above the battle UI on its own CanvasLayer so it
-# doesn't get clipped by panels or the camera.
+# Enqueues a banner request and kicks off the queue processor if it isn't
+# already running. Safe to call repeatedly, including several times in the
+# same synchronous frame (see the boss-phase cascade note on _banner_queue
+# above) — nothing is ever dropped or destroyed early; each request gets its
+# own full presentation once its turn comes.
 func _show_status_banner(text: String, color: Color, duration: float):
+	_banner_queue.append({"text": text, "color": color, "duration": duration})
+	if not _banner_active:
+		_process_banner_queue()
+
+# Drains _banner_queue one entry at a time, awaiting each banner's full
+# presentation before starting the next — this is what makes queued banners
+# display sequentially instead of destroying one another.
+func _process_banner_queue() -> void:
+	_banner_active = true
+	while not _banner_queue.is_empty():
+		var item: Dictionary = _banner_queue.pop_front()
+		await _display_status_banner(item["text"], item["color"], item["duration"])
+	_banner_active = false
+
+# Shows a large centered banner with a status-colored border for `duration`
+# seconds, then fades out. Called only by _process_banner_queue, which
+# guarantees at most one of these is ever in flight at a time. Banner sits
+# above the battle UI on its own CanvasLayer so it doesn't get clipped by
+# panels or the camera.
+func _display_status_banner(text: String, color: Color, duration: float):
 	# Lazily build the banner layer + nodes on first use.
 	var layer: CanvasLayer = get_node_or_null("StatusBannerLayer")
 	if layer == null:
@@ -834,7 +933,8 @@ func _show_status_banner(text: String, color: Color, duration: float):
 		root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		layer.add_child(root)
 
-	# Kill any previous banner so we never have two stacked.
+	# Defensive only: _process_banner_queue never starts a new banner while one
+	# is still active, so root should already be empty here.
 	for child in root.get_children():
 		child.queue_free()
 
@@ -1189,6 +1289,21 @@ func _setup_portraits(party: Array[Character], enemies: Array[Character]):
 		_hero_portraits[hero] = portrait
 
 	# --- Enemy portraits ---
+	_rebuild_enemy_portraits(enemies)
+
+## Builds the battlefield sprites for the CURRENT enemy roster. Separate from
+## _setup_portraits because a boss can summon reinforcements mid-battle: those
+## arrivals got a card but no sprite, so they attacked from an empty patch of
+## ground. Rebuilds rather than appends because _get_enemy_portrait_pos lays the
+## grid out from the total count — one new enemy shifts every other cell.
+## Enemy-only on purpose: the hero stack keeps its portraits and their state.
+func _rebuild_enemy_portraits(enemies: Array) -> void:
+	for child in enemy_positions.get_children():
+		enemy_positions.remove_child(child)
+		child.queue_free()
+	_enemy_portraits.clear()
+
+	var cinzel = load("res://fonts/Cinzel-Regular.ttf")
 	var enemy_grid = Control.new()
 	enemy_grid.name = "EnemyGrid"
 	enemy_positions.add_child(enemy_grid)

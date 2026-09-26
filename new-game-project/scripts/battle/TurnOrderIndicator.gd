@@ -43,6 +43,14 @@ func setup(party: Array[Character], enemies: Array[Character]):
 	_current_index = 0
 	_rebuild_slots()
 
+## Test/inspection accessor: how many combatants the indicator is currently
+## tracking. The visible display always shows exactly 3 slots (prev/current/
+## next, wrapping) regardless of roster size, so slot-container child count
+## can't tell you whether a re-seed actually picked up a grown roster —
+## this reads the underlying turn order itself.
+func combatant_count() -> int:
+	return _turn_order.size()
+
 func _build_turn_order(party: Array[Character], enemies: Array[Character]):
 	_turn_order.clear()
 	for c in party:

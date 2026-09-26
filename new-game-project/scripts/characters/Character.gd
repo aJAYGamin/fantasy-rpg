@@ -46,6 +46,17 @@ var inventory: Inventory
 # heroes always stay at 1.0. Transient — never serialized.
 var combat_stat_multiplier: float = 1.0
 
+# --- Boss phase scaling (battle-temp, never serialized) ---
+# Set when a boss enters a phase. Composes with buffs/debuffs and difficulty
+# rather than replacing them. Only the five combat stats are honoured; max_hp is
+# deliberately absent, because changing it here would move the very thresholds
+# that drive phase transitions. A transformation uses max_hp_multiplier instead.
+var phase_multipliers: Dictionary = {}
+var max_hp_multiplier: float = 1.0
+
+func phase_mult(stat: String) -> float:
+	return float(phase_multipliers.get(stat, 1.0))
+
 # --- Skills ---
 @export var skills: Array[Skill] = []
 
@@ -195,31 +206,31 @@ func _init():
 
 # --- Stat Calculations ---
 func max_hp() -> int:
-	return maxi(1, roundi((base_hp + (level - 1) * 15 + inventory.equipment_bonus("max_hp")) * combat_stat_multiplier))
+	return maxi(1, roundi((base_hp + (level - 1) * 15 + inventory.equipment_bonus("max_hp")) * combat_stat_multiplier * max_hp_multiplier))
 
 func max_mp() -> int:
 	return maxi(0, roundi((base_mp + (level - 1) * 8 + inventory.equipment_bonus("max_mp")) * combat_stat_multiplier))
 
 func attack_power() -> int:
 	var raw = base_attack + (level - 1) * 2 + inventory.equipment_bonus("attack")
-	return roundi(StatusSystem.compose_stat(raw, self, StatusSystem.STAT_ATK) * combat_stat_multiplier)
+	return roundi(StatusSystem.compose_stat(raw, self, StatusSystem.STAT_ATK) * combat_stat_multiplier * phase_mult(StatusSystem.STAT_ATK))
 
 func defense_power() -> int:
 	var raw = base_defense + (level - 1) * 1 + inventory.equipment_bonus("defense")
-	return roundi(StatusSystem.compose_stat(raw, self, StatusSystem.STAT_DEF) * combat_stat_multiplier)
+	return roundi(StatusSystem.compose_stat(raw, self, StatusSystem.STAT_DEF) * combat_stat_multiplier * phase_mult(StatusSystem.STAT_DEF))
 
 func magic_power() -> int:
 	var raw = base_magic + (level - 1) * 2 + inventory.equipment_bonus("magic")
-	return roundi(StatusSystem.compose_stat(raw, self, StatusSystem.STAT_MAG) * combat_stat_multiplier)
+	return roundi(StatusSystem.compose_stat(raw, self, StatusSystem.STAT_MAG) * combat_stat_multiplier * phase_mult(StatusSystem.STAT_MAG))
 
 # Magic resistance — analogous to defense_power() but for magic damage.
 func arcane_power() -> int:
 	var raw = base_arcane + (level - 1) * 1 + inventory.equipment_bonus("arcane")
-	return roundi(StatusSystem.compose_stat(raw, self, StatusSystem.STAT_ARC) * combat_stat_multiplier)
+	return roundi(StatusSystem.compose_stat(raw, self, StatusSystem.STAT_ARC) * combat_stat_multiplier * phase_mult(StatusSystem.STAT_ARC))
 
 func speed() -> int:
 	var raw = base_speed + (level - 1) * 1 + inventory.equipment_bonus("speed")
-	return roundi(StatusSystem.compose_stat(raw, self, StatusSystem.STAT_SPD) * combat_stat_multiplier)
+	return roundi(StatusSystem.compose_stat(raw, self, StatusSystem.STAT_SPD) * combat_stat_multiplier * phase_mult(StatusSystem.STAT_SPD))
 
 # Applies a difficulty multiplier to all combat stats and refills vitals to the
 # new maxima. Call on enemy battle copies only — never a shared .tres template.
@@ -379,6 +390,8 @@ func clear_battle_effects():
 	is_defending = false
 	regen_turns = 0
 	regen_amount = 0
+	phase_multipliers.clear()
+	max_hp_multiplier = 1.0
 
 # Per-turn status processing.
 # Returns Array of events for UI to render (e.g. tick damage, regen heal).

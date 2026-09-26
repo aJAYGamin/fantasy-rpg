@@ -78,3 +78,43 @@ func test_can_autosave_gating() -> void:
 	# Restore.
 	GameManager.settings.autosave_enabled = prev_enabled
 	GameManager.active_slot = prev_slot
+
+# --- Auto-save on finishing a side quest ---------------------------------------
+# A deliberate turn-in is exactly the progress worth protecting. The STORY quest
+# advances through scripted beats instead, so saving on it would fire at moments
+# the player did not choose.
+
+func _quest(kind: int) -> Quest:
+	var q := Quest.new()
+	q.id = "test_quest"
+	q.title = "Test Quest"
+	q.kind = kind
+	return q
+
+func test_a_side_quest_turn_in_wants_an_autosave() -> void:
+	assert_true(AutoSaveSystem.wants_quest_autosave(_quest(Quest.Kind.SIDE)),
+		"finishing a side quest is an auto-save moment")
+
+func test_the_story_quest_does_not() -> void:
+	assert_false(AutoSaveSystem.wants_quest_autosave(_quest(Quest.Kind.STORY)),
+		"the story quest advances on scripted beats, not a player turn-in")
+
+func test_a_null_quest_is_safe() -> void:
+	assert_false(AutoSaveSystem.wants_quest_autosave(null), "no quest, no save, no crash")
+
+func test_quests_default_to_side() -> void:
+	# The rule keys off `kind`, so the default matters: a quest authored without
+	# an explicit kind must be a side quest, or it would silently never save.
+	var q := Quest.new()
+	assert_eq(q.kind, Quest.Kind.SIDE, "a quest is a side quest unless it says otherwise")
+
+func test_the_setting_still_governs_whether_it_actually_saves() -> void:
+	# wants_quest_autosave answers "is this a moment worth saving", NOT "may we
+	# save". The player's auto-save toggle is the second gate and stays in force.
+	var was_enabled: bool = GameManager.settings.autosave_enabled
+	GameManager.settings.autosave_enabled = false
+	assert_true(AutoSaveSystem.wants_quest_autosave(_quest(Quest.Kind.SIDE)),
+		"the moment still qualifies")
+	assert_false(GameManager.can_autosave(),
+		"but auto-save is refused while the player's setting is off")
+	GameManager.settings.autosave_enabled = was_enabled

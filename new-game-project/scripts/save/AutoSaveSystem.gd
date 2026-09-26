@@ -20,6 +20,21 @@ static func zone_at(pos: Vector2, zones: Array) -> int:
 			return i
 	return -1
 
+## True when finishing this quest should trigger an auto-save.
+##
+## SIDE quests only: they are completed by a deliberate player turn-in, which is
+## exactly the progress worth protecting. The STORY quest advances through
+## scripted beats rather than a turn-in, so saving on it would fire at moments
+## the player did not choose.
+##
+## This decides WHETHER the moment qualifies, not whether saving is allowed —
+## GameManager.can_autosave() still gates on the player's auto-save setting, so
+## turning that off turns this off with it.
+static func wants_quest_autosave(quest) -> bool:
+	if quest == null:
+		return false
+	return int(quest.kind) == Quest.Kind.SIDE
+
 # True if the player currently stands in any safe zone (encounter suppression).
 func in_safe_zone() -> bool:
 	return _current_zone != -1

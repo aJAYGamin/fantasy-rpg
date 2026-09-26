@@ -11,6 +11,18 @@ signal action_performed(result: Dictionary)
 signal character_defeated(character: Character)
 signal battle_ended(player_won: bool, rewards: Dictionary)
 signal status_effect_triggered(character: Character, result: Dictionary)
+## A boss crossed into a new phase. BattleScene banners it and rebuilds cards.
+signal boss_phase_changed(enemy: Character, phase: BossPhase)
+
+## Hard cap on combatants. The enemy card row is built for exactly this many
+## (see BattleScene.gd: "10 enemies fill the row"), so a boss may summon 0-9.
+const MAX_BATTLE_ENEMIES := 10
+
+## How long the turn loop pauses while a transformed boss's health bar runs back
+## up to its new full. BattleScene animates the bar for exactly this long, so the
+## player cannot attack into a bar that is still climbing. Single source of
+## truth — BattleScene reads it from here.
+const BOSS_REFILL_DURATION: float = 1.4
 
 enum BattleState {
 	IDLE,
@@ -50,6 +62,11 @@ func _build_turn_order():
 	turn_order.sort_custom(func(a, b): return a.speed() > b.speed())
 
 func _next_turn():
+	# Blocks while a transformed boss refills, so the player cannot attack into
+	# a bar that is still climbing.
+	var boss_pause: float = check_boss_phases()
+	if boss_pause > 0.0:
+		await get_tree().create_timer(boss_pause).timeout
 	while current_turn_index < turn_order.size():
 		var actor = turn_order[current_turn_index]
 		if actor.is_alive():
@@ -61,6 +78,9 @@ func _next_turn():
 		return
 
 	current_actor = turn_order[current_turn_index]
+
+	if current_actor is Enemy and (current_actor as Enemy).is_boss():
+		apply_boss_field_effect(current_actor as Enemy)
 
 	# Defend lasts until the defender's next turn — it protected them through the
 	# intervening enemy turns, so clear it now that they're acting again.
@@ -479,6 +499,135 @@ func get_alive_party() -> Array[Character]:
 
 func get_alive_enemies() -> Array[Character]:
 	return enemies.filter(func(c): return c.is_alive())
+
+# --- Boss phases -------------------------------------------------------------
+# One choke point for every source of damage. Damage is applied in half a dozen
+# places (player attack, player skill, enemy skill, counter...), so rather than
+# hooking each, phases are checked at the top of every turn. That also means a
+# boss can never act while still in a stale phase.
+## Returns how long the caller should PAUSE before play continues — non-zero
+## when a transformation refilled a boss's health, so the refill is something
+## the player watches rather than something that happens between two frames.
+## Returns a duration rather than awaiting internally, so this stays synchronous
+## for tests and the single await lives in _next_turn.
+func check_boss_phases() -> float:
+	var pause := 0.0
+	for e in enemies:
+		if not (e is Enemy):
+			continue
+		var boss := e as Enemy
+		# A defeated boss must not transform, summon or banner.
+		if not boss.is_boss() or not boss.is_alive():
+			continue
+		while boss.should_advance_phase():
+			# advance_phase() returns null exactly when should_advance_phase()
+			# is false (both gate on the same `active_phase + 1 >= size`
+			# check), so a non-null phase is guaranteed here.
+			var phase := boss.advance_phase()
+			_enter_boss_phase(boss, phase)
+			if phase.is_transformation() and phase.restore_hp:
+				pause = maxf(pause, BOSS_REFILL_DURATION)
+	return pause
+
+func _enter_boss_phase(boss: Enemy, phase: BossPhase) -> void:
+	# A boss's raw stats may change ONLY as part of becoming a stronger FORM.
+	# An ordinary later phase escalates through things the player can see and
+	# answer — summons, buffs, debuffs on the party — never through an invisible
+	# multiplier that silently rewrites the numbers mid-fight.
+	#
+	# A non-transforming phase therefore LEAVES the existing multipliers alone
+	# rather than clearing them: clearing would strip the boost an earlier
+	# transformation established, quietly weakening the boss back out of its
+	# stronger form.
+	if phase.is_transformation():
+		# Replace, don't accumulate: this form's multipliers are the whole truth.
+		boss.phase_multipliers = phase.stat_multipliers.duplicate()
+	elif not phase.stat_multipliers.is_empty():
+		push_warning("BossPhase '%s' sets stat_multipliers but is not a transformation — ignored. Raw stat changes belong to a transformation (max_hp_multiplier > 0); use buffs, summons or party debuffs instead." % phase.phase_name)
+
+	# Transformation. Set the multiplier BEFORE reading max_hp(), or the refill
+	# lands on the old maximum and leaves the boss on a sliver of its new pool.
+	if phase.is_transformation():
+		boss.max_hp_multiplier = phase.max_hp_multiplier
+		if phase.restore_hp:
+			boss.current_hp = boss.max_hp()
+
+	# Self-buffs, on entry only. apply_buff() already rejects anything outside
+	# StatusSystem.BUFFABLE_STATS, so a typo is a warning rather than a crash —
+	# but it would otherwise be silent, and a boss that quietly fails to buff
+	# itself is very hard to notice in play.
+	for stat in phase.self_buffs:
+		var result: Dictionary = boss.apply_buff(stat)
+		if result.get("action", "") == "invalid":
+			push_warning("BossPhase '%s' lists self_buff '%s', which is not a buffable stat. Valid: %s" % [
+				phase.phase_name, stat, str(StatusSystem.BUFFABLE_STATS)])
+
+	for spec in phase.summons:
+		_summon_from_spec(boss, spec)
+
+	emit_signal("boss_phase_changed", boss, phase)
+
+## Spawns one summon spec: {"path": String, "count": int, "level": int}.
+## `level` defaults to the boss's. A missing or unloadable path is skipped
+## rather than raised — a typo in a .tres must not end the battle.
+func _summon_from_spec(boss: Enemy, spec: Dictionary) -> void:
+	var path := str(spec.get("path", ""))
+	if path == "":
+		return
+	if not ResourceLoader.exists(path):
+		push_warning("Boss summon skipped — no such resource: %s" % path)
+		return
+	var template = load(path)
+	if template == null or not (template is Enemy):
+		push_warning("Boss summon skipped — not an Enemy: %s" % path)
+		return
+	var count := int(spec.get("count", 1))
+	var lvl := int(spec.get("level", boss.level))
+	# Cap against LIVING combatants only. BattleScene._rebuild_enemy_cards
+	# renders get_alive_enemies(), so a corpse from an earlier phase holds no
+	# card slot — counting it against the cap here would silently skip a
+	# later phase's summons even though the row still has room.
+	var living := 0
+	for e in enemies:
+		if e.is_alive():
+			living += 1
+	for i in count:
+		if living >= MAX_BATTLE_ENEMIES:
+			return
+		var add: Enemy = template.duplicate(true)
+		add.level = lvl
+		add.current_hp = add.max_hp()
+		add.current_mp = add.max_mp()
+		enemies.append(add)
+		living += 1
+
+## Rolls the active phase's field effect against a random living hero. Returns
+## the rolled target, or null when no roll happened (no boss, dead boss, no
+## turn_effect, chance miss, or no living hero). A non-null return does NOT
+## mean a status landed — _apply_skill_status can still no-op below (element
+## immunity, the mutex rule), same as it would on the ordinary skill path.
+##
+## Hooked to the boss's OWN turn rather than "each round": the turn-order model
+## has no explicit round boundary, and this way the effect fires exactly once per
+## cycle and stops naturally when the boss dies. It resolves BEFORE the boss
+## chooses its action, so a hero paralysed here is already paralysed when the
+## boss picks a target.
+func apply_boss_field_effect(boss: Enemy) -> Character:
+	if not boss.is_boss() or not boss.is_alive():
+		return null
+	var phase := boss.current_phase()
+	if phase == null or phase.turn_effect == "":
+		return null
+	if randf() > phase.turn_effect_chance:
+		return null
+	var alive := party.filter(func(h): return h.is_alive())
+	if alive.is_empty():
+		return null
+	var target: Character = alive[randi() % alive.size()]
+	# Reuse the skill path: element immunity, the mutex rule, the never-afflict-
+	# the-downed guard and the banner all come with it.
+	_apply_skill_status(target, phase.turn_effect)
+	return target
 
 # Resolves a Skill.status_to_apply token against a target. Buff/debuff tokens
 # (e.g. "attack_buff", "magic_debuff") route to apply_buff/apply_debuff so the

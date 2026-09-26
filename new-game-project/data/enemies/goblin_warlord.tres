@@ -1,0 +1,83 @@
+[gd_resource type="Resource" script_class="Enemy" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+[ext_resource type="Script" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
+[ext_resource type="Script" path="res://scripts/characters/BossPhase.gd" id="3_phase"]
+
+[sub_resource type="Resource" id="Skill_cleave"]
+script = ExtResource("1_skill")
+skill_name = "Warlord's Cleave"
+description = "A brutal two-handed swing."
+power = 1.3
+
+[sub_resource type="Resource" id="Skill_warcry"]
+script = ExtResource("1_skill")
+skill_name = "Savage Bellow"
+description = "A roar that rattles the whole party."
+power = 0.8
+target_type = 1
+status_to_apply = "attack_debuff"
+status_chance = 0.5
+
+[sub_resource type="Resource" id="Skill_ruin"]
+script = ExtResource("1_skill")
+skill_name = "Ruinous Sweep"
+description = "A wild arc that catches every hero."
+power = 1.15
+target_type = 1
+
+[sub_resource type="Resource" id="Skill_execute"]
+script = ExtResource("1_skill")
+skill_name = "Executioner's Drop"
+description = "Brings the great axe down with both hands."
+power = 1.8
+
+[sub_resource type="Resource" id="Phase_opening"]
+script = ExtResource("3_phase")
+enter_at_hp = 1.0
+phase_name = "Warlord"
+
+[sub_resource type="Resource" id="Phase_reinforce"]
+script = ExtResource("3_phase")
+enter_at_hp = 0.5
+phase_name = "Rallying"
+banner_text = "The Warlord bellows for reinforcements!"
+summons = Array[Dictionary]([{
+"count": 2,
+"path": "res://data/enemies/goblin_spearman.tres"
+}])
+
+[sub_resource type="Resource" id="Phase_fury"]
+script = ExtResource("3_phase")
+enter_at_hp = 0.25
+phase_name = "Unbound Fury"
+banner_text = "The Warlord rises, wreathed in fury!"
+skills = Array[ExtResource("1_skill")]([SubResource("Skill_ruin"), SubResource("Skill_execute")])
+stat_multipliers = {
+"attack": 1.5,
+"speed": 1.2
+}
+max_hp_multiplier = 1.5
+restore_hp = true
+
+[resource]
+script = ExtResource("2_enemy")
+species = "Goblin Warlord"
+rarity = 3
+base_exp_reward = 220
+base_gold_reward = 180
+drop_table = Array[Dictionary]([{
+"chance": 1.0,
+"item_name": "Monster Fang",
+"quantity": 3
+}])
+character_name = "Goblin Warlord"
+character_class = "Warlord"
+base_hp = 260
+base_attack = 16
+base_defense = 10
+base_magic = 4
+base_arcane = 6
+base_speed = 9
+skills = Array[ExtResource("1_skill")]([SubResource("Skill_cleave"), SubResource("Skill_warcry")])
+phases = Array[ExtResource("3_phase")]([SubResource("Phase_opening"), SubResource("Phase_reinforce"), SubResource("Phase_fury")])
