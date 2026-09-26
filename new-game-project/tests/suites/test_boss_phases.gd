@@ -219,7 +219,9 @@ func test_a_hit_crossing_two_thresholds_fires_both_entries() -> void:
 func test_entering_a_phase_applies_its_stat_multipliers() -> void:
 	var b := _boss()
 	b.base_attack = 20
+	# Stats may only change as part of a transformation, so this phase is one.
 	b.phases[1].stat_multipliers = {"attack": 2.0}
+	b.phases[1].max_hp_multiplier = 1.0
 	var bm := _manager(b)
 	bm.check_boss_phases()
 	var before := b.attack_power()
@@ -239,7 +241,9 @@ func test_entering_a_phase_applies_multipliers_to_defense_magic_arcane_and_speed
 	b.base_magic = 20
 	b.base_arcane = 20
 	b.base_speed = 20
+	# Stats may only change as part of a transformation, so this phase is one.
 	b.phases[1].stat_multipliers = {"defense": 2.0, "magic": 2.0, "arcane": 2.0, "speed": 2.0}
+	b.phases[1].max_hp_multiplier = 1.0
 	var bm := _manager(b)
 	bm.check_boss_phases()
 	var before_def := b.defense_power()
@@ -257,8 +261,11 @@ func test_entering_a_phase_applies_multipliers_to_defense_magic_arcane_and_speed
 func test_a_later_phase_replaces_the_previous_multipliers() -> void:
 	var b := _boss()
 	b.base_attack = 20
+	# Both are transformations — the only phases permitted to touch raw stats.
 	b.phases[1].stat_multipliers = {"attack": 2.0}
+	b.phases[1].max_hp_multiplier = 1.0
 	b.phases[2].stat_multipliers = {"speed": 2.0}
+	b.phases[2].max_hp_multiplier = 1.0
 	var bm := _manager(b)
 	bm.check_boss_phases()
 	b.current_hp = 10
@@ -983,4 +990,57 @@ func test_a_dead_boss_reports_no_pause() -> void:
 	bm.check_boss_phases()
 	b.current_hp = 0
 	assert_eq(bm.check_boss_phases(), 0.0, "a defeated boss does not stall the victory")
+	bm.free()
+
+
+# --------------------------------------------------- stats are transform-only
+# A boss's raw numbers may change only as part of becoming a stronger FORM. An
+# ordinary later phase escalates through things the player can see and answer —
+# summons, buffs, party debuffs — never an invisible multiplier that silently
+# rewrites the numbers mid-fight.
+
+func test_a_non_transforming_phase_cannot_change_stats() -> void:
+	var b := _boss()
+	b.base_attack = 20
+	b.phases[1].stat_multipliers = {"attack": 3.0}   # authored, but not a transformation
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	var before := b.attack_power()
+	b.current_hp = 50
+	bm.check_boss_phases()
+	assert_eq(b.active_phase, 1, "the phase was still entered")
+	assert_eq(b.attack_power(), before, "but its stat multiplier was ignored")
+	bm.free()
+
+func test_a_non_transforming_phase_does_not_strip_an_earlier_transformation() -> void:
+	# The boss transformed into a stronger form; a later ordinary phase must not
+	# quietly weaken it back out of that form by clearing the multipliers.
+	var b := _boss([1.0, 0.5, 0.25])
+	b.base_attack = 20
+	b.phases[1].max_hp_multiplier = 1.0
+	b.phases[1].stat_multipliers = {"attack": 2.0}
+	b.phases[2].summons = []                          # ordinary phase, no stats
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 50
+	bm.check_boss_phases()
+	var transformed := b.attack_power()
+	b.current_hp = 10
+	bm.check_boss_phases()
+	assert_eq(b.active_phase, 2, "advanced into the ordinary phase")
+	assert_eq(b.attack_power(), transformed, "the transformation's boost survives it")
+	bm.free()
+
+func test_a_transformation_may_still_change_stats() -> void:
+	var b := _boss()
+	b.base_attack = 20
+	b.phases[1].max_hp_multiplier = 1.5
+	b.phases[1].restore_hp = true
+	b.phases[1].stat_multipliers = {"attack": 2.0}
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	var before := b.attack_power()
+	b.current_hp = 50
+	bm.check_boss_phases()
+	assert_eq(b.attack_power(), before * 2, "a stronger form is allowed stronger numbers")
 	bm.free()

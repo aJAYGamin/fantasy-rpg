@@ -254,12 +254,20 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   default (an omitted field means "this phase does not use that power"):
   1. **Moveset** — `skills`; `[]` keeps the enemy's own list. Served by
      `EnemyAI.usable_skills(enemy)`.
-  2. **Stats** — `stat_multipliers`, only the five combat stats
+  2. **Stats — TRANSFORMATION-ONLY.** `stat_multipliers`, the five combat stats
      (`attack`/`defense`/`magic`/`arcane`/`speed`). Composed in `Character`'s
      stat getters alongside `StatusSystem.compose_stat` and
      `combat_stat_multiplier`, so it **stacks**, not overrides. `max_hp` is
      deliberately NOT accepted here — changing it would move the very HP
      thresholds that drive phase transitions (see Transformation below).
+     **A phase that is not a transformation cannot change raw stats at all**:
+     `_enter_boss_phase` ignores its `stat_multipliers` and warns. A boss's
+     numbers may only change as part of becoming a stronger FORM; an ordinary
+     later phase escalates through things the player can see and answer —
+     summons, buffs, party debuffs — never an invisible multiplier that
+     silently rewrites the numbers mid-fight. A non-transforming phase also
+     LEAVES existing multipliers alone rather than clearing them, so it cannot
+     quietly weaken a boss back out of a form it already took.
   3. **Summons** — `summons: [{"path", "count", "level"}]`, capped at
      `BattleManager.MAX_BATTLE_ENEMIES = 10`, enforced **at summon time**
      (`_summon_from_spec`), not at render time — `_setup_enemy_cards` truncates

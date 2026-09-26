@@ -530,8 +530,20 @@ func check_boss_phases() -> float:
 	return pause
 
 func _enter_boss_phase(boss: Enemy, phase: BossPhase) -> void:
-	# Replace, don't accumulate: the new phase's multipliers are the whole truth.
-	boss.phase_multipliers = phase.stat_multipliers.duplicate()
+	# A boss's raw stats may change ONLY as part of becoming a stronger FORM.
+	# An ordinary later phase escalates through things the player can see and
+	# answer — summons, buffs, debuffs on the party — never through an invisible
+	# multiplier that silently rewrites the numbers mid-fight.
+	#
+	# A non-transforming phase therefore LEAVES the existing multipliers alone
+	# rather than clearing them: clearing would strip the boost an earlier
+	# transformation established, quietly weakening the boss back out of its
+	# stronger form.
+	if phase.is_transformation():
+		# Replace, don't accumulate: this form's multipliers are the whole truth.
+		boss.phase_multipliers = phase.stat_multipliers.duplicate()
+	elif not phase.stat_multipliers.is_empty():
+		push_warning("BossPhase '%s' sets stat_multipliers but is not a transformation — ignored. Raw stat changes belong to a transformation (max_hp_multiplier > 0); use buffs, summons or party debuffs instead." % phase.phase_name)
 
 	# Transformation. Set the multiplier BEFORE reading max_hp(), or the refill
 	# lands on the old maximum and leaves the boss on a sliver of its new pool.

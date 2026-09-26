@@ -538,9 +538,9 @@ theme_override_constants/separation = 16
 custom_minimum_size = Vector2(70, 0)
 layout_mode = 1
 offset_left = 8.0
-offset_top = 150.0
+offset_top = 220.0
 offset_right = 48.0
-offset_bottom = 190.0
+offset_bottom = 260.0
 script = ExtResource("7_bsu3s")
 
 [node name="AttackMenu" type="Control" parent="BattleUI/UIRoot" unique_id=1487681162]

@@ -812,8 +812,10 @@ func _on_boss_phase_changed(enemy: Character, phase: BossPhase) -> void:
 	_rebuild_enemy_cards()
 	# Reinforcements get a card from the rebuild above, but the battlefield
 	# sprites are built once at battle start — without this they fight from an
-	# empty patch of ground.
-	_rebuild_enemy_portraits(battle_manager.enemies)
+	# empty patch of ground. ALIVE only, matching _rebuild_enemy_cards: the
+	# enemies array keeps corpses, so rebuilding from it resurrected the sprite
+	# of any summon the party had already killed.
+	_rebuild_enemy_portraits(battle_manager.get_alive_enemies())
 	# The turn-order panel is built once by setup() at battle start, so a
 	# summoned enemy would otherwise never get a slot. Re-seed it from the
 	# current roster.
