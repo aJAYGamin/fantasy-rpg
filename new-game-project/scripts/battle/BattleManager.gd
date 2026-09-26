@@ -182,6 +182,39 @@ func player_attack(attacker: Character, target: Character):
 		handle_defeat(target)
 	end_player_turn()
 
+# --- Targeting ---------------------------------------------------------------
+
+## The characters a skill actually hits, from the USER's point of view: an
+## enemy's ALL_ENEMIES is the party. This is the only place targets are
+## expanded — it used to happen solely in the player's AttackMenu, so every
+## enemy area attack in the game hit exactly one hero.
+##
+## Area targets exclude the downed. A single target is returned as chosen even
+## if downed, and the resolver skips it, matching previous behaviour.
+func expand_targets(user: Character, skill: Skill, chosen: Array[Character]) -> Array[Character]:
+	var out: Array[Character] = []
+	match skill.target_type:
+		Skill.TargetType.SELF:
+			out.append(user)
+		Skill.TargetType.ALL_ENEMIES:
+			for c in _opponents_of(user):
+				if c.is_alive():
+					out.append(c)
+		Skill.TargetType.ALL_ALLIES:
+			for c in _allies_of(user):
+				if c.is_alive():
+					out.append(c)
+		_:
+			for c in chosen:
+				out.append(c)
+	return out
+
+func _opponents_of(user: Character) -> Array[Character]:
+	return enemies if party.has(user) else party
+
+func _allies_of(user: Character) -> Array[Character]:
+	return party if party.has(user) else enemies
+
 func player_use_skill(user: Character, skill: Skill, targets: Array[Character]):
 	if state != BattleState.CHOOSING_ACTION and state != BattleState.CHOOSING_TARGET:
 		return
