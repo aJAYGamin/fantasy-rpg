@@ -795,6 +795,14 @@ func _return_to_overworld():
 ## reinforcements it summoned appear and the boss's own bar reflects a
 ## transformation's larger HP pool.
 func _on_boss_phase_changed(enemy: Character, phase: BossPhase) -> void:
+	# What the bar was showing BEFORE the heal. Captured first because the
+	# rebuild below destroys the old bar, and a transformation has already set
+	# current_hp to the new maximum by the time we get here — without this the
+	# refill would snap from empty to full in a single frame.
+	var shown_before: float = -1.0
+	if _enemy_hp_bars.has(enemy) and is_instance_valid(_enemy_hp_bars[enemy]):
+		shown_before = _enemy_hp_bars[enemy].value
+
 	# max_hp() can grow (transformation's max_hp_multiplier) — refresh the
 	# cached maximum BEFORE the rebuild reads it, or the bar clamps to the
 	# stale (smaller) cache while current_hp sits at the new, larger max.
@@ -802,10 +810,36 @@ func _on_boss_phase_changed(enemy: Character, phase: BossPhase) -> void:
 	if phase.banner_text != "":
 		_show_status_banner(phase.banner_text, BattleUITheme.TEXT_ACCENT, 1.9)
 	_rebuild_enemy_cards()
+	# Reinforcements get a card from the rebuild above, but the battlefield
+	# sprites are built once at battle start — without this they fight from an
+	# empty patch of ground.
+	_rebuild_enemy_portraits(battle_manager.enemies)
 	# The turn-order panel is built once by setup() at battle start, so a
 	# summoned enemy would otherwise never get a slot. Re-seed it from the
 	# current roster.
 	turn_order_indicator.setup(battle_manager.party, battle_manager.enemies)
+
+	if phase.is_transformation() and phase.restore_hp:
+		_animate_boss_refill(enemy, shown_before)
+
+## Runs a transformed boss's health bar back up to its new full in real time.
+## BattleManager pauses the turn loop for BOSS_REFILL_DURATION while this plays,
+## so the player cannot attack into a bar that is still climbing.
+func _animate_boss_refill(enemy: Character, from_value: float) -> void:
+	if not _enemy_hp_bars.has(enemy):
+		return
+	var bar = _enemy_hp_bars[enemy]
+	if not is_instance_valid(bar):
+		return
+	var lbl = _enemy_hp_labels.get(enemy)
+	var new_max: float = float(_max_hp.get(enemy, enemy.max_hp()))
+	# Start from what the player last saw, not from the already-healed value.
+	bar.max_value = new_max
+	bar.value = from_value if from_value >= 0.0 else 0.0
+	if lbl != null and is_instance_valid(lbl):
+		lbl.text = "%d/%d" % [int(bar.value), int(new_max)]
+	var label_fn := func(v: float) -> String: return "%d/%d" % [int(v), int(new_max)]
+	_animate_bar(bar, lbl, float(enemy.current_hp), label_fn, BattleManager.BOSS_REFILL_DURATION)
 
 ## _max_hp is cached once per character at battle start (see start_battle) so
 ## bars don't jitter mid-fight. A boss transformation is the one thing that
@@ -1253,6 +1287,21 @@ func _setup_portraits(party: Array[Character], enemies: Array[Character]):
 		_hero_portraits[hero] = portrait
 
 	# --- Enemy portraits ---
+	_rebuild_enemy_portraits(enemies)
+
+## Builds the battlefield sprites for the CURRENT enemy roster. Separate from
+## _setup_portraits because a boss can summon reinforcements mid-battle: those
+## arrivals got a card but no sprite, so they attacked from an empty patch of
+## ground. Rebuilds rather than appends because _get_enemy_portrait_pos lays the
+## grid out from the total count — one new enemy shifts every other cell.
+## Enemy-only on purpose: the hero stack keeps its portraits and their state.
+func _rebuild_enemy_portraits(enemies: Array) -> void:
+	for child in enemy_positions.get_children():
+		enemy_positions.remove_child(child)
+		child.queue_free()
+	_enemy_portraits.clear()
+
+	var cinzel = load("res://fonts/Cinzel-Regular.ttf")
 	var enemy_grid = Control.new()
 	enemy_grid.name = "EnemyGrid"
 	enemy_positions.add_child(enemy_grid)

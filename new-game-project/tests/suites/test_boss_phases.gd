@@ -925,3 +925,62 @@ func test_the_castle_boss_encounter_instantiates_one_boss() -> void:
 	assert_true(spawned[0].is_boss(), "and it is a boss")
 	assert_eq(spawned[0].active_phase, -1, "a freshly spawned boss has entered no phase yet")
 	assert_eq(spawned[0].current_hp, spawned[0].max_hp(), "and starts at full health")
+
+# --------------------------------------------------- the refill pause
+# A transformed boss refills its bar in real time, and the turn loop must block
+# while it does — otherwise the player attacks into a bar that is still
+# climbing, and the refill happens between two frames where nobody sees it.
+
+func test_a_refilling_transformation_reports_a_pause() -> void:
+	var b := _boss()
+	b.phases[1].max_hp_multiplier = 1.5
+	b.phases[1].restore_hp = true
+	var bm := _manager(b)
+	bm.check_boss_phases()          # into phase 0
+	b.current_hp = 50
+	var pause: float = bm.check_boss_phases()
+	assert_eq(pause, BattleManager.BOSS_REFILL_DURATION, "the caller is told to wait for the refill")
+	bm.free()
+
+func test_an_ordinary_phase_reports_no_pause() -> void:
+	var b := _boss()
+	b.phases[1].stat_multipliers = {"attack": 2.0}
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 50
+	assert_eq(bm.check_boss_phases(), 0.0, "a phase with no refill does not stall the fight")
+	bm.free()
+
+func test_a_transformation_that_does_not_refill_reports_no_pause() -> void:
+	# Nothing visibly climbs, so there is nothing to wait for.
+	var b := _boss()
+	b.phases[1].max_hp_multiplier = 2.0
+	b.phases[1].restore_hp = false
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 50
+	assert_eq(bm.check_boss_phases(), 0.0, "a non-refilling transformation needs no pause")
+	bm.free()
+
+func test_the_pause_is_not_summed_across_a_cascade() -> void:
+	# Two refilling transformations crossed by one hit should wait ONE refill,
+	# not two stacked — the bars animate concurrently.
+	var b := _boss([1.0, 0.5, 0.25])
+	for i in [1, 2]:
+		b.phases[i].max_hp_multiplier = 1.2
+		b.phases[i].restore_hp = true
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 1
+	assert_eq(bm.check_boss_phases(), BattleManager.BOSS_REFILL_DURATION, "one refill's worth of pause")
+	bm.free()
+
+func test_a_dead_boss_reports_no_pause() -> void:
+	var b := _boss()
+	b.phases[1].max_hp_multiplier = 1.5
+	b.phases[1].restore_hp = true
+	var bm := _manager(b)
+	bm.check_boss_phases()
+	b.current_hp = 0
+	assert_eq(bm.check_boss_phases(), 0.0, "a defeated boss does not stall the victory")
+	bm.free()

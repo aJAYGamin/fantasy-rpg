@@ -18,6 +18,12 @@ signal boss_phase_changed(enemy: Character, phase: BossPhase)
 ## (see BattleScene.gd: "10 enemies fill the row"), so a boss may summon 0-9.
 const MAX_BATTLE_ENEMIES := 10
 
+## How long the turn loop pauses while a transformed boss's health bar runs back
+## up to its new full. BattleScene animates the bar for exactly this long, so the
+## player cannot attack into a bar that is still climbing. Single source of
+## truth — BattleScene reads it from here.
+const BOSS_REFILL_DURATION: float = 1.4
+
 enum BattleState {
 	IDLE,
 	CHOOSING_ACTION,
@@ -56,7 +62,11 @@ func _build_turn_order():
 	turn_order.sort_custom(func(a, b): return a.speed() > b.speed())
 
 func _next_turn():
-	check_boss_phases()
+	# Blocks while a transformed boss refills, so the player cannot attack into
+	# a bar that is still climbing.
+	var boss_pause: float = check_boss_phases()
+	if boss_pause > 0.0:
+		await get_tree().create_timer(boss_pause).timeout
 	while current_turn_index < turn_order.size():
 		var actor = turn_order[current_turn_index]
 		if actor.is_alive():
@@ -495,7 +505,13 @@ func get_alive_enemies() -> Array[Character]:
 # places (player attack, player skill, enemy skill, counter...), so rather than
 # hooking each, phases are checked at the top of every turn. That also means a
 # boss can never act while still in a stale phase.
-func check_boss_phases() -> void:
+## Returns how long the caller should PAUSE before play continues — non-zero
+## when a transformation refilled a boss's health, so the refill is something
+## the player watches rather than something that happens between two frames.
+## Returns a duration rather than awaiting internally, so this stays synchronous
+## for tests and the single await lives in _next_turn.
+func check_boss_phases() -> float:
+	var pause := 0.0
 	for e in enemies:
 		if not (e is Enemy):
 			continue
@@ -509,6 +525,9 @@ func check_boss_phases() -> void:
 			# check), so a non-null phase is guaranteed here.
 			var phase := boss.advance_phase()
 			_enter_boss_phase(boss, phase)
+			if phase.is_transformation() and phase.restore_hp:
+				pause = maxf(pause, BOSS_REFILL_DURATION)
+	return pause
 
 func _enter_boss_phase(boss: Enemy, phase: BossPhase) -> void:
 	# Replace, don't accumulate: the new phase's multipliers are the whole truth.
