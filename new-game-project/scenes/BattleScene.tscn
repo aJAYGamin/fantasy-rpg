@@ -22,9 +22,9 @@ expand_mode = 1
 [node name="CharactersLayer" type="Node2D" parent="." unique_id=1365571197]
 
 [node name="PartyPositions" type="VBoxContainer" parent="CharactersLayer" unique_id=249379234]
-offset_left = 70.0
+offset_left = 135.0
 offset_top = 320.0
-offset_right = 110.0
+offset_right = 175.0
 offset_bottom = 360.0
 theme_override_constants/separation = 4
 
