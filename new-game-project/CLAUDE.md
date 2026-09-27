@@ -48,7 +48,7 @@ art LAST. See **Roadmap** near the bottom for the agreed order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~3397 tests, 43 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~3405 tests, 44 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -508,6 +508,14 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   if `woke_up`: emit wake banner, await ~1.75s → if `skip`: emit skip banner,
   await ~1.9s, advance to next actor → else `emit turn_ready_for_action`
   (UI shows action menu only now, so it never flashes during a skip).
+  - ⚠️ **Nothing may re-show the action menu unless the battle is waiting for
+    the hero** — `BattleScene._hero_may_act()`: party actor, not over, and the
+    manager in `CHOOSING_ACTION`/`CHOOSING_TARGET`. Each battle menu emits its
+    choice and THEN `close()`s, and the choice resolves the whole turn first,
+    so its `menu_closed` lands after the next turn has begun. Gating on "the
+    current actor is a hero" alone brought the menu back for a stunned /
+    asleep / paralysed hero during their skip banner (and during a wake-up
+    banner or a boss refill), where the manager is `IDLE`.
 - Player: `player_attack`, `player_use_skill`, `player_use_item`, `player_defend`.
   Enemy: `enemy_use_skill` (no MP deduction). `_apply_skill_status` routes status tokens.
 - Signals: `battle_started`, `turn_started`, **`turn_ready_for_action`**,
@@ -739,11 +747,11 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~3397 tests / 43 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~3405 tests / 44 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,
-  auto_save, level_up_screen, defeat_flow, roaming_enemy, move_library, skill_resolver, status_chips.
+  auto_save, level_up_screen, defeat_flow, roaming_enemy, move_library, skill_resolver, status_chips, battle_menu_gating.
 - Tests touching GameManager must snapshot & restore global state.
 - When fixing a bug, add a regression test that fails before the fix.
 - **Adding a new `class_name` file:** the headless test runner won't see it until the
@@ -875,6 +883,13 @@ own Testing Policy above — the policy (a suite per feature, registered in
   - **Audio:** Master/Music/SFX volume → three AudioServer buses (Master + programmatic Music/SFX via
     `SettingsModel.ensure_buses()`). Global UI SFX (`misc_menu_4.wav`) auto-wired to every Button's
     `pressed`+`mouse_entered` by GameManager (plays while paused). Main-menu music loops.
+    **Hover sound only in the current menu (user's rule):** `GameManager.hover_sfx_allowed(b)` —
+    a button sounds on hover only if it is inside the topmost visible focus scope (the same "current
+    menu" controller focus is locked to), or no scope is open. A menu left visible beneath a picker or
+    modal stays silent. A button that is the way out of the current step but lives in the menu below
+    (the battle's "← Back" during target selection) opts in with `set_meta(GameManager.HOVER_SFX_ALWAYS,
+    true)`. Clicks always sound. **Every menu must register its focus scope** — an unregistered menu
+    would not count as "current".
   - **Display:** window mode (Fullscreen / Borderless / Windowed) + resolution dropdown.
     `apply_display()` is **idempotent** (guards each transition on current mode — re-issuing macOS
     fullscreen crashes). Game **boots windowed** (`project.godot` has no `window/size/mode`) then
