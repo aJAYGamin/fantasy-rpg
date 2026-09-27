@@ -1126,6 +1126,9 @@ func _set_target_selection_ui(selecting: bool):
 		var cinzel = load("res://fonts/Cinzel-Regular.ttf")
 		var back_btn = Button.new()
 		back_btn.name = "TargetBackBtn"
+		# It lives in the action menu, but the target row is the current scope
+		# while it shows — it is the way out of this step, so it keeps its sound.
+		back_btn.set_meta(GameManager.HOVER_SFX_ALWAYS, true)
 		back_btn.text = "← Back"
 		back_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		back_btn.custom_minimum_size = Vector2(0, 30)
@@ -1133,8 +1136,8 @@ func _set_target_selection_ui(selecting: bool):
 		back_btn.add_theme_font_size_override("font_size", 13)
 		back_btn.pressed.connect(func(): _cancel_target_selection())
 		action_layout.add_child(back_btn)
-	# Only show if it's a player's turn and battle isn't over
-	if current_actor != null and battle_manager.party.has(current_actor) and not _battle_over:
+	# Only show while the battle is waiting for this hero (see _hero_may_act).
+	if _hero_may_act():
 		action_menu.visible = true
 
 func _cancel_target_selection():
@@ -1246,8 +1249,21 @@ func _on_move_selected(skill: Skill, targets: Array):
 		battle_manager.player_use_skill(current_actor, skill, typed_targets)
 
 func _on_attack_menu_closed():
-	if not _battle_over and current_actor != null and battle_manager.party.has(current_actor):
+	if _hero_may_act():
 		action_menu.visible = true
+
+## True only while the battle is actually waiting for the current hero to
+## choose. current_actor can be a hero without that hero being allowed to act:
+## during a stun/sleep/paralysis skip, a wake-up banner, or a boss's HP refill
+## the manager is IDLE. Each battle menu announces its choice and THEN closes
+## itself, and the choice resolves the whole turn first — so a "closed" signal
+## arriving after that must not bring the action menu back for a turn that is
+## being skipped.
+func _hero_may_act() -> bool:
+	if _battle_over or current_actor == null or not battle_manager.party.has(current_actor):
+		return false
+	return battle_manager.state == BattleManager.BattleState.CHOOSING_ACTION \
+		or battle_manager.state == BattleManager.BattleState.CHOOSING_TARGET
 
 # Hero colors keyed by uppercased element name (lookup is `get_element_name(...).to_upper()`).
 const HERO_COLORS = {
