@@ -790,13 +790,36 @@ func _on_node_added(node: Node) -> void:
 func _wire_button(b: BaseButton) -> void:
 	if not b.pressed.is_connected(_play_ui_sfx):
 		b.pressed.connect(_play_ui_sfx)
-	# Hover SFX too, matching the main-menu feel — for every button everywhere.
-	if not b.mouse_entered.is_connected(_play_ui_sfx):
-		b.mouse_entered.connect(_play_ui_sfx)
+	# Hover SFX too, matching the main-menu feel — but only for buttons in the
+	# menu the player is in (see hover_sfx_allowed). The meta guard keeps a
+	# re-wire from stacking a second bound connection.
+	if not b.has_meta("_hover_sfx_wired"):
+		b.set_meta("_hover_sfx_wired", true)
+		b.mouse_entered.connect(_play_hover_sfx.bind(b))
 
 func _play_ui_sfx() -> void:
 	if _ui_sfx != null and _ui_sfx.stream != null:
 		_ui_sfx.play()
+
+func _play_hover_sfx(b: BaseButton) -> void:
+	if hover_sfx_allowed(b):
+		_play_ui_sfx()
+
+## Meta flag: a button that is the way out of the current step but lives in the
+## menu beneath it (the battle's "← Back" during target selection) sets this to
+## keep its hover sound.
+const HOVER_SFX_ALWAYS := "hover_sfx_always"
+
+## A button only makes its hover sound when it belongs to the menu the player
+## is in — the topmost visible focus scope, the same thing controller focus is
+## locked to. A menu underneath one that only partly covers it (the battle
+## action menu under the items menu, say) stays silent. With no menu open at
+## all, every button sounds as before. Clicks are unaffected.
+func hover_sfx_allowed(b: Control) -> bool:
+	if b.get_meta(HOVER_SFX_ALWAYS, false):
+		return true
+	var top := top_focus_scope()
+	return top == null or top == b or top.is_ancestor_of(b)
 
 # ─── Party Management ────────────────────────────────────
 func ensure_default_party():
