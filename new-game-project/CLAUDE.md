@@ -48,7 +48,7 @@ art LAST. See **Roadmap** near the bottom for the agreed order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~3420 tests, 46 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~3440 tests, 46 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -763,7 +763,7 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~3420 tests / 46 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~3440 tests / 46 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,
@@ -896,6 +896,13 @@ own Testing Policy above — the policy (a suite per feature, registered in
   (`apply_audio_and_save` / `apply_display_and_save` / `apply_performance_and_save` /
   `apply_fps_overlay_and_save` / `save_settings`) so changing one group never triggers unrelated side
   effects (e.g. volume changes don't flicker the window).
+  - **One centred column in every view.** The panel's side padding is `PANEL_MARGIN_X` (24) on BOTH
+    sides for the list views and the detail sub-menus alike, so the title, divider lines, rows and Back
+    button share one column. A detail view's scroll area alone reaches `SCROLL_REACH` (16) into the
+    right padding (a negative-margin `MarginContainer`) for its scrollbar, and uses
+    `SCROLL_MODE_RESERVE` so the bar's width is set aside whether it shows or not; its content is padded
+    by the rest of the reach. (Detail views used to cut the right padding to 8 to tuck the scrollbar
+    in, which shoved the title, lines and Back 16px right.)
   - **Audio:** Master/Music/SFX volume → three AudioServer buses (Master + programmatic Music/SFX via
     `SettingsModel.ensure_buses()`). Global UI SFX (`misc_menu_4.wav`) auto-wired to every Button's
     `pressed`+`mouse_entered` by GameManager (plays while paused). Main-menu music loops.
