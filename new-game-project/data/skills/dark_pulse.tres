@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_houae"]
+
+[resource]
+script = ExtResource("1_houae")
+skill_name = "Dark Pulse"
+description = "A wave of dark energy that corrupts all heroes."
+attack_type = 2
+target_type = 1
+element = 14

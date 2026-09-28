@@ -27,10 +27,20 @@ static func _font(path: String) -> FontFile:
 
 # --- Public: populate a row with all active chips for a character. ---
 # Clears existing children and rebuilds. Hides the row when nothing to show.
-static func populate_row(row: HBoxContainer, character) -> void:
+#
+# max_width > 0 caps how wide the row may get: chips that would push past it
+# fold into one trailing "+N" chip whose tooltip lists them. Hero panels size
+# themselves to their content, so an uncapped row with many effects widened the
+# panel and shoved its neighbours sideways. 0 (the default) means no cap.
+static func populate_row(row: HBoxContainer, character, max_width: float = 0.0) -> void:
 	if row == null:
 		return
+	# Detach before freeing. queue_free() alone leaves the old chips as children
+	# until the end of the frame, and an area attack rebuilds every row once per
+	# target in the same frame — so the row briefly held several sets of chips
+	# and the panel sized to it jumped wider on every enemy attack.
 	for child in row.get_children():
+		row.remove_child(child)
 		child.queue_free()
 	if character == null:
 		row.hide()
@@ -53,10 +63,48 @@ static func populate_row(row: HBoxContainer, character) -> void:
 			row.add_child(_build_buff_chip(stat, false))
 			added = true
 
+	if added and max_width > 0.0:
+		_fold_overflow(row, max_width)
+
 	if added:
 		row.show()
 	else:
 		row.hide()
+
+# Replaces the tail of an over-wide row with a "+N" chip until it fits. Widths
+# are measured on the live row: a chip only knows its size once it is in the
+# tree, where its font resolves.
+static func _fold_overflow(row: HBoxContainer, max_width: float) -> void:
+	if row.get_combined_minimum_size().x <= max_width:
+		return
+	var more := _build_chip("", "", Color(0.30, 0.24, 0.40), Color(0.72, 0.55, 1.0),
+			_BUFF_CHIP_HEIGHT, "")
+	row.add_child(more)
+	var hidden: Array[String] = []
+	# Keep at least one real chip, so the row never shows "+N" alone.
+	while row.get_child_count() > 2 and row.get_combined_minimum_size().x > max_width:
+		var victim: Control = row.get_child(row.get_child_count() - 2)
+		hidden.push_front(victim.tooltip_text)
+		row.remove_child(victim)
+		victim.free()
+		_set_chip_text(more, "+%d" % hidden.size())
+	more.tooltip_text = "\n".join(hidden)
+	more.set_meta("hidden_count", hidden.size())
+
+# The chip's single text label (built by _build_chip with an empty icon).
+static func _set_chip_text(chip: PanelContainer, text: String) -> void:
+	var hb := chip.get_child(0)
+	var lbl: Label
+	if hb.get_child_count() == 0:
+		lbl = Label.new()
+		lbl.add_theme_color_override("font_color", Color(1, 1, 1))
+		lbl.add_theme_font_size_override("font_size", 9)
+		var f := _font(_CINZEL_BOLD_PATH)
+		if f: lbl.add_theme_font_override("font", f)
+		hb.add_child(lbl)
+	else:
+		lbl = hb.get_child(0)
+	lbl.text = text
 
 # --- Private builders ---
 

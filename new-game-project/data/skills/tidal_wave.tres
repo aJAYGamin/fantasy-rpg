@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_u6o7f"]
+
+[resource]
+script = ExtResource("1_u6o7f")
+skill_name = "Tidal Wave"
+description = "Crashes water over one hero."
+attack_type = 2
+power = 1.4
+element = 2

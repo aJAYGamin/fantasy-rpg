@@ -1,34 +1,12 @@
 [gd_resource type="Resource" script_class="Enemy" format=3 uid="uid://dde6fq4k6qscu"]
 
-[ext_resource type="Script" uid="uid://cjbcaorle0k6n" path="res://scripts/characters/Skill.gd" id="1_skill"]
-[ext_resource type="Script" uid="uid://bc8mpswi1cxid" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
-[ext_resource type="Resource" uid="uid://bdbqhpryylbig" path="res://data/skills/Skill_blizzard.tres" id="3_tilns"]
-
-[sub_resource type="Resource" id="Skill_glacial_fist"]
-script = ExtResource("1_skill")
-skill_name = "Glacial Fist"
-description = "A frozen punch that chills to the bone."
-power = 1.1
-element = 4
-
-[sub_resource type="Resource" id="Skill_frost_breath"]
-script = ExtResource("1_skill")
-skill_name = "Frost Breath"
-description = "Exhales a cone of freezing air."
-attack_type = 2
-power = 1.4
-element = 4
-status_to_apply = "frostbite"
-status_chance = 0.35
-
-[sub_resource type="Resource" id="Skill_ice_armor"]
-script = ExtResource("1_skill")
-skill_name = "Ice Armor"
-description = "Encases itself in ice, restoring some HP."
-skill_type = 1
-target_type = 4
-power = 1.2
-element = 4
+[ext_resource type="Script" path="res://scripts/characters/BossPhase.gd" id="1_o18i7"]
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+[ext_resource type="Script" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
+[ext_resource type="Resource" path="res://data/skills/glacial_fist.tres" id="4_y5moa"]
+[ext_resource type="Resource" path="res://data/skills/frost_breath.tres" id="5_gas0g"]
+[ext_resource type="Resource" path="res://data/skills/blizzard.tres" id="6_ni63b"]
+[ext_resource type="Resource" path="res://data/skills/ice_armor.tres" id="7_v7hmv"]
 
 [resource]
 script = ExtResource("2_enemy")
@@ -44,4 +22,4 @@ base_magic = 10
 base_speed = 7
 element = 4
 extra_weakness = 1
-skills = Array[ExtResource("1_skill")]([SubResource("Skill_glacial_fist"), SubResource("Skill_frost_breath"), ExtResource("3_tilns"), SubResource("Skill_ice_armor")])
+skills = Array[ExtResource("1_skill")]([ExtResource("4_y5moa"), ExtResource("5_gas0g"), ExtResource("6_ni63b"), ExtResource("7_v7hmv")])

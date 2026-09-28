@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_qj1i6"]
+
+[resource]
+script = ExtResource("1_qj1i6")
+skill_name = "Earth Mend"
+description = "Draws energy from the earth to heal."
+skill_type = 1
+target_type = 4
+power = 1.4
+element = 6

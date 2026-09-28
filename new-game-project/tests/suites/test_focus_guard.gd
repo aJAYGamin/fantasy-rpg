@@ -21,6 +21,36 @@ func _cleanup(nodes: Array) -> void:
 			GameManager.unregister_focus_scope(n)
 			n.queue_free()
 
+func test_hover_sfx_only_sounds_in_the_current_menu() -> void:
+	# The player's rule: a button only makes its hover sound when it belongs to
+	# the menu they are in. "The menu they are in" is the same thing controller
+	# focus uses — the topmost visible scope — so e.g. the battle action menu
+	# stays silent while the items menu is open over it.
+	var under := _make_scope()
+	var over := _make_scope()
+	GameManager.register_focus_scope(under)
+	GameManager.register_focus_scope(over)
+	var under_btn: Control = under.get_child(0)
+	var over_btn: Control = over.get_child(0)
+	assert_false(GameManager.hover_sfx_allowed(under_btn), "a button in the menu underneath stays silent")
+	assert_true(GameManager.hover_sfx_allowed(over_btn), "the current menu's buttons sound")
+	over.hide()
+	assert_true(GameManager.hover_sfx_allowed(under_btn), "once the top menu closes, the one beneath sounds again")
+	_cleanup([under, over])
+
+func test_a_button_can_opt_in_to_sounding_outside_the_current_menu() -> void:
+	# The battle's "← Back" during target selection lives in the action menu
+	# while the target row is the current scope — it is the way out of that
+	# step, so it keeps its hover sound.
+	var under := _make_scope()
+	var over := _make_scope()
+	GameManager.register_focus_scope(under)
+	GameManager.register_focus_scope(over)
+	var back: Control = under.get_child(0)
+	back.set_meta(GameManager.HOVER_SFX_ALWAYS, true)
+	assert_true(GameManager.hover_sfx_allowed(back), "an opted-in button sounds from beneath the current menu")
+	_cleanup([under, over])
+
 func test_register_and_unregister() -> void:
 	var a := _make_scope()
 	GameManager.register_focus_scope(a)

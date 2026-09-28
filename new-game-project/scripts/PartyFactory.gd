@@ -48,6 +48,19 @@ const SKILL_CATEGORIES: Array[int] = [
 # nothing, so it must stay false in a shipped build.
 const TEST_UNLOCK_ALL_SKILLS := false
 
+const MOVES := "res://data/skills/"
+
+## A hero's own copy of a library move. The file is the single definition of
+## what the move does; the copy belongs to this hero, so stamping its unlock
+## level and category — which differ per hero — can never leak into the file
+## or into another hero who shares the move.
+static func _move(file: String) -> Skill:
+	var path := MOVES + file
+	var template: Skill = load(path)
+	var copy: Skill = template.duplicate(true)
+	copy.source_path = path
+	return copy
+
 ## Stamps the curve and category onto a hero's pool. Slots beyond the tables keep
 ## their Skill defaults (level 1, ATTACK) rather than becoming unreachable.
 static func _apply_skill_tables(hero: Character) -> void:
@@ -95,60 +108,11 @@ static func _create_aria() -> Character:
 	hero.set_meta("ultimate_desc", "Aria calls forth a crushing tide, drowning all enemies in pure aquatic fury.")
 	hero.set_meta("bio", "A prodigy of the tidal arts, Aria channels the ocean's calm and its fury in equal measure. She joined the journey to learn why the old water-shrines have fallen silent.")
 
-	# Attacks (indices 0–3)
-	var slash = _make_skill("Aqua Slash", "A swift slash trailing arcing water.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.STRIKE, ElementalSystem.Element.WATER,
-		1.2, 0, Skill.TargetType.SINGLE_ENEMY)
-
-	var frost = _make_skill("Frost Bolt", "A bolt of ice that slows the target.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.ICE,
-		1.5, 12, Skill.TargetType.SINGLE_ENEMY)
-
-	var tide_pulse = _make_skill("Tide Pulse", "A wave of crashing water hitting all enemies.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.WATER,
-		1.0, 18, Skill.TargetType.ALL_ENEMIES)
-
-	var heal_spell = _make_status_skill("Mend", "Restores HP to a single ally.",
-		Skill.StatusType.HEAL, ElementalSystem.Element.LIGHT,
-		1.8, 15, Skill.TargetType.SINGLE_ALLY)
-
-	# Specials (indices 4–7)
-	var requiem = _make_skill("Tidal Requiem", "Aria's ultimate — a torrent of pure aquatic energy.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.WATER,
-		3.5, 40, Skill.TargetType.ALL_ENEMIES)
-
-	var hydro_pierce = _make_skill("Hydro Pierce", "Pierces through defenses with a high-pressure water spike.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.WATER,
-		2.5, 25, Skill.TargetType.SINGLE_ENEMY)
-
-	# "Shields" -> DEF buff. Target ALL_ALLIES so the whole party gets a chip.
-	var aria_barrier = _make_status_skill("Tidal Barrier", "Shields all allies with a swirling tide.",
-		Skill.StatusType.BUFF, ElementalSystem.Element.WATER,
-		1.0, 20, Skill.TargetType.ALL_ALLIES, "defense_buff")
-
-	var mass_heal = _make_status_skill("Grand Mend", "Restores HP to all allies.",
-		Skill.StatusType.HEAL, ElementalSystem.Element.LIGHT,
-		1.5, 30, Skill.TargetType.ALL_ALLIES)
-
-	# --- pool-only moves (slots 8-11): learned later, swapped in deliberately ---
-	var riptide = _make_skill("Riptide Lash", "A whipping coil of water that lashes a single foe.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.STRIKE, ElementalSystem.Element.WATER,
-		1.6, 8, Skill.TargetType.SINGLE_ENEMY)
-
-	var glacial = _make_skill("Glacial Shard", "Hurls a spear of ice that bites deep.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.ICE,
-		2.0, 14, Skill.TargetType.SINGLE_ENEMY, "frostbite", 0.25)
-
-	var abyssal = _make_status_skill("Abyssal Veil", "Drags the enemy line into crushing depths, softening their guard.",
-		Skill.StatusType.DEBUFF, ElementalSystem.Element.WATER,
-		1.0, 22, Skill.TargetType.ALL_ENEMIES, "defense_debuff")
-
-	var maelstrom = _make_skill("Maelstrom", "A churning vortex that batters every enemy.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.WATER,
-		3.0, 35, Skill.TargetType.ALL_ENEMIES)
-
-	hero.skills = [slash, frost, tide_pulse, heal_spell, requiem, hydro_pierce, aria_barrier, mass_heal,
-		riptide, glacial, abyssal, maelstrom] as Array[Skill]
+	hero.skills = [
+		_move("aqua_slash.tres"), _move("frost_bolt.tres"), _move("tide_pulse.tres"), _move("mend.tres"),
+		_move("tidal_requiem.tres"), _move("hydro_pierce.tres"), _move("tidal_barrier.tres"), _move("grand_mend.tres"),
+		_move("riptide_lash.tres"), _move("glacial_shard.tres"), _move("abyssal_veil.tres"), _move("maelstrom.tres"),
+	] as Array[Skill]
 	return hero
 
 static func _create_kael() -> Character:
@@ -171,64 +135,11 @@ static func _create_kael() -> Character:
 	hero.set_meta("ultimate_desc", "Kael becomes one with the phoenix, raining fire on all enemies.")
 	hero.set_meta("bio", "A hot-blooded warrior whose blade burns as fiercely as his temper. Kael fights to shield those who cannot fight for themselves, carrying the ember of a home long lost.")
 
-	var flame_strike = _make_skill("Flame Strike", "A powerful strike wreathed in fire.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.STRIKE, ElementalSystem.Element.FIRE,
-		1.4, 0, Skill.TargetType.SINGLE_ENEMY)
-
-	var shield_bash = _make_skill("Shield Bash", "Stuns the enemy with a powerful bash.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.STRIKE, ElementalSystem.Element.NORMAL,
-		1.0, 8, Skill.TargetType.SINGLE_ENEMY, "stun", 0.5)
-
-	# "Fighting spirit" -> ATK buff.
-	var war_cry = _make_status_skill("War Cry", "Boosts the party's fighting spirit.",
-		Skill.StatusType.BUFF, ElementalSystem.Element.SOUND,
-		1.0, 10, Skill.TargetType.ALL_ALLIES, "attack_buff")
-
-	var inferno = _make_skill("Inferno", "Engulfs all enemies in roaring flames.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.FIRE,
-		1.2, 20, Skill.TargetType.ALL_ENEMIES)
-
-	var phoenix = _make_skill("Phoenix Fury", "Kael's ultimate — unleashes the fury of a phoenix.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.FIRE,
-		4.0, 45, Skill.TargetType.ALL_ENEMIES)
-
-	var molten = _make_skill("Molten Blade", "A blade heated to molten temperatures.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.STRIKE, ElementalSystem.Element.FIRE,
-		2.8, 28, Skill.TargetType.SINGLE_ENEMY)
-
-	# Heals the party over a few turns (transient regen effect, not a status chip).
-	var iron_will = _make_status_skill("Iron Will", "Regenerates HP each turn for the party.",
-		Skill.StatusType.BUFF, ElementalSystem.Element.NORMAL,
-		1.0, 22, Skill.TargetType.ALL_ALLIES, "regenerate")
-
-	# Applies SCORCHED, not the phantom "burn" it used to name: add_status() does
-	# not validate against the known pool, so "burn" was appended as an inert
-	# string — no chip, no tick damage, no stat penalty, and no clear rule. The
-	# skill's 70% rider did nothing at all. Its old description said "poisons",
-	# which was wrong for a fire skill in both directions.
-	var flame_wall = _make_skill("Flame Wall", "A wall of fire that leaves enemies scorched.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.FIRE,
-		1.8, 32, Skill.TargetType.ALL_ENEMIES, StatusSystem.SCORCHED, 0.7)
-
-	# --- pool-only moves (slots 8-11) ---
-	var cinder = _make_skill("Cinder Cleave", "A heavy downward cut trailing embers.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.STRIKE, ElementalSystem.Element.FIRE,
-		1.7, 10, Skill.TargetType.SINGLE_ENEMY)
-
-	var guard_crush = _make_skill("Guard Crush", "A brutal shoulder blow that breaks a foe's stance.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.STRIKE, ElementalSystem.Element.NORMAL,
-		1.5, 12, Skill.TargetType.SINGLE_ENEMY, "defense_debuff", 0.45)
-
-	var ember_ward = _make_status_skill("Ember Ward", "Wreathes the party in protective flame.",
-		Skill.StatusType.BUFF, ElementalSystem.Element.FIRE,
-		1.0, 18, Skill.TargetType.ALL_ALLIES, "defense_buff")
-
-	var scorched = _make_skill("Scorched Earth", "Slams the ground, engulfing every enemy in fire.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.STRIKE, ElementalSystem.Element.FIRE,
-		2.8, 32, Skill.TargetType.ALL_ENEMIES, "scorched", 0.3)
-
-	hero.skills = [flame_strike, shield_bash, war_cry, inferno, phoenix, molten, iron_will, flame_wall,
-		cinder, guard_crush, ember_ward, scorched] as Array[Skill]
+	hero.skills = [
+		_move("flame_strike.tres"), _move("shield_bash.tres"), _move("war_cry.tres"), _move("inferno.tres"),
+		_move("phoenix_fury.tres"), _move("molten_blade.tres"), _move("iron_will.tres"), _move("flame_wall.tres"),
+		_move("cinder_cleave.tres"), _move("guard_crush.tres"), _move("ember_ward.tres"), _move("scorched_earth.tres"),
+	] as Array[Skill]
 	return hero
 
 static func _create_lyra() -> Character:
@@ -251,61 +162,11 @@ static func _create_lyra() -> Character:
 	hero.set_meta("ultimate_desc", "Lyra calls upon the winds to heal all allies and damage all enemies.")
 	hero.set_meta("bio", "A gentle healer who hears the whispers of the wind. Lyra mends wounds and spirits alike, searching for the lost melody said to soothe the coming Requiem.")
 
-	var wind_slash = _make_skill("Wind Slash", "A sharp gust of wind that cuts through enemies.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.STRIKE, ElementalSystem.Element.WIND,
-		1.1, 0, Skill.TargetType.SINGLE_ENEMY)
-
-	var mend = _make_status_skill("Mend", "Restores HP to a single ally.",
-		Skill.StatusType.HEAL, ElementalSystem.Element.WIND,
-		1.8, 12, Skill.TargetType.SINGLE_ALLY)
-
-	var gust = _make_skill("Gust", "Blows wind at all enemies dealing light damage.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.WIND,
-		0.9, 10, Skill.TargetType.ALL_ENEMIES)
-
-	# Description literally says "boosting their defense" -> DEF buff on a single ally.
-	var barrier = _make_status_skill("Wind Barrier", "Surrounds an ally with wind, boosting their defense.",
-		Skill.StatusType.BUFF, ElementalSystem.Element.WIND,
-		1.0, 8, Skill.TargetType.SINGLE_ALLY, "defense_buff")
-
-	var gale = _make_skill("Gale Requiem", "Lyra's ultimate — heals all allies and damages all enemies with wild winds.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.WIND,
-		3.0, 40, Skill.TargetType.ALL_ENEMIES)
-
-	var cyclone = _make_skill("Cyclone", "A massive cyclone that strikes all enemies twice.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.MAGIC, ElementalSystem.Element.WIND,
-		2.2, 28, Skill.TargetType.ALL_ENEMIES)
-
-	var grand_mend = _make_status_skill("Grand Mend", "Restores HP to all allies.",
-		Skill.StatusType.HEAL, ElementalSystem.Element.WIND,
-		1.5, 30, Skill.TargetType.ALL_ALLIES)
-
-	# Description says "speed and attack" — single-token system can apply one. SPD
-	# is the closer fit for "Tailwind". (User: ask me if you'd rather have ATK,
-	# or split this into two skills, one for each buff.)
-	var tailwind = _make_status_skill("Tailwind", "Boosts the speed of all allies.",
-		Skill.StatusType.BUFF, ElementalSystem.Element.WIND,
-		1.0, 22, Skill.TargetType.ALL_ALLIES, "speed_buff")
-
-	# --- pool-only moves (slots 8-11) ---
-	var zephyr = _make_skill("Zephyr Cut", "A quick crescent of sharpened air.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.STRIKE, ElementalSystem.Element.WIND,
-		1.5, 8, Skill.TargetType.SINGLE_ENEMY)
-
-	var volley = _make_skill("Feather Volley", "Looses a scattering flight of razor feathers.",
-		Skill.SkillType.DAMAGE, Skill.AttackType.RANGED, ElementalSystem.Element.WIND,
-		1.8, 13, Skill.TargetType.ALL_ENEMIES)
-
-	var breeze = _make_status_skill("Restoring Breeze", "A warm current that keeps mending an ally.",
-		Skill.StatusType.HEAL, ElementalSystem.Element.WIND,
-		1.2, 18, Skill.TargetType.SINGLE_ALLY, "regenerate")
-
-	var sanctuary = _make_status_skill("Sanctuary", "Hallowed air blunts incoming magic.",
-		Skill.StatusType.BUFF, ElementalSystem.Element.LIGHT,
-		1.0, 24, Skill.TargetType.ALL_ALLIES, "arcane_buff")
-
-	hero.skills = [wind_slash, mend, gust, barrier, gale, cyclone, grand_mend, tailwind,
-		zephyr, volley, breeze, sanctuary] as Array[Skill]
+	hero.skills = [
+		_move("wind_slash.tres"), _move("mend.tres"), _move("gust.tres"), _move("wind_barrier.tres"),
+		_move("gale_requiem.tres"), _move("cyclone.tres"), _move("grand_mend.tres"), _move("tailwind.tres"),
+		_move("zephyr_cut.tres"), _move("feather_volley.tres"), _move("restoring_breeze.tres"), _move("sanctuary.tres"),
+	] as Array[Skill]
 	return hero
 
 # --- Starter inventory (test seed) ---
@@ -365,37 +226,3 @@ static func _equip_new(hero: Character, pool: Inventory, name: String) -> void:
 	pool.add_equipment(e)
 	Inventory.equip_from_pool(hero, pool, e)
 
-# --- Skill construction helpers ---
-static func _make_skill(name: String, desc: String, skill_type: Skill.SkillType,
-		attack_type: Skill.AttackType, element: ElementalSystem.Element,
-		power: float, mp_cost: int, target: Skill.TargetType,
-		status: String = "", chance: float = 0.0) -> Skill:
-	var s = Skill.new()
-	s.skill_name = name
-	s.description = desc
-	s.skill_type = skill_type
-	s.attack_type = attack_type
-	s.element = element
-	s.power = power
-	s.mp_cost = mp_cost
-	s.target_type = target
-	s.status_to_apply = status
-	s.status_chance = chance
-	return s
-
-static func _make_status_skill(name: String, desc: String, status_type: Skill.StatusType,
-		element: ElementalSystem.Element, power: float, mp_cost: int,
-		target: Skill.TargetType, status_to_apply: String = "") -> Skill:
-	var s = Skill.new()
-	s.skill_name = name
-	s.description = desc
-	s.skill_type = Skill.SkillType.STATUS
-	s.status_type = status_type
-	s.element = element
-	s.power = power
-	s.mp_cost = mp_cost
-	s.target_type = target
-	# Token can be a stat-buff ("attack_buff"), stat-debuff ("magic_debuff"),
-	# or a legacy named status ("regenerate"). Empty -> regenerate by default.
-	s.status_to_apply = status_to_apply
-	return s

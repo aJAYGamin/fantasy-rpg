@@ -201,3 +201,54 @@ func test_apply_performance_sets_max_fps() -> void:
 	assert_eq(Engine.max_fps, 60, "max_fps applied from fps_cap")
 	# Restore the live settings so we don't leave the engine capped.
 	GameManager.settings.apply_performance()
+
+# --------------------------------------------------- settings panel layout
+
+## Every settings view — the category lists AND the detail sub-menus (Game,
+## Audio, Display, Performance, Keyboard, Controller) — keeps its title,
+## divider lines and Back button centred in the panel. The detail views used to
+## shrink the panel's RIGHT margin to 8px (vs 24px on the left) to tuck the
+## scrollbar against the border, which pushed everything else 16px right.
+## Only the scroll area may reach into the right padding now.
+const _SETTINGS_VIEWS := ["root", "controls", "game", "audio", "display", "performance", "keyboard", "controller"]
+
+func _settings_panel(screen: SettingsScreen) -> PanelContainer:
+	for c in screen.get_children():
+		if c is CenterContainer:
+			return c.get_child(0) as PanelContainer
+	return null
+
+func test_every_settings_view_is_centred_in_its_panel() -> void:
+	var screen := SettingsScreen.new()
+	GameManager.add_child(screen)   # _build sizes itself from the viewport
+	for view in _SETTINGS_VIEWS:
+		screen._view = view
+		screen._build()
+		var panel := _settings_panel(screen)
+		var style := panel.get_theme_stylebox("panel") as StyleBoxFlat
+		assert_eq(style.content_margin_left, style.content_margin_right,
+				"%s: title, lines and Back sit centred (left margin == right margin)" % view)
+	GameManager.remove_child(screen)
+	screen.free()
+
+func test_scrolling_settings_content_shares_the_centred_column() -> void:
+	# The rows and section lines INSIDE a detail view's scroll area must use the
+	# same 24/24 column as the title and Back button. The scroll area reaches
+	# SCROLL_REACH into the right padding for its scrollbar, and always reserves
+	# that scrollbar's width (visible or not), so the content's right padding is
+	# whatever is left of the reach — then the column ends exactly
+	# PANEL_MARGIN_X from the border in every view, scrolling or not.
+	var screen := SettingsScreen.new()
+	GameManager.add_child(screen)
+	for view in ["game", "audio", "display", "performance", "keyboard", "controller"]:
+		screen._view = view
+		screen._build()
+		var scroll := screen.find_children("*", "ScrollContainer", true, false)[0] as ScrollContainer
+		var pad := scroll.get_child(0) as MarginContainer
+		var bar_w := scroll.get_v_scroll_bar().get_combined_minimum_size().x
+		assert_eq(scroll.vertical_scroll_mode, ScrollContainer.SCROLL_MODE_RESERVE,
+				"%s: the scrollbar's width is always set aside, visible or not" % view)
+		assert_eq(pad.get_theme_constant("margin_right") + bar_w, float(SettingsScreen.SCROLL_REACH),
+				"%s: content ends %dpx from the border, like the title and Back" % [view, SettingsScreen.PANEL_MARGIN_X])
+	GameManager.remove_child(screen)
+	screen.free()

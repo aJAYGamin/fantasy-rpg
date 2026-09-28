@@ -1,39 +1,12 @@
 [gd_resource type="Resource" script_class="Enemy" format=3 uid="uid://hmmcfblq7he4"]
 
-[ext_resource type="Script" uid="uid://cjbcaorle0k6n" path="res://scripts/characters/Skill.gd" id="1_skill"]
-[ext_resource type="Script" uid="uid://bc8mpswi1cxid" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
-
-[sub_resource type="Resource" id="Skill_coil_crush"]
-script = ExtResource("1_skill")
-skill_name = "Coil Crush"
-description = "Wraps around and crushes a hero."
-power = 1.2
-element = 2
-
-[sub_resource type="Resource" id="Skill_tidal_wave"]
-script = ExtResource("1_skill")
-skill_name = "Tidal Wave"
-description = "Crashes water over one hero."
-attack_type = 2
-power = 1.4
-element = 2
-
-[sub_resource type="Resource" id="Skill_whirlpool"]
-script = ExtResource("1_skill")
-skill_name = "Whirlpool"
-description = "Creates a whirlpool that pulls all heroes in."
-attack_type = 2
-target_type = 1
-element = 2
-
-[sub_resource type="Resource" id="Skill_sea_foam"]
-script = ExtResource("1_skill")
-skill_name = "Sea Foam"
-description = "Uses ocean energy to restore HP."
-skill_type = 1
-target_type = 4
-power = 1.2
-element = 2
+[ext_resource type="Script" path="res://scripts/characters/BossPhase.gd" id="1_5r6yw"]
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+[ext_resource type="Script" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
+[ext_resource type="Resource" path="res://data/skills/coil_crush.tres" id="4_lcgec"]
+[ext_resource type="Resource" path="res://data/skills/tidal_wave.tres" id="5_g7fon"]
+[ext_resource type="Resource" path="res://data/skills/whirlpool.tres" id="6_sdnfy"]
+[ext_resource type="Resource" path="res://data/skills/sea_foam.tres" id="7_nn7wc"]
 
 [resource]
 script = ExtResource("2_enemy")
@@ -66,4 +39,4 @@ base_magic = 10
 base_arcane = 6
 base_speed = 9
 element = 2
-skills = Array[ExtResource("1_skill")]([SubResource("Skill_coil_crush"), SubResource("Skill_tidal_wave"), SubResource("Skill_whirlpool"), SubResource("Skill_sea_foam")])
+skills = Array[ExtResource("1_skill")]([ExtResource("4_lcgec"), ExtResource("5_g7fon"), ExtResource("6_sdnfy"), ExtResource("7_nn7wc")])

@@ -1,41 +1,12 @@
 [gd_resource type="Resource" script_class="Enemy" format=3 uid="uid://d1i0agpiwjbb1"]
 
-[ext_resource type="Script" uid="uid://cjbcaorle0k6n" path="res://scripts/characters/Skill.gd" id="1_skill"]
-[ext_resource type="Script" uid="uid://bc8mpswi1cxid" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
-
-[sub_resource type="Resource" id="Skill_flame_bite"]
-script = ExtResource("1_skill")
-skill_name = "Flame Bite"
-description = "A savage bite that burns on contact."
-power = 1.1
-element = 1
-status_to_apply = "scorched"
-status_chance = 0.4
-
-[sub_resource type="Resource" id="Skill_inferno_breath"]
-script = ExtResource("1_skill")
-skill_name = "Inferno Breath"
-description = "A torrent of fire from its maw."
-attack_type = 2
-power = 1.5
-element = 1
-
-[sub_resource type="Resource" id="Skill_dragon_roar"]
-script = ExtResource("1_skill")
-skill_name = "Dragon Roar"
-description = "A terrifying roar that scorches all heroes."
-attack_type = 2
-target_type = 1
-element = 1
-
-[sub_resource type="Resource" id="Skill_fire_scales"]
-script = ExtResource("1_skill")
-skill_name = "Fire Scales"
-description = "Channels fire energy to regenerate HP."
-skill_type = 1
-target_type = 4
-power = 1.2
-element = 1
+[ext_resource type="Script" path="res://scripts/characters/BossPhase.gd" id="1_l8wgl"]
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+[ext_resource type="Script" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
+[ext_resource type="Resource" path="res://data/skills/flame_bite.tres" id="4_whyac"]
+[ext_resource type="Resource" path="res://data/skills/inferno_breath.tres" id="5_n2a16"]
+[ext_resource type="Resource" path="res://data/skills/dragon_roar.tres" id="6_yybno"]
+[ext_resource type="Resource" path="res://data/skills/fire_scales.tres" id="7_30pft"]
 
 [resource]
 script = ExtResource("2_enemy")
@@ -50,4 +21,4 @@ base_arcane = 7
 base_speed = 9
 element = 1
 secondary_element = 11
-skills = Array[ExtResource("1_skill")]([SubResource("Skill_flame_bite"), SubResource("Skill_inferno_breath"), SubResource("Skill_dragon_roar"), SubResource("Skill_fire_scales")])
+skills = Array[ExtResource("1_skill")]([ExtResource("4_whyac"), ExtResource("5_n2a16"), ExtResource("6_yybno"), ExtResource("7_30pft")])

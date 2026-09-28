@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_05skl"]
+
+[resource]
+script = ExtResource("1_05skl")
+skill_name = "Frost Bolt"
+description = "A bolt of ice that slows the target."
+mp_cost = 12
+attack_type = 2
+power = 1.5
+element = 4

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_exuyv"]
+
+[resource]
+script = ExtResource("1_exuyv")
+skill_name = "Wind Barrier"
+description = "Surrounds an ally with wind, boosting their defense."
+mp_cost = 8
+skill_type = 1
+status_type = 1
+target_type = 2
+element = 7
+status_to_apply = "defense_buff"

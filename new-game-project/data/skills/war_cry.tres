@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_p6gch"]
+
+[resource]
+script = ExtResource("1_p6gch")
+skill_name = "War Cry"
+description = "Boosts the party's fighting spirit."
+mp_cost = 10
+skill_type = 1
+status_type = 1
+target_type = 3
+element = 8
+status_to_apply = "attack_buff"

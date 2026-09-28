@@ -1,27 +1,11 @@
 [gd_resource type="Resource" script_class="Enemy" format=3 uid="uid://bndbtx0w8eeyo"]
 
-[ext_resource type="Script" uid="uid://cjbcaorle0k6n" path="res://scripts/characters/Skill.gd" id="1_skill"]
-[ext_resource type="Script" uid="uid://bc8mpswi1cxid" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
-
-[sub_resource type="Resource" id="Skill_twin_fangs"]
-script = ExtResource("1_skill")
-skill_name = "Twin Fangs"
-description = "Slashes with a knife in each hand."
-power = 1.1
-
-[sub_resource type="Resource" id="Skill_venom_nick"]
-script = ExtResource("1_skill")
-skill_name = "Venom Nick"
-description = "A shallow cut from a poison-coated blade."
-power = 0.9
-status_to_apply = "poison"
-status_chance = 0.35
-
-[sub_resource type="Resource" id="Skill_flurry"]
-script = ExtResource("1_skill")
-skill_name = "Flurry"
-description = "A frantic burst of stabs at one hero."
-power = 1.25
+[ext_resource type="Script" path="res://scripts/characters/BossPhase.gd" id="1_hjom1"]
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+[ext_resource type="Script" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
+[ext_resource type="Resource" path="res://data/skills/twin_fangs.tres" id="4_n1aox"]
+[ext_resource type="Resource" path="res://data/skills/venom_nick.tres" id="5_btuhq"]
+[ext_resource type="Resource" path="res://data/skills/flurry.tres" id="6_p6vie"]
 
 [resource]
 script = ExtResource("2_enemy")
@@ -45,4 +29,4 @@ base_defense = 4
 base_magic = 3
 base_arcane = 2
 base_speed = 11
-skills = Array[ExtResource("1_skill")]([SubResource("Skill_twin_fangs"), SubResource("Skill_venom_nick"), SubResource("Skill_flurry")])
+skills = Array[ExtResource("1_skill")]([ExtResource("4_n1aox"), ExtResource("5_btuhq"), ExtResource("6_p6vie")])

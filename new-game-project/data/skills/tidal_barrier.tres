@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_4703y"]
+
+[resource]
+script = ExtResource("1_4703y")
+skill_name = "Tidal Barrier"
+description = "Shields all allies with a swirling tide."
+mp_cost = 20
+skill_type = 1
+status_type = 1
+target_type = 3
+element = 2
+status_to_apply = "defense_buff"

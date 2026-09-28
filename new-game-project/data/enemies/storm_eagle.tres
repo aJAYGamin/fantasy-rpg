@@ -1,42 +1,12 @@
 [gd_resource type="Resource" script_class="Enemy" format=3 uid="uid://diurhlb2iylpx"]
 
-[ext_resource type="Script" uid="uid://cjbcaorle0k6n" path="res://scripts/characters/Skill.gd" id="1_skill"]
-[ext_resource type="Script" uid="uid://bc8mpswi1cxid" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
-
-[sub_resource type="Resource" id="Skill_talon_strike"]
-script = ExtResource("1_skill")
-skill_name = "Talon Strike"
-description = "A lightning-fast talon attack whose shock can paralyze nerves."
-power = 1.2
-element = 5
-status_to_apply = "paralysis"
-status_chance = 0.25
-
-[sub_resource type="Resource" id="Skill_thunder_beak"]
-script = ExtResource("1_skill")
-skill_name = "Thunder Beak"
-description = "Strikes with a beak charged with lightning."
-attack_type = 2
-power = 1.4
-element = 5
-status_to_apply = "stun"
-status_chance = 0.3
-
-[sub_resource type="Resource" id="Skill_storm_dive"]
-script = ExtResource("1_skill")
-skill_name = "Storm Dive"
-description = "Dives through the party trailing lightning."
-attack_type = 2
-target_type = 1
-element = 5
-
-[sub_resource type="Resource" id="Skill_wind_ride"]
-script = ExtResource("1_skill")
-skill_name = "Wind Ride"
-description = "Rides an updraft to recover HP."
-skill_type = 1
-target_type = 4
-element = 5
+[ext_resource type="Script" path="res://scripts/characters/BossPhase.gd" id="1_c33gr"]
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+[ext_resource type="Script" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
+[ext_resource type="Resource" path="res://data/skills/talon_strike.tres" id="4_qtapy"]
+[ext_resource type="Resource" path="res://data/skills/thunder_beak.tres" id="5_kltte"]
+[ext_resource type="Resource" path="res://data/skills/storm_dive.tres" id="6_u315k"]
+[ext_resource type="Resource" path="res://data/skills/wind_ride.tres" id="7_o2k0p"]
 
 [resource]
 script = ExtResource("2_enemy")
@@ -52,4 +22,4 @@ base_magic = 14
 base_speed = 12
 element = 5
 secondary_element = 7
-skills = Array[ExtResource("1_skill")]([SubResource("Skill_talon_strike"), SubResource("Skill_thunder_beak"), SubResource("Skill_storm_dive"), SubResource("Skill_wind_ride")])
+skills = Array[ExtResource("1_skill")]([ExtResource("4_qtapy"), ExtResource("5_kltte"), ExtResource("6_u315k"), ExtResource("7_o2k0p")])

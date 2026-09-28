@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_hrhdn"]
+
+[resource]
+script = ExtResource("1_hrhdn")
+skill_name = "Skewer"
+description = "A lunging impale with the full weight of the haft."
+attack_type = 1
+power = 1.35

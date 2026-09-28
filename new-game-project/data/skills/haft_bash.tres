@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_aybqv"]
+
+[resource]
+script = ExtResource("1_aybqv")
+skill_name = "Haft Bash"
+description = "Clubs a hero with the spear's butt, rattling their senses."
+power = 0.85
+status_to_apply = "stun"
+status_chance = 0.25

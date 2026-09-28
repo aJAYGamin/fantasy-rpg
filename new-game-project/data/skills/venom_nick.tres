@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_jegor"]
+
+[resource]
+script = ExtResource("1_jegor")
+skill_name = "Venom Nick"
+description = "A shallow cut from a poison-coated blade."
+power = 0.9
+status_to_apply = "poison"
+status_chance = 0.35

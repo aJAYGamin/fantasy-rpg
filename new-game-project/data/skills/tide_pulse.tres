@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_2boku"]
+
+[resource]
+script = ExtResource("1_2boku")
+skill_name = "Tide Pulse"
+description = "A wave of crashing water hitting all enemies."
+mp_cost = 18
+attack_type = 2
+target_type = 1
+element = 2

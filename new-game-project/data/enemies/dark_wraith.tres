@@ -1,41 +1,12 @@
 [gd_resource type="Resource" script_class="Enemy" format=3 uid="uid://bl0bs60k5j6oa"]
 
-[ext_resource type="Script" uid="uid://cjbcaorle0k6n" path="res://scripts/characters/Skill.gd" id="1_skill"]
-[ext_resource type="Script" uid="uid://bc8mpswi1cxid" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
-
-[sub_resource type="Resource" id="Skill_shadow_claw"]
-script = ExtResource("1_skill")
-skill_name = "Shadow Claw"
-description = "A claw strike infused with dark energy."
-power = 1.2
-element = 14
-
-[sub_resource type="Resource" id="Skill_soul_drain"]
-script = ExtResource("1_skill")
-skill_name = "Soul Drain"
-description = "Drains the life force of a hero."
-attack_type = 2
-power = 1.4
-element = 14
-status_to_apply = "poison"
-status_chance = 0.5
-
-[sub_resource type="Resource" id="Skill_dark_pulse"]
-script = ExtResource("1_skill")
-skill_name = "Dark Pulse"
-description = "A wave of dark energy that corrupts all heroes."
-attack_type = 2
-target_type = 1
-element = 14
-
-[sub_resource type="Resource" id="Skill_void_shroud"]
-script = ExtResource("1_skill")
-skill_name = "Void Shroud"
-description = "Wraps itself in darkness, healing its wounds."
-skill_type = 1
-target_type = 4
-power = 1.1
-element = 14
+[ext_resource type="Script" path="res://scripts/characters/BossPhase.gd" id="1_e0mtm"]
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+[ext_resource type="Script" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
+[ext_resource type="Resource" path="res://data/skills/shadow_claw.tres" id="4_0mmqh"]
+[ext_resource type="Resource" path="res://data/skills/soul_drain.tres" id="5_iafjc"]
+[ext_resource type="Resource" path="res://data/skills/dark_pulse.tres" id="6_0vx18"]
+[ext_resource type="Resource" path="res://data/skills/void_shroud.tres" id="7_d2i2a"]
 
 [resource]
 script = ExtResource("2_enemy")
@@ -65,4 +36,4 @@ base_arcane = 10
 base_speed = 9
 element = 14
 secondary_element = 10
-skills = Array[ExtResource("1_skill")]([SubResource("Skill_shadow_claw"), SubResource("Skill_soul_drain"), SubResource("Skill_dark_pulse"), SubResource("Skill_void_shroud")])
+skills = Array[ExtResource("1_skill")]([ExtResource("4_0mmqh"), ExtResource("5_iafjc"), ExtResource("6_0vx18"), ExtResource("7_d2i2a")])

@@ -48,7 +48,7 @@ art LAST. See **Roadmap** near the bottom for the agreed order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~2461 tests, 40 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~3440 tests, 46 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -117,14 +117,18 @@ scenes/
   MainMenu.tscn
   OverworldScene.tscn         # has a MapArea (Fallster Plains) assigned via @export
 data/                         # data-driven content (.tres resources)
-  enemies/                    # one .tres per enemy (10 enemies; stats + skills)
-  skills/                     # shared skill .tres files
+  enemies/                    # one .tres per enemy (14 enemies; skills are ext_resource refs into skills/)
+  skills/                     # the move library — one .tres per move, flat, snake_case (86 files) — see Move library
   encounters/                 # EncounterGroup .tres files
   maps/                       # MapArea .tres files (fallster_plains.tres)
+tools/                        # one-shot / offline scripts, run as scenes (not --script) — see Move library
+  extract_move_library.gd/.tscn   # built data/skills/ from live data + rewired enemy refs; idempotent
+  capture_move_baseline.gd/.tscn  # wrote tests/fixtures/move_library_baseline.json — NEVER re-run
 tests/
   TestRunner.tscn/.gd         # run this scene (F6) to execute all suites; register suites in SUITE_PATHS
   TestSuite.gd                # base class with assert_* helpers
   suites/                     # one test_<feature>.gd per system (24 suites)
+  fixtures/                   # move_library_baseline.json — pre-migration snapshot for the MoveLibrary suite
 assets/  backgrounds/ characters/ enemies/ icons/ ui/
 fonts/   music/
 ```
@@ -206,6 +210,15 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
 - **Chips** (`StatusChipFactory.populate_row`): one mutex-status chip + one chip per
   non-cancelled buffed/debuffed stat, rendered under the resonance bar (heroes) /
   HP bar (enemies). Rebuilt on every action/tick.
+  - ⚠️ **Old chips are detached, not just `queue_free()`d.** An area attack emits
+    one `action_performed` per target in the same frame, and each refreshes
+    every panel. With `queue_free()` alone the stale chips stayed children
+    until the end of the frame, so a hero with 2 chips briefly had 8 and every
+    hero panel jumped wider on each enemy attack.
+  - **Hero panels never grow to fit chips.** `_update_hero_panel` passes
+    `populate_row` a `max_width` equal to the room the other rows already
+    claim. Chips past it fold into a trailing "+N" chip whose tooltip lists
+    them. Enemy cards pass no cap (0 = unlimited).
 - **Banners** (`BattleScene._show_status_banner`): centered fade-in/out overlay on
   a `StatusBannerLayer` CanvasLayer. Fires on: status applied ("X was Poisoned!"),
   skip-turn ("X reoriented themself" / "X is Asleep!" / "X is Paralyzed!"),
@@ -221,7 +234,95 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
 - `status_to_apply` (token, see above) + `status_chance` (roll for DAMAGE skills).
 - `calculate_value`, `is_heal/is_buff/is_debuff`, `is_physical/is_magic`, `get_resonance_gain`
   (default 10.0 for DAMAGE, 0 for STATUS; `resonance_gain_override` ≥ 0 to override).
-- `skills` is `@export` on Character. Hero skills: indices 0–3 = attacks, 4–7 = specials.
+- `skills` is `@export` on Character — a POOL (see Move library and Phase P8 below),
+  not a fixed attack/special split.
+
+### Move library — `data/skills/`
+- Every hero and enemy move is its own `.tres` **Resource file**, flat in
+  `data/skills/` (**86 files**), named snake_case after the move (e.g.
+  `data/skills/cyclone.tres`). No enemy `.tres` holds an inline skill
+  sub-resource; no hero move is built in code (`PartyFactory._make_skill` /
+  `_make_status_skill` are gone).
+- **Heroes hold copies, not the shared object.** `PartyFactory._move(file)` does
+  `load(path).duplicate(true)`, stamps `Skill.source_path` to the library path,
+  and `_apply_skill_tables` then stamps *that hero's own* `unlock_level`/
+  `category` onto the copy. **Why a copy:** if two heroes held the same
+  `mend.tres` instance, whichever hero was built second would overwrite the
+  first's unlock level. **Why not a `SkillSlot{skill, unlock_level, category}`
+  wrapper instead:** when this was designed, 7 scripts and 8 test files read a
+  hero's pool as plain `Skill` objects (including `Character.equipped_skill`
+  and friends) — a wrapper would change the type of every pool for no
+  player-visible gain. (That count only grows as more code reads the pool.)
+- **Enemies reference library files directly** (`[ext_resource]`, no copy) — an
+  enemy has no per-enemy unlock level/category to stamp.
+  ⚠️ **Enemies SHARE the library's cached `Skill` objects — their battle copy
+  is NOT a per-fight copy of the move.** `Resource.duplicate(true)` deep-copies
+  INLINE sub-resources but NOT file-backed (`ext_resource`) ones, so an enemy's
+  `.duplicate(true)`'d battle instance still points at the very same `Skill`
+  instance `load()` returns for that file — shared with every other battle
+  copy that references the same move (Ice Golem's and Frost Wyrm's `Blizzard`
+  are literally `==`), and with the template `PartyFactory._move` and
+  `SaveSerializer.resolve_saved_skill` copy *from* (so a runtime write here
+  would also leak into heroes built later in the session). **Skills are
+  read-only at runtime** — per-use / per-fight state (charge-up, conditional
+  power, anything that varies by user or by fight) belongs on the `Character`
+  or in `BattleManager`, never on a `Skill`.
+- `Skill.source_path` — the library path a hero's copy was loaded from (`""` on
+  a library file itself, or on a move with no file). Read by `SaveSerializer`
+  to save a hero's pool by reference instead of by value.
+- **Mend merge (user decision):** Aria's and Lyra's separate Mends collapsed
+  into one shared `mend.tres` (Light, power 1.8, 12 MP — Lyra's own cheaper
+  rate, since she's the dedicated healer) and one shared `grand_mend.tres`
+  (Light, power 1.5, 30 MP). Element is cosmetic for a heal — only the icon and
+  colour change, never the amount healed.
+- **Saves store moves by reference, with a snapshot fallback.** Each pool entry
+  keeps its full `serialize_skill` dict plus `source_path`.
+  `SaveSerializer.resolve_saved_skill` loads + duplicates the library file when
+  `source_path` **begins with the move library path** and still exists (so an
+  edited move file reaches existing saves), and falls back to the saved dict
+  otherwise — a renamed/deleted move file never breaks a save, and neither
+  does a `source_path` a save file has no business pointing outside the
+  library (save data is untrusted input; `resolve_saved_skill` never `load()`s
+  a path it hasn't checked). A save with no `source_path` (pre-migration)
+  re-links by `skill_name` via `SaveSerializer.move_library_index()` — built
+  once per **legacy character being deserialized** (a function-local variable
+  inside `deserialize_character`, lazily built only if that character has a
+  pre-migration skill), not once per pool entry — which is what re-points an
+  old Wind Mend save onto the shared Light `mend.tres`.
+- `SaveSerializer.move_library_index()` last-wins on a `skill_name` collision
+  between two library files, and now `push_warning`s naming both files when
+  that happens — a collision would otherwise silently drop one move from the
+  index with no signal.
+- ⚠️ The loader must `duplicate(true)` (`load()` returns Godot's cached shared
+  instance) and must take `unlock_level`/`category` from the **save dict**,
+  never the file — library files carry neutral defaults (level 1, ATTACK), so
+  taking them from the file would unlock a hero's whole kit at level 1.
+- `ResourceLoader.list_directory()` enumerates `data/skills/`, not `DirAccess` —
+  an exported build remaps `.tres` to `.tres.remap`, which a raw directory
+  listing would show instead of the real filename.
+- **Two one-shot migration tools**, both run as **scenes**
+  (`--headless --path . res://tools/<name>.tscn`), not `--script` — both use
+  `get_tree()` (`await get_tree().process_frame`, `get_tree().quit()`), which
+  needs a live scene tree. `tools/extract_move_library.gd` built the library
+  and rewired every enemy `.tres` to reference it; it's **idempotent** (a
+  re-run writes nothing new). ⚠️ `tools/capture_move_baseline.gd` wrote the
+  pre-migration snapshot `tests/fixtures/move_library_baseline.json` — **must
+  never be re-run** (it now refuses and quits if the fixture already exists):
+  re-running it would overwrite the "before" state with the "after" state, so
+  the baseline tests would compare the library to itself.
+- **The `MoveLibrary` baseline tests in `test_move_library.gd` are
+  migration-equivalence guards, not balance locks.** They diff the CURRENT
+  library / hero pools / enemy files against the pre-migration snapshot to
+  prove the migration itself changed nothing except the approved Mend merge.
+  A deliberate balance edit to a move that IS in the baseline is *expected* to
+  fail one of these tests — record the change instead of chasing it as a
+  regression, and never re-run the capture tool to "fix" it: for a **hero**
+  move, add the changed field(s) to `MERGE_DELTAS` in `test_move_library.gd`,
+  in the same commit as the edit; for an **enemy** move, hand-edit that
+  entry's fields in `tests/fixtures/move_library_baseline.json`, in the same
+  commit. A **new** move or a **new** enemy needs nothing — these tests check
+  against the baseline's own names/keys, never the live directory, so an
+  addition is simply outside what they look at.
 
 ### ElementalSystem — `scripts/characters/ElementalSystem.gd`
 - Elements: `NORMAL, FIRE, WATER, NATURE, ICE, LIGHTNING, EARTH, WIND, SOUND,
@@ -351,6 +452,19 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
 - UI: a boss gets a full-width battle card (`_setup_enemy_cards`); phase entry
   shows `banner_text` via the `boss_phase_changed` signal
   (`_on_boss_phase_changed` in `BattleScene.gd`) — `""` transitions silently.
+  The enemy move-name preview under a card (`_on_enemy_move_preview`) is
+  placed by `BattleScene.move_preview_rect`: as wide as an ordinary card
+  (`ENEMY_CARD_WIDTH`) or its text if longer, never wider than the card,
+  centred. It used to take the card's full width, so under the boss card it
+  stretched the length of the health bar.
+  ⚠️ **Find an enemy's card with `card_for(enemy)`, never by position.** Each
+  card is registered in `_enemy_cards` when built. A dying enemy's card lingers
+  for the 0.4s HP drain and then the row is rebuilt, so "the i-th card is the
+  i-th living enemy" was off by one in that window: the next enemy's preview
+  went under the dead enemy's card, the rebuild freed it, and the preview gave
+  up — fast, fragile Dire Wolves lost their move names after almost every
+  kill. Rebuilds now detach old cards at once (`_clear_enemy_cards`) and
+  re-place a showing preview under the enemy's new card.
 - **First boss: Goblin Warlord** (`data/enemies/goblin_warlord.tres`) —
   exercises **four** of the six powers (moveset, stats, summons,
   transformation; no phase sets `turn_effect` or `self_buffs`). **Reachable in
@@ -402,10 +516,55 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   if `woke_up`: emit wake banner, await ~1.75s → if `skip`: emit skip banner,
   await ~1.9s, advance to next actor → else `emit turn_ready_for_action`
   (UI shows action menu only now, so it never flashes during a skip).
+  - ⚠️ **Nothing may re-show the action menu unless the battle is waiting for
+    the hero** — `BattleScene._hero_may_act()`: party actor, not over, and the
+    manager in `CHOOSING_ACTION`/`CHOOSING_TARGET`. Each battle menu emits its
+    choice and THEN `close()`s, and the choice resolves the whole turn first,
+    so its `menu_closed` lands after the next turn has begun. Gating on "the
+    current actor is a hero" alone brought the menu back for a stunned /
+    asleep / paralysed hero during their skip banner (and during a wake-up
+    banner or a boss refill), where the manager is `IDLE`.
 - Player: `player_attack`, `player_use_skill`, `player_use_item`, `player_defend`.
   Enemy: `enemy_use_skill` (no MP deduction). `_apply_skill_status` routes status tokens.
 - Signals: `battle_started`, `turn_started`, **`turn_ready_for_action`**,
   `action_performed`, `character_defeated`, `battle_ended`, `status_effect_triggered`.
+- **`resolve_skill(user, skill, chosen)` is the single skill resolver for
+  heroes AND enemies** — replaces two ~50-line near-copies that had already
+  drifted apart (SELF targeting only worked for enemies; dodge rolled in
+  different places; the same outcome emitted different action names).
+  `player_use_skill` / `enemy_use_skill` are thin wrappers: the player path
+  keeps its `state` check and calls `end_player_turn()` after resolving; the
+  enemy path just calls it.
+- **`expand_targets` is the authoritative target expansion** — always relative
+  to the *user's* side (`_opponents_of`/`_allies_of` decide side by
+  `party`/`enemies` membership): `SINGLE_ENEMY`/`SINGLE_ALLY` keep the chosen
+  target; `ALL_ENEMIES`/`ALL_ALLIES` expand to every living opponent/ally;
+  `SELF` → `[user]` (now works for heroes too — previously only the enemy path
+  supported it). **This fixed every enemy area attack hitting only one
+  hero** — a deliberate difficulty increase, accepted by the user.
+  `AttackMenu`/`ResonanceMenu` still build their own full target list for an
+  area/SELF skill — not duplicated game logic so much as the signal
+  `BattleScene._on_move_selected` uses to skip target selection (an empty list
+  means "let the player pick one"); `resolve_skill` ignores whatever they
+  built for anything but `SINGLE_ENEMY`/`SINGLE_ALLY` and re-expands via
+  `expand_targets` regardless.
+- **The dodge rule (user's design): it depends on WHO a skill lands on, not
+  what kind of skill it is.** Any skill aimed at the user's opponents —
+  damage OR status (a debuff, say) — can be dodged, by heroes and enemies
+  alike. Any skill aimed at the user or its allies (heals, buffs, SELF moves)
+  always lands. `resolve_skill` rolls `EnemyAI.try_dodge` once per target,
+  only when `_opponents_of(user).has(target)`. A dodged damage skill's status
+  rider does not land either. The enemy turn's old outer dodge (rolled before
+  calling any skill) used to cover an enemy's own SELF heal/buff too, so an
+  enemy could "dodge" its own move; it no longer can. `_execute_enemy_turn` no
+  longer rolls dodge before calling a skill (only the enemy's plain no-skill
+  attack still rolls its own outer dodge), so no skill is dodge-checked twice.
+- **Action names are not cosmetic.** A damage skill emits `"skill_physical"`
+  (STRIKE/RANGED) or `"skill_magic"` (MAGIC) on **both** sides — never
+  `"attack"`. Required for heroes (`"attack"` would route to `on_attack`
+  instead of `on_skill_used` and grant different resonance); harmless for
+  enemies (damage-number and `on_damage_taken` code already accept all three
+  action names, and the resonance hook skips non-heroes).
 
 ### EnemyAI (static)
 - `choose_action(enemy, party, enemies)` → `{skill, target, is_enraged, echo_tier}`.
@@ -481,6 +640,14 @@ Single source of truth for the **amethyst aesthetic**: dark-plum bg, amethyst
 border, rounded corners, drop shadow. Use these everywhere in battle UI:
 - `panel_style(border, bg, border_width, corner_radius)` → StyleBoxFlat
 - `make_panel(...)`, `make_button(text, font_size)`, `style_button(existing_btn, size)`
+- `style_meter_bar(bar, fill_color)` — the rounded XP / resonance / EXP meter
+  (Stats screen, Victory screen). ⚠️ **A rounded fill needs a minimum width of
+  at least its two corner radii** (its side content margins). ProgressBar draws
+  the fill `round(ratio * (width - min_width)) + min_width` wide and skips it at
+  0; with no minimum a near-empty bar drew a 1-2px square-cornered line poking
+  out past the track's curved ends. The default-theme bars (hero HP/MP/Res,
+  enemy HP) already have a minimum width. Any new rounded bar must use this
+  helper or copy that rule.
 - Constants: `PANEL_BG`, `PANEL_BORDER` (amethyst), `SUBPANEL_BG`, `BUTTON_*`,
   `TEXT_PRIMARY/SUBTITLE/ACCENT`, `font_regular()`, `font_bold()`.
 
@@ -546,13 +713,15 @@ BattleScene (Node2D)
 
 ## Party / Enemy Setup
 - `PartyFactory.create_default_party()` → Aria (Mage/Water), Kael (Warrior/Fire),
-  Lyra (Healer/Wind); 8 skills each + ultimate meta (`ultimate_name`/`ultimate_desc`).
-  `base_arcane`: Aria 14, Lyra 12, Kael 5. Heroes start at full HP/MP.
-  (Currently all three start with `experience = 85` — one battle from a level-up,
-  for quick level-up testing; lower this for real play.)
+  Lyra (Healer/Wind); each a **12-move pool** built from library files via
+  `PartyFactory._move` (see **Move library** in Core Systems above) + ultimate
+  meta (`ultimate_name`/`ultimate_desc`). `base_arcane`: Aria 14, Lyra 12, Kael 5.
+  Heroes start at full HP/MP. (Currently all three start with `experience = 85`
+  — one battle from a level-up, for quick level-up testing; lower this for real
+  play.)
 - Wired buff skills: Tidal Barrier → `defense_buff`, War Cry → `attack_buff`,
   Wind Barrier → `defense_buff`, Tailwind → `speed_buff`, Iron Will → `regenerate`.
-- 10 enemies in `data/enemies/*.tres`, loaded + `.duplicate(true)`'d. Enemies have
+- 14 enemies in `data/enemies/*.tres`, loaded + `.duplicate(true)`'d. Enemies have
   **no MP** and `mp_cost = 0` on all skills. Status inflictors: Fire Drake→scorched,
   Frost Wyrm/Ice Golem→frostbite, Dark Wraith/Void Shade(Null Strike)→poison,
   Void Shade(Arcane Bolt)→magic_debuff, Wind Sprite(Cyclone Dart)→sleep,
@@ -594,11 +763,11 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~2461 tests / 40 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~3440 tests / 46 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,
-  auto_save, level_up_screen, defeat_flow, roaming_enemy.
+  auto_save, level_up_screen, defeat_flow, roaming_enemy, move_library, skill_resolver, status_chips, battle_menu_gating, enemy_cards, meter_bars.
 - Tests touching GameManager must snapshot & restore global state.
 - When fixing a bug, add a regression test that fails before the fix.
 - **Adding a new `class_name` file:** the headless test runner won't see it until the
@@ -727,9 +896,23 @@ own Testing Policy above — the policy (a suite per feature, registered in
   (`apply_audio_and_save` / `apply_display_and_save` / `apply_performance_and_save` /
   `apply_fps_overlay_and_save` / `save_settings`) so changing one group never triggers unrelated side
   effects (e.g. volume changes don't flicker the window).
+  - **One centred column in every view.** The panel's side padding is `PANEL_MARGIN_X` (24) on BOTH
+    sides for the list views and the detail sub-menus alike, so the title, divider lines, rows and Back
+    button share one column. A detail view's scroll area alone reaches `SCROLL_REACH` (16) into the
+    right padding (a negative-margin `MarginContainer`) for its scrollbar, and uses
+    `SCROLL_MODE_RESERVE` so the bar's width is set aside whether it shows or not; its content is padded
+    by the rest of the reach. (Detail views used to cut the right padding to 8 to tuck the scrollbar
+    in, which shoved the title, lines and Back 16px right.)
   - **Audio:** Master/Music/SFX volume → three AudioServer buses (Master + programmatic Music/SFX via
     `SettingsModel.ensure_buses()`). Global UI SFX (`misc_menu_4.wav`) auto-wired to every Button's
     `pressed`+`mouse_entered` by GameManager (plays while paused). Main-menu music loops.
+    **Hover sound only in the current menu (user's rule):** `GameManager.hover_sfx_allowed(b)` —
+    a button sounds on hover only if it is inside the topmost visible focus scope (the same "current
+    menu" controller focus is locked to), or no scope is open. A menu left visible beneath a picker or
+    modal stays silent. A button that is the way out of the current step but lives in the menu below
+    (the battle's "← Back" during target selection) opts in with `set_meta(GameManager.HOVER_SFX_ALWAYS,
+    true)`. Clicks always sound. **Every menu must register its focus scope** — an unregistered menu
+    would not count as "current".
   - **Display:** window mode (Fullscreen / Borderless / Windowed) + resolution dropdown.
     `apply_display()` is **idempotent** (guards each transition on current mode — re-issuing macOS
     fullscreen crashes). Game **boots windowed** (`project.godot` has no `window/size/mode`) then
@@ -830,15 +1013,25 @@ own Testing Policy above — the policy (a suite per feature, registered in
   - Handoff: `pending_battle_*` + `pending_roamer_id`; `BattleScene._on_battle_ended` records
     `last_battle_won`. Safe zones still suppress spawns + auto-save on entry. Suite `roaming_enemy`.
 - **Phase P8 — Skill learning** (`Skill.unlock_level`, `Character._learn_skills_at_level`):
-  heroes carry all 8 skill slots from the start but a slot only becomes usable once
-  `level` reaches its `unlock_level`. Keeping the array whole preserves the positional
-  contract the battle menus depend on (0-3 attacks, 4-7 specials) — shrinking it would
-  re-slot every later skill. `unlock_level` defaults to **1**, so enemy skills, every
+  heroes carry their whole pool from the start — **12 moves** (6 ATTACK + 6
+  SPECIAL; category is stamped per-slot from `PartyFactory.SKILL_CATEGORIES`,
+  which is `[ATTACK×4, SPECIAL×4, ATTACK×2, SPECIAL×2]` by position, not one
+  contiguous split) — but a slot only becomes usable once `level` reaches its
+  `unlock_level`. Keeping the pool array whole (never shrinking it as moves
+  unlock) preserves the positional contracts built on it: `SKILL_UNLOCK_LEVELS`
+  / `SKILL_CATEGORIES` are matched to `hero.skills[i]` by index when the pool is
+  built, and the **equipped loadout** (`equipped_attacks`/`equipped_specials`,
+  4 slots each — see `Character.equip_skill`/`equipped_skill`) stores pool
+  *indices*, not the moves themselves — shrinking the pool would silently
+  re-point every later index at a different move. Battle menus (`AttackMenu`)
+  read the equipped loadout via `Character.equipped_skills(is_special)`, not a
+  fixed pool range. `unlock_level` defaults to **1**, so enemy skills, every
   `data/skills/*.tres`, and pre-P8 saves are unaffected and only heroes opt in.
-  - Curve lives in `PartyFactory.SKILL_UNLOCK_LEVELS` (shared by all three heroes so
-    pacing is easy to balance): slots unlock at `[1,1,2,7,1,4,10,15]`. Heroes open with
-    2 attacks + 1 special, and **level 2 always teaches something** — an empty first
-    level-up makes the feature look broken.
+  - Curve lives in `PartyFactory.SKILL_UNLOCK_LEVELS` (shared by all three heroes
+    so pacing is easy to balance, now 12 entries — one per pool slot):
+    `[1,1,2,7,1,4,10,15,5,12,8,18]`. Heroes open with 2 attacks + 1 special, and
+    **level 2 always teaches something** — an empty first level-up makes the
+    feature look broken.
   - `Character`: `is_skill_known(i)`, `known_skills()`, `skills_unlocked_at(lvl)`,
     `next_skill_to_learn()`. `pending_learned` collects what a `gain_experience()` call
     taught (covering a multi-level jump) and is cleared at the start of the next award;
@@ -879,10 +1072,24 @@ profiles, movesets/loadouts, rest areas, and the controller-navigation pass.
 2. **Status-cleansing items — DONE.** Every mutex status now has a cure. See
    **Status cleansing** in Core Systems above. Cleansing SKILLS are still open
    (a Lyra "Purify" move) if that is wanted later.
-3. **More skills, with varied effects and costs.** Widen beyond the current
-   damage/heal/buff shapes: multi-turn effects, HP-cost or resonance-cost moves,
-   conditional power, self-debuff trade-offs. `Skill` already carries
-   `status_to_apply`, `status_chance` and `resonance_gain_override` to build on.
+3. **More skills, with varied effects and costs.** Split into three specs (see
+   `.claude/docs/superpowers/specs/2026-09-26-move-library-and-unified-resolver-design.md`):
+   - **Spec A — move library + unified resolver — DONE.** Every move lives in
+     its own file (`data/skills/`, 86 files); `BattleManager.resolve_skill` is
+     the one resolver for heroes and enemies; enemy area attacks now hit the
+     whole party. See **Move library** and **BattleManager** in Core Systems
+     above.
+   - **Spec B — new mechanics — remaining.** Widen beyond the current
+     damage/heal/buff shapes: HP-cost or resonance-cost moves, multi-hit,
+     pierce, damage+heal, conditional power, self-debuff trade-offs. `Skill`
+     already carries `status_to_apply`, `status_chance` and
+     `resonance_gain_override` to build on. Also owns the four **"honest
+     skill" gaps** — moves whose description promises something the code
+     doesn't do: Cyclone (says it hits twice; doesn't), Hydro Pierce (says
+     pierce; no pierce mechanic exists), Gale Requiem (says heal + damage;
+     only damages), Frost Bolt (says it slows; doesn't).
+   - **Spec C — multi-turn effects — remaining.** Charge-up / delayed skills;
+     needs state that survives across turns.
 
 #### Track C — Hardening
 - **Roamer state in saves** — currently in-memory only, so a hard quit respawns a

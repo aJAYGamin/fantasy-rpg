@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_hktlw"]
+
+[resource]
+script = ExtResource("1_hktlw")
+skill_name = "Boulder Smash"
+description = "Slams a massive fist into one hero."
+power = 1.3
+element = 6

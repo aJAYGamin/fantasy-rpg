@@ -17,6 +17,11 @@ const NOTE_COLOR := Color(0.62, 0.56, 0.72)
 # owns Esc and backs us out at the root.
 var _standalone: bool = false
 var _res_option: OptionButton = null
+# Panel side padding — the same on both sides in every view.
+const PANEL_MARGIN_X := 24
+# How far a detail view's scroll area reaches into the right padding, so its
+# scrollbar sits 8px from the border (24 - 16) like it always has.
+const SCROLL_REACH := 16
 # Current view: root / game / controls / keyboard / controller / audio / display / performance.
 var _view: String = "root"
 # The category we just backed out of. The list views use it to hand focus back to
@@ -90,9 +95,6 @@ func _parent_of(view: String) -> String:
 		"root": return ""
 	return "root"
 
-func _is_list_view() -> bool:
-	return _view == "root" or _view == "controls"
-
 func _build() -> void:
 	# Detach old children IMMEDIATELY (not just queue_free, which is deferred):
 	# the previous full-rect dim/center use MOUSE_FILTER_STOP, so if they lingered
@@ -131,10 +133,13 @@ func _build() -> void:
 	panel.custom_minimum_size = Vector2(540, 0)
 	var pstyle := panel.get_theme_stylebox("panel") as StyleBoxFlat
 	if pstyle:
-		pstyle.content_margin_left = 24
-		# List views are centered (symmetric margins); detail views give the
-		# scrollbar a tight right margin and the rows their gap via a MarginContainer.
-		pstyle.content_margin_right = 24 if _is_list_view() else 8
+		# Symmetric in EVERY view, so the title, divider lines and Back button
+		# sit centred. (Detail views used to shrink the right margin to 8 to
+		# tuck the scrollbar against the border, which pushed all of those 16px
+		# right.) The detail views' scroll area alone reaches into the right
+		# padding instead — see SCROLL_REACH below.
+		pstyle.content_margin_left = PANEL_MARGIN_X
+		pstyle.content_margin_right = PANEL_MARGIN_X
 		pstyle.content_margin_top = 18
 		pstyle.content_margin_bottom = 18
 	center.add_child(panel)
@@ -157,10 +162,22 @@ func _build() -> void:
 		scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		scroll.custom_minimum_size = Vector2(0, clampf(screen_size.y - 240.0, 200.0, 520.0))
 		_style_scrollbar(scroll.get_v_scroll_bar())
-		outer.add_child(scroll)
+		# A negative right margin lets the scroll area (and its scrollbar) run
+		# into the panel's right padding, keeping the scrollbar near the border
+		# without shifting the centred title, lines and Back button.
+		var reach := MarginContainer.new()
+		reach.add_theme_constant_override("margin_right", -SCROLL_REACH)
+		outer.add_child(reach)
+		reach.add_child(scroll)
+		# Always set the scrollbar's width aside, shown or not, and pad the
+		# content by what is left of the reach: the rows and section lines then
+		# end exactly PANEL_MARGIN_X from the border in every view — the same
+		# column as the title, divider lines and Back button.
+		scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_RESERVE
+		var bar_w := scroll.get_v_scroll_bar().get_combined_minimum_size().x
 		var pad := MarginContainer.new()
 		pad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		pad.add_theme_constant_override("margin_right", 18)
+		pad.add_theme_constant_override("margin_right", maxi(0, SCROLL_REACH - int(bar_w)))
 		scroll.add_child(pad)
 		var v := VBoxContainer.new()
 		v.add_theme_constant_override("separation", 12)

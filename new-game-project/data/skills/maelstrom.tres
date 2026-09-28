@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_ra23x"]
+
+[resource]
+script = ExtResource("1_ra23x")
+skill_name = "Maelstrom"
+description = "A churning vortex that batters every enemy."
+mp_cost = 35
+attack_type = 2
+target_type = 1
+power = 3.0
+element = 2
