@@ -513,16 +513,7 @@ func _make_meter_row(label: String, value: float, max_value: float, fill: Color,
 	bar.value = clampf(value, 0.0, bar.max_value)
 	bar.show_percentage = false
 	bar.custom_minimum_size = Vector2(0, 8)
-	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0.05, 0.04, 0.09, 0.9)
-	bg.set_corner_radius_all(4)
-	bg.border_color = BattleUITheme.BUTTON_BORDER
-	bg.set_border_width_all(1)
-	bar.add_theme_stylebox_override("background", bg)
-	var fg := StyleBoxFlat.new()
-	fg.bg_color = fill
-	fg.set_corner_radius_all(4)
-	bar.add_theme_stylebox_override("fill", fg)
+	BattleUITheme.style_meter_bar(bar, fill)
 	v.add_child(bar)
 	return v
 

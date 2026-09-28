@@ -123,3 +123,27 @@ const NO_FOCUS_META := "no_focus"
 
 static func mark_no_focus(b: Control) -> void:
 	b.set_meta(NO_FOCUS_META, true)
+
+# --- Meter bars ----------------------------------------------------------------
+# The rounded XP / resonance meter: a dark, button-bordered track with a
+# rounded fill. Shared by the Stats screen and the Victory EXP bars.
+const METER_RADIUS := 4
+
+static func style_meter_bar(bar: ProgressBar, fill_color: Color) -> void:
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0.05, 0.04, 0.09, 0.9)
+	bg.set_corner_radius_all(METER_RADIUS)
+	bg.border_color = BUTTON_BORDER
+	bg.set_border_width_all(1)
+	bar.add_theme_stylebox_override("background", bg)
+	var fg := StyleBoxFlat.new()
+	fg.bg_color = fill_color
+	fg.set_corner_radius_all(METER_RADIUS)
+	# ProgressBar draws the fill `round(ratio * (width - min_width)) + min_width`
+	# wide and skips it at 0. Without a minimum width a near-empty bar drew a
+	# 1-2px sliver too narrow to round — a square-cornered line poking out past
+	# the track's curved ends. At least the two radii wide, the fill is either
+	# absent or a properly rounded pill inside the track.
+	fg.content_margin_left = METER_RADIUS
+	fg.content_margin_right = METER_RADIUS
+	bar.add_theme_stylebox_override("fill", fg)

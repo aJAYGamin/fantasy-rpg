@@ -317,16 +317,7 @@ func _on_continue():
 # Matches the resonance meter styling used by the pause-menu Stats screen
 # (StatsScreen._make_meter_row): amethyst fill on a dark, button-bordered track.
 func _style_exp_bar(bar: ProgressBar) -> void:
-	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0.05, 0.04, 0.09, 0.9)
-	bg.set_corner_radius_all(4)
-	bg.border_color = BattleUITheme.BUTTON_BORDER
-	bg.set_border_width_all(1)
-	bar.add_theme_stylebox_override("background", bg)
-	var fg := StyleBoxFlat.new()
-	fg.bg_color = Color(0.62, 0.40, 0.95)
-	fg.set_corner_radius_all(4)
-	bar.add_theme_stylebox_override("fill", fg)
+	BattleUITheme.style_meter_bar(bar, Color(0.62, 0.40, 0.95))
 
 func _find_node_by_name(node_name: String) -> Node:
 	return _search_children(party_list, node_name)
