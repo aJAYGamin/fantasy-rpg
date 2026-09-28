@@ -44,6 +44,12 @@ var _enemy_layout: EnemyLayout = EnemyLayout.GRID_2COL
 var _max_hp: Dictionary = {}   # character -> max hp at battle start
 var _max_mp: Dictionary = {}   # character -> max mp at battle start
 var _enemy_hp_bars: Dictionary = {}   # character -> ProgressBar
+# character -> its card in EnemyInfoRow. Look cards up through card_for(), never
+# by position: positions shift while a dead enemy's card drains and rebuilds.
+var _enemy_cards: Dictionary = {}
+# The enemy whose move-name preview is showing, so a card rebuild can move the
+# preview onto that enemy's new card.
+var _preview_enemy: Character = null
 # Status chip rows (mutex status + per-stat buff/debuff chips). Injected into
 # the existing panel layouts on first encounter so we don't have to edit .tscn.
 # Refreshed via StatusChipFactory on every _update_hero_panel / _refresh_enemy_card.
@@ -403,8 +409,7 @@ func _update_hero_panel(panel: PanelContainer, hero: Character, animate: bool = 
 	StatusChipFactory.populate_row(status_row, hero, chip_room)
 
 func _setup_enemy_cards(enemies: Array[Character]):
-	for child in enemy_info_row.get_children():
-		child.queue_free()
+	_clear_enemy_cards()
 
 	# Cards are fixed-width and centered. 10 enemies fill the row; fewer cluster in the middle.
 	# A boss (is_boss() — has phases) gets SIZE_EXPAND_FILL instead; see _create_enemy_card.
@@ -523,6 +528,7 @@ func _create_enemy_card(enemy: Character) -> PanelContainer:
 	_enemy_status_rows[enemy] = status_row
 	StatusChipFactory.populate_row(status_row, enemy)
 
+	_enemy_cards[enemy] = card
 	return card
 
 # --- Battle Signals ---
@@ -586,59 +592,69 @@ func _on_action_menu_visibility_changed():
 		GameManager.unregister_focus_scope(action_menu)
 
 func _on_enemy_move_preview(enemy: Character, move_name: String):
-	# Remove any existing preview panel
+	# Remove any existing preview panel. Detached first, so the new panel can
+	# take the name "MovePreviewPanel" this same frame.
 	var existing = $BattleUI/UIRoot.get_node_or_null("MovePreviewPanel")
 	if existing:
+		existing.get_parent().remove_child(existing)
 		existing.queue_free()
+	_preview_enemy = null
 
-	if move_name == "":
+	if move_name == "" or card_for(enemy) == null:
 		return
 
-	# Find the enemy card's screen position
-	var alive_enemies = battle_manager.get_alive_enemies()
-	for i in range(enemy_info_row.get_child_count()):
-		var card = enemy_info_row.get_child(i)
-		if i >= alive_enemies.size() or alive_enemies[i] != enemy:
-			continue
+	var cinzel = load("res://fonts/Cinzel-Regular.ttf")
 
-		var cinzel = load("res://fonts/Cinzel-Regular.ttf")
+	# Create panel as a child of UIRoot so it doesn't interfere with cards
+	var panel = PanelContainer.new()
+	panel.name = "MovePreviewPanel"
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-		# Create panel as a child of UIRoot so it doesn't interfere with cards
-		var panel = PanelContainer.new()
-		panel.name = "MovePreviewPanel"
-		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.05, 0.05, 0.08, 0.92)
+	style.border_color = Color(0.4, 0.35, 0.5, 1.0)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(3)
+	panel.add_theme_stylebox_override("panel", style)
 
-		var style = StyleBoxFlat.new()
-		style.bg_color = Color(0.05, 0.05, 0.08, 0.92)
-		style.border_color = Color(0.4, 0.35, 0.5, 1.0)
-		style.set_border_width_all(1)
-		style.set_corner_radius_all(3)
-		panel.add_theme_stylebox_override("panel", style)
+	var lbl = Label.new()
+	lbl.text = move_name
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if cinzel: lbl.add_theme_font_override("font", cinzel)
+	lbl.add_theme_font_size_override("font_size", 10)
+	lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	panel.add_child(lbl)
 
-		var lbl = Label.new()
-		lbl.text = move_name
-		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		if cinzel: lbl.add_theme_font_override("font", cinzel)
-		lbl.add_theme_font_size_override("font_size", 10)
-		lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
-		panel.add_child(lbl)
+	$BattleUI/UIRoot.add_child(panel)
+	_preview_enemy = enemy
+	# Positions are only valid once the new panel has been laid out.
+	_place_move_preview_next_frame()
 
-		# Position below the card using its global position
-		$BattleUI/UIRoot.add_child(panel)
-		await get_tree().process_frame
-		# Card may have been freed by an enemy-card rebuild during the yield (e.g. an enemy
-		# died on the previous turn and the 0.4s delayed rebuild fired). Bail out cleanly.
-		if not is_instance_valid(card) or not is_instance_valid(panel):
-			if is_instance_valid(panel):
-				panel.queue_free()
-			return
-		var ui_pos = $BattleUI/UIRoot.global_position
-		var card_rect := Rect2(card.global_position - ui_pos, card.size)
-		var r := move_preview_rect(card_rect, panel.get_combined_minimum_size().x)
-		panel.position = r.position
-		panel.custom_minimum_size = Vector2(r.size.x, 0)
-		break
+func _place_move_preview_next_frame() -> void:
+	if not is_inside_tree():
+		return
+	await get_tree().process_frame
+	_place_move_preview()
+
+# Puts the preview under the previewed enemy's card — looked up by enemy, not
+# by position, and re-run after a card rebuild, since an enemy dying just
+# before this enemy's turn rebuilds the whole row mid-preview.
+func _place_move_preview() -> void:
+	var panel = $BattleUI/UIRoot.get_node_or_null("MovePreviewPanel")
+	if panel == null or _preview_enemy == null:
+		return
+	var card := card_for(_preview_enemy)
+	if card == null:
+		panel.hide()
+		return
+	panel.show()
+	panel.custom_minimum_size = Vector2.ZERO  # measure the text, not a previous width
+	var ui_pos = $BattleUI/UIRoot.global_position
+	var card_rect := Rect2(card.global_position - ui_pos, card.size)
+	var r := move_preview_rect(card_rect, panel.get_combined_minimum_size().x)
+	panel.position = r.position
+	panel.custom_minimum_size = Vector2(r.size.x, 0)
 
 ## Where an enemy's move-name preview sits, in UIRoot space: just below its card
 ## and centred on it. It is as wide as an ordinary card, or its text if longer,
@@ -751,8 +767,7 @@ func _remove_enemy_card(_enemy: Character):
 
 func _rebuild_enemy_cards():
 	var alive_enemies = battle_manager.get_alive_enemies()
-	for card in enemy_info_row.get_children():
-		card.queue_free()
+	_clear_enemy_cards()
 	if alive_enemies.is_empty():
 		return
 	# Match _setup_enemy_cards: centered row. Cards are fixed-width EXCEPT a
@@ -762,6 +777,24 @@ func _rebuild_enemy_cards():
 	for e in alive_enemies:
 		var card = _create_enemy_card(e)
 		enemy_info_row.add_child(card)
+	# A preview that was showing sat under a card that just went away.
+	if _preview_enemy != null:
+		_place_move_preview_next_frame()
+
+# Removes every card NOW. queue_free() alone leaves them in the row until the
+# end of the frame, where they would still count as children.
+func _clear_enemy_cards() -> void:
+	for card in enemy_info_row.get_children():
+		enemy_info_row.remove_child(card)
+		card.queue_free()
+	_enemy_cards.clear()
+
+## The card showing this enemy, or null (dead, or its card is on its way out).
+func card_for(enemy: Character) -> Control:
+	var card = _enemy_cards.get(enemy)
+	if card == null or not is_instance_valid(card) or card.is_queued_for_deletion():
+		return null
+	return card
 
 func _on_battle_ended(player_won: bool, rewards: Dictionary):
 	_battle_over = true
