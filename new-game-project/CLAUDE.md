@@ -48,7 +48,7 @@ art LAST. See **Roadmap** near the bottom for the agreed order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~3405 tests, 44 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~3420 tests, 46 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -457,6 +457,14 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   (`ENEMY_CARD_WIDTH`) or its text if longer, never wider than the card,
   centred. It used to take the card's full width, so under the boss card it
   stretched the length of the health bar.
+  ⚠️ **Find an enemy's card with `card_for(enemy)`, never by position.** Each
+  card is registered in `_enemy_cards` when built. A dying enemy's card lingers
+  for the 0.4s HP drain and then the row is rebuilt, so "the i-th card is the
+  i-th living enemy" was off by one in that window: the next enemy's preview
+  went under the dead enemy's card, the rebuild freed it, and the preview gave
+  up — fast, fragile Dire Wolves lost their move names after almost every
+  kill. Rebuilds now detach old cards at once (`_clear_enemy_cards`) and
+  re-place a showing preview under the enemy's new card.
 - **First boss: Goblin Warlord** (`data/enemies/goblin_warlord.tres`) —
   exercises **four** of the six powers (moveset, stats, summons,
   transformation; no phase sets `turn_effect` or `self_buffs`). **Reachable in
@@ -632,6 +640,14 @@ Single source of truth for the **amethyst aesthetic**: dark-plum bg, amethyst
 border, rounded corners, drop shadow. Use these everywhere in battle UI:
 - `panel_style(border, bg, border_width, corner_radius)` → StyleBoxFlat
 - `make_panel(...)`, `make_button(text, font_size)`, `style_button(existing_btn, size)`
+- `style_meter_bar(bar, fill_color)` — the rounded XP / resonance / EXP meter
+  (Stats screen, Victory screen). ⚠️ **A rounded fill needs a minimum width of
+  at least its two corner radii** (its side content margins). ProgressBar draws
+  the fill `round(ratio * (width - min_width)) + min_width` wide and skips it at
+  0; with no minimum a near-empty bar drew a 1-2px square-cornered line poking
+  out past the track's curved ends. The default-theme bars (hero HP/MP/Res,
+  enemy HP) already have a minimum width. Any new rounded bar must use this
+  helper or copy that rule.
 - Constants: `PANEL_BG`, `PANEL_BORDER` (amethyst), `SUBPANEL_BG`, `BUTTON_*`,
   `TEXT_PRIMARY/SUBTITLE/ACCENT`, `font_regular()`, `font_bold()`.
 
@@ -747,11 +763,11 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~3405 tests / 44 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~3420 tests / 46 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,
-  auto_save, level_up_screen, defeat_flow, roaming_enemy, move_library, skill_resolver, status_chips, battle_menu_gating.
+  auto_save, level_up_screen, defeat_flow, roaming_enemy, move_library, skill_resolver, status_chips, battle_menu_gating, enemy_cards, meter_bars.
 - Tests touching GameManager must snapshot & restore global state.
 - When fixing a bug, add a regression test that fails before the fix.
 - **Adding a new `class_name` file:** the headless test runner won't see it until the
