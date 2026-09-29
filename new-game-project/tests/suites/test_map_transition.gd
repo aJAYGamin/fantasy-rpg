@@ -110,6 +110,24 @@ func test_interior_scenes_exit_back_to_overworld() -> void:
 				"%s exit returns to the overworld" % path)
 		scene.free()
 
+func test_center_town_camera_hides_most_of_the_town() -> void:
+	# The user wants Center Town explored, not taken in at a glance: at 1x the
+	# 1152-wide view showed ~69% of the 1672-wide town. The camera is zoomed so
+	# less than half the town's width (and height) fits on screen at once.
+	var scene: Node = (load("res://scenes/CenterTownInterior.tscn") as PackedScene).instantiate()
+	var cam: Camera2D = scene.get_node_or_null("Player/Camera2D")
+	var map: Sprite2D = scene.get_node_or_null("MapImage")
+	assert_ne(cam, null, "Center Town has a player camera")
+	if cam != null and map != null:
+		var view := Vector2(
+			ProjectSettings.get_setting("display/window/size/viewport_width", 1152),
+			ProjectSettings.get_setting("display/window/size/viewport_height", 648))
+		var town: Vector2 = map.texture.get_size() * map.scale
+		var seen: Vector2 = view / cam.zoom
+		assert_true(seen.x < town.x / 2.0, "less than half the town's width is on screen (%d of %d)" % [int(seen.x), int(town.x)])
+		assert_true(seen.y < town.y / 2.0, "less than half the town's height is on screen (%d of %d)" % [int(seen.y), int(town.y)])
+	scene.free()
+
 func test_goblin_castle_fixed_ambush() -> void:
 	var area: MapArea = load("res://data/maps/goblin_castle.tres")
 	assert_ne(area, null, "goblin_castle.tres loads")

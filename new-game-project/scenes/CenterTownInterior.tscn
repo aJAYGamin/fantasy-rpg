@@ -77,6 +77,7 @@ color = Color(0.35, 0.55, 0.95, 1)
 shape = SubResource("Shape_player")
 
 [node name="Camera2D" type="Camera2D" parent="Player" unique_id=810411182]
+zoom = Vector2(1.5, 1.5)
 limit_left = 0
 limit_top = 0
 limit_right = 1672
