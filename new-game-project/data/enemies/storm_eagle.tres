@@ -1,8 +1,8 @@
 [gd_resource type="Resource" script_class="Enemy" format=3 uid="uid://diurhlb2iylpx"]
 
-[ext_resource type="Script" path="res://scripts/characters/BossPhase.gd" id="1_c33gr"]
-[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
-[ext_resource type="Script" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
+[ext_resource type="Script" uid="uid://bh53vyinp4wj4" path="res://scripts/characters/BossPhase.gd" id="1_c33gr"]
+[ext_resource type="Script" uid="uid://cjbcaorle0k6n" path="res://scripts/characters/Skill.gd" id="1_skill"]
+[ext_resource type="Script" uid="uid://bc8mpswi1cxid" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
 [ext_resource type="Resource" path="res://data/skills/talon_strike.tres" id="4_qtapy"]
 [ext_resource type="Resource" path="res://data/skills/thunder_beak.tres" id="5_kltte"]
 [ext_resource type="Resource" path="res://data/skills/storm_dive.tres" id="6_u315k"]
