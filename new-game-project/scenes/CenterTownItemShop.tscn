@@ -3,12 +3,9 @@
 [ext_resource type="Script" uid="uid://v3sxdaxf6g3" path="res://scripts/overworld/OverworldScene.gd" id="1_scene"]
 [ext_resource type="Script" uid="uid://cweivgthta1cf" path="res://scripts/overworld/Player.gd" id="2_player"]
 [ext_resource type="Resource" path="res://data/maps/center_town_item_shop.tres" id="3_area"]
-[ext_resource type="Script" path="res://scripts/overworld/MapZone.gd" id="4_zone"]
+[ext_resource type="Script" uid="uid://l8emg6cxj7bl" path="res://scripts/overworld/MapZone.gd" id="4_zone"]
 [ext_resource type="Texture2D" uid="uid://1e7f6vg5qbdb" path="res://assets/maps/Fallster Plains/Center Town/CenterTownItemShop.png" id="5_art"]
-[ext_resource type="Script" path="res://scripts/overworld/Shopkeeper.gd" id="6_keeper"]
-
-[sub_resource type="RectangleShape2D" id="Shape_player"]
-size = Vector2(28, 28)
+[ext_resource type="Script" uid="uid://l6sthr6rpqek" path="res://scripts/overworld/Shopkeeper.gd" id="6_keeper"]
 
 [sub_resource type="RectangleShape2D" id="Shape_hwall"]
 size = Vector2(1760, 80)
@@ -16,75 +13,76 @@ size = Vector2(1760, 80)
 [sub_resource type="RectangleShape2D" id="Shape_vwall"]
 size = Vector2(80, 1040)
 
-[node name="CenterTownItemShop" type="Node2D"]
+[sub_resource type="RectangleShape2D" id="Shape_player"]
+size = Vector2(28, 28)
+
+[node name="CenterTownItemShop" type="Node2D" unique_id=773435262]
 script = ExtResource("1_scene")
 area = ExtResource("3_area")
 field_rect = Rect2(0, 0, 1672, 941)
 
-[node name="MapImage" type="Sprite2D" parent="."]
+[node name="MapImage" type="Sprite2D" parent="." unique_id=625424654]
 z_index = -1
 texture = ExtResource("5_art")
 centered = false
 
-[node name="BoundaryTop" type="StaticBody2D" parent="."]
+[node name="BoundaryTop" type="StaticBody2D" parent="." unique_id=2142648564]
 position = Vector2(836, -30)
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryTop"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryTop" unique_id=953259357]
 shape = SubResource("Shape_hwall")
 
-[node name="BoundaryBottom" type="StaticBody2D" parent="."]
+[node name="BoundaryBottom" type="StaticBody2D" parent="." unique_id=956733115]
 position = Vector2(836, 971)
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryBottom"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryBottom" unique_id=34691323]
 shape = SubResource("Shape_hwall")
 
-[node name="BoundaryLeft" type="StaticBody2D" parent="."]
+[node name="BoundaryLeft" type="StaticBody2D" parent="." unique_id=1719510279]
 position = Vector2(-30, 470)
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryLeft"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryLeft" unique_id=1141732665]
 shape = SubResource("Shape_vwall")
 
-[node name="BoundaryRight" type="StaticBody2D" parent="."]
+[node name="BoundaryRight" type="StaticBody2D" parent="." unique_id=2144189299]
 position = Vector2(1702, 470)
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryRight"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BoundaryRight" unique_id=691553591]
 shape = SubResource("Shape_vwall")
 
-[node name="Zones" type="Node2D" parent="."]
+[node name="Zones" type="Node2D" parent="." unique_id=1846546041]
 
-[node name="Zone_Exit" type="Area2D" parent="Zones"]
+[node name="Zone_Exit" type="Area2D" parent="Zones" unique_id=558075237]
 script = ExtResource("4_zone")
 label = "Leave Shop"
 target_scene = "res://scenes/CenterTownInterior.tscn"
-target_spawn = Vector2(450, 560)
+target_spawn = Vector2(500, 444)
 
-[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Zones/Zone_Exit"]
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Zones/Zone_Exit" unique_id=920369081]
 polygon = PackedVector2Array(700, 880, 970, 880, 970, 941, 700, 941)
 
-[node name="Player" type="CharacterBody2D" parent="."]
+[node name="Player" type="CharacterBody2D" parent="." unique_id=1198985814]
 position = Vector2(836, 760)
 script = ExtResource("2_player")
 
-[node name="Sprite" type="ColorRect" parent="Player"]
+[node name="Sprite" type="ColorRect" parent="Player" unique_id=2076293623]
 offset_left = -16.0
 offset_top = -16.0
 offset_right = 16.0
 offset_bottom = 16.0
 color = Color(0.35, 0.55, 0.95, 1)
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Player"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Player" unique_id=1009957467]
 shape = SubResource("Shape_player")
 
-[node name="Camera2D" type="Camera2D" parent="Player"]
+[node name="Camera2D" type="Camera2D" parent="Player" unique_id=861480664]
 limit_left = 0
 limit_top = 0
 limit_right = 1672
 limit_bottom = 941
 
-[node name="Shopkeeper" type="StaticBody2D" parent="."]
+[node name="Shopkeeper" type="StaticBody2D" parent="." unique_id=466211996]
 position = Vector2(836, 320)
 script = ExtResource("6_keeper")
 npc_name = "Apothecary"
-shop_id = "apothecary"
-lines = PackedStringArray("Welcome to my apothecary. Potions, tonics — whatever ails you.")
 body_color = Color(0.5, 0.78, 0.52, 1)
