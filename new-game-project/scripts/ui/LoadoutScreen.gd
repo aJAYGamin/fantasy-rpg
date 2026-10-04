@@ -245,8 +245,8 @@ func _pool_row(pool_index: int) -> Control:
 
 	var equipped := hero.is_equipped(pool_index)
 	var label := s.skill_name
-	if s.mp_cost > 0:
-		label += "   MP %d" % s.mp_cost
+	if s.cost_text() != "":
+		label += "   " + s.cost_text()
 	var btn := BattleUITheme.make_button(label, 12)
 	btn.custom_minimum_size = Vector2(0, SLOT_H)
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -301,8 +301,19 @@ func _detail_panel(s: Skill) -> PanelContainer:
 
 	# Costs are spelled out rather than left as the bare number on the row, since a
 	# move may later cost something other than MP.
-	var cost_text := "Cost:  %d MP" % s.mp_cost if s.mp_cost > 0 else "Cost:  Free"
-	v.add_child(_label(cost_text, BattleUITheme.font_bold(), 11, Color(0.50, 0.70, 1.0)))
+	var cost_row := HBoxContainer.new()
+	cost_row.add_theme_constant_override("separation", 6)
+	cost_row.add_child(_label("Cost:", BattleUITheme.font_bold(), 11, BattleUITheme.TEXT_SUBTITLE))
+	var parts := s.cost_parts()
+	if parts.is_empty():
+		cost_row.add_child(_label("Free", BattleUITheme.font_bold(), 11, BattleUITheme.cost_color("mp")))
+	for part in parts:
+		cost_row.add_child(_label(part["text"], BattleUITheme.font_bold(), 11, BattleUITheme.cost_color(part["kind"])))
+	v.add_child(cost_row)
+	if s.effect_text() != "":
+		var tags := _label(s.effect_text(), BattleUITheme.font_regular(), 11, BattleUITheme.TEXT_SUBTITLE)
+		tags.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		v.add_child(tags)
 	return panel
 
 func _toggle_details(key: String) -> void:

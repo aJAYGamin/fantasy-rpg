@@ -147,3 +147,14 @@ static func style_meter_bar(bar: ProgressBar, fill_color: Color) -> void:
 	fg.content_margin_left = METER_RADIUS
 	fg.content_margin_right = METER_RADIUS
 	bar.add_theme_stylebox_override("fill", fg)
+
+# --- Move costs ----------------------------------------------------------------
+# One colour per kind of cost, shared by every menu that lists moves.
+const COST_COLORS := {
+	"mp": Color(0.50, 0.70, 1.00),
+	"hp": Color(1.00, 0.45, 0.45),
+	"resonance": Color(0.72, 0.55, 1.00),
+}
+
+static func cost_color(kind: String) -> Color:
+	return COST_COLORS.get(kind, TEXT_PRIMARY)

@@ -290,3 +290,9 @@ func test_move_cards_loop_on_a_controller() -> void:
 
 	GameManager.set_controller_mode_for_test(false)
 	_close_screen(screen)
+
+func test_skill_view_model_carries_costs_and_tags() -> void:
+	var vm := StatsScreen.build_hero_view_model(_aria())
+	var frost: Dictionary = vm["attacks"][1]  # Frost Bolt
+	assert_eq(frost["costs"], [{"kind": "mp", "text": "12 MP"}], "its costs, ready for the card")
+	assert_true(frost.has("tags"), "and its generated effect line")

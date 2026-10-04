@@ -125,6 +125,8 @@ static func _skill_view_model(s: Skill, known: bool = true) -> Dictionary:
 		"element_icon": ElementalSystem.get_element_icon(s.element),
 		"secondary_element": s.secondary_element,
 		"mp_cost": s.mp_cost,
+		"costs": s.cost_parts(),
+		"tags": s.effect_text(),
 		"target": s.get_target_description(),
 	}
 
@@ -555,8 +557,9 @@ func _make_skill_card(s: Dictionary) -> Control:
 	var name_lbl := _label(s["name"], BattleUITheme.font_bold(), 13, elem_color.lerp(Color.WHITE, 0.25))
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(name_lbl)
-	if int(s["mp_cost"]) > 0:
-		top.add_child(_label("MP %d" % int(s["mp_cost"]), BattleUITheme.font_bold(), 12, Color(0.50, 0.70, 1.0), HORIZONTAL_ALIGNMENT_RIGHT))
+	for part in s["costs"]:
+		top.add_child(_label(part["text"], BattleUITheme.font_bold(), 12,
+				BattleUITheme.cost_color(part["kind"]), HORIZONTAL_ALIGNMENT_RIGHT))
 	v.add_child(top)
 
 	var meta_parts: Array = [s["type_display"]]
@@ -572,6 +575,12 @@ func _make_skill_card(s: Dictionary) -> Control:
 		# No fixed min width — wrap to whatever width the grid cell gives the card.
 		desc.custom_minimum_size = Vector2(0, 0)
 		v.add_child(desc)
+
+	if str(s["tags"]) != "":
+		var tags := _label(s["tags"], BattleUITheme.font_regular(), 10, BattleUITheme.TEXT_SUBTITLE)
+		tags.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		tags.custom_minimum_size = Vector2(0, 0)
+		v.add_child(tags)
 
 	# Whole-card click target. A PanelContainer lays every child out into the same
 	# rect, so this Button sits exactly on top of `v` without changing the card's

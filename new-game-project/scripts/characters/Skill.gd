@@ -282,3 +282,85 @@ static func is_afflicted(c: Character) -> bool:
 ## The multiplier the element override uses for its one pairing.
 func override_multiplier() -> float:
 	return ElementalSystem.WEAKNESS_MULTIPLIER if override_super else 1.0
+
+# --- Spec B: what menus show ------------------------------------------------------
+
+## The move's costs as labelled pieces for the menus, in MP, HP, resonance
+## order — e.g. [{"kind": "mp", "text": "12 MP"}]. A free move returns [].
+func cost_parts() -> Array[Dictionary]:
+	var parts: Array[Dictionary] = []
+	if mp_cost > 0:
+		parts.append({"kind": "mp", "text": "%d MP" % mp_cost})
+	if hp_cost_percent > 0.0:
+		parts.append({"kind": "hp", "text": "%s%% HP" % _num(hp_cost_percent)})
+	if resonance_cost > 0.0:
+		parts.append({"kind": "resonance", "text": "%s ✦" % _num(resonance_cost)})
+	return parts
+
+## The costs joined for menus that show one label ("12 MP · 15% HP").
+func cost_text() -> String:
+	var texts: Array[String] = []
+	for p in cost_parts():
+		texts.append(p["text"])
+	return " · ".join(texts)
+
+## A short line generated from the move's options — e.g. "2 hits · Ignores
+## ARC". Generated from data, so it can never promise what the move does not
+## do (hand-written descriptions drifting from the data is how the five
+## "honest skill" gaps happened).
+func effect_tags() -> Array[String]:
+	var tags: Array[String] = []
+	var def_name := "ARC" if attack_type == AttackType.MAGIC else "DEF"
+	if skill_type == SkillType.DAMAGE and hit_count > 1:
+		tags.append("%d hits" % hit_count)
+	if pierce >= 1.0:
+		tags.append("Ignores %s" % def_name)
+	elif pierce > 0.0:
+		tags.append("Ignores %d%% %s" % [int(round(pierce * 100.0)), def_name])
+	if skill_type == SkillType.DAMAGE and status_to_apply != "" and status_chance > 0.0:
+		tags.append("%d%% chance: %s" % [int(round(status_chance * 100.0)), _effect_phrase(status_to_apply)])
+	if skill_type == SkillType.STATUS and status_type == StatusType.HEAL and status_to_apply != "":
+		tags.append(_effect_phrase(status_to_apply))
+	if ally_heal_power > 0.0:
+		tags.append("Heals allies")
+	match bonus_condition:
+		BonusCondition.TARGET_AFFLICTED:
+			tags.append("×%s vs afflicted" % _num(bonus_multiplier))
+		BonusCondition.USER_HP_LOW:
+			tags.append("×%s below %d%% HP" % [_num(bonus_multiplier), int(round(LOW_HP_THRESHOLD * 100.0))])
+	if override_element != ElementalSystem.Element.NORMAL:
+		tags.append("%s vs %s" % ["Super-effective" if override_super else "Effective",
+				ElementalSystem.get_element_name(override_element)])
+	if scale_with != ScaleWith.NONE:
+		var pool: String = {ScaleWith.HP: "HP", ScaleWith.MP: "MP", ScaleWith.RESONANCE: "resonance"}[scale_with]
+		tags.append("Stronger with %s %s" % ["more" if scale_more_is_stronger else "less", pool])
+	if recoil_percent > 0.0:
+		tags.append("%s%% recoil" % _num(recoil_percent))
+	if miss_chance > 0.0:
+		tags.append("%d%% miss chance" % int(round(miss_chance * 100.0)))
+	if self_debuff != "":
+		tags.append("Lowers your %s" % StatusSystem.STAT_SHORT.get(self_debuff, self_debuff.to_upper()))
+	if target_buff != "":
+		tags.append("Raises target's %s" % StatusSystem.STAT_SHORT.get(target_buff, target_buff.to_upper()))
+	return tags
+
+## The tags joined for display.
+func effect_text() -> String:
+	return " · ".join(effect_tags())
+
+## 12.0 -> "12", 12.5 -> "12.5", 1.75 -> "1.75" (up to two decimals, no
+## trailing zeros). String.num(v, 2) already drops the zeros from 12.50 but
+## leaves a whole number as "12.0", so that last ".0" is trimmed here.
+static func _num(v: float) -> String:
+	return String.num(v, 2).trim_suffix(".0")
+
+## "Lowers SPD", "Raises ATK", "Regenerates", or a status name ("Scorched").
+static func _effect_phrase(token: String) -> String:
+	if token == StatusSystem.REGENERATE:
+		return "Regenerates"
+	for stat in StatusSystem.BUFFABLE_STATS:
+		if token == stat + "_debuff":
+			return "Lowers %s" % StatusSystem.STAT_SHORT[stat]
+		if token == stat + "_buff":
+			return "Raises %s" % StatusSystem.STAT_SHORT[stat]
+	return StatusSystem.STATUS_LABELS.get(token, token.capitalize())

@@ -220,15 +220,20 @@ func _create_skill_slot(skill: Skill, cinzel, cinzel_bold) -> PanelContainer:
 	type_lbl.add_theme_color_override("font_color", ATTACK_TYPE_COLORS.get(attack_type, Color(0.7, 0.7, 0.7)))
 	info_grid.add_child(type_lbl)
 
-	# Column 3: MP cost
-	var mp_lbl = Label.new()
-	mp_lbl.text = "%d MP" % skill.mp_cost if skill.mp_cost > 0 else ""
-	mp_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	mp_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	if cinzel: mp_lbl.add_theme_font_override("font", cinzel)
-	mp_lbl.add_theme_font_size_override("font_size", 9)
-	mp_lbl.add_theme_color_override("font_color", Color(0.4, 0.7, 1.0))
-	info_grid.add_child(mp_lbl)
+	# Column 3: cost — MP, HP and/or resonance, each in its own colour.
+	var cost_box := HBoxContainer.new()
+	cost_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cost_box.alignment = BoxContainer.ALIGNMENT_END
+	cost_box.add_theme_constant_override("separation", 4)
+	cost_box.mouse_filter = Control.MOUSE_FILTER_IGNORE   # clicks reach the move
+	for part in skill.cost_parts():
+		var cost_lbl := Label.new()
+		cost_lbl.text = part["text"]
+		if cinzel: cost_lbl.add_theme_font_override("font", cinzel)
+		cost_lbl.add_theme_font_size_override("font_size", 9)
+		cost_lbl.add_theme_color_override("font_color", BattleUITheme.cost_color(part["kind"]))
+		cost_box.add_child(cost_lbl)
+	info_grid.add_child(cost_box)
 
 	# Connect ? button — shows description above the menu via parent
 	desc_btn.pressed.connect(func():
@@ -273,6 +278,8 @@ func _show_description_above(skill: Skill):
 
 	var lbl = desc_panel.get_node("DescLabel")
 	var new_text = "%s — %s" % [skill.skill_name, skill.description if skill.description != "" else "No description."]
+	if skill.effect_text() != "":
+		new_text += "\n" + skill.effect_text()
 	# Toggle off if same skill clicked again
 	if desc_panel.visible and lbl.text == new_text:
 		desc_panel.visible = false
