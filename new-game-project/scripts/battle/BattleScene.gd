@@ -729,6 +729,11 @@ func _on_action_performed(result: Dictionary):
 				_spawn_heal_number(result.get("value", 0), spawn_pos)
 			"dodge":
 				_spawn_dodge_text(spawn_pos)
+			"miss":
+				_spawn_miss_text(spawn_pos)
+			"hp_cost", "recoil":
+				# Self-inflicted: a plain number over the user.
+				_spawn_damage_number(int(result.get("value", 0)), spawn_pos)
 	# Resonance hooks — ONLY grant on first target so AoE doesn't compound
 	if result.get("is_first_target", false) and result.has("actor") and battle_manager.party.has(result["actor"]):
 		var actor: Character = result["actor"]
@@ -738,10 +743,11 @@ func _on_action_performed(result: Dictionary):
 				resonance_system.on_attack(actor)
 			"skill_magic", "skill_physical", "status":
 				resonance_system.on_skill_used(actor, skill_ref)
-	# Taking damage builds resonance for heroes on receiving end (once per hit)
-	if result.has("target") and battle_manager.party.has(result["target"]):
-		if result.get("action") in ["attack", "skill_magic", "skill_physical"]:
-			resonance_system.on_damage_taken(result["target"])
+	# Taking damage builds resonance for heroes on the receiving end — once per
+	# target per action, so a multi-hit move does not multiply it.
+	if result.has("target") and battle_manager.party.has(result["target"]) \
+			and grants_damage_resonance(result):
+		resonance_system.on_damage_taken(result["target"])
 
 func _on_character_defeated(character: Character):
 	print("%s was defeated!" % character.character_name)
@@ -1675,6 +1681,13 @@ func _spawn_dodge_text(pos: Vector2):
 	label.position = pos + Vector2(randf_range(-20, 20), 0)
 	label.call("setup_dodge")
 
+func _spawn_miss_text(pos: Vector2):
+	var label = Label.new()
+	add_child(label)
+	label.set_script(load("res://scripts/battle/DamageNumber.gd"))
+	label.position = pos + Vector2(randf_range(-20, 20), 0)
+	label.call("setup_miss")
+
 func _spawn_damage_number(amount: int, pos: Vector2, multiplier: float = 1.0):
 	var label = Label.new()
 	add_child(label)
@@ -1688,6 +1701,14 @@ func _spawn_heal_number(amount: int, pos: Vector2):
 	label.set_script(load("res://scripts/battle/DamageNumber.gd"))
 	label.position = pos + Vector2(randf_range(-20, 20), 0)
 	label.call("setup_heal", amount)
+
+## True for a result that builds "took damage" resonance: a damaging action, on
+## the first hit that LANDED on that target this action. Results from paths that
+## predate multi-hit (basic attacks) carry no flag and count. HP costs and recoil
+## are self-inflicted and never count.
+static func grants_damage_resonance(result: Dictionary) -> bool:
+	return result.get("action") in ["attack", "skill_magic", "skill_physical"] \
+		and result.get("is_first_hit", true)
 
 func _get_rarity_icon_path(enemy: Character) -> String:
 	if not enemy is Enemy:

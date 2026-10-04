@@ -646,3 +646,13 @@ func test_an_unknown_stat_name_changes_nothing() -> void:
 	assert_true(hero.debuffs.is_empty(), "no debuff invented")
 	assert_true(bm.enemies[0].buffs.is_empty(), "no buff invented")
 	bm.free()
+
+# --------------------------------------------------- Spec B: battle feedback
+
+func test_took_damage_resonance_follows_the_first_hit_flag() -> void:
+	assert_true(BattleScene.grants_damage_resonance({"action": "skill_physical", "is_first_hit": true}), "first landed hit")
+	assert_false(BattleScene.grants_damage_resonance({"action": "skill_physical", "is_first_hit": false}), "a later hit")
+	assert_true(BattleScene.grants_damage_resonance({"action": "attack"}), "a basic attack carries no flag and counts")
+	assert_false(BattleScene.grants_damage_resonance({"action": "recoil", "is_first_hit": false}), "recoil is self-inflicted")
+	assert_false(BattleScene.grants_damage_resonance({"action": "hp_cost", "is_first_hit": false}), "so is an HP cost")
+	assert_false(BattleScene.grants_damage_resonance({"action": "miss", "is_first_hit": false}), "a miss deals nothing")
