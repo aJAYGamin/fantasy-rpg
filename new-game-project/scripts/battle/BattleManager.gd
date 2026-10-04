@@ -225,67 +225,121 @@ func resolve_skill(user: Character, skill: Skill, chosen: Array[Character]) -> v
 	if not skill.can_use(user):
 		return
 	var targets := expand_targets(user, skill, chosen)
-	# Enemies have no MP pool; Skill.can_use already exempts them.
-	if not (user is Enemy):
-		user.use_mp(skill.mp_cost)
+	# Measured BEFORE costs are paid, so an HP-cost move is not weakened by its
+	# own cost (Spec B, Part 2, step 2).
+	var scale := skill.scale_factor(user)
+	var user_hp_fraction := float(user.current_hp) / float(maxi(1, user.max_hp()))
+	_pay_costs(user, skill)
 
 	var first := true
 	for target in targets:
 		if not target.is_alive():
 			continue
-		var result := {"actor": user, "target": target, "skill": skill, "is_first_target": first}
-		first = false
-
-		# Dodge depends on WHO the skill lands on, not what kind of skill it is:
-		# anything aimed at the user's opponents — damage or status — can be
-		# dodged, on both sides. Anything aimed at the user or its allies always
-		# lands. Rolled per target.
-		if _opponents_of(user).has(target) and EnemyAI.try_dodge(target):
-			result["action"] = "dodge"
-			result["value"] = 0
+		# Results are collected and emitted together once this target is done,
+		# so effects rolled once per target (the status rider) are already on
+		# it when the UI refreshes for these results. Emission is synchronous
+		# either way, so nothing is shown any later.
+		var results: Array[Dictionary] = []
+		var landed := 0
+		var hits := maxi(1, skill.hit_count) if skill.skill_type == Skill.SkillType.DAMAGE else 1
+		for _h in hits:
+			if not target.is_alive():
+				break   # a target killed mid-sequence takes no further hits
+			var result := {"actor": user, "target": target, "skill": skill,
+					"is_first_target": first, "is_first_hit": false}
+			first = false
+			# Dodge depends on WHO the skill lands on, not what kind of skill it
+			# is: anything aimed at the user's opponents can miss (the move's own
+			# chance) or be dodged; the user's own side never rolls either.
+			if _opponents_of(user).has(target):
+				if skill.miss_chance > 0.0 and randf() < skill.miss_chance:
+					results.append(_unlanded(result, "miss", target))
+					continue
+				if EnemyAI.try_dodge(target):
+					results.append(_unlanded(result, "dodge", target))
+					continue
+			# "Took damage" resonance is granted once per target per action — on
+			# the first hit that actually lands.
+			result["is_first_hit"] = landed == 0
+			landed += 1
+			_resolve_hit(user, skill, target, result, scale, user_hp_fraction)
 			result["target_alive"] = target.is_alive()
-			emit_signal("action_performed", result)
-			continue
-
-		if skill.skill_type == Skill.SkillType.DAMAGE:
-			var value := skill.calculate_value(user)
-			match skill.attack_type:
-				Skill.AttackType.STRIKE, Skill.AttackType.RANGED:
-					_record_damage(result, target.take_damage(value, skill.element, skill.secondary_element))
-					# "skill_physical", never "attack": for a HERO, "attack" routes to
-					# on_attack instead of on_skill_used and grants different resonance.
-					result["action"] = "skill_physical"
-				Skill.AttackType.MAGIC:
-					_record_damage(result, target.take_magic_damage(value, skill.element, skill.secondary_element))
-					result["action"] = "skill_magic"
-		elif skill.skill_type == Skill.SkillType.STATUS:
-			var value := skill.calculate_value(user)
-			match skill.status_type:
-				Skill.StatusType.HEAL:
-					result["action"] = "heal"
-					result["value"] = target.heal(value)
-				Skill.StatusType.BUFF:
-					# The token may be a stat buff ("attack_buff"), a stat debuff
-					# ("magic_debuff") or a legacy named status ("regenerate").
-					var token: String = skill.status_to_apply if skill.status_to_apply != "" else StatusSystem.REGENERATE
-					_apply_skill_status(target, token)
-					result["action"] = "buff"
-					result["value"] = 0
-				Skill.StatusType.DEBUFF:
-					if skill.status_to_apply != "":
-						_apply_skill_status(target, skill.status_to_apply)
-					result["action"] = "debuff"
-					result["value"] = 0
-
-		# A damage skill's status rider rolls per target.
-		if skill.skill_type == Skill.SkillType.DAMAGE and skill.status_to_apply != "" \
-				and randf() < skill.status_chance:
-			_apply_skill_status(target, skill.status_to_apply)
-
-		result["target_alive"] = target.is_alive()
-		emit_signal("action_performed", result)
+			results.append(result)
+		if landed > 0:
+			_after_target(skill, target)
+		for r in results:
+			emit_signal("action_performed", r)
 		if not target.is_alive():
 			handle_defeat(target)
+
+## Pays MP, then resonance (heroes only — enemies have neither pool), then HP
+## (both sides). Skill.can_use has already guaranteed every cost is affordable
+## and that the HP cost leaves at least 1 HP.
+func _pay_costs(user: Character, skill: Skill) -> void:
+	if not (user is Enemy):
+		user.use_mp(skill.mp_cost)
+		if skill.resonance_cost > 0.0:
+			user.resonance_meter = maxf(0.0, user.resonance_meter - skill.resonance_cost)
+	var cost := skill.hp_cost(user)
+	if cost > 0:
+		user.current_hp = maxi(1, user.current_hp - cost)
+		_emit_extra(user, user, skill, "hp_cost", cost)
+
+## One landed hit of `skill` on `target`, written into `result`.
+func _resolve_hit(user: Character, skill: Skill, target: Character, result: Dictionary,
+		scale: float, user_hp_fraction: float) -> void:
+	if skill.skill_type == Skill.SkillType.DAMAGE:
+		var value := int(skill.calculate_value(user) * skill.condition_multiplier(user_hp_fraction, target) * scale)
+		match skill.attack_type:
+			Skill.AttackType.STRIKE, Skill.AttackType.RANGED:
+				_record_damage(result, target.take_damage(value, skill.element, skill.secondary_element,
+						skill.pierce, skill.override_element, skill.override_multiplier()))
+				# "skill_physical", never "attack": for a HERO, "attack" routes to
+				# on_attack instead of on_skill_used and grants different resonance.
+				result["action"] = "skill_physical"
+			Skill.AttackType.MAGIC:
+				_record_damage(result, target.take_magic_damage(value, skill.element, skill.secondary_element,
+						skill.pierce, skill.override_element, skill.override_multiplier()))
+				result["action"] = "skill_magic"
+	elif skill.skill_type == Skill.SkillType.STATUS:
+		var value := skill.calculate_value(user)
+		match skill.status_type:
+			Skill.StatusType.HEAL:
+				result["action"] = "heal"
+				result["value"] = target.heal(value)
+			Skill.StatusType.BUFF:
+				# The token may be a stat buff ("attack_buff"), a stat debuff
+				# ("magic_debuff") or a legacy named status ("regenerate").
+				var token: String = skill.status_to_apply if skill.status_to_apply != "" else StatusSystem.REGENERATE
+				_apply_skill_status(target, token)
+				result["action"] = "buff"
+				result["value"] = 0
+			Skill.StatusType.DEBUFF:
+				if skill.status_to_apply != "":
+					_apply_skill_status(target, skill.status_to_apply)
+				result["action"] = "debuff"
+				result["value"] = 0
+
+func _unlanded(result: Dictionary, action: String, target: Character) -> Dictionary:
+	result["action"] = action
+	result["value"] = 0
+	result["target_alive"] = target.is_alive()
+	return result
+
+## Effects rolled ONCE per target that took at least one landed hit.
+func _after_target(skill: Skill, target: Character) -> void:
+	# A damage skill's status rider rolls once per target, not once per hit.
+	if skill.skill_type == Skill.SkillType.DAMAGE and skill.status_to_apply != "" \
+			and randf() < skill.status_chance:
+		_apply_skill_status(target, skill.status_to_apply)
+
+## A result that is not a hit: the HP cost, an ally heal, recoil, a self-debuff.
+## Never carries the first-target or first-hit flags, so it cannot take the
+## action's resonance.
+func _emit_extra(user: Character, target: Character, skill: Skill, action: String, value: int) -> void:
+	emit_signal("action_performed", {"actor": user, "target": target, "skill": skill,
+			"action": action, "value": value, "is_first_target": false,
+			"is_first_hit": false, "target_alive": target.is_alive()})
 
 func _record_damage(result: Dictionary, dmg: Dictionary) -> void:
 	result["value"] = dmg.get("damage", 0)

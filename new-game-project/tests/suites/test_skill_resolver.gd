@@ -263,3 +263,229 @@ func test_an_enemy_skill_is_dodge_rolled_once_not_twice() -> void:
 	var skill_branch := turn.substr(turn.find("if skill != null:"))
 	skill_branch = skill_branch.substr(0, skill_branch.find("\n\telse:"))
 	assert_false(skill_branch.contains("try_dodge"), "the enemy turn does not roll it again for a skill")
+
+# --------------------------------------------------- Spec B: costs and hits
+
+func _actions(hits: Array) -> Array:
+	return hits.map(func(r): return r["action"])
+
+func test_an_hp_cost_is_paid_and_reported() -> void:
+	var bm := _manager(1, 1)
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.hp_cost_percent = 10.0
+	var hero := bm.party[0]
+	var before := hero.current_hp
+	var hits := _capture(bm)
+	bm.resolve_skill(hero, s, [bm.enemies[0]])
+	assert_eq(hero.current_hp, before - s.hp_cost(hero), "the hero paid 10% of max HP")
+	var paid := hits.filter(func(r): return r["action"] == "hp_cost")
+	assert_eq(paid.size(), 1, "one hp_cost result")
+	assert_false(paid[0]["is_first_target"], "the cost never takes the first-target resonance flag")
+	bm.free()
+
+func test_an_unaffordable_hp_cost_does_nothing() -> void:
+	var bm := _manager(1, 1)
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.hp_cost_percent = 10.0
+	var hero := bm.party[0]
+	hero.current_hp = s.hp_cost(hero)   # paying would leave 0
+	var foe_hp := bm.enemies[0].current_hp
+	var hits := _capture(bm)
+	bm.resolve_skill(hero, s, [bm.enemies[0]])
+	assert_eq(hero.current_hp, s.hp_cost(hero), "never knocked out by its own cost")
+	assert_eq(bm.enemies[0].current_hp, foe_hp, "and the move does not happen")
+	assert_true(hits.is_empty(), "no results at all")
+	bm.free()
+
+func test_enemies_pay_hp_costs() -> void:
+	var bm := _manager(1, 1)
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.hp_cost_percent = 10.0
+	var foe := bm.enemies[0]
+	var before := foe.current_hp
+	bm.resolve_skill(foe, s, [bm.party[0]])
+	assert_eq(foe.current_hp, before - s.hp_cost(foe), "enemies have HP, so they pay")
+	bm.free()
+
+func test_a_resonance_cost_equal_to_the_meter_is_spent_to_zero() -> void:
+	var bm := _manager(1, 1)
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.resonance_cost = 30.0
+	var hero := bm.party[0]
+	hero.resonance_meter = 30.0
+	var hits := _capture(bm)
+	bm.resolve_skill(hero, s, [bm.enemies[0]])
+	assert_eq(hero.resonance_meter, 0.0, "exactly enough is enough, and it is all spent")
+	assert_true(_actions(hits).has("skill_physical"), "and the move happened")
+	bm.free()
+
+func test_two_hits_land_two_results_and_resonance_once() -> void:
+	var bm := _manager(1, 1)
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.hit_count = 2
+	var foe := bm.enemies[0]
+	var before := foe.current_hp
+	var hits := _capture(bm)
+	bm.resolve_skill(bm.party[0], s, [foe])
+	var dmg := hits.filter(func(r): return r["action"] == "skill_physical")
+	assert_eq(dmg.size(), 2, "two hits, two results")
+	assert_eq(hits.filter(func(r): return r.get("is_first_target", false)).size(), 1, "skill resonance once per action")
+	assert_eq(before - foe.current_hp, int(dmg[0]["value"]) + int(dmg[1]["value"]), "both hits dealt their damage")
+	bm.free()
+
+func test_took_damage_resonance_is_once_per_target() -> void:
+	var bm := _manager(2, 1)
+	var s := _skill(Skill.TargetType.ALL_ENEMIES)
+	s.hit_count = 3
+	var hits := _capture(bm)
+	bm.resolve_skill(bm.enemies[0], s, [])
+	for hero in bm.party:
+		var firsts := hits.filter(func(r): return r["target"] == hero and r.get("is_first_hit", false))
+		assert_eq(firsts.size(), 1, "%s: exactly one first hit of three" % hero.character_name)
+	bm.free()
+
+func test_a_target_killed_by_the_first_hit_takes_no_second() -> void:
+	# The victim is a HERO: defeating an enemy would report quest progress.
+	var bm := _manager(1, 1)
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.hit_count = 2
+	var hero := bm.party[0]
+	hero.current_hp = 1
+	var defeated := []
+	bm.character_defeated.connect(func(c): defeated.append(c))
+	var hits := _capture(bm)
+	bm.resolve_skill(bm.enemies[0], s, [hero])
+	assert_eq(hits.filter(func(r): return r["target"] == hero).size(), 1, "one hit, then it stops")
+	assert_eq(defeated.size(), 1, "defeat handled once")
+	bm.free()
+
+func test_a_miss_is_its_own_result_and_deals_nothing() -> void:
+	var bm := _manager(1, 1)
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.miss_chance = 1.0
+	var foe := bm.enemies[0]
+	var before := foe.current_hp
+	var hits := _capture(bm)
+	bm.resolve_skill(bm.party[0], s, [foe])
+	assert_eq(_actions(hits), ["miss"], "a miss, not a dodge")
+	assert_eq(foe.current_hp, before, "and no damage")
+	bm.free()
+
+func test_a_miss_chance_never_applies_to_allies() -> void:
+	var bm := _manager(3, 1)
+	var s := _skill(Skill.TargetType.ALL_ALLIES, Skill.SkillType.STATUS)
+	s.status_type = Skill.StatusType.BUFF
+	s.status_to_apply = "defense_buff"
+	s.miss_chance = 1.0
+	var hits := _capture(bm)
+	bm.resolve_skill(bm.party[0], s, [])
+	assert_false(_actions(hits).has("miss"), "moves on your own side always land")
+	for h in bm.party:
+		assert_true(StatusSystem.is_effectively_buffed(h, "defense"), "%s buffed" % h.character_name)
+	bm.free()
+
+func test_pierce_reaches_the_target() -> void:
+	var bm := _manager(1, 1)
+	var foe := bm.enemies[0]
+	foe.base_defense = 10
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	var hits := _capture(bm)
+	bm.resolve_skill(bm.party[0], s, [foe])
+	s.pierce = 1.0
+	bm.resolve_skill(bm.party[0], s, [foe])
+	assert_eq(int(hits[0]["value"]), 10, "20 ATK - 10 DEF")
+	assert_eq(int(hits[1]["value"]), 20, "pierce 1.0 ignores the DEF")
+	bm.free()
+
+func test_the_element_override_reaches_the_target() -> void:
+	var bm := _manager(1, 1)
+	var foe := bm.enemies[0]
+	foe.element = ElementalSystem.Element.WATER
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.element = ElementalSystem.Element.WATER
+	s.override_element = ElementalSystem.Element.WATER
+	s.override_super = true
+	var hits := _capture(bm)
+	bm.resolve_skill(bm.party[0], s, [foe])
+	assert_eq(hits[0]["multiplier"], 2.0, "water made super-effective against water")
+	assert_eq(int(hits[0]["value"]), 40, "20 x 2")
+	bm.free()
+
+func test_a_target_afflicted_bonus() -> void:
+	var bm := _manager(1, 2)
+	var s := _skill(Skill.TargetType.ALL_ENEMIES)
+	s.bonus_condition = Skill.BonusCondition.TARGET_AFFLICTED
+	s.bonus_multiplier = 1.5
+	bm.enemies[1].add_status(StatusSystem.POISON)
+	var hits := _capture(bm)
+	bm.resolve_skill(bm.party[0], s, [])
+	assert_eq(int(hits[0]["value"]), 20, "a clean enemy takes the plain 20")
+	assert_eq(int(hits[1]["value"]), 30, "a poisoned one takes 20 x 1.5")
+	bm.free()
+
+func test_a_low_hp_user_bonus() -> void:
+	var bm := _manager(1, 1)
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.bonus_condition = Skill.BonusCondition.USER_HP_LOW
+	s.bonus_multiplier = 1.75
+	var hero := bm.party[0]
+	hero.current_hp = int(hero.max_hp() * 0.2)
+	var hits := _capture(bm)
+	bm.resolve_skill(hero, s, [bm.enemies[0]])
+	assert_eq(int(hits[0]["value"]), 35, "20 x 1.75 below 30% HP")
+	bm.free()
+
+func test_scaling_is_measured_before_costs_are_paid() -> void:
+	var bm := _manager(1, 1)
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.hp_cost_percent = 50.0
+	s.scale_with = Skill.ScaleWith.HP
+	var hits := _capture(bm)
+	bm.resolve_skill(bm.party[0], s, [bm.enemies[0]])
+	var dmg := hits.filter(func(r): return r["action"] == "skill_physical")
+	assert_eq(int(dmg[0]["value"]), 30, "full HP when the move began: 20 x 1.5, not weakened by its own cost")
+	bm.free()
+
+func test_a_status_rider_is_on_the_target_before_its_results_reach_the_ui() -> void:
+	var bm := _manager(1, 1)
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.hit_count = 3
+	s.status_to_apply = "attack_debuff"
+	s.status_chance = 1.0
+	var foe := bm.enemies[0]
+	var seen := []
+	bm.action_performed.connect(func(_r): seen.append(StatusSystem.is_effectively_debuffed(foe, "attack")))
+	bm.resolve_skill(bm.party[0], s, [foe])
+	assert_eq(seen, [true, true, true], "rolled after the hits, applied before they are shown")
+	bm.free()
+
+func test_a_status_rider_rolls_once_per_target_not_per_hit() -> void:
+	# Per hit, three 25% rolls would land ~58% of the time; once per target, 25%.
+	seed(20261004)
+	var bm := _manager(1, 1)
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.hit_count = 3
+	s.status_to_apply = "attack_debuff"
+	s.status_chance = 0.25
+	var foe := bm.enemies[0]
+	var landed := 0
+	for i in 400:
+		foe.debuffs.clear()
+		foe.current_hp = foe.max_hp()
+		bm.resolve_skill(bm.party[0], s, [foe])
+		if StatusSystem.is_effectively_debuffed(foe, "attack"):
+			landed += 1
+	assert_true(landed < 160, "about 100 of 400, far below the ~232 a per-hit roll gives (got %d)" % landed)
+	assert_true(landed > 50, "and the rider still lands (got %d)" % landed)
+	bm.free()
+
+func test_an_enemy_never_picks_an_hp_cost_it_cannot_pay() -> void:
+	var bm := _manager(1, 1)
+	var foe := bm.enemies[0]
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.hp_cost_percent = 50.0
+	foe.skills = [s] as Array[Skill]
+	foe.current_hp = s.hp_cost(foe)
+	var decision := EnemyAI.choose_action(foe, bm.party, bm.enemies)
+	assert_eq(decision.get("skill"), null, "it falls back to its basic attack")
+	bm.free()
