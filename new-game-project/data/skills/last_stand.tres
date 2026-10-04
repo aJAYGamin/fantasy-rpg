@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+
+[resource]
+script = ExtResource("1_skill")
+skill_name = "Last Stand"
+description = "A desperate blow that burns brightest when he is close to falling."
+mp_cost = 10
+power = 1.6
+element = 1
+bonus_condition = 2
+bonus_multiplier = 1.75

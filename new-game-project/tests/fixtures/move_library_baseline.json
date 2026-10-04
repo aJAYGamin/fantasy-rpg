@@ -463,6 +463,23 @@
 					"status_type": 0,
 					"target_type": 0,
 					"unlock_level": 1
+				},
+				{
+					"attack_type": 0,
+					"category": 0,
+					"description": "A heedless charge that jars the goblin as much as its target.",
+					"element": 0,
+					"mp_cost": 0,
+					"power": 1.6,
+					"resonance_gain_override": -1.0,
+					"secondary_element": 0,
+					"skill_name": "Reckless Charge",
+					"skill_type": 0,
+					"status_chance": 0.0,
+					"status_to_apply": "",
+					"status_type": 0,
+					"target_type": 0,
+					"unlock_level": 1
 				}
 			],
 			"uid": "uid://bpqvn5mp7yt08"
@@ -541,6 +558,23 @@
 					"status_to_apply": "attack_debuff",
 					"status_type": 0,
 					"target_type": 1,
+					"unlock_level": 1
+				},
+				{
+					"attack_type": 0,
+					"category": 0,
+					"description": "A huge overhead swing that leaves the Warlord's guard wide open.",
+					"element": 0,
+					"mp_cost": 0,
+					"power": 2.0,
+					"resonance_gain_override": -1.0,
+					"secondary_element": 0,
+					"skill_name": "Overreach",
+					"skill_type": 0,
+					"status_chance": 0.0,
+					"status_to_apply": "",
+					"status_type": 0,
+					"target_type": 0,
 					"unlock_level": 1
 				}
 			],

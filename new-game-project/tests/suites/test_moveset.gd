@@ -188,7 +188,7 @@ func test_prune_rejects_a_category_mismatch() -> void:
 
 func test_default_party_has_a_pool_bigger_than_its_slots() -> void:
 	for hero in PartyFactory.create_default_party():
-		assert_eq(hero.skills.size(), 12, "%s defines 12 moves" % hero.character_name)
+		assert_eq(hero.skills.size(), 15, "%s defines 15 moves" % hero.character_name)
 		assert_true(hero.skills.size() <= Character.MAX_SKILLS, "within the 20 cap")
 		var atk := 0
 		var spc := 0
@@ -197,8 +197,8 @@ func test_default_party_has_a_pool_bigger_than_its_slots() -> void:
 				spc += 1
 			else:
 				atk += 1
-		assert_eq(atk, 6, "%s has six attacks, more than the four slots" % hero.character_name)
-		assert_eq(spc, 6, "%s has six specials" % hero.character_name)
+		assert_eq(atk, 7, "%s has seven attacks, more than the four slots" % hero.character_name)
+		assert_eq(spc, 8, "%s has eight specials" % hero.character_name)
 
 func test_default_party_starts_with_a_usable_loadout() -> void:
 	for hero in PartyFactory.create_default_party():

@@ -124,7 +124,7 @@ func test_party_curve_is_applied() -> void:
 	var party := PartyFactory.create_default_party()
 	assert_eq(party.size(), 3, "three heroes")
 	for hero in party:
-		assert_eq(hero.skills.size(), 12, "%s keeps its whole pool" % hero.character_name)
+		assert_eq(hero.skills.size(), 15, "%s keeps its whole pool" % hero.character_name)
 		for i in 8:
 			# TEST_UNLOCK_ALL_SKILLS flattens the curve for play-testing; assert the
 			# flattening instead of skipping, so this still fails if the flag stops
@@ -161,7 +161,7 @@ func test_first_level_up_teaches_something() -> void:
 		"some slot unlocks at level 2 so the first level-up teaches a skill")
 
 func test_curve_covers_every_slot_and_is_reachable() -> void:
-	assert_eq(PartyFactory.SKILL_UNLOCK_LEVELS.size(), 12, "one entry per pool slot")
+	assert_eq(PartyFactory.SKILL_UNLOCK_LEVELS.size(), 15, "one entry per pool slot")
 	for lvl in PartyFactory.SKILL_UNLOCK_LEVELS:
 		assert_true(lvl >= 1, "no slot unlocks below level 1")
 		assert_true(lvl <= 30, "every slot is reachable in a normal playthrough")

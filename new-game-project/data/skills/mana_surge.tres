@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+
+[resource]
+script = ExtResource("1_skill")
+skill_name = "Mana Surge"
+description = "Pours raw mana into a torrent — the fuller her MP, the harder it hits."
+mp_cost = 20
+attack_type = 2
+power = 2.2
+element = 2
+scale_with = 2
