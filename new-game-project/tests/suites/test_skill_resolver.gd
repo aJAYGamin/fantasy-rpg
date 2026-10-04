@@ -656,3 +656,22 @@ func test_took_damage_resonance_follows_the_first_hit_flag() -> void:
 	assert_false(BattleScene.grants_damage_resonance({"action": "recoil", "is_first_hit": false}), "recoil is self-inflicted")
 	assert_false(BattleScene.grants_damage_resonance({"action": "hp_cost", "is_first_hit": false}), "so is an HP cost")
 	assert_false(BattleScene.grants_damage_resonance({"action": "miss", "is_first_hit": false}), "a miss deals nothing")
+
+# --------------------------------------------------- Spec B: honest skills in battle
+
+func test_the_real_cyclone_strikes_every_enemy_twice() -> void:
+	var bm := _manager(1, 2)
+	var hits := _capture(bm)
+	bm.resolve_skill(bm.party[0], load("res://data/skills/cyclone.tres"), [])
+	for foe in bm.enemies:
+		var on_foe := hits.filter(func(r): return r["target"] == foe and r["action"] == "skill_magic")
+		assert_eq(on_foe.size(), 2, "%s hit twice" % foe.character_name)
+	bm.free()
+
+func test_the_real_gale_requiem_heals_the_party() -> void:
+	var bm := _manager(2, 1)
+	bm.party[1].current_hp -= 100
+	var hp := bm.party[1].current_hp
+	bm.resolve_skill(bm.party[0], load("res://data/skills/gale_requiem.tres"), [])
+	assert_true(bm.party[1].current_hp > hp, "the ally was healed")
+	bm.free()

@@ -8,5 +8,6 @@ skill_name = "Hydro Pierce"
 description = "Pierces through defenses with a high-pressure water spike."
 mp_cost = 25
 attack_type = 2
-power = 2.5
+power = 2.4
 element = 2
+pierce = 1.0

@@ -244,13 +244,26 @@ func _find(hero: Character, skill_name: String) -> Skill:
 			return s
 	return null
 
-## The approved differences from the baseline: the Mend / Grand Mend merge.
-## Keyed "<hero>:<slot>", each the fields allowed to differ and their new value.
+## The approved differences from the pre-migration baseline, keyed
+## "<hero>:<slot>" -> {field: approved value}: the Mend / Grand Mend merge
+## (Spec A) and the five honest-skill fixes (Spec B). Fields the baseline
+## predates (hit_count, pierce, ally_heal_power, …) are not compared at all.
 const MERGE_DELTAS := {
-	"Aria:3": {"mp_cost": 12},
-	"Lyra:1": {"element": ElementalSystem.Element.LIGHT},
-	"Lyra:6": {"element": ElementalSystem.Element.LIGHT},
+	"Aria:1": {"power": 1.4, "status_to_apply": "speed_debuff", "status_chance": 0.4},  # Frost Bolt
+	"Aria:3": {"mp_cost": 12},                                                          # Mend
+	"Aria:5": {"power": 2.4},                                                           # Hydro Pierce
+	"Lyra:1": {"element": ElementalSystem.Element.LIGHT},                               # Mend
+	"Lyra:4": {"power": 2.5},                                                           # Gale Requiem
+	"Lyra:5": {"power": 1.2},                                                           # Cyclone
+	"Lyra:6": {"element": ElementalSystem.Element.LIGHT},                               # Grand Mend
+	"Lyra:10": {"power": 0.5},                                                          # Restoring Breeze
 }
+
+## Equal for a delta's purposes: floats approximately, everything else exactly.
+func _same(a, b) -> bool:
+	if typeof(a) == TYPE_FLOAT or typeof(b) == TYPE_FLOAT:
+		return is_equal_approx(float(a), float(b))
+	return a == b
 
 func test_every_hero_move_is_a_copy_of_a_library_file() -> void:
 	for hero in PartyFactory.create_default_party():
@@ -270,7 +283,8 @@ func test_hero_pools_match_the_baseline() -> void:
 			var got := SaveSerializer.serialize_skill(hero.skills[i])
 			assert_eq(_move_diff(got, want[i], allowed.keys()), "", "%s unchanged" % key)
 			for field in allowed:
-				assert_eq(int(got[field]), int(allowed[field]), "%s %s is the merged value" % [key, field])
+				assert_true(_same(got[field], allowed[field]),
+						"%s %s is the approved value (got %s)" % [key, field, str(got[field])])
 
 func test_aria_and_lyra_share_one_mend_file() -> void:
 	var aria := _find(_hero("Aria"), "Mend")
@@ -412,3 +426,37 @@ func test_the_library_index_covers_every_move() -> void:
 	# the file count) without failing when a legitimate new move is added.
 	assert_eq(index.size(), _library_files().size(), "every library file is indexed, with no name collisions")
 	assert_eq(index.get("Mend", ""), LIB + "mend.tres", "and names map to files")
+
+# --------------------------------------------------- Spec B: honest skills
+
+## Each move now does what its description promises, and its generated tags say so.
+func test_cyclone_hits_twice() -> void:
+	var s: Skill = load(LIB + "cyclone.tres")
+	assert_eq(s.hit_count, 2, "two hits")
+	assert_true(is_equal_approx(s.power, 1.2), "at 1.2 each")
+	assert_true(s.effect_tags().has("2 hits"), "and says so")
+
+func test_hydro_pierce_pierces() -> void:
+	var s: Skill = load(LIB + "hydro_pierce.tres")
+	assert_eq(s.pierce, 1.0, "ignores all ARC")
+	assert_true(is_equal_approx(s.power, 2.4), "at 2.4")
+	assert_true(s.effect_tags().has("Ignores ARC"), "and says so")
+
+func test_gale_requiem_heals_the_party() -> void:
+	var s: Skill = load(LIB + "gale_requiem.tres")
+	assert_eq(s.ally_heal_power, 1.0, "heals allies by MAG x 1.0")
+	assert_true(is_equal_approx(s.power, 2.5), "damage 2.5")
+	assert_true(s.effect_tags().has("Heals allies"), "and says so")
+
+func test_frost_bolt_can_slow() -> void:
+	var s: Skill = load(LIB + "frost_bolt.tres")
+	assert_eq(s.status_to_apply, "speed_debuff", "lowers SPD")
+	assert_true(is_equal_approx(s.status_chance, 0.4), "40% of the time")
+	assert_true(is_equal_approx(s.power, 1.4), "at 1.4")
+	assert_true(s.effect_tags().has("40% chance: Lowers SPD"), "and says so")
+
+func test_restoring_breeze_regenerates() -> void:
+	var s: Skill = load(LIB + "restoring_breeze.tres")
+	assert_eq(s.status_to_apply, StatusSystem.REGENERATE, "regenerates")
+	assert_true(is_equal_approx(s.power, 0.5), "after a smaller heal of 0.5")
+	assert_true(s.effect_tags().has("Regenerates"), "and says so")

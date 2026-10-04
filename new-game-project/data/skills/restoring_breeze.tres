@@ -9,6 +9,6 @@ description = "A warm current that keeps mending an ally."
 mp_cost = 18
 skill_type = 1
 target_type = 2
-power = 1.2
+power = 0.5
 element = 7
 status_to_apply = "regenerate"

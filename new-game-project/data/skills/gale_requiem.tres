@@ -9,5 +9,6 @@ description = "Lyra's ultimate — heals all allies and damages all enemies with
 mp_cost = 40
 attack_type = 2
 target_type = 1
-power = 3.0
+power = 2.5
 element = 7
+ally_heal_power = 1.0

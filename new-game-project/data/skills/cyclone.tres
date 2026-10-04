@@ -9,5 +9,6 @@ description = "A massive cyclone that strikes all enemies twice."
 mp_cost = 28
 attack_type = 2
 target_type = 1
-power = 2.2
+power = 1.2
 element = 7
+hit_count = 2
