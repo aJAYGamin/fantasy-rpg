@@ -72,6 +72,66 @@ enum SkillCategory { ATTACK, SPECIAL }
 ## themselves leave it empty.
 @export var source_path: String = ""
 
+# --- Spec B: move options ----------------------------------------------------
+# Every option below defaults to "off", so a move that does not set it behaves
+# exactly as before. These DESCRIBE a move; the resolver keeps all per-use
+# state on the Character / BattleManager — a Skill is read-only at runtime
+# (enemies share the library's cached objects).
+
+enum BonusCondition { NONE, TARGET_AFFLICTED, USER_HP_LOW }
+enum ScaleWith { NONE, HP, MP, RESONANCE }
+
+## USER_HP_LOW holds while the user's HP fraction is strictly below this.
+const LOW_HP_THRESHOLD := 0.3
+## Scaling runs between these multipliers.
+const SCALE_MIN := 0.75
+const SCALE_MAX := 1.5
+
+@export_group("Costs")
+## The user pays this % of their MAX HP, rounded up. It can never knock them
+## out — the move is unusable instead. Enemies pay it too.
+@export var hp_cost_percent: float = 0.0
+## Heroes spend this much of the 0–100 resonance meter. Enemies ignore it.
+@export var resonance_cost: float = 0.0
+
+@export_group("Hits")
+## Damage moves strike each target this many times.
+@export var hit_count: int = 1
+## Fraction (0–1) of the target's DEF (physical) or ARC (magic) ignored.
+@export var pierce: float = 0.0
+
+@export_group("Extra")
+## After the hits, heals every living member of the user's side by MAG × this.
+@export var ally_heal_power: float = 0.0
+
+@export_group("Conditional")
+@export var bonus_condition: BonusCondition = BonusCondition.NONE
+## Damage multiplier while bonus_condition holds.
+@export var bonus_multiplier: float = 1.5
+## The one defender element this move treats differently. NORMAL = no override
+## (the codebase's existing "not set" convention for elements).
+@export var override_element: ElementalSystem.Element = ElementalSystem.Element.NORMAL
+## false: effective (1x) against override_element. true: super-effective (2x).
+@export var override_super: bool = false
+
+@export_group("Scaling")
+## The user's own pool this move's damage scales with.
+@export var scale_with: ScaleWith = ScaleWith.NONE
+## true: a fuller pool hits harder. false: an emptier pool hits harder.
+@export var scale_more_is_stronger: bool = true
+
+@export_group("Trade-offs")
+## A stat ("attack"/"defense"/"magic"/"arcane"/"speed") lowered on the user
+## after the move.
+@export var self_debuff: String = ""
+## The user takes this % of the damage the move dealt. Never knocks them out.
+@export var recoil_percent: float = 0.0
+## The move's own chance (0–1) to miss each opponent, separate from dodging.
+@export var miss_chance: float = 0.0
+## A stat raised on every target the move hit.
+@export var target_buff: String = ""
+@export_group("")
+
 func is_attack_category() -> bool:
 	return category == SkillCategory.ATTACK
 
@@ -94,18 +154,31 @@ func calculate_value(user: Character) -> int:
 			return 0
 	return 0
 
+## HP this move costs `user`, rounded up; 0 when it has no HP cost.
+func hp_cost(user: Character) -> int:
+	if hp_cost_percent <= 0.0:
+		return 0
+	return ceili(user.max_hp() * hp_cost_percent / 100.0)
+
 func can_use(user: Character) -> bool:
 	if user.is_status("stun"):
 		return false
-	# Enemies ignore MP cost entirely — they have no MP pool and may use any skill
-	# they own without restriction. Only heroes pay MP.
+	# An HP cost may never knock the user out — on either side, since enemies
+	# have HP too. The move greys out instead.
+	if hp_cost_percent > 0.0 and user.current_hp <= hp_cost(user):
+		return false
+	# Enemies ignore MP and resonance costs entirely — they have neither pool —
+	# and may use any skill they own. Only heroes pay MP and resonance.
 	if user is Enemy:
 		return true
+	if resonance_cost > 0.0 and user.resonance_meter < resonance_cost:
+		return false
 	return user.current_mp >= mp_cost
 
-# Returns the resonance percentage this skill grants on use
-# 10% default for damage skills, 0% for heal/buff, override if set
 func get_resonance_gain() -> float:
+	# A move that SPENDS resonance builds none, or it would refund its own cost.
+	if resonance_cost > 0.0:
+		return 0.0
 	if resonance_gain_override >= 0.0:
 		return resonance_gain_override
 	if skill_type == SkillType.DAMAGE:
@@ -161,3 +234,51 @@ func get_element_display() -> String:
 		ElementalSystem.get_element_icon(element),
 		ElementalSystem.get_element_name(element)
 	]
+
+# --- Spec B: maths for the resolver -------------------------------------------
+
+## The damage multiplier from this move's scaling, read from the user's OWN
+## pool: SCALE_MIN at one end, SCALE_MAX at the other. A pool the user lacks
+## (an enemy's MP or resonance) gives 1x.
+func scale_factor(user: Character) -> float:
+	var fill := 0.0
+	match scale_with:
+		ScaleWith.NONE:
+			return 1.0
+		ScaleWith.HP:
+			fill = float(user.current_hp) / float(maxi(1, user.max_hp()))
+		ScaleWith.MP:
+			if user is Enemy or user.max_mp() <= 0:
+				return 1.0
+			fill = float(user.current_mp) / float(user.max_mp())
+		ScaleWith.RESONANCE:
+			if user is Enemy:
+				return 1.0
+			fill = user.resonance_meter / 100.0
+	fill = clampf(fill, 0.0, 1.0)
+	if not scale_more_is_stronger:
+		fill = 1.0 - fill
+	return lerpf(SCALE_MIN, SCALE_MAX, fill)
+
+## The damage multiplier from this move's condition against `target`.
+## `user_hp_fraction` is measured before the move's costs are paid.
+func condition_multiplier(user_hp_fraction: float, target: Character) -> float:
+	match bonus_condition:
+		BonusCondition.TARGET_AFFLICTED:
+			return bonus_multiplier if is_afflicted(target) else 1.0
+		BonusCondition.USER_HP_LOW:
+			return bonus_multiplier if user_hp_fraction < LOW_HP_THRESHOLD else 1.0
+	return 1.0
+
+## True when `c` has an active status (poison, stun, …) or any stat debuff.
+static func is_afflicted(c: Character) -> bool:
+	if StatusSystem.get_active_mutex_status(c) != "":
+		return true
+	for stat in StatusSystem.BUFFABLE_STATS:
+		if StatusSystem.is_effectively_debuffed(c, stat):
+			return true
+	return false
+
+## The multiplier the element override uses for its one pairing.
+func override_multiplier() -> float:
+	return ElementalSystem.WEAKNESS_MULTIPLIER if override_super else 1.0
