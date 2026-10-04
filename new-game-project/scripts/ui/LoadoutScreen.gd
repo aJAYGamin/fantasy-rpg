@@ -300,7 +300,7 @@ func _detail_panel(s: Skill) -> PanelContainer:
 	v.add_child(desc)
 
 	# Costs are spelled out rather than left as the bare number on the row, since a
-	# move may later cost something other than MP.
+	# move may cost MP, a share of HP, resonance, or several of these at once.
 	var cost_row := HBoxContainer.new()
 	cost_row.add_theme_constant_override("separation", 6)
 	cost_row.add_child(_label("Cost:", BattleUITheme.font_bold(), 11, BattleUITheme.TEXT_SUBTITLE))

@@ -120,9 +120,12 @@ An unknown name is ignored with a `push_warning`, never applied — the phantom
    `target_buff`.
 6. **Heal moves** now apply their `status_to_apply` after healing (this is the
    Restoring Breeze fix; it is the only heal move with a token, so no other
-   move changes).
+   move changes). A heal's regen heals `HEAL_REGEN_POWER` (0.25) × the caster's
+   MAG per turn rather than `max_hp / 8`, and never weakens a regen already
+   running.
 7. **After all targets**, in order: the ally heal (`"heal"` results on each
-   living ally), recoil (`"recoil"` result: `recoil_percent` of the total damage
+   living ally that was actually healed — a full-HP ally reports nothing),
+   recoil (`"recoil"` result: `recoil_percent` of the total damage
    dealt this action, never dropping the user below 1 HP), the self-debuff.
 
 ### Conditions and scaling
@@ -189,7 +192,7 @@ use it carry lower base power than comparable moves.
   from data, it cannot promise what the move does not do.
 - **Battle text:** `"miss"` shows "Miss" (distinct from "Dodge"); `"hp_cost"`
   and `"recoil"` show a damage number over the user; the ally heal shows heal
-  numbers; self-debuffs and target buffs show as the existing stat chips.
+  numbers for the allies it healed; self-debuffs and target buffs show as the existing stat chips.
 
 ## Part 5 — The honest fixes
 
@@ -201,7 +204,7 @@ Total strength kept about the same:
 | Hydro Pierce (Aria) | 2.5, no pierce | `power 2.4`, `pierce 1.0` (ignores all ARC) |
 | Gale Requiem (Lyra) | 3.0 damage only | `power 2.5`, `ally_heal_power 1.0` |
 | Frost Bolt (Aria) | 1.5, no slow | `power 1.4`, `status_to_apply "speed_debuff"`, `status_chance 0.4` |
-| Restoring Breeze (Lyra) | heal 1.2 once | `power 0.5`, then its existing `regenerate` applies (3 turns × 1/8 max HP) |
+| Restoring Breeze (Lyra) | heal 1.2 once | `power 0.5`, then its existing `regenerate` applies, scaled by the caster's MAG (Ruling 11): `HEAL_REGEN_POWER` 0.25 × MAG per turn for 3 turns, so `0.5 + 3 × 0.25 = 1.25 × MAG` against the old `1.2 × MAG`. The default `max_hp / 8` regen stays for BUFF moves like Iron Will, and a regen never weakens one already running (the larger per-turn amount is kept) |
 
 **Baseline tests.** Spec A's move-library baseline is a migration guard. Each
 change above is recorded the documented way: hero moves as `MERGE_DELTAS`
@@ -290,7 +293,9 @@ deterministic:
   0/1 on opponents, ignored on allies; target buff only on targets hit.
 - Order: rider and target buff after the hits; heal, recoil, self-debuff after
   all targets.
-- Heal moves apply their token (Restoring Breeze regenerates).
+- Heal moves apply their token (Restoring Breeze regenerates for 0.25 × the
+  caster's MAG per turn, about its old total; Iron Will keeps `max_hp / 8`; a
+  running regen is never weakened); a full-HP ally gets no heal result.
 - `cost_parts()` and `effect_tags()` for representative moves; an unknown stat
   name warns and does nothing.
 - Saves: every new field round-trips; a 12-move hero pool loads as 15 with the

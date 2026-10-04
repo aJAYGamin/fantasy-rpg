@@ -317,3 +317,37 @@ func test_regen_heals_each_turn_then_expires() -> void:
 	assert_eq(c.regen_turns, 0, "regen expired after its turns")
 	c.process_status_effects()
 	assert_eq(c.current_hp, 20, "no further healing after regen expires")
+
+func test_regen_default_amount_is_an_eighth_of_max_hp() -> void:
+	var c = _make()
+	c.start_regen(3)
+	assert_eq(c.regen_amount, max(1, c.max_hp() / 8), "no amount given: 1/8 max HP")
+
+func test_regen_with_none_running_takes_the_new_amount() -> void:
+	var c = _make()
+	c.start_regen(3, 10)
+	assert_eq(c.regen_amount, 10, "nothing running, so the new amount")
+	assert_eq(c.regen_turns, 3, "for its turns")
+
+func test_a_weaker_regen_never_lowers_a_running_one() -> void:
+	var c = _make()
+	c.start_regen(3, 50)
+	c.start_regen(3, 10)
+	assert_eq(c.regen_amount, 50, "the stronger running regen is kept")
+	assert_eq(c.regen_turns, 3, "turns are the longer of the two")
+
+func test_a_stronger_regen_raises_a_running_one() -> void:
+	var c = _make()
+	c.start_regen(2, 10)
+	c.start_regen(3, 50)
+	assert_eq(c.regen_amount, 50, "the stronger new amount wins")
+	assert_eq(c.regen_turns, 3, "and the longer duration")
+
+func test_a_finished_regen_does_not_cap_the_next_one() -> void:
+	var c = _make()
+	c.current_hp = 10
+	c.start_regen(1, 50)
+	c.process_status_effects()
+	assert_eq(c.regen_turns, 0, "the first regen ended")
+	c.start_regen(3, 10)
+	assert_eq(c.regen_amount, 10, "the leftover 50 does not carry over")

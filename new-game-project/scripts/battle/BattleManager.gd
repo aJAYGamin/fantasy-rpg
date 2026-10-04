@@ -36,6 +36,11 @@ enum BattleState {
 # Turns a "regenerate" skill heals for (transient heal-over-time, not a status).
 const REGEN_TURNS := 3
 
+## A HEAL move's attached regen heals this share of the caster's MAG per turn, so
+## Restoring Breeze totals 0.5 + 3 x 0.25 = 1.25 x MAG against its old 1.2 x MAG.
+## The default max_hp / 8 regen stays for BUFF moves like Iron Will.
+const HEAL_REGEN_POWER := 0.25
+
 var state: BattleState = BattleState.IDLE
 var party: Array[Character] = []
 var enemies: Array[Character] = []
@@ -315,9 +320,11 @@ func _resolve_hit(user: Character, skill: Skill, target: Character, result: Dict
 			Skill.StatusType.HEAL:
 				result["action"] = "heal"
 				result["value"] = target.heal(value)
-				# A heal's attached effect applies too (Restoring Breeze's regen).
+				# A heal's attached effect applies too (Restoring Breeze's regen),
+				# scaled by the caster's MAG like the heal itself.
 				if skill.status_to_apply != "":
-					_apply_skill_status(target, skill.status_to_apply)
+					_apply_skill_status(target, skill.status_to_apply,
+							maxi(1, int(user.magic_power() * HEAL_REGEN_POWER)))
 			Skill.StatusType.BUFF:
 				# The token may be a stat buff ("attack_buff"), a stat debuff
 				# ("magic_debuff") or a legacy named status ("regenerate").
@@ -361,7 +368,10 @@ func _after_action(user: Character, skill: Skill, dealt: int) -> void:
 		var amount := int(user.magic_power() * skill.ally_heal_power)
 		for ally in _allies_of(user):
 			if ally.is_alive():
-				_emit_extra(user, ally, skill, "heal", ally.heal(amount))
+				# A full-HP ally reports nothing, not a "0 Healed" number.
+				var healed := ally.heal(amount)
+				if healed > 0:
+					_emit_extra(user, ally, skill, "heal", healed)
 	if skill.recoil_percent > 0.0 and dealt > 0:
 		# Recoil never knocks the user out.
 		var recoil := mini(int(dealt * skill.recoil_percent / 100.0), user.current_hp - 1)
@@ -720,7 +730,10 @@ func apply_boss_field_effect(boss: Enemy) -> Character:
 # When a mutex status actually LANDS (target had no prior mutex status, no
 # duplicate), we emit status_effect_triggered with applied=true so the UI can
 # banner "[Name] was Poisoned!" etc.
-func _apply_skill_status(target: Character, token: String):
+# `regen_amount` is the per-turn heal a "regenerate" token gives; -1 (the
+# default) is Character.start_regen's max_hp / 8, which every caller but a HEAL
+# move's attached regen uses.
+func _apply_skill_status(target: Character, token: String, regen_amount: int = -1):
 	if token == "":
 		return
 	var parsed = StatusSystem.parse_apply_token(token)
@@ -733,7 +746,7 @@ func _apply_skill_status(target: Character, token: String):
 			var status_name: String = parsed["value"]
 			# Regenerate is a transient heal-over-time, not a status chip.
 			if status_name == StatusSystem.REGENERATE:
-				target.start_regen(REGEN_TURNS)
+				target.start_regen(REGEN_TURNS, regen_amount)
 				return
 			var was_active: bool = target.is_status(status_name)
 			target.add_status(status_name)

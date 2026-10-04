@@ -426,10 +426,13 @@ func clear_defend() -> void:
 	is_defending = false
 
 # Begin (or refresh) a regenerate-over-time effect. amount per turn; <=0 amount
-# defaults to 1/8 max HP.
+# defaults to 1/8 max HP. A new regen never weakens one already running: while
+# turns remain the per-turn amount is the larger of the two, so a weak heal's
+# regen (Restoring Breeze) can't undercut a strong buff's (Iron Will).
 func start_regen(turns: int, amount: int = -1) -> void:
+	var new_amount: int = amount if amount > 0 else max(1, max_hp() / 8)
+	regen_amount = max(regen_amount, new_amount) if regen_turns > 0 else new_amount
 	regen_turns = max(regen_turns, turns)
-	regen_amount = amount if amount > 0 else max(1, max_hp() / 8)
 
 # --- Leveling ---
 func gain_experience(amount: int) -> bool:
@@ -455,7 +458,7 @@ func level_up():
 	_learn_skills_at_level()
 
 # P8 — skill learning. A hero's `skills` pool holds every move it can ever
-# learn (up to MAX_SKILLS; 12 defined per hero today), each gated by its own
+# learn (up to MAX_SKILLS; 15 defined per hero today), each gated by its own
 # Skill.unlock_level — a pool entry becomes usable once `level` reaches it.
 # Which battle menu (attack vs. special) a pool slot feeds is positional, per
 # PartyFactory.SKILL_CATEGORIES, not a fixed split of the array. Keeping the

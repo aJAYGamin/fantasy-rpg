@@ -178,9 +178,12 @@ new one while any is active is **rejected** (first-come-first-served; was previo
 - Non-mutex positive statuses (`regenerate`, `defending`) can coexist with the mutex pool.
   These are transient combat effects, NOT real statuses: defending is a `Character.is_defending`
   bool (halves incoming damage until next turn, `DEFEND_DAMAGE_MULT`); regenerate is
-  `Character.start_regen(turns)` (heal-over-time). Neither lives in `status_effects` (not mutex,
-  never serialized) — they're kept as named constants only for chip rendering + as the default
-  BUFF token. `_apply_skill_status` intercepts the `regenerate` token before `add_status`.
+  `Character.start_regen(turns, amount = -1)` (heal-over-time; the default amount is `max_hp / 8`).
+  Neither lives in `status_effects` (not mutex, never serialized) — they're kept as named
+  constants only for chip rendering + as the default BUFF token. `_apply_skill_status` intercepts
+  the `regenerate` token before `add_status`. `start_regen` never weakens a running regen: while
+  `regen_turns > 0` the per-turn amount is the larger of the current and the new one (so a heal's
+  small MAG-scaled regen can't undercut Iron Will's `max_hp / 8`).
 - **`add_status` guards (enforced at the single mutation point):** a defeated character
   (`not is_alive()`) is never afflicted — a killing blow that also inflicts a status leaves the
   downed character clean. **Element immunity** (`StatusSystem.ELEMENT_IMMUNITY` /
@@ -249,7 +252,7 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
     once), `pierce` (0–1; share of the target's DEF for physical / ARC for magic
     that is ignored).
   - **Extra:** `ally_heal_power` (float; after the hits, heals every living member
-    of the user's side, the user included, by `MAG × this`).
+    of the user's side, the user included, by `MAG × this`; a full-HP ally gets no result).
   - **Conditional:** `bonus_condition` (`BonusCondition`: `NONE` /
     `TARGET_AFFLICTED` / `USER_HP_LOW`) + `bonus_multiplier` (1.5); and the
     element override, `override_element` (`NORMAL` = unset, the codebase's
@@ -661,9 +664,13 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
      the status rider (`status_to_apply` / `status_chance`) **once, not once per
      hit**, then apply `target_buff` (only while the target is alive).
   6. **After all targets** (`_after_action`), in this order: the **ally heal**
-     (a `"heal"` result on each living ally), **recoil**, the **self-debuff**.
+     (a `"heal"` result on each living ally that was actually healed — none for a
+     full-HP ally, so no "0 Healed" popup), **recoil**, the **self-debuff**.
   - A STATUS **heal** move now applies its `status_to_apply` after healing (the
-    Restoring Breeze fix — its `regenerate` token used to be ignored).
+    Restoring Breeze fix — its `regenerate` token used to be ignored). That regen
+    is scaled by the caster's MAG, not max HP: `BattleManager.HEAL_REGEN_POWER`
+    (0.25) × MAG per turn for `REGEN_TURNS`, passed to `_apply_skill_status`'s
+    `regen_amount`; BUFF moves such as Iron Will keep the default `max_hp / 8`.
   - **Recoil** is `recoil_percent` of the HP the hits actually REMOVED
     (`dealt`; overkill is not counted, a dead target's later hits never happen),
     truncated, never leaving the user below 1 HP. No landed damage → no recoil.
@@ -894,7 +901,8 @@ BattleScene (Node2D)
   — one battle from a level-up, for quick level-up testing; lower this for real
   play.)
 - Wired buff skills: Tidal Barrier → `defense_buff`, War Cry → `attack_buff`,
-  Wind Barrier → `defense_buff`, Tailwind → `speed_buff`, Iron Will → `regenerate`.
+  Wind Barrier → `defense_buff`, Tailwind → `speed_buff`, Iron Will → `regenerate`
+  (`max_hp / 8` per turn for 3 turns).
 - **Pool slots 13–15 (Spec B), one new mechanic per move** — in pool order, the
   slots unlock at levels **3 / 9 / 14** (Attack / Special / Special; shared by all
   three heroes via `SKILL_UNLOCK_LEVELS` / `SKILL_CATEGORIES`):
@@ -921,7 +929,8 @@ BattleScene (Node2D)
   ARC), Gale Requiem (`ally_heal_power 1.0` at power **2.5** — damages all enemies
   AND heals the party), Frost Bolt (`speed_debuff` at `status_chance 0.4`, power
   **1.4**), Restoring Breeze (power **0.5**, and its `regenerate` token now
-  applies — see the heal-move rule in the resolver). Each is a recorded
+  applies as `0.25 × MAG` per turn for 3 turns, so **1.25 × MAG** in all against
+  its old 1.2 × MAG — see the heal-move rule in the resolver). Each is a recorded
   `MERGE_DELTAS` entry (see **Move library**).
 - 14 enemies in `data/enemies/*.tres`, loaded + `.duplicate(true)`'d. Enemies have
   **no MP** and `mp_cost = 0` on all skills. Status inflictors: Fire Drake→scorched,

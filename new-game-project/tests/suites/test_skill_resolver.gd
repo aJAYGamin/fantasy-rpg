@@ -519,6 +519,63 @@ func test_a_heal_applies_its_attached_effect() -> void:
 	assert_eq(ally.regen_turns, BattleManager.REGEN_TURNS, "and regenerating")
 	bm.free()
 
+func test_a_heals_regen_scales_with_the_casters_mag() -> void:
+	# Ruling 11: the attached regen is HEAL_REGEN_POWER x the caster's MAG per
+	# turn, not the default max_hp / 8 (which healed ~4x the move's old total).
+	var bm := _manager(2, 1)
+	var s := _skill(Skill.TargetType.SINGLE_ALLY, Skill.SkillType.STATUS)
+	s.status_type = Skill.StatusType.HEAL
+	s.status_to_apply = StatusSystem.REGENERATE
+	var caster := bm.party[0]
+	var ally := bm.party[1]
+	ally.current_hp = 100
+	bm.resolve_skill(caster, s, [ally])
+	var expected := maxi(1, int(caster.magic_power() * BattleManager.HEAL_REGEN_POWER))
+	assert_eq(ally.regen_amount, expected, "regen heals a share of the caster's MAG each turn")
+	assert_eq(ally.regen_turns, BattleManager.REGEN_TURNS, "for the usual number of turns")
+	assert_true(ally.regen_amount < maxi(1, ally.max_hp() / 8), "far below the old max_hp / 8")
+	bm.free()
+
+func test_restoring_breeze_keeps_about_its_old_total() -> void:
+	# It healed 1.2 x MAG when its regen token was ignored; the honest version
+	# is 0.5 x MAG now plus REGEN_TURNS ticks of the regen.
+	var bm := _manager(2, 1)
+	var breeze: Skill = load("res://data/skills/restoring_breeze.tres")
+	var caster := bm.party[0]
+	var ally := bm.party[1]
+	ally.current_hp = 100
+	var hits := _capture(bm)
+	bm.resolve_skill(caster, breeze, [ally])
+	var mag := float(caster.magic_power())
+	var total := float(hits[0]["value"]) + float(BattleManager.REGEN_TURNS * ally.regen_amount)
+	assert_in_range(total, mag * 1.2 * 0.85, mag * 1.2 * 1.15, "within 15% of the old 1.2 x MAG")
+	bm.free()
+
+func test_a_buffs_regen_keeps_the_default_amount() -> void:
+	# Iron Will: a BUFF-type regenerate is still a share of the target's max HP.
+	var bm := _manager(2, 1)
+	var s := _skill(Skill.TargetType.ALL_ALLIES, Skill.SkillType.STATUS)
+	s.status_type = Skill.StatusType.BUFF
+	s.status_to_apply = StatusSystem.REGENERATE
+	bm.resolve_skill(bm.party[0], s, [])
+	for h in bm.party:
+		assert_eq(h.regen_amount, maxi(1, h.max_hp() / 8), "%s regenerates max_hp / 8" % h.character_name)
+		assert_eq(h.regen_turns, BattleManager.REGEN_TURNS, "%s for the usual turns" % h.character_name)
+	bm.free()
+
+func test_a_heals_regen_never_weakens_a_stronger_running_regen() -> void:
+	var bm := _manager(2, 1)
+	var ally := bm.party[1]
+	ally.current_hp = 100
+	ally.start_regen(BattleManager.REGEN_TURNS)
+	var strong := ally.regen_amount
+	var s := _skill(Skill.TargetType.SINGLE_ALLY, Skill.SkillType.STATUS)
+	s.status_type = Skill.StatusType.HEAL
+	s.status_to_apply = StatusSystem.REGENERATE
+	bm.resolve_skill(bm.party[0], s, [ally])
+	assert_eq(ally.regen_amount, strong, "the larger running regen is kept")
+	bm.free()
+
 func test_a_target_buff_lands_only_on_targets_hit() -> void:
 	var bm := _manager(1, 1)
 	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
@@ -559,6 +616,30 @@ func test_the_ally_heal_heals_the_users_whole_side() -> void:
 		assert_eq(h.current_hp, h.max_hp() - 100 + 20, "%s healed by MAG 20 x 1.0" % h.character_name)
 	for i in bm.enemies.size():
 		assert_true(bm.enemies[i].current_hp < foe_hp[i], "enemies are damaged, never healed")
+	bm.free()
+
+func test_the_ally_heal_reports_only_allies_it_actually_healed() -> void:
+	# A full-HP ally gets no "0 Healed" popup (Gale Requiem is a level-1 special,
+	# so a healthy party would otherwise see one per hero every cast).
+	var bm := _manager(3, 1)
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.ally_heal_power = 1.0
+	var hits := _capture(bm)
+	bm.resolve_skill(bm.party[0], s, [bm.enemies[0]])
+	assert_eq(_actions(hits), ["skill_physical"], "the hit only: nobody needed healing")
+	bm.free()
+
+func test_the_ally_heal_skips_the_healthy_but_reports_the_hurt() -> void:
+	var bm := _manager(3, 1)
+	bm.party[1].current_hp -= 100
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.ally_heal_power = 1.0
+	var hits := _capture(bm)
+	bm.resolve_skill(bm.party[0], s, [bm.enemies[0]])
+	var heals := hits.filter(func(r): return r["action"] == "heal")
+	assert_eq(heals.size(), 1, "one heal result")
+	assert_eq(heals[0]["target"], bm.party[1], "for the hurt ally")
+	assert_eq(int(heals[0]["value"]), 20, "worth what it healed")
 	bm.free()
 
 func test_an_enemys_ally_heal_heals_enemies() -> void:
@@ -625,6 +706,9 @@ func test_a_self_debuff_lands_on_the_user_after_the_hits() -> void:
 
 func test_after_effects_run_heal_then_recoil_then_self_debuff() -> void:
 	var bm := _manager(2, 1)
+	# Both heroes need healing, or the heal reports nothing.
+	for h in bm.party:
+		h.current_hp -= 100
 	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
 	s.ally_heal_power = 1.0
 	s.recoil_percent = 25.0
