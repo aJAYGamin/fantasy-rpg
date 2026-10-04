@@ -1336,6 +1336,9 @@ func load_from_slot(slot: int) -> bool:
 	var pos_data = data.get("overworld_position", {"x": 0, "y": 0})
 	save_overworld_position = Vector2(float(pos_data.get("x", 0)), float(pos_data.get("y", 0)))
 	party = SaveSerializer.deserialize_party(data.get("party", []))
+	# A save keeps each hero's pool exactly as it was written; moves added to
+	# the game since then are appended here (Spec B, Part 7).
+	PartyFactory.top_up_party(party)
 	active_slot = slot
 	# Loading a save enters its region fresh — drop any in-memory roamer state so
 	# the loaded area repopulates instead of restoring a different session's roamers.

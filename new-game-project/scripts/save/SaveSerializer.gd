@@ -25,6 +25,21 @@ static func serialize_skill(s: Skill) -> Dictionary:
 		"unlock_level": s.unlock_level,
 		"category": int(s.category),
 		"source_path": s.source_path,
+		"hp_cost_percent": s.hp_cost_percent,
+		"resonance_cost": s.resonance_cost,
+		"hit_count": s.hit_count,
+		"pierce": s.pierce,
+		"ally_heal_power": s.ally_heal_power,
+		"bonus_condition": int(s.bonus_condition),
+		"bonus_multiplier": s.bonus_multiplier,
+		"override_element": int(s.override_element),
+		"override_super": s.override_super,
+		"scale_with": int(s.scale_with),
+		"scale_more_is_stronger": s.scale_more_is_stronger,
+		"self_debuff": s.self_debuff,
+		"recoil_percent": s.recoil_percent,
+		"miss_chance": s.miss_chance,
+		"target_buff": s.target_buff,
 	}
 
 static func deserialize_skill(d: Dictionary) -> Skill:
@@ -49,6 +64,23 @@ static func deserialize_skill(d: Dictionary) -> Skill:
 	s.category = int(d.get("category", Skill.SkillCategory.ATTACK))
 	s.resonance_gain_override = float(d.get("resonance_gain_override", -1.0))
 	s.source_path = String(d.get("source_path", ""))
+	# Spec B options. Every default means "off", so a save written before they
+	# existed loads each move exactly as it was.
+	s.hp_cost_percent = float(d.get("hp_cost_percent", 0.0))
+	s.resonance_cost = float(d.get("resonance_cost", 0.0))
+	s.hit_count = int(d.get("hit_count", 1))
+	s.pierce = float(d.get("pierce", 0.0))
+	s.ally_heal_power = float(d.get("ally_heal_power", 0.0))
+	s.bonus_condition = int(d.get("bonus_condition", Skill.BonusCondition.NONE))
+	s.bonus_multiplier = float(d.get("bonus_multiplier", 1.5))
+	s.override_element = int(d.get("override_element", ElementalSystem.Element.NORMAL))
+	s.override_super = bool(d.get("override_super", false))
+	s.scale_with = int(d.get("scale_with", Skill.ScaleWith.NONE))
+	s.scale_more_is_stronger = bool(d.get("scale_more_is_stronger", true))
+	s.self_debuff = String(d.get("self_debuff", ""))
+	s.recoil_percent = float(d.get("recoil_percent", 0.0))
+	s.miss_chance = float(d.get("miss_chance", 0.0))
+	s.target_buff = String(d.get("target_buff", ""))
 	return s
 
 const MOVE_LIBRARY := "res://data/skills/"

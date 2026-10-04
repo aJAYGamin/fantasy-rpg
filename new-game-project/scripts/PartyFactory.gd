@@ -50,6 +50,81 @@ const TEST_UNLOCK_ALL_SKILLS := false
 
 const MOVES := "res://data/skills/"
 
+## Each hero's pool, in slot order. The order is load-bearing:
+## SKILL_UNLOCK_LEVELS, SKILL_CATEGORIES and the equipped loadout are positional.
+const POOLS := {
+	"Aria": [
+		"aqua_slash.tres", "frost_bolt.tres", "tide_pulse.tres", "mend.tres",
+		"tidal_requiem.tres", "hydro_pierce.tres", "tidal_barrier.tres", "grand_mend.tres",
+		"riptide_lash.tres", "glacial_shard.tres", "abyssal_veil.tres", "maelstrom.tres",
+	],
+	"Kael": [
+		"flame_strike.tres", "shield_bash.tres", "war_cry.tres", "inferno.tres",
+		"phoenix_fury.tres", "molten_blade.tres", "iron_will.tres", "flame_wall.tres",
+		"cinder_cleave.tres", "guard_crush.tres", "ember_ward.tres", "scorched_earth.tres",
+	],
+	"Lyra": [
+		"wind_slash.tres", "mend.tres", "gust.tres", "wind_barrier.tres",
+		"gale_requiem.tres", "cyclone.tres", "grand_mend.tres", "tailwind.tres",
+		"zephyr_cut.tres", "feather_volley.tres", "restoring_breeze.tres", "sanctuary.tres",
+	],
+}
+
+## A hero's whole pool as their own copies, in slot order.
+static func _pool(hero_name: String) -> Array[Skill]:
+	var out: Array[Skill] = []
+	for f in POOLS[hero_name]:
+		out.append(_move(f))
+	return out
+
+## Stamps the curve and category for pool slot `slot` onto a hero's copy.
+static func _stamp_slot(skill: Skill, slot: int) -> void:
+	if slot < SKILL_UNLOCK_LEVELS.size():
+		skill.unlock_level = 1 if TEST_UNLOCK_ALL_SKILLS else SKILL_UNLOCK_LEVELS[slot]
+	elif TEST_UNLOCK_ALL_SKILLS:
+		skill.unlock_level = 1
+	if slot < SKILL_CATEGORIES.size():
+		skill.category = SKILL_CATEGORIES[slot]
+
+## Appends, at the end of the pool, a copy of every move in this hero's factory
+## pool that `hero` lacks — matched by file, or by name for a move saved before
+## moves had files — stamped with that move's OWN slot's unlock level and
+## category. A save keeps a pool exactly as written, so without this a save
+## from before a pool grew would never gain the new moves. Returns how many
+## were added; an unknown hero is left alone.
+static func top_up_pool(hero: Character) -> int:
+	if not POOLS.has(hero.character_name):
+		return 0
+	var have_paths := {}
+	var have_names := {}
+	for s in hero.skills:
+		if s == null:
+			continue
+		if s.source_path != "":
+			have_paths[s.source_path] = true
+		have_names[s.skill_name] = true
+	var files: Array = POOLS[hero.character_name]
+	var added := 0
+	for slot in files.size():
+		var path: String = MOVES + files[slot]
+		var template: Skill = load(path)
+		if have_paths.has(path) or have_names.has(template.skill_name):
+			continue
+		if hero.skills.size() >= Character.MAX_SKILLS:
+			break
+		var copy := _move(files[slot])
+		_stamp_slot(copy, slot)
+		hero.skills.append(copy)
+		added += 1
+	return added
+
+## After a save loads: give every hero the moves added to their pool since it
+## was written, then fill any EMPTY loadout slots (the player's choices stay).
+static func top_up_party(party: Array) -> void:
+	for hero in party:
+		if top_up_pool(hero) > 0:
+			hero.auto_equip_unslotted()
+
 ## A hero's own copy of a library move. The file is the single definition of
 ## what the move does; the copy belongs to this hero, so stamping its unlock
 ## level and category — which differ per hero — can never leak into the file
@@ -65,14 +140,8 @@ static func _move(file: String) -> Skill:
 ## their Skill defaults (level 1, ATTACK) rather than becoming unreachable.
 static func _apply_skill_tables(hero: Character) -> void:
 	for i in hero.skills.size():
-		if hero.skills[i] == null:
-			continue
-		if i < SKILL_UNLOCK_LEVELS.size():
-			hero.skills[i].unlock_level = 1 if TEST_UNLOCK_ALL_SKILLS else SKILL_UNLOCK_LEVELS[i]
-		elif TEST_UNLOCK_ALL_SKILLS:
-			hero.skills[i].unlock_level = 1
-		if i < SKILL_CATEGORIES.size():
-			hero.skills[i].category = SKILL_CATEGORIES[i]
+		if hero.skills[i] != null:
+			_stamp_slot(hero.skills[i], i)
 
 static func create_default_party() -> Array[Character]:
 	var party: Array[Character] = [_create_aria(), _create_kael(), _create_lyra()]
@@ -108,11 +177,7 @@ static func _create_aria() -> Character:
 	hero.set_meta("ultimate_desc", "Aria calls forth a crushing tide, drowning all enemies in pure aquatic fury.")
 	hero.set_meta("bio", "A prodigy of the tidal arts, Aria channels the ocean's calm and its fury in equal measure. She joined the journey to learn why the old water-shrines have fallen silent.")
 
-	hero.skills = [
-		_move("aqua_slash.tres"), _move("frost_bolt.tres"), _move("tide_pulse.tres"), _move("mend.tres"),
-		_move("tidal_requiem.tres"), _move("hydro_pierce.tres"), _move("tidal_barrier.tres"), _move("grand_mend.tres"),
-		_move("riptide_lash.tres"), _move("glacial_shard.tres"), _move("abyssal_veil.tres"), _move("maelstrom.tres"),
-	] as Array[Skill]
+	hero.skills = _pool("Aria")
 	return hero
 
 static func _create_kael() -> Character:
@@ -135,11 +200,7 @@ static func _create_kael() -> Character:
 	hero.set_meta("ultimate_desc", "Kael becomes one with the phoenix, raining fire on all enemies.")
 	hero.set_meta("bio", "A hot-blooded warrior whose blade burns as fiercely as his temper. Kael fights to shield those who cannot fight for themselves, carrying the ember of a home long lost.")
 
-	hero.skills = [
-		_move("flame_strike.tres"), _move("shield_bash.tres"), _move("war_cry.tres"), _move("inferno.tres"),
-		_move("phoenix_fury.tres"), _move("molten_blade.tres"), _move("iron_will.tres"), _move("flame_wall.tres"),
-		_move("cinder_cleave.tres"), _move("guard_crush.tres"), _move("ember_ward.tres"), _move("scorched_earth.tres"),
-	] as Array[Skill]
+	hero.skills = _pool("Kael")
 	return hero
 
 static func _create_lyra() -> Character:
@@ -162,11 +223,7 @@ static func _create_lyra() -> Character:
 	hero.set_meta("ultimate_desc", "Lyra calls upon the winds to heal all allies and damage all enemies.")
 	hero.set_meta("bio", "A gentle healer who hears the whispers of the wind. Lyra mends wounds and spirits alike, searching for the lost melody said to soothe the coming Requiem.")
 
-	hero.skills = [
-		_move("wind_slash.tres"), _move("mend.tres"), _move("gust.tres"), _move("wind_barrier.tres"),
-		_move("gale_requiem.tres"), _move("cyclone.tres"), _move("grand_mend.tres"), _move("tailwind.tres"),
-		_move("zephyr_cut.tres"), _move("feather_volley.tres"), _move("restoring_breeze.tres"), _move("sanctuary.tres"),
-	] as Array[Skill]
+	hero.skills = _pool("Lyra")
 	return hero
 
 # --- Starter inventory (test seed) ---
