@@ -127,7 +127,7 @@ tools/                        # one-shot / offline scripts, run as scenes (not -
 tests/
   TestRunner.tscn/.gd         # run this scene (F6) to execute all suites; register suites in SUITE_PATHS
   TestSuite.gd                # base class with assert_* helpers
-  suites/                     # one test_<feature>.gd per system (24 suites)
+  suites/                     # one test_<feature>.gd per system (47 suites)
   fixtures/                   # move_library_baseline.json — pre-migration snapshot for the MoveLibrary suite
 assets/  backgrounds/ characters/ enemies/ icons/ ui/
 fonts/   music/
@@ -383,8 +383,9 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   (`_stamp_slot`), and returns how many it added; an unknown hero name is left
   alone and the pool never passes `Character.MAX_SKILLS`. `top_up_party` runs it
   per hero and calls `auto_equip_unslotted()` **only for a hero that gained
-  something**, which fills EMPTY loadout slots and never touches the player's
-  existing choices. Hooked in `GameManager.load_from_slot`, right after
+  something**, which fills EMPTY loadout slots with LEARNED moves only (via
+  `learned_pool_indices`) and never touches the player's existing choices.
+  Hooked in `GameManager.load_from_slot`, right after
   `SaveSerializer.deserialize_party`. **Why here and not in `SaveSerializer`:**
   the serializer stays free of any `PartyFactory` dependency (the save design
   requires it). Covers any future pool growth too — a pool slot is only ever
@@ -679,9 +680,11 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   - **New result actions:** `"miss"` (the move's own chance; shows "Miss",
     distinct from `"dodge"`), `"hp_cost"` and `"recoil"` (a plain damage number
     over the user), `"self_debuff"` (value 0; the stat chip shows it). An
-    ally-heal result is an ordinary `"heal"`. These four extras are emitted by
-    `_emit_extra` with **both resonance flags false**, so none of them can take
-    the action's resonance.
+    ally-heal result is an ordinary `"heal"`. `hp_cost`, `recoil`,
+    `self_debuff` and the ally `heal` are emitted by `_emit_extra`; a `miss` is
+    built by `_unlanded` and travels in the target's buffered per-hit `results`
+    (like a `dodge`). All of them carry **both resonance flags false**, so none
+    can take the action's resonance.
 - **Resonance rides on LANDED hits only.** Each result carries
   `is_first_target` and `is_first_hit`. **`is_first_target`** is true on the first
   hit that actually LANDS in the whole action, so a move whose first target
@@ -714,7 +717,8 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   damage OR status (a debuff, say) — can be dodged, by heroes and enemies
   alike. Any skill aimed at the user or its allies (heals, buffs, SELF moves)
   always lands. `resolve_skill` rolls `EnemyAI.try_dodge` (after the move's own
-  `miss_chance`) once per target per hit, only when `_opponents_of(user).has(target)`. A dodged damage skill's status
+  `miss_chance`) once per target per hit, only when
+  `_opponents_of(user).has(target)`. A dodged damage skill's status
   rider does not land either. The enemy turn's old outer dodge (rolled before
   calling any skill) used to cover an enemy's own SELF heal/buff too, so an
   enemy could "dodge" its own move; it no longer can. `_execute_enemy_turn` no
