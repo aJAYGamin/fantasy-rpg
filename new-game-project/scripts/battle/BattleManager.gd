@@ -246,8 +246,7 @@ func resolve_skill(user: Character, skill: Skill, chosen: Array[Character]) -> v
 			if not target.is_alive():
 				break   # a target killed mid-sequence takes no further hits
 			var result := {"actor": user, "target": target, "skill": skill,
-					"is_first_target": first, "is_first_hit": false}
-			first = false
+					"is_first_target": false, "is_first_hit": false}
 			# Dodge depends on WHO the skill lands on, not what kind of skill it
 			# is: anything aimed at the user's opponents can miss (the move's own
 			# chance) or be dodged; the user's own side never rolls either.
@@ -258,9 +257,13 @@ func resolve_skill(user: Character, skill: Skill, chosen: Array[Character]) -> v
 				if EnemyAI.try_dodge(target):
 					results.append(_unlanded(result, "dodge", target))
 					continue
-			# "Took damage" resonance is granted once per target per action — on
-			# the first hit that actually lands.
+			# Resonance rides on hits that actually land. "Took damage" resonance
+			# is once per target per action (the first landed hit on that target);
+			# the action's skill resonance is once per action, on its first
+			# LANDED hit — never on a miss or a dodge.
 			result["is_first_hit"] = landed == 0
+			result["is_first_target"] = first
+			first = false
 			landed += 1
 			_resolve_hit(user, skill, target, result, scale, user_hp_fraction)
 			result["target_alive"] = target.is_alive()

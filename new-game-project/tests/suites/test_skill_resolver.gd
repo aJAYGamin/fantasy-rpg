@@ -489,3 +489,17 @@ func test_an_enemy_never_picks_an_hp_cost_it_cannot_pay() -> void:
 	var decision := EnemyAI.choose_action(foe, bm.party, bm.enemies)
 	assert_eq(decision.get("skill"), null, "it falls back to its basic attack")
 	bm.free()
+
+func test_skill_resonance_rides_on_the_first_hit_that_lands() -> void:
+	# The first target dodges; the action still grants its resonance, once,
+	# on the second target's landed hit.
+	var bm := _manager(2, 1)
+	bm.party[0].set_meta("dodge_chance", 1.0)
+	var s := _skill(Skill.TargetType.ALL_ENEMIES)
+	var hits := _capture(bm)
+	bm.resolve_skill(bm.enemies[0], s, [])
+	var firsts := hits.filter(func(r): return r.get("is_first_target", false))
+	assert_eq(firsts.size(), 1, "still once per action")
+	assert_eq(firsts[0]["target"], bm.party[1], "on the hit that landed")
+	assert_eq(firsts[0]["action"], "skill_physical", "never on the dodge")
+	bm.free()
