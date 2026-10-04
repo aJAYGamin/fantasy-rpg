@@ -140,10 +140,13 @@ An unknown name is ignored with a `push_warning`, never applied — the phantom
 ### Resonance
 
 - **Skill resonance stays once per action.** `is_first_target` is true on the
-  first emission only, so a two-hit move does not build double.
+  first LANDED hit of the action (a miss or dodge result always carries false),
+  so a two-hit move does not build double, and a move whose first target dodges
+  still builds its resonance on a later landed hit.
 - **"Took damage" resonance becomes once per target per action.** Results carry
-  a new `is_first_hit` flag (true on the first result for each target);
-  `BattleScene` grants `on_damage_taken` only when it is set. Single-hit moves
+  a new `is_first_hit` flag (true on the first LANDED hit on each target; a miss
+  or dodge result always carries false); `BattleScene` grants `on_damage_taken`
+  only when it is set (`BattleScene.grants_damage_resonance`). Single-hit moves
   are unaffected.
 - A move with a `resonance_cost` builds **no** resonance
   (`get_resonance_gain()` returns 0), so it cannot refund itself.
