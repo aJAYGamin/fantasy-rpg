@@ -271,7 +271,8 @@ static func get_element_color(element: Element) -> Color:
 ## NORMAL is the "no secondary type" sentinel unless the primary itself is NORMAL.
 static func get_combined_multiplier(
 		atk_primary: Element, atk_secondary: Element,
-		def_primary: Element, def_secondary: Element) -> float:
+		def_primary: Element, def_secondary: Element,
+		override_def: Element = Element.NORMAL, override_mult: float = 1.0) -> float:
 	var attackers: Array = [atk_primary]
 	if atk_secondary != Element.NORMAL and atk_secondary != atk_primary:
 		attackers.append(atk_secondary)
@@ -282,5 +283,11 @@ static func get_combined_multiplier(
 	var result: float = 1.0
 	for a in attackers:
 		for d in defenders:
-			result *= get_multiplier(a, d)
+			# A move's element override replaces exactly ONE pairing — its own
+			# primary element against the named defender element — instead of
+			# stacking onto the chart value (Spec B, Part 3). NORMAL = unset.
+			if override_def != Element.NORMAL and a == atk_primary and d == override_def:
+				result *= override_mult
+			else:
+				result *= get_multiplier(a, d)
 	return result

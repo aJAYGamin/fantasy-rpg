@@ -78,3 +78,31 @@ func test_names_and_icons_nonempty() -> void:
 	for e in all_elements:
 		assert_ne(ElementalSystem.get_element_name(e), "", "name for element %d non-empty" % e)
 		assert_ne(ElementalSystem.get_element_icon(e), "", "icon for element %d non-empty" % e)
+
+# --------------------------------------------------- Spec B: element override
+
+func test_an_override_replaces_exactly_one_pairing() -> void:
+	var W := ElementalSystem.Element.WATER
+	var N := ElementalSystem.Element.NORMAL
+	assert_eq(ElementalSystem.get_combined_multiplier(W, N, W, N), 0.5, "water normally resists water")
+	assert_eq(ElementalSystem.get_combined_multiplier(W, N, W, N, W, 2.0), 2.0, "the override makes it super-effective")
+	assert_eq(ElementalSystem.get_combined_multiplier(W, N, W, N, W, 1.0), 1.0, "or merely effective")
+
+func test_an_override_turns_an_immunity_into_a_hit() -> void:
+	var W := ElementalSystem.Element.WATER
+	var N := ElementalSystem.Element.NORMAL
+	var NAT := ElementalSystem.Element.NATURE
+	assert_eq(ElementalSystem.get_combined_multiplier(W, N, NAT, N), 0.0, "nature is immune to water")
+	assert_eq(ElementalSystem.get_combined_multiplier(W, N, NAT, N, NAT, 1.0), 1.0, "an override can lift an immunity")
+
+func test_a_dual_typed_defenders_other_element_still_counts() -> void:
+	var W := ElementalSystem.Element.WATER
+	var F := ElementalSystem.Element.FIRE
+	var N := ElementalSystem.Element.NORMAL
+	# Water vs Water (overridden to 2.0) x Water vs Fire (chart 2.0) = 4.0
+	assert_eq(ElementalSystem.get_combined_multiplier(W, N, W, F, W, 2.0), 4.0, "only the named pairing changes")
+
+func test_no_override_when_unset() -> void:
+	var W := ElementalSystem.Element.WATER
+	var N := ElementalSystem.Element.NORMAL
+	assert_eq(ElementalSystem.get_combined_multiplier(W, N, W, N, N, 2.0), 0.5, "NORMAL means no override")
