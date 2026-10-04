@@ -232,6 +232,7 @@ func resolve_skill(user: Character, skill: Skill, chosen: Array[Character]) -> v
 	_pay_costs(user, skill)
 
 	var first := true
+	var dealt := 0   # HP actually removed by this action's hits, for recoil
 	for target in targets:
 		if not target.is_alive():
 			continue
@@ -265,7 +266,10 @@ func resolve_skill(user: Character, skill: Skill, chosen: Array[Character]) -> v
 			result["is_first_target"] = first
 			first = false
 			landed += 1
+			var hp_before := target.current_hp
 			_resolve_hit(user, skill, target, result, scale, user_hp_fraction)
+			if skill.skill_type == Skill.SkillType.DAMAGE:
+				dealt += maxi(0, hp_before - target.current_hp)
 			result["target_alive"] = target.is_alive()
 			results.append(result)
 		if landed > 0:
@@ -274,6 +278,7 @@ func resolve_skill(user: Character, skill: Skill, chosen: Array[Character]) -> v
 			emit_signal("action_performed", r)
 		if not target.is_alive():
 			handle_defeat(target)
+	_after_action(user, skill, dealt)
 
 ## Pays MP, then resonance (heroes only — enemies have neither pool), then HP
 ## (both sides). Skill.can_use has already guaranteed every cost is affordable
@@ -310,6 +315,9 @@ func _resolve_hit(user: Character, skill: Skill, target: Character, result: Dict
 			Skill.StatusType.HEAL:
 				result["action"] = "heal"
 				result["value"] = target.heal(value)
+				# A heal's attached effect applies too (Restoring Breeze's regen).
+				if skill.status_to_apply != "":
+					_apply_skill_status(target, skill.status_to_apply)
 			Skill.StatusType.BUFF:
 				# The token may be a stat buff ("attack_buff"), a stat debuff
 				# ("magic_debuff") or a legacy named status ("regenerate").
@@ -335,6 +343,8 @@ func _after_target(skill: Skill, target: Character) -> void:
 	if skill.skill_type == Skill.SkillType.DAMAGE and skill.status_to_apply != "" \
 			and randf() < skill.status_chance:
 		_apply_skill_status(target, skill.status_to_apply)
+	if skill.target_buff != "" and target.is_alive():
+		_apply_stat(target, skill.target_buff, true)
 
 ## A result that is not a hit: the HP cost, an ally heal, recoil, a self-debuff.
 ## Never carries the first-target or first-hit flags, so it cannot take the
@@ -343,6 +353,33 @@ func _emit_extra(user: Character, target: Character, skill: Skill, action: Strin
 	emit_signal("action_performed", {"actor": user, "target": target, "skill": skill,
 			"action": action, "value": value, "is_first_target": false,
 			"is_first_hit": false, "target_alive": target.is_alive()})
+
+## Effects that happen once, after every target, in this order: the ally heal,
+## recoil, the self-debuff (Spec B, Part 2, step 7).
+func _after_action(user: Character, skill: Skill, dealt: int) -> void:
+	if skill.ally_heal_power > 0.0:
+		var amount := int(user.magic_power() * skill.ally_heal_power)
+		for ally in _allies_of(user):
+			if ally.is_alive():
+				_emit_extra(user, ally, skill, "heal", ally.heal(amount))
+	if skill.recoil_percent > 0.0 and dealt > 0:
+		# Recoil never knocks the user out.
+		var recoil := mini(int(dealt * skill.recoil_percent / 100.0), user.current_hp - 1)
+		if recoil > 0:
+			user.current_hp -= recoil
+			_emit_extra(user, user, skill, "recoil", recoil)
+	if skill.self_debuff != "" and _apply_stat(user, skill.self_debuff, false):
+		_emit_extra(user, user, skill, "self_debuff", 0)
+
+## Raises (buff) or lowers a stat by name. An unknown name is a data error in a
+## move file: it warns and changes nothing, rather than inventing a status the
+## way the phantom "burn" once did.
+func _apply_stat(c: Character, stat: String, buff: bool) -> bool:
+	var r: Dictionary = c.apply_buff(stat) if buff else c.apply_debuff(stat)
+	if r.get("action", "") == "invalid":
+		push_warning("Skill stat '%s' is not one of %s — ignored" % [stat, StatusSystem.BUFFABLE_STATS])
+		return false
+	return true
 
 func _record_damage(result: Dictionary, dmg: Dictionary) -> void:
 	result["value"] = dmg.get("damage", 0)

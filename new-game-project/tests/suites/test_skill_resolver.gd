@@ -503,3 +503,146 @@ func test_skill_resonance_rides_on_the_first_hit_that_lands() -> void:
 	assert_eq(firsts[0]["target"], bm.party[1], "on the hit that landed")
 	assert_eq(firsts[0]["action"], "skill_physical", "never on the dodge")
 	bm.free()
+
+# --------------------------------------------------- Spec B: after-effects
+
+func test_a_heal_applies_its_attached_effect() -> void:
+	# Restoring Breeze: heal, then regenerate.
+	var bm := _manager(2, 1)
+	var s := _skill(Skill.TargetType.SINGLE_ALLY, Skill.SkillType.STATUS)
+	s.status_type = Skill.StatusType.HEAL
+	s.status_to_apply = StatusSystem.REGENERATE
+	var ally := bm.party[1]
+	ally.current_hp = 100
+	bm.resolve_skill(bm.party[0], s, [ally])
+	assert_true(ally.current_hp > 100, "healed")
+	assert_eq(ally.regen_turns, BattleManager.REGEN_TURNS, "and regenerating")
+	bm.free()
+
+func test_a_target_buff_lands_only_on_targets_hit() -> void:
+	var bm := _manager(1, 1)
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.target_buff = "attack"
+	var foe := bm.enemies[0]
+	bm.resolve_skill(bm.party[0], s, [foe])
+	assert_true(StatusSystem.is_effectively_buffed(foe, "attack"), "the struck enemy is enraged")
+	bm.free()
+
+func test_a_move_that_misses_everyone_has_no_after_effects() -> void:
+	var bm := _manager(1, 1)
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.miss_chance = 1.0
+	s.target_buff = "attack"
+	s.status_to_apply = "defense_debuff"
+	s.status_chance = 1.0
+	s.recoil_percent = 50.0
+	var hero := bm.party[0]
+	var foe := bm.enemies[0]
+	var hp := hero.current_hp
+	var hits := _capture(bm)
+	bm.resolve_skill(hero, s, [foe])
+	assert_false(StatusSystem.is_effectively_buffed(foe, "attack"), "no buff")
+	assert_false(StatusSystem.is_effectively_debuffed(foe, "defense"), "no rider")
+	assert_eq(hero.current_hp, hp, "no recoil")
+	assert_false(_actions(hits).has("recoil"), "no recoil result")
+	bm.free()
+
+func test_the_ally_heal_heals_the_users_whole_side() -> void:
+	var bm := _manager(3, 2)
+	for h in bm.party:
+		h.current_hp -= 100
+	var s := _skill(Skill.TargetType.ALL_ENEMIES)
+	s.ally_heal_power = 1.0
+	var foe_hp := bm.enemies.map(func(e): return e.current_hp)
+	bm.resolve_skill(bm.party[0], s, [])
+	for h in bm.party:
+		assert_eq(h.current_hp, h.max_hp() - 100 + 20, "%s healed by MAG 20 x 1.0" % h.character_name)
+	for i in bm.enemies.size():
+		assert_true(bm.enemies[i].current_hp < foe_hp[i], "enemies are damaged, never healed")
+	bm.free()
+
+func test_an_enemys_ally_heal_heals_enemies() -> void:
+	var bm := _manager(1, 2)
+	for e in bm.enemies:
+		e.current_hp -= 100
+	var hero_hp := bm.party[0].max_hp() - 50
+	bm.party[0].current_hp = hero_hp
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.ally_heal_power = 1.0
+	bm.resolve_skill(bm.enemies[0], s, [bm.party[0]])
+	for e in bm.enemies:
+		assert_eq(e.current_hp, e.max_hp() - 80, "%s healed by 20" % e.character_name)
+	assert_true(bm.party[0].current_hp < hero_hp, "the hero was hit, not healed")
+	bm.free()
+
+func test_recoil_is_a_share_of_the_damage_dealt() -> void:
+	var bm := _manager(1, 1)
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.recoil_percent = 25.0
+	var hero := bm.party[0]
+	var hp := hero.current_hp
+	var hits := _capture(bm)
+	bm.resolve_skill(hero, s, [bm.enemies[0]])
+	assert_eq(hero.current_hp, hp - 5, "25% of the 20 dealt")
+	var r := hits.filter(func(x): return x["action"] == "recoil")
+	assert_eq(r.size(), 1, "one recoil result")
+	assert_eq(int(r[0]["value"]), 5, "worth 5")
+	bm.free()
+
+func test_recoil_never_knocks_the_user_out() -> void:
+	var bm := _manager(1, 1)
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.recoil_percent = 25.0
+	var hero := bm.party[0]
+	hero.current_hp = 3
+	bm.resolve_skill(hero, s, [bm.enemies[0]])
+	assert_eq(hero.current_hp, 1, "recoil of 5 stops at 1 HP")
+	bm.free()
+
+func test_recoil_counts_only_hp_actually_lost() -> void:
+	# The enemy hits a HERO with 8 HP for 20: only 8 was dealt. (A hero is the
+	# victim so no quest progress is reported.)
+	var bm := _manager(1, 1)
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.recoil_percent = 25.0
+	var foe := bm.enemies[0]
+	var hp := foe.current_hp
+	bm.party[0].current_hp = 8
+	bm.resolve_skill(foe, s, [bm.party[0]])
+	assert_eq(foe.current_hp, hp - 2, "25% of 8, not of 20")
+	bm.free()
+
+func test_a_self_debuff_lands_on_the_user_after_the_hits() -> void:
+	var bm := _manager(1, 1)
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.self_debuff = "defense"
+	var hero := bm.party[0]
+	var hits := _capture(bm)
+	bm.resolve_skill(hero, s, [bm.enemies[0]])
+	assert_true(StatusSystem.is_effectively_debuffed(hero, "defense"), "the user's DEF is lowered")
+	assert_eq(_actions(hits), ["skill_physical", "self_debuff"], "after the hit")
+	bm.free()
+
+func test_after_effects_run_heal_then_recoil_then_self_debuff() -> void:
+	var bm := _manager(2, 1)
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.ally_heal_power = 1.0
+	s.recoil_percent = 25.0
+	s.self_debuff = "speed"
+	var hits := _capture(bm)
+	bm.resolve_skill(bm.party[0], s, [bm.enemies[0]])
+	assert_eq(_actions(hits), ["skill_physical", "heal", "heal", "recoil", "self_debuff"], "the spec's order")
+	bm.free()
+
+func test_an_unknown_stat_name_changes_nothing() -> void:
+	var bm := _manager(1, 1)
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.self_debuff = "burn"
+	s.target_buff = "burn"
+	var hero := bm.party[0]
+	var hits := _capture(bm)
+	bm.resolve_skill(hero, s, [bm.enemies[0]])
+	assert_false(_actions(hits).has("self_debuff"), "no self-debuff result")
+	assert_true(hero.debuffs.is_empty(), "no debuff invented")
+	assert_true(bm.enemies[0].buffs.is_empty(), "no buff invented")
+	bm.free()
