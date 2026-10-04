@@ -48,7 +48,7 @@ art LAST. See **Roadmap** near the bottom for the agreed order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~3440 tests, 46 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~3443 tests, 46 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -627,6 +627,15 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   window ends, the battle starts immediately (the enemy keeps re-checking contact —
   it does NOT freeze itself on a blocked touch; only `OverworldScene` freezes it on accept).
 - Safe zones (towns) suppress spawns + trigger the P5 auto-save on entry.
+- **Camera zoom is per scene** — the `zoom` on each scene's `Player/Camera2D` (nothing in code
+  sets it; `_fit_camera_to_map` only sets limits). **Center Town is 1.5×** (user's request: the town
+  is explored, not taken in at a glance — at 1× the view showed ~69% of its width); pinned by
+  `test_center_town_camera_hides_most_of_the_town`. Zooming above 1× magnifies the painted map, and
+  the town PNG is 1:1 (1672×941), so it reads a little softer; a higher-res repaint shown at a
+  smaller `MapImage` scale (as Fallster Plains' 4K upscale does) would sharpen it.
+- **Spawn points live on the doorway you walk through**, not in the destination: each
+  `MapZone.target_spawn` (in the SOURCE scene) is a position in the DESTINATION scene. Leaving a
+  shop is set on that shop's `Zones/Zone_Exit`; entering a town is set on the overworld's zone.
 - `EncounterGroup`: `weight`, `min_party_level`, `enemy_pool`, `min_enemies`/`max_enemies`,
   `enemy_level_override`. `MapArea`: `area_name`, `battle_background_id`, `default_spawn`,
   `encounter_groups`, `safe_zones: Array[Rect2]`.
@@ -763,7 +772,7 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~3440 tests / 46 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~3443 tests / 46 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,

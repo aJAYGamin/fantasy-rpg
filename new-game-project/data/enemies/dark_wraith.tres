@@ -1,8 +1,8 @@
 [gd_resource type="Resource" script_class="Enemy" format=3 uid="uid://bl0bs60k5j6oa"]
 
-[ext_resource type="Script" path="res://scripts/characters/BossPhase.gd" id="1_e0mtm"]
-[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
-[ext_resource type="Script" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
+[ext_resource type="Script" uid="uid://bh53vyinp4wj4" path="res://scripts/characters/BossPhase.gd" id="1_e0mtm"]
+[ext_resource type="Script" uid="uid://cjbcaorle0k6n" path="res://scripts/characters/Skill.gd" id="1_skill"]
+[ext_resource type="Script" uid="uid://bc8mpswi1cxid" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
 [ext_resource type="Resource" path="res://data/skills/shadow_claw.tres" id="4_0mmqh"]
 [ext_resource type="Resource" path="res://data/skills/soul_drain.tres" id="5_iafjc"]
 [ext_resource type="Resource" path="res://data/skills/dark_pulse.tres" id="6_0vx18"]

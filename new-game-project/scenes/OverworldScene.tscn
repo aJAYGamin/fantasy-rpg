@@ -4,12 +4,12 @@
 [ext_resource type="Script" uid="uid://cweivgthta1cf" path="res://scripts/overworld/Player.gd" id="2_player"]
 [ext_resource type="Resource" uid="uid://c6t7ef5so1gd4" path="res://data/maps/fallster_plains.tres" id="3_area"]
 [ext_resource type="Texture2D" uid="uid://jx56rdm32fp7" path="res://assets/maps/Fallster Plains/FallsterPlains.png" id="4_map"]
-[ext_resource type="Script" path="res://scripts/overworld/MapZone.gd" id="5_zone"]
+[ext_resource type="Script" uid="uid://l8emg6cxj7bl" path="res://scripts/overworld/MapZone.gd" id="5_zone"]
 [ext_resource type="Script" uid="uid://cm5gxsseoe83o" path="res://scripts/overworld/RoamerTerritory.gd" id="6_terr"]
 [ext_resource type="Script" uid="uid://byeuabexqehwh" path="res://scripts/overworld/DepthOverlay.gd" id="7_depth"]
 [ext_resource type="Script" uid="uid://dmyv4jd0wgae5" path="res://scripts/overworld/EditorCollisionViz.gd" id="8_viz"]
-[ext_resource type="Script" path="res://scripts/overworld/Campfire.gd" id="9_campfire"]
-[ext_resource type="Script" path="res://scripts/overworld/MoveTrainer.gd" id="10_trainer"]
+[ext_resource type="Script" uid="uid://65ttph7wmyoq" path="res://scripts/overworld/Campfire.gd" id="9_campfire"]
+[ext_resource type="Script" uid="uid://kaju85gxg7o7" path="res://scripts/overworld/MoveTrainer.gd" id="10_trainer"]
 
 [sub_resource type="RectangleShape2D" id="Shape_horizontal_wall"]
 size = Vector2(4000, 100)
@@ -541,7 +541,7 @@ label = "Center Town"
 save_on_enter = true
 suppress_spawns = true
 target_scene = "res://scenes/CenterTownInterior.tscn"
-target_spawn = Vector2(1000, 1100)
+target_spawn = Vector2(832, 701)
 
 [node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Zones/Zone_CenterTown" unique_id=1182022876]
 position = Vector2(156, -209)
@@ -618,15 +618,14 @@ limit_bottom = 2160
 visible = false
 script = ExtResource("8_viz")
 
-[node name="Campfire" type="StaticBody2D" parent="."]
+[node name="Campfire" type="StaticBody2D" parent="." unique_id=2127574998]
 position = Vector2(1500, 1330)
 script = ExtResource("9_campfire")
 body_size = Vector2(44, 40)
 body_color = Color(0.85, 0.48, 0.2, 1)
 
-[node name="TestMoveTrainer" type="StaticBody2D" parent="."]
+[node name="TestMoveTrainer" type="StaticBody2D" parent="." unique_id=1928221987]
 position = Vector2(1230, 1330)
 script = ExtResource("10_trainer")
 npc_name = "Wandering Trainer"
-lines = PackedStringArray("Out here? Aye — a trainer goes where the fighting is.")
 body_color = Color(0.58, 0.5, 0.86, 1)

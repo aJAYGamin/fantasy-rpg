@@ -1,8 +1,8 @@
 [gd_resource type="Resource" script_class="Enemy" format=3 uid="uid://dde6fq4k6qscu"]
 
-[ext_resource type="Script" path="res://scripts/characters/BossPhase.gd" id="1_o18i7"]
-[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
-[ext_resource type="Script" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
+[ext_resource type="Script" uid="uid://bh53vyinp4wj4" path="res://scripts/characters/BossPhase.gd" id="1_o18i7"]
+[ext_resource type="Script" uid="uid://cjbcaorle0k6n" path="res://scripts/characters/Skill.gd" id="1_skill"]
+[ext_resource type="Script" uid="uid://bc8mpswi1cxid" path="res://scripts/characters/Enemy.gd" id="2_enemy"]
 [ext_resource type="Resource" path="res://data/skills/glacial_fist.tres" id="4_y5moa"]
 [ext_resource type="Resource" path="res://data/skills/frost_breath.tres" id="5_gas0g"]
 [ext_resource type="Resource" path="res://data/skills/blizzard.tres" id="6_ni63b"]
