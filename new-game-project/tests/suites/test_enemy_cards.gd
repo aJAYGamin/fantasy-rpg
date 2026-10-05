@@ -63,3 +63,13 @@ func test_a_card_waiting_to_be_freed_is_not_anyones_card() -> void:
 	scene.card_for(foe).queue_free()
 	assert_eq(scene.card_for(foe), null, "a card on its way out is never used for a preview")
 	_cleanup()
+
+# --------------------------------------------------- Enemy HP numbers
+# The real game shows an enemy's HP as a bar only; the "120/300" number is a
+# play-testing aid behind BattleScene.TEST_SHOW_ENEMY_HP (off when shipped).
+
+func test_an_enemy_hp_number_shows_only_when_play_testing() -> void:
+	var scene := _scene(1)
+	var foe := scene.battle_manager.enemies[0]
+	assert_eq(scene._enemy_hp_labels[foe].visible, BattleScene.TEST_SHOW_ENEMY_HP, "the number follows the flag")
+	_cleanup()

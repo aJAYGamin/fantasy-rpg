@@ -646,23 +646,44 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   drifted apart (SELF targeting only worked for enemies; dodge rolled in
   different places; the same outcome emitted different action names).
   `player_use_skill` / `enemy_use_skill` are thin wrappers: the player path
-  keeps its `state` check and calls `end_player_turn()` after resolving; the
-  enemy path just calls it.
+  keeps its `state` check, sets `EXECUTING_ACTION`, awaits the resolver and
+  calls `end_player_turn()`; the enemy path just awaits it.
+- **Pacing (play-test fix — the user's rule: every hit and every action must
+  be SEEN landing).** `resolve_skill` is a coroutine: between hit BEATS it
+  waits `hit_pause` (`HIT_PAUSE` = 0.8s — the 0.3s bar drain plus a clear
+  hold). `end_player_turn` and the end of `_execute_enemy_turn` wait
+  `action_pause` (`ACTION_PAUSE` = 1.0s) before the next turn, so the next
+  hero's menu, the next enemy's move and the victory/defeat screen never arrive
+  while a bar is still dropping. Both are **0 on a bare `BattleManager`** —
+  every test resolves synchronously, because `_pause(0)` never awaits —
+  and `BattleScene._ready` sets them to the constants.
+  - ⚠️ **The manager is busy while an action plays out:** `player_use_skill`
+    sets `EXECUTING_ACTION` before resolving and `end_player_turn` sets `IDLE`,
+    so `_hero_may_act()` is false between beats and during the pause — the
+    action menu (which every battle menu re-shows on close) stays hidden.
+  - Any new caller of `resolve_skill` / `player_use_skill` /
+    `enemy_use_skill` / `end_player_turn` that must run AFTER the action
+    finishes has to `await` it.
 - **`resolve_skill` resolution order (Spec B)** — the order is load-bearing:
   1. **Check** `Skill.can_use` (stun, HP cost leaves ≥ 1, resonance, MP).
   2. **Measure** `scale_factor` and the user's HP fraction — **before paying**.
   3. **Pay** (`_pay_costs`): MP (heroes) → resonance (heroes; subtracts from
      `Character.resonance_meter`, the field `ResonanceSystem` reads) → HP (both
      sides, floored at 1; emits an `"hp_cost"` result on the user).
-  4. **For each living target, for each hit** (`hit_count` for DAMAGE moves; 1 for
-     status moves): **miss** (`miss_chance`) → **dodge** (`EnemyAI.try_dodge`) →
+  4. **One BEAT per hit** (`hit_count` for DAMAGE moves; 1 for status moves):
+     beat N is hit N on **every target still standing**, so an area multi-hit
+     like Cyclone lands hit 1 on all enemies together, pauses, then hit 2 on all
+     (the user's choice — never all of one enemy's hits first). Per target in a
+     beat: **miss** (`miss_chance`) → **dodge** (`EnemyAI.try_dodge`) →
      **damage** (`value = calculate_value × condition × scaling`, then the
      target's damage function applies `pierce` and the element override). Miss
-     and dodge are rolled only against the user's opponents. A target that drops
-     to 0 mid-sequence takes **no further hits**, and `handle_defeat` runs once.
-  5. **Once per target that took at least one landed hit** (`_after_target`): roll
-     the status rider (`status_to_apply` / `status_chance`) **once, not once per
-     hit**, then apply `target_buff` (only while the target is alive).
+     and dodge are rolled only against the user's opponents. A target downed in
+     a beat falls (`handle_defeat`, once) at the **end of that beat** and takes
+     **no further hits**.
+  5. **Once per target that took at least one landed hit** (`_after_target`),
+     just before the LAST beat is shown: roll the status rider (`status_to_apply`
+     / `status_chance`) **once, not once per hit**, then apply `target_buff`
+     (only while the target is alive).
   6. **After all targets** (`_after_action`), in this order: the **ally heal**
      (a `"heal"` result on each living ally that was actually healed — none for a
      full-HP ally, so no "0 Healed" popup), **recoil**, the **self-debuff**.
@@ -674,12 +695,13 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   - **Recoil** is `recoil_percent` of the HP the hits actually REMOVED
     (`dealt`; overkill is not counted, a dead target's later hits never happen),
     truncated, never leaving the user below 1 HP. No landed damage → no recoil.
-  - ⚠️ **Results are buffered per target.** Each hit's result is collected in a
-    local array and only emitted via `action_performed` after that target's
-    rider and `target_buff` have been rolled, then `handle_defeat`. **Why:** the
-    UI refreshes on every emission, so a status landed by the rider is already on
-    the target when its results are shown. Emission is synchronous, so nothing
-    appears any later.
+  - ⚠️ **Results are emitted per beat, after the beat's hits.** Each beat's
+    results are collected and emitted together once every target in it has been
+    hit (the last beat only after the riders and target buffs), then that beat's
+    `handle_defeat`s. **Why:** the UI refreshes bars from live HP on every
+    emission, so a beat's results must reach it with exactly that beat's damage
+    taken — that is what makes each hit a separate visible drop — and the
+    rider's chip appears with the last hit.
   - **A move that lands on no target** (every hit missed or dodged): the
     **ally heal and the self-debuff still happen** — they are the price / effect of
     USING the move, applied after all targets — while the **rider, the target buff
@@ -689,8 +711,7 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
     over the user), `"self_debuff"` (value 0; the stat chip shows it). An
     ally-heal result is an ordinary `"heal"`. `hp_cost`, `recoil`,
     `self_debuff` and the ally `heal` are emitted by `_emit_extra`; a `miss` is
-    built by `_unlanded` and travels in the target's buffered per-hit `results`
-    (like a `dodge`). All of them carry **both resonance flags false**, so none
+    built by `_unlanded` and travels in its beat's `results` (like a `dodge`). All of them carry **both resonance flags false**, so none
     can take the action's resonance.
 - **Resonance rides on LANDED hits only.** Each result carries
   `is_first_target` and `is_first_hit`. **`is_first_target`** is true on the first
@@ -719,12 +740,22 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   means "let the player pick one"); `resolve_skill` ignores whatever they
   built for anything but `SINGLE_ENEMY`/`SINGLE_ALLY` and re-expands via
   `expand_targets` regardless.
+- **Single-ally moves let the player choose** (Restoring Breeze, Mend, Wind
+  Barrier). `AttackMenu` sends an empty list unless only one hero stands (it
+  used to send `alive_party[0]`, so every single-ally move hit the first living
+  hero); `BattleScene.target_mode_for(skill)` routes it to `"skill_ally"`, the
+  same hero-panel picker potions use. `BattleScene.ally_panel_targets(party)`
+  maps each hero panel to ITS OWN hero (null when downed) — panels are fixed per
+  party slot, and pairing panel i with the i-th living hero targeted the wrong
+  hero whenever an earlier one was down. The battle "?" panel
+  (`AttackMenu.description_text`) shows who a move targets ("One Ally",
+  "All Enemies", …) ahead of its effect tags.
 - **The dodge rule (user's design): it depends on WHO a skill lands on, not
   what kind of skill it is.** Any skill aimed at the user's opponents —
   damage OR status (a debuff, say) — can be dodged, by heroes and enemies
   alike. Any skill aimed at the user or its allies (heals, buffs, SELF moves)
   always lands. `resolve_skill` rolls `EnemyAI.try_dodge` (after the move's own
-  `miss_chance`) once per target per hit, only when
+  `miss_chance`) once per target per beat, only when
   `_opponents_of(user).has(target)`. A dodged damage skill's status
   rider does not land either. The enemy turn's old outer dodge (rolled before
   calling any skill) used to cover an enemy's own SELF heal/buff too, so an
@@ -866,7 +897,10 @@ All anchored bottom-right, sharing the bottom edge (`offset_bottom = -10`):
   semantic colors (green→red HP, blue MP, purple resonance) for readability. Status
   chips appear in a `StatusRow` injected into each panel's layout.
 - **Enemy cards** (`BattleScene._create_enemy_card`): border = `enemy.get_rarity_color()`
-  (rarity tier), dark-plum bg.
+  (rarity tier), dark-plum bg. **Enemy HP shows as a bar only** (user's rule) — the
+  "120/300" label is still built and kept updated, but visible only while the
+  `BattleScene.TEST_SHOW_ENEMY_HP` play-testing flag is on. Hero panels keep
+  their numbers.
 - **Turn order indicator**: per-actor tinted slots (hero palette / enemy element),
   active slot gets the yellow accent border. No enclosing bg panel.
 - **Portrait placeholders**: themed rounded panels (hero accent / enemy element border).
@@ -1405,10 +1439,14 @@ These are **scheduled as Track C** in the Roadmap above; the detail lives here.
   user deferred "to some point later" — expect them.
 - **Roamer state is in-memory only** (per session), not written into the save JSON. After a
   hard quit + load, a region spawns fresh.
-- **Two play-testing flags exist and are currently OFF** — `PartyFactory.TEST_UNLOCK_ALL_SKILLS`
-  (gives every hero its whole 15-move pool at level 1) and the shipping value of
-  `GameManager.REST_REFRESH_BATTLES` (5). Flip them only for play-testing, and turn them
-  back before committing anything that matters.
+- **Three play-testing flags exist and are committed OFF** — `PartyFactory.TEST_UNLOCK_ALL_SKILLS`
+  (gives every hero its whole 15-move pool at level 1), the shipping value of
+  `GameManager.REST_REFRESH_BATTLES` (5; play-testing uses 1), and
+  `BattleScene.TEST_SHOW_ENEMY_HP` (adds the "120/300" number under each enemy's HP
+  bar — the real game shows the bar only, by the user's rule). Flip them only for
+  play-testing, and turn them back before committing anything that matters.
+  `TEST_UNLOCK_ALL_SKILLS` on makes the unlock-curve tests (MoveLibrary,
+  SkillLearning) fail — expected while it is on.
 
 ### Backlog / ideas (not yet scheduled)
 - More heroes (add to `PartyFactory` + `HeroPalette.HERO_BASE_COLORS` +

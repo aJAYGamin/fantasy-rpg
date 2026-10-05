@@ -446,7 +446,10 @@ func test_scaling_is_measured_before_costs_are_paid() -> void:
 	assert_eq(int(dmg[0]["value"]), 30, "full HP when the move began: 20 x 1.5, not weakened by its own cost")
 	bm.free()
 
-func test_a_status_rider_is_on_the_target_before_its_results_reach_the_ui() -> void:
+func test_a_status_rider_lands_with_the_last_hit() -> void:
+	# Hits are shown one beat at a time, so the rider (rolled once, after the
+	# hits) is on the target when the LAST hit reaches the UI — its chip appears
+	# with that hit, not before the first.
 	var bm := _manager(1, 1)
 	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
 	s.hit_count = 3
@@ -456,7 +459,7 @@ func test_a_status_rider_is_on_the_target_before_its_results_reach_the_ui() -> v
 	var seen := []
 	bm.action_performed.connect(func(_r): seen.append(StatusSystem.is_effectively_debuffed(foe, "attack")))
 	bm.resolve_skill(bm.party[0], s, [foe])
-	assert_eq(seen, [true, true, true], "rolled after the hits, applied before they are shown")
+	assert_eq(seen, [false, false, true], "rolled after the hits, applied before the last one is shown")
 	bm.free()
 
 func test_a_status_rider_rolls_once_per_target_not_per_hit() -> void:
@@ -758,4 +761,78 @@ func test_the_real_gale_requiem_heals_the_party() -> void:
 	var hp := bm.party[1].current_hp
 	bm.resolve_skill(bm.party[0], load("res://data/skills/gale_requiem.tres"), [])
 	assert_true(bm.party[1].current_hp > hp, "the ally was healed")
+	bm.free()
+
+# --------------------------------------------------- Pacing (play-test fixes)
+# A multi-hit move used to apply every hit in one frame, so its bars dropped
+# once. It now resolves one BEAT at a time — beat N is hit N on every target —
+# and the battle scene pauses between beats. These tests run with the pauses
+# at 0, so they stay synchronous; what they pin is the order and the state the
+# UI sees at each beat.
+
+func test_an_area_multi_hit_lands_hit_by_hit_across_every_target() -> void:
+	var bm := _manager(1, 2)
+	var s := _skill(Skill.TargetType.ALL_ENEMIES)
+	s.hit_count = 2
+	var hits := _capture(bm)
+	bm.resolve_skill(bm.party[0], s, [])
+	var order := hits.filter(func(r): return r["action"] == "skill_physical").map(func(r): return r["target"])
+	assert_eq(order, [bm.enemies[0], bm.enemies[1], bm.enemies[0], bm.enemies[1]],
+			"hit 1 on both, then hit 2 on both — not all of one enemy's hits first")
+	bm.free()
+
+func test_each_hit_reaches_the_ui_with_only_its_own_damage_taken() -> void:
+	# The bar can only drop once per hit if, when hit 1 is shown, hit 2 has not
+	# landed yet.
+	var bm := _manager(1, 1)
+	var s := _skill(Skill.TargetType.SINGLE_ENEMY)
+	s.hit_count = 2
+	var foe := bm.enemies[0]
+	var before := foe.current_hp
+	var shown := []
+	bm.action_performed.connect(func(r):
+		if r["action"] == "skill_physical":
+			shown.append([int(r["value"]), foe.current_hp]))
+	bm.resolve_skill(bm.party[0], s, [foe])
+	assert_eq(shown.size(), 2, "two hits shown")
+	assert_eq(shown[0][1], before - shown[0][0], "after hit 1, only hit 1's damage is gone")
+	assert_eq(shown[1][1], before - shown[0][0] - shown[1][0], "then hit 2 takes its share")
+	bm.free()
+
+func test_a_target_killed_on_the_first_beat_falls_before_the_second() -> void:
+	# The victims are HEROES: defeating an enemy would report quest progress.
+	var bm := _manager(2, 1)
+	var s := _skill(Skill.TargetType.ALL_ENEMIES)
+	s.hit_count = 2
+	bm.party[0].current_hp = 1
+	var events := []
+	bm.action_performed.connect(func(r): events.append("hit " + r["target"].character_name))
+	bm.character_defeated.connect(func(c): events.append("down " + c.character_name))
+	bm.resolve_skill(bm.enemies[0], s, [])
+	assert_eq(events, ["hit Hero0", "hit Hero1", "down Hero0", "hit Hero1"],
+			"it falls at the end of the beat that downed it and takes no second hit")
+	bm.free()
+
+func test_pacing_is_off_unless_the_battle_scene_turns_it_on() -> void:
+	var bm := BattleManager.new()
+	assert_eq(bm.hit_pause, 0.0, "a bare manager resolves every hit at once (tests)")
+	assert_eq(bm.action_pause, 0.0, "and hands the turn on at once")
+	assert_eq(BattleManager.HIT_PAUSE, 0.8, "the battle's pause between hits (user's choice)")
+	assert_eq(BattleManager.ACTION_PAUSE, 1.0, "and after every action, before the next turn")
+	bm.free()
+
+func test_the_battle_is_busy_while_a_heros_skill_plays_out() -> void:
+	# BattleScene re-shows the action menu only while the manager is choosing;
+	# during the pauses between hits it must not be, or the menu pops back up
+	# mid-attack. The hero is faster, so the next turn is theirs again and no
+	# enemy turn (which needs the scene tree) starts.
+	var bm := _manager(1, 1)
+	bm.party[0].base_speed = 50
+	bm.enemies[0].base_speed = 0
+	bm.state = BattleManager.BattleState.CHOOSING_ACTION
+	var states := []
+	bm.action_performed.connect(func(_r): states.append(bm.state))
+	bm.player_use_skill(bm.party[0], _skill(Skill.TargetType.SINGLE_ENEMY), [bm.enemies[0]])
+	assert_eq(states, [BattleManager.BattleState.EXECUTING_ACTION], "executing, not choosing")
+	assert_eq(bm.state, BattleManager.BattleState.CHOOSING_ACTION, "then the next turn is offered")
 	bm.free()

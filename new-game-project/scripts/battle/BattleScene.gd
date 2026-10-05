@@ -56,6 +56,27 @@ var _preview_enemy: Character = null
 var _enemy_status_rows: Dictionary = {} # character -> HBoxContainer
 var _bar_tweens: Dictionary = {}      # ProgressBar -> Tween (so we can cancel/restart on rapid updates)
 const BAR_TWEEN_DURATION: float = 0.3
+
+## PLAY-TESTING FLAG. The real game shows an enemy's HP as a bar only; true
+## adds the "120/300" number under it, for checking damage while testing. Must
+## be false in a shipped build.
+const TEST_SHOW_ENEMY_HP := false
+
+## Which target picker a skill needs when the menu left the choice to the
+## player: a single-ally move picks from the hero panels, anything else from
+## the enemy cards.
+static func target_mode_for(skill: Skill) -> String:
+	return "skill_ally" if skill.target_type == Skill.TargetType.SINGLE_ALLY else "skill"
+
+## The hero each hero panel targets, by panel index — or null for a downed
+## hero. Panels are fixed per party slot (hero_status_1..3 = party[0..2]); the
+## picker used to pair panel i with the i-th LIVING hero, so with the first
+## hero down, the second hero's panel healed the third.
+static func ally_panel_targets(party: Array) -> Array:
+	var out: Array = []
+	for hero in party:
+		out.append(hero if hero.is_alive() else null)
+	return out
 ## Width of an ordinary enemy card. A boss card fills the row instead.
 const ENEMY_CARD_WIDTH: float = 124.0
 
@@ -92,6 +113,9 @@ const BACKGROUNDS = {
 
 func _ready():
 	battle_manager = BattleManager.new()
+	# The real battle is paced so each hit, and each action, is seen landing.
+	battle_manager.hit_pause = BattleManager.HIT_PAUSE
+	battle_manager.action_pause = BattleManager.ACTION_PAUSE
 	add_child(battle_manager)
 	resonance_system = ResonanceSystem.new()
 	add_child(resonance_system)
@@ -512,6 +536,8 @@ func _create_enemy_card(enemy: Character) -> PanelContainer:
 	hp_lbl.add_theme_color_override("font_color", hp_color)
 	if cinzel:
 		hp_lbl.add_theme_font_override("font", cinzel)
+	# Kept (and kept updated) either way; shown only while play-testing.
+	hp_lbl.visible = TEST_SHOW_ENEMY_HP
 	vbox.add_child(hp_lbl)
 
 	# Store label reference for live updates
@@ -1078,7 +1104,7 @@ func _enter_target_selection(action: String):
 	_pending_action = action
 	action_title.text = "— Choose Target —"
 	_set_target_selection_ui(true)
-	if action == "item_ally":
+	if action == "item_ally" or action == "skill_ally":
 		_show_ally_target_buttons()
 		GameManager.register_focus_scope(party_status_bar)
 	else:
@@ -1086,16 +1112,16 @@ func _enter_target_selection(action: String):
 		GameManager.register_focus_scope(enemy_info_row)
 
 func _show_ally_target_buttons():
-	var alive_party = battle_manager.get_alive_party()
+	var heroes := ally_panel_targets(battle_manager.party)
 	for i in range(party_status_bar.get_child_count()):
 		var panel = party_status_bar.get_child(i)
-		if i < alive_party.size():
+		if i < heroes.size() and heroes[i] != null:
 			var btn = Button.new()
 			btn.name = "AllyTargetBtn_%d" % i
 			btn.set_anchors_preset(Control.PRESET_FULL_RECT)
 			_style_target_button(btn)
 			panel.add_child(btn)
-			btn.pressed.connect(_on_target_selected.bind(alive_party[i]))
+			btn.pressed.connect(_on_target_selected.bind(heroes[i]))
 			# Highlight ONLY the focused/hovered ally — no extra border on the UI.
 			var idx := i
 			btn.focus_entered.connect(func(): _highlight_ally_target(idx))
@@ -1280,7 +1306,7 @@ func _on_special_pressed():
 func _on_move_selected(skill: Skill, targets: Array):
 	if targets.is_empty():
 		_pending_skill = skill
-		_enter_target_selection("skill")
+		_enter_target_selection(target_mode_for(skill))
 	else:
 		var typed_targets: Array[Character] = []
 		for t in targets:

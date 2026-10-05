@@ -277,9 +277,7 @@ func _show_description_above(skill: Skill):
 		add_child(desc_panel)
 
 	var lbl = desc_panel.get_node("DescLabel")
-	var new_text = "%s — %s" % [skill.skill_name, skill.description if skill.description != "" else "No description."]
-	if skill.effect_text() != "":
-		new_text += "\n" + skill.effect_text()
+	var new_text := description_text(skill)
 	# Toggle off if same skill clicked again
 	if desc_panel.visible and lbl.text == new_text:
 		desc_panel.visible = false
@@ -327,7 +325,10 @@ func _on_skill_selected(skill: Skill):
 			emit_signal("move_selected", skill, t)
 			close()
 		Skill.TargetType.SINGLE_ALLY:
-			var t: Array = [alive_party[0]]
+			# Like a single-enemy move: with one hero standing there is no
+			# choice to make; otherwise an empty list asks the battle to let
+			# the player pick (it used to heal alive_party[0], always).
+			var t: Array = [alive_party[0]] if alive_party.size() == 1 else []
 			emit_signal("move_selected", skill, t)
 			close()
 		Skill.TargetType.ALL_ALLIES:
@@ -339,6 +340,15 @@ func _on_skill_selected(skill: Skill):
 			var t: Array = [_current_hero]
 			emit_signal("move_selected", skill, t)
 			close()
+
+## The "?" panel's text: the description, then who the move targets and its
+## generated effect line ("One Ally · Regenerates"), so a single-target heal
+## can't be mistaken for a team one.
+static func description_text(skill: Skill) -> String:
+	var text := "%s — %s" % [skill.skill_name, skill.description if skill.description != "" else "No description."]
+	var details: Array[String] = [skill.get_target_description()]
+	details.append_array(skill.effect_tags())
+	return text + "\n" + " · ".join(details)
 
 func _get_attack_type(skill: Skill) -> String:
 	return skill.get_skill_type_display()

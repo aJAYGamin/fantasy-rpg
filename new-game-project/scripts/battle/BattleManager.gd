@@ -41,6 +41,19 @@ const REGEN_TURNS := 3
 ## The default max_hp / 8 regen stays for BUFF moves like Iron Will.
 const HEAL_REGEN_POWER := 0.25
 
+## Pacing, so the player can SEE an action land. A multi-hit move resolves one
+## beat at a time (beat N is hit N on every target) and the battle waits
+## HIT_PAUSE between beats: the bar's 0.3s drain plus a clear hold. After every
+## action — hero or enemy — it waits ACTION_PAUSE before the next turn begins,
+## so the next hero's menu (or the next enemy's move) never arrives while a bar
+## is still dropping. The user chose these lengths after play-testing.
+const HIT_PAUSE := 0.8
+const ACTION_PAUSE := 1.0
+## The pauses in effect. 0 by default, so a bare manager (every test) resolves
+## synchronously; BattleScene sets them to HIT_PAUSE / ACTION_PAUSE.
+var hit_pause := 0.0
+var action_pause := 0.0
+
 var state: BattleState = BattleState.IDLE
 var party: Array[Character] = []
 var enemies: Array[Character] = []
@@ -237,20 +250,23 @@ func resolve_skill(user: Character, skill: Skill, chosen: Array[Character]) -> v
 	_pay_costs(user, skill)
 
 	var first := true
-	var dealt := 0   # HP actually removed by this action's hits, for recoil
-	for target in targets:
-		if not target.is_alive():
-			continue
-		# Results are collected and emitted together once this target is done,
-		# so effects rolled once per target (the status rider) are already on
-		# it when the UI refreshes for these results. Emission is synchronous
-		# either way, so nothing is shown any later.
+	var dealt := 0       # HP actually removed by this action's hits, for recoil
+	var landed := {}     # target -> hits that landed on it
+	var hits := maxi(1, skill.hit_count) if skill.skill_type == Skill.SkillType.DAMAGE else 1
+	# One BEAT per hit: beat N is hit N on every target still standing, shown
+	# together, then a pause before the next beat — so each hit visibly drops
+	# the bars. A target downed in a beat falls at its end and takes no more.
+	for h in hits:
+		var standing: Array[Character] = []
+		for t in targets:
+			if t.is_alive():
+				standing.append(t)
+		if standing.is_empty():
+			break
+		if h > 0:
+			await _pause(hit_pause)
 		var results: Array[Dictionary] = []
-		var landed := 0
-		var hits := maxi(1, skill.hit_count) if skill.skill_type == Skill.SkillType.DAMAGE else 1
-		for _h in hits:
-			if not target.is_alive():
-				break   # a target killed mid-sequence takes no further hits
+		for target in standing:
 			var result := {"actor": user, "target": target, "skill": skill,
 					"is_first_target": false, "is_first_hit": false}
 			# Dodge depends on WHO the skill lands on, not what kind of skill it
@@ -267,23 +283,34 @@ func resolve_skill(user: Character, skill: Skill, chosen: Array[Character]) -> v
 			# is once per target per action (the first landed hit on that target);
 			# the action's skill resonance is once per action, on its first
 			# LANDED hit — never on a miss or a dodge.
-			result["is_first_hit"] = landed == 0
+			result["is_first_hit"] = landed.get(target, 0) == 0
 			result["is_first_target"] = first
 			first = false
-			landed += 1
+			landed[target] = landed.get(target, 0) + 1
 			var hp_before := target.current_hp
 			_resolve_hit(user, skill, target, result, scale, user_hp_fraction)
 			if skill.skill_type == Skill.SkillType.DAMAGE:
 				dealt += maxi(0, hp_before - target.current_hp)
 			result["target_alive"] = target.is_alive()
 			results.append(result)
-		if landed > 0:
-			_after_target(skill, target)
+		# Effects rolled once per target (the status rider, the target buff)
+		# go on before the LAST beat is shown, so their chips appear with it.
+		if h == hits - 1 or not targets.any(func(t): return t.is_alive()):
+			for target in targets:
+				if landed.get(target, 0) > 0:
+					_after_target(skill, target)
 		for r in results:
 			emit_signal("action_performed", r)
-		if not target.is_alive():
-			handle_defeat(target)
+		for target in standing:
+			if not target.is_alive():
+				handle_defeat(target)
 	_after_action(user, skill, dealt)
+
+## Waits `seconds` in the scene tree; returns at once for 0 (a bare manager in
+## a test is not in a tree, and never needs to wait).
+func _pause(seconds: float) -> void:
+	if seconds > 0.0:
+		await get_tree().create_timer(seconds).timeout
 
 ## Pays MP, then resonance (heroes only — enemies have neither pool), then HP
 ## (both sides). Skill.can_use has already guaranteed every cost is affordable
@@ -404,7 +431,10 @@ func player_use_skill(user: Character, skill: Skill, targets: Array[Character]):
 	# turn open, exactly as before.
 	if not skill.can_use(user):
 		return
-	resolve_skill(user, skill, targets)
+	# Busy until the turn is handed on: BattleScene only re-shows the action
+	# menu while the manager is choosing, so it stays hidden between hits.
+	state = BattleState.EXECUTING_ACTION
+	await resolve_skill(user, skill, targets)
 	end_player_turn()
 
 func player_use_item(user: Character, item: Item, target: Character):
@@ -416,7 +446,7 @@ func player_use_item(user: Character, item: Item, target: Character):
 	end_player_turn()
 
 func enemy_use_skill(enemy: Character, skill: Skill, targets: Array[Character]):
-	resolve_skill(enemy, skill, targets)
+	await resolve_skill(enemy, skill, targets)
 
 func player_defend(character: Character):
 	character.start_defend()
@@ -426,6 +456,9 @@ func player_defend(character: Character):
 
 func end_player_turn():
 	state = BattleState.IDLE
+	# Let the bars finish dropping before anything else happens — the next
+	# hero's menu, the next enemy's move, or the victory screen.
+	await _pause(action_pause)
 	if check_battle_end():
 		return
 	current_turn_index += 1
@@ -458,7 +491,7 @@ func _execute_enemy_turn():
 	if skill != null:
 		# Dodge is rolled per target inside resolve_skill. Rolling it here as well
 		# would make every enemy skill dodge-checked twice.
-		enemy_use_skill(enemy, skill, [target])
+		await enemy_use_skill(enemy, skill, [target])
 	else:
 		if EnemyAI.try_dodge(target):
 			var dodge_result = {
@@ -485,6 +518,8 @@ func _execute_enemy_turn():
 			if not target.is_alive():
 				handle_defeat(target)
 
+	# As after a hero's action: the bars finish before the next turn begins.
+	await _pause(action_pause)
 	if check_battle_end():
 		return
 	current_turn_index += 1
