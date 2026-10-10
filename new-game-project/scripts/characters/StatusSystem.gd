@@ -28,6 +28,8 @@ const DEFENDING := "defending"
 ## Spec C event types (status_effect_triggered). STATS_EXPIRED is quiet: it
 ## only refreshes the chips when a timed buff/debuff wears off.
 const STATS_EXPIRED := "stats_expired"
+## A turn lost resting after a recharge move. Routed as a skip banner.
+const RECHARGING := "recharging"
 
 const MUTEX_STATUSES := [STUN, POISON, PARALYSIS, SLEEP, SCORCHED, FROSTBITE]
 
@@ -84,6 +86,7 @@ const STATUS_COLORS := {
 	FROSTBITE: Color(0.60, 0.85, 1.00),  # ice blue
 	REGENERATE: Color(0.40, 1.00, 0.55), # vital green
 	DEFENDING: Color(0.75, 0.75, 0.85),  # steel grey-blue
+	RECHARGING: Color(0.70, 0.62, 0.85),  # spent lilac
 }
 
 const STATUS_LABELS := {
@@ -254,6 +257,7 @@ static func skipped_phrase(character_name: String, status_name: String) -> Strin
 		STUN:      return "%s reoriented themself" % character_name
 		SLEEP:     return "%s is Asleep!" % character_name
 		PARALYSIS: return "%s is Paralyzed!" % character_name
+		RECHARGING: return "%s is recovering!" % character_name
 		_:         return "%s is %s!" % [character_name, status_name.capitalize()]
 
 # Banner shown when sleep wears off and the actor will act this same turn.

@@ -220,3 +220,71 @@ func test_a_target_buff_and_a_self_debuff_follow_the_moves_duration() -> void:
 	assert_eq(int(foe.buff_turns.get("speed", 0)), 1, "the foe's SPD buff is timed")
 	assert_eq(int(hero.debuff_turns.get("defense", 0)), 1, "the hero's own DEF debuff is timed")
 	bm.free()
+
+# --------------------------------------------------- Recharge
+
+func _status_move(token: String, target: Skill.TargetType) -> Skill:
+	var s := Skill.new()
+	s.skill_name = "Inflict"
+	s.skill_type = Skill.SkillType.STATUS
+	s.status_type = Skill.StatusType.DEBUFF
+	s.target_type = target
+	s.status_to_apply = token
+	return s
+
+func test_a_recharge_move_rests_the_users_next_turn() -> void:
+	var hero := _unit("Kael", true, 50)
+	var foe := _foe()
+	var bm := _battle([hero], [foe])
+	var events := _events(bm)
+	var offered := []
+	bm.turn_ready_for_action.connect(func(c): offered.append(c))
+	var s := _skill()
+	s.recharge_turns = 1
+	bm.player_use_skill(hero, s, [foe])
+	assert_eq(events.count(StatusSystem.RECHARGING), 1, "one rest, with its banner event")
+	assert_eq(offered.filter(func(c): return c == hero).size(), 1, "round 2 was the rest; round 3 is offered")
+	assert_eq(hero.recharge_turns_left, 0, "the rest is over")
+	assert_eq(bm.current_actor, hero, "the hero chooses again")
+	bm.free()
+
+func test_a_stun_on_a_rest_turn_is_used_up_by_it() -> void:
+	var a := _unit("A", true, 50)
+	var b := _unit("B", true, 40)
+	var foe := _foe()
+	var bm := _battle([a, b], [foe])
+	var s := _skill()
+	s.recharge_turns = 1
+	bm.player_use_skill(a, s, [foe])
+	a.add_status(StatusSystem.STUN)
+	bm.player_use_skill(b, _tap(), [b])
+	assert_eq(bm.current_actor, b, "round 2: A rested, B is offered")
+	assert_false(a.is_status(StatusSystem.STUN), "the stun went with the rest turn")
+	bm.player_use_skill(b, _tap(), [b])
+	assert_eq(bm.current_actor, a, "round 3: A acts — one turn lost, not two")
+	bm.free()
+
+func test_a_rest_turn_that_is_also_a_sleep_turn_costs_one_turn() -> void:
+	# Review focus 5.
+	var a := _unit("A", true, 50)
+	var b := _unit("B", true, 40)
+	var foe := _foe()
+	var bm := _battle([a, b], [foe])
+	var s := _skill()
+	s.recharge_turns = 1
+	bm.player_use_skill(a, s, [foe])
+	a.add_status(StatusSystem.SLEEP)
+	a.sleep_turn = 0
+	bm.player_use_skill(b, _tap(), [b])
+	assert_eq(a.recharge_turns_left, 0, "the rest happened")
+	assert_eq(a.sleep_turn, 1, "and the sleep counter advanced on that same turn")
+	bm.free()
+
+func test_a_battle_end_clears_the_rest() -> void:
+	var c := _unit("Tired", true)
+	c.recharge_turns_left = 1
+	c.clear_battle_effects()
+	assert_eq(c.recharge_turns_left, 0, "no rest carries into the next battle")
+
+func test_a_heros_recharge_skip_reads_as_recovering() -> void:
+	assert_eq(StatusSystem.skipped_phrase("Kael", StatusSystem.RECHARGING), "Kael is recovering!", "banner text")

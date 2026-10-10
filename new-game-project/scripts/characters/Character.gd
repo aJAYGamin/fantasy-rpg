@@ -203,6 +203,8 @@ var is_defending: bool = false
 const DEFEND_DAMAGE_MULT := 0.5
 var regen_turns: int = 0
 var regen_amount: int = 0
+## Turns left resting after a recharge move (Spec C). Battle-only.
+var recharge_turns_left: int = 0
 
 func _init():
 	inventory = Inventory.new()
@@ -440,6 +442,7 @@ func clear_battle_effects():
 	is_defending = false
 	regen_turns = 0
 	regen_amount = 0
+	recharge_turns_left = 0
 	phase_multipliers.clear()
 	max_hp_multiplier = 1.0
 

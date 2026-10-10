@@ -135,6 +135,23 @@ func _next_turn():
 
 	emit_signal("turn_started", current_actor)
 
+	# Spec C: resting after a recharge move. The status skip still resolves on
+	# this same turn, so a stun is used up by it and a sleep counter advances —
+	# one lost turn, not two.
+	if current_actor.recharge_turns_left > 0:
+		current_actor.recharge_turns_left -= 1
+		StatusSystem.resolve_turn_skip(current_actor)
+		emit_signal("status_effect_triggered", current_actor, {
+			"type": StatusSystem.RECHARGING,
+			"value": 0,
+			"skipped": true,
+			"name": current_actor.character_name,
+		})
+		await _pause(SKIP_PAUSE)
+		current_turn_index += 1
+		_next_turn()
+		return
+
 	# Skip-turn resolution. StatusSystem owns the rules:
 	#   stun       -> always skip + auto-clear
 	#   sleep      -> probabilistic skip (100% -> 75% -> ...) or wake-and-act
@@ -259,17 +276,33 @@ func _allies_of(user: Character) -> Array[Character]:
 ## ~50-line near-copies that had already drifted: SELF targeting existed on one
 ## side only, dodge was rolled in different places, and the same outcome
 ## emitted different action names. Every skill mechanic lands here, once.
+##
+## USING a move — check, measure, pay — is separate from STRIKING with it, so a
+## move that fires later (Spec C) strikes through the same code.
 func resolve_skill(user: Character, skill: Skill, chosen: Array[Character]) -> void:
 	if not skill.can_use(user):
 		return
-	var targets := expand_targets(user, skill, chosen)
-	# Measured BEFORE costs are paid, so an HP-cost move is not weakened by its
-	# own cost (Spec B, Part 2, step 2).
-	var scale := skill.scale_factor(user)
-	var user_hp_fraction := float(user.current_hp) / float(maxi(1, user.max_hp()))
+	var m := _measure(user, skill)
 	_pay_costs(user, skill)
+	await _strike(user, skill, expand_targets(user, skill, chosen), m)
+	_start_recharge(user, skill)
 
-	var first := true
+## What a strike needs from the moment a move is measured — BEFORE its costs
+## are paid, so an HP-cost move is not weakened by its own cost (Spec B).
+func _measure(user: Character, skill: Skill) -> Dictionary:
+	return {"scale": skill.scale_factor(user),
+			"hp_fraction": float(user.current_hp) / float(maxi(1, user.max_hp()))}
+
+## The hits of a move: Spec B's paced beats, per-target effects and
+## after-action effects. `m` comes from _measure; a delayed strike adds its
+## caster's cast-time "value". A fallen caster's strike lands only its hits —
+## no result takes the action's resonance, and there are no after-effects.
+func _strike(user: Character, skill: Skill, targets: Array[Character], m: Dictionary,
+		caster_standing: bool = true) -> void:
+	var scale: float = m["scale"]
+	var user_hp_fraction: float = m["hp_fraction"]
+	var base_value: int = int(m.get("value", -1))
+	var first := caster_standing
 	var dealt := 0       # HP actually removed by this action's hits, for recoil
 	var landed := {}     # target -> hits that landed on it
 	var hits := maxi(1, skill.hit_count) if skill.skill_type == Skill.SkillType.DAMAGE else 1
@@ -308,7 +341,7 @@ func resolve_skill(user: Character, skill: Skill, chosen: Array[Character]) -> v
 			first = false
 			landed[target] = landed.get(target, 0) + 1
 			var hp_before := target.current_hp
-			_resolve_hit(user, skill, target, result, scale, user_hp_fraction)
+			_resolve_hit(user, skill, target, result, scale, user_hp_fraction, base_value)
 			if skill.skill_type == Skill.SkillType.DAMAGE:
 				dealt += maxi(0, hp_before - target.current_hp)
 			result["target_alive"] = target.is_alive()
@@ -324,7 +357,13 @@ func resolve_skill(user: Character, skill: Skill, chosen: Array[Character]) -> v
 		for target in standing:
 			if not target.is_alive():
 				handle_defeat(target)
-	_after_action(user, skill, dealt)
+	if caster_standing:
+		_after_action(user, skill, dealt)
+
+## Spec C recharge: the user rests their next `recharge_turns` turns.
+func _start_recharge(user: Character, skill: Skill) -> void:
+	if skill.recharge_turns > 0:
+		user.recharge_turns_left = skill.recharge_turns
 
 ## Waits `seconds` — only while paced (the real battle). A bare manager (every
 ## test) is outside the scene tree and never waits.
@@ -347,9 +386,11 @@ func _pay_costs(user: Character, skill: Skill) -> void:
 
 ## One landed hit of `skill` on `target`, written into `result`.
 func _resolve_hit(user: Character, skill: Skill, target: Character, result: Dictionary,
-		scale: float, user_hp_fraction: float) -> void:
+		scale: float, user_hp_fraction: float, base_value: int = -1) -> void:
+	# The move's raw strength: measured now, or carried from the cast (Spec C).
+	var raw: int = base_value if base_value >= 0 else skill.calculate_value(user)
 	if skill.skill_type == Skill.SkillType.DAMAGE:
-		var value := int(skill.calculate_value(user) * skill.condition_multiplier(user_hp_fraction, target) * scale)
+		var value := int(raw * skill.condition_multiplier(user_hp_fraction, target) * scale)
 		match skill.attack_type:
 			Skill.AttackType.STRIKE, Skill.AttackType.RANGED:
 				_record_damage(result, target.take_damage(value, skill.element, skill.secondary_element,
@@ -362,7 +403,7 @@ func _resolve_hit(user: Character, skill: Skill, target: Character, result: Dict
 						skill.pierce, skill.override_element, skill.override_multiplier()))
 				result["action"] = "skill_magic"
 	elif skill.skill_type == Skill.SkillType.STATUS:
-		var value := skill.calculate_value(user)
+		var value := raw
 		match skill.status_type:
 			Skill.StatusType.HEAL:
 				result["action"] = "heal"

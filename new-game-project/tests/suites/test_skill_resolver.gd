@@ -258,7 +258,7 @@ func test_an_enemy_skill_is_dodge_rolled_once_not_twice() -> void:
 	# inside resolve_skill, so the enemy turn must not roll it again first —
 	# two rolls would make a 50% dodge land 75% of the time.
 	var src := FileAccess.get_file_as_string("res://scripts/battle/BattleManager.gd")
-	assert_true(_function_body(src, "resolve_skill").contains("try_dodge"), "the resolver rolls dodge")
+	assert_true(_function_body(src, "_strike").contains("try_dodge"), "the strike rolls dodge")
 	var turn := _function_body(src, "_execute_enemy_turn")
 	var skill_branch := turn.substr(turn.find("if skill != null:"))
 	skill_branch = skill_branch.substr(0, skill_branch.find("\n\telse:"))
