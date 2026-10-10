@@ -974,6 +974,13 @@ func _on_status_triggered(character: Character, result: Dictionary):
 			apply_color,
 			BANNER_DURATION_APPLIED
 		)
+	else:
+		# Spec C: charge-up and delayed-strike banners ("" = a quiet event).
+		var line := StatusSystem.multi_turn_phrase(nm, result)
+		if line != "":
+			_show_status_banner(line,
+					StatusSystem.STATUS_COLORS.get(event_type, Color(0.85, 0.7, 1.0)),
+					BANNER_DURATION_APPLIED)
 
 # Enqueues a banner request and kicks off the queue processor if it isn't
 # already running. Safe to call repeatedly, including several times in the

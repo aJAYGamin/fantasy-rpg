@@ -288,3 +288,160 @@ func test_a_battle_end_clears_the_rest() -> void:
 
 func test_a_heros_recharge_skip_reads_as_recovering() -> void:
 	assert_eq(StatusSystem.skipped_phrase("Kael", StatusSystem.RECHARGING), "Kael is recovering!", "banner text")
+
+# --------------------------------------------------- Charge-ups
+
+func _charge(target: Skill.TargetType = Skill.TargetType.SINGLE_ENEMY) -> Skill:
+	var s := _skill(target)
+	s.skill_name = "Gather"
+	s.charge_turns = 1
+	return s
+
+func test_a_charge_up_hits_on_the_users_next_turn() -> void:
+	var hero := _unit("Kael", true, 50)
+	var foe := _foe()
+	var bm := _battle([hero], [foe])
+	var seen := _log(bm)
+	var before := foe.current_hp
+	bm.player_use_skill(hero, _charge(), [foe])
+	# Round 1: the charge (banner only) and the foe's Tap. Round 2: the release,
+	# then the foe's Tap. Round 3: the hero chooses again.
+	assert_eq(seen, [StatusSystem.CHARGING, "buff", "skill_physical", "buff"], "nothing hits until the release")
+	assert_true(foe.current_hp < before, "the release hit")
+	assert_eq(bm.current_actor, hero, "then the hero chooses again")
+	assert_true(bm.scheduled.is_empty(), "the charge is spent")
+	bm.free()
+
+func test_charging_pays_its_costs_once() -> void:
+	var hero := _unit("Kael", true, 50)
+	var foe := _foe()
+	var bm := _battle([hero], [foe])
+	var s := _charge()
+	s.mp_cost = 10
+	var mp := hero.current_mp
+	bm.player_use_skill(hero, s, [foe])
+	assert_eq(hero.current_mp, mp - 10, "paid when charging, not again on release")
+	bm.free()
+
+func test_a_release_is_measured_when_it_fires() -> void:
+	# An ally's ATK buff on a charging hero makes the release hit harder.
+	var a := _unit("A", true, 50)
+	var b := _unit("B", true, 40)
+	var foe := _foe()
+	var bm := _battle([a, b], [foe])
+	var hits := _hits(bm)
+	var s := _charge()
+	bm.player_use_skill(a, s, [foe])
+	a.apply_buff("attack")
+	var expected := s.calculate_value(a)
+	bm.player_use_skill(b, _tap(), [b])
+	var release := hits.filter(func(r): return r["action"] == "skill_physical")
+	assert_eq(release.size(), 1, "one release")
+	assert_eq(int(release[0]["value"]), expected, "with the buffed ATK (foe DEF is 0)")
+	bm.free()
+
+func test_a_stun_breaks_a_charge() -> void:
+	var a := _unit("A", true, 50)
+	var b := _unit("B", true, 40)
+	var foe := _foe()
+	var bm := _battle([a, b], [foe])
+	var seen := _log(bm)
+	var before := foe.current_hp
+	bm.player_use_skill(a, _charge(), [foe])
+	a.add_status(StatusSystem.STUN)
+	bm.player_use_skill(b, _tap(), [b])
+	assert_eq(foe.current_hp, before, "the charge never fired")
+	assert_true(bm.scheduled.is_empty(), "and is gone")
+	var broken := seen.find(StatusSystem.FOCUS_BROKEN)
+	assert_true(broken >= 0, "the focus-broken banner event")
+	assert_true(broken < seen.find(StatusSystem.STUN), "before the stun's skip banner")
+	bm.free()
+
+func test_sleep_breaks_a_charge() -> void:
+	var a := _unit("A", true, 50)
+	var b := _unit("B", true, 40)
+	var foe := _foe()
+	var bm := _battle([a, b], [foe])
+	var before := foe.current_hp
+	bm.player_use_skill(a, _charge(), [foe])
+	a.add_status(StatusSystem.SLEEP)
+	a.sleep_turn = 0   # the first sleep turn always skips
+	bm.player_use_skill(b, _tap(), [b])
+	assert_eq(foe.current_hp, before, "asleep: the charge never fired")
+	assert_true(bm.scheduled.is_empty(), "and is gone")
+	bm.free()
+
+func test_a_sleeper_who_wakes_keeps_the_charge() -> void:
+	var a := _unit("A", true, 50)
+	var b := _unit("B", true, 40)
+	var foe := _foe()
+	var bm := _battle([a, b], [foe])
+	var before := foe.current_hp
+	bm.player_use_skill(a, _charge(), [foe])
+	a.add_status(StatusSystem.SLEEP)
+	a.sleep_turn = 4   # 0% to stay asleep: wakes and acts this turn
+	bm.player_use_skill(b, _tap(), [b])
+	assert_true(foe.current_hp < before, "woke and released")
+	bm.free()
+
+func test_a_downed_charger_loses_the_charge() -> void:
+	var a := _unit("A", true, 50)
+	var b := _unit("B", true, 40)
+	var foe := _foe()
+	var bm := _battle([a, b], [foe])
+	bm.player_use_skill(a, _charge(), [foe])
+	a.current_hp = 0
+	bm.handle_defeat(a)
+	assert_eq(bm._charge_of(a), null, "a downed charger's charge is dropped")
+	bm.free()
+
+func test_a_later_strike_replaces_a_fallen_single_target() -> void:
+	var a := _unit("A", true)
+	var b := _unit("B", true)
+	var foe := _unit("Foe", false)
+	var bm := BattleManager.new()
+	bm.party = [a, b] as Array[Character]
+	bm.enemies = [foe] as Array[Character]
+	a.current_hp = 0
+	var got := bm._strike_targets(foe, _skill(), [a] as Array[Character])
+	assert_eq(got, [b] as Array[Character], "the only living hero takes it")
+	var area := bm._strike_targets(foe, _skill(Skill.TargetType.ALL_ENEMIES), [] as Array[Character])
+	assert_eq(area, [b] as Array[Character], "an area move hits whoever stands")
+	b.current_hp = 0
+	assert_true(bm._strike_targets(foe, _skill(), [a] as Array[Character]).is_empty(), "nobody standing: nothing")
+	bm.free()
+
+func test_an_enemy_charge_releases_without_the_ai_acting_again() -> void:
+	# Review focus 1: the release IS the enemy's turn.
+	var hero := _unit("Hero", true, 10)
+	var foe := _foe(_charge(Skill.TargetType.ALL_ENEMIES), 50)
+	var bm := _battle([hero], [foe])
+	assert_eq(bm.scheduled.size(), 1, "round 1: the foe began charging")
+	var previews := []
+	bm.enemy_move_preview.connect(func(_e, m): previews.append(m))
+	var hits := _hits(bm)
+	var before := hero.current_hp
+	bm.player_use_skill(hero, _tap(), [hero])
+	var on_hero := hits.filter(func(r): return r["action"] == "skill_physical")
+	assert_eq(on_hero.size(), 1, "round 2: one release")
+	assert_true(hero.current_hp < before, "that hit the hero")
+	assert_true(bm.scheduled.is_empty(), "and the AI did not start a new charge in the same turn")
+	assert_true(previews.has("Gather"), "the move name showed under its card")
+	bm.free()
+
+func test_stunning_a_charging_enemy_breaks_its_attack() -> void:
+	var hero := _unit("Hero", true, 10)
+	var foe := _foe(_charge(Skill.TargetType.ALL_ENEMIES), 50)
+	var bm := _battle([hero], [foe])
+	var events := _events(bm)
+	var before := hero.current_hp
+	bm.player_use_skill(hero, _status_move("stun", Skill.TargetType.SINGLE_ENEMY), [foe])
+	assert_eq(hero.current_hp, before, "the charged attack never landed")
+	assert_true(events.has(StatusSystem.FOCUS_BROKEN), "focus broken")
+	assert_true(bm.scheduled.is_empty(), "and the stunned foe did not charge again")
+	bm.free()
+
+func test_charge_banner_text() -> void:
+	assert_eq(StatusSystem.multi_turn_phrase("Kael", {"type": StatusSystem.CHARGING}), "Kael is gathering power!", "charging")
+	assert_eq(StatusSystem.multi_turn_phrase("Kael", {"type": StatusSystem.FOCUS_BROKEN}), "Kael's focus was broken!", "broken")
+	assert_eq(StatusSystem.multi_turn_phrase("Kael", {"type": StatusSystem.STATS_EXPIRED}), "", "a quiet event has no banner")

@@ -61,6 +61,8 @@ const PREVIEW_PAUSE := 1.0
 ## moves on mid-fade (BattleScene.BANNER_DURATION_WAKE / BANNER_DURATION_SKIP).
 const WAKE_PAUSE := 1.75
 const SKIP_PAUSE := 1.9
+## The Spec C banners ("gathering power", "focus broken", "<Move> strikes!").
+const BANNER_PAUSE := 1.75
 ## Off on a bare manager, so every wait returns at once and a whole sequence of
 ## turns — enemy turns included — runs synchronously in a test. BattleScene
 ## turns it on. Every wait in the turn loop goes through _pause().
@@ -77,6 +79,30 @@ var enemies: Array[Character] = []
 var turn_order: Array[Character] = []
 var current_turn_index: int = 0
 var current_actor: Character
+
+## A move that resolves later (Spec C): a charge-up waiting for its user's next
+## turn, or a delayed strike waiting for the end of a round. A future "fires
+## later" shape is a new When.
+class Scheduled:
+	enum When { CASTER_TURN, ROUND_END }
+	var user: Character
+	var skill: Skill
+	var chosen: Array[Character]
+	var when: When
+	## Delayed strikes only: rounds until it lands, and the cast-time
+	## measurements (_measure plus the caster's "value").
+	var rounds_left := 0
+	var measured: Dictionary = {}
+
+	func _init(u: Character, s: Skill, c: Array[Character], w: When) -> void:
+		user = u
+		skill = s
+		chosen = c.duplicate()
+		when = w
+
+## Every move waiting to resolve, in the order it was used. A fresh list per
+## battle (a fresh manager), cleared when the battle ends.
+var scheduled: Array = []
 
 func start_battle(player_party: Array[Character], enemy_group: Array[Character]):
 	party = player_party
@@ -178,6 +204,13 @@ func _next_turn():
 	# (BattleScene.BANNER_DURATION_SKIP = 1.70) before advancing to next actor.
 	var skip_status: String = skip_result.get("skip", "")
 	if skip_status != "":
+		# Spec C: a skipped turn breaks a charge-up; its costs stay spent.
+		var broken := _charge_of(current_actor)
+		if broken != null:
+			scheduled.erase(broken)
+			emit_signal("status_effect_triggered", current_actor, {"type": StatusSystem.FOCUS_BROKEN,
+					"value": 0, "name": current_actor.character_name})
+			await _pause(BANNER_PAUSE)
 		emit_signal("status_effect_triggered", current_actor, {
 			"type": skip_status,
 			"value": 0,
@@ -187,6 +220,14 @@ func _next_turn():
 		await _pause(SKIP_PAUSE)
 		current_turn_index += 1
 		_next_turn()
+		return
+
+	# Spec C: a charge-up releases on its user's turn — no menu, no AI choice.
+	var charge := _charge_of(current_actor)
+	if charge != null:
+		state = BattleState.EXECUTING_ACTION
+		await _release_charge(charge)
+		_end_turn()
 		return
 
 	# Actor is ready — UI shows action menu / starts enemy AI.
@@ -282,6 +323,15 @@ func _allies_of(user: Character) -> Array[Character]:
 func resolve_skill(user: Character, skill: Skill, chosen: Array[Character]) -> void:
 	if not skill.can_use(user):
 		return
+	if skill.charge_turns > 0:
+		# Spec C charge-up: pay now, gather power this turn, release on the
+		# user's next turn (_release_charge) — measured then, not now.
+		_pay_costs(user, skill)
+		scheduled.append(Scheduled.new(user, skill, chosen, Scheduled.When.CASTER_TURN))
+		emit_signal("status_effect_triggered", user, {"type": StatusSystem.CHARGING,
+				"value": 0, "name": user.character_name})
+		await _pause(BANNER_PAUSE)
+		return
 	var m := _measure(user, skill)
 	_pay_costs(user, skill)
 	await _strike(user, skill, expand_targets(user, skill, chosen), m)
@@ -364,6 +414,53 @@ func _strike(user: Character, skill: Skill, targets: Array[Character], m: Dictio
 func _start_recharge(user: Character, skill: Skill) -> void:
 	if skill.recharge_turns > 0:
 		user.recharge_turns_left = skill.recharge_turns
+
+## The user's waiting charge-up, or null.
+func _charge_of(user: Character) -> Scheduled:
+	for e in scheduled:
+		if e.user == user and e.when == Scheduled.When.CASTER_TURN:
+			return e
+	return null
+
+## A later strike's targets. Area moves hit whoever stands now; a single
+## target that has fallen is replaced by a random living character on its
+## side, so a charge or delayed strike is never spent on the fallen. Nobody
+## standing: an empty list.
+func _strike_targets(user: Character, skill: Skill, chosen: Array[Character]) -> Array[Character]:
+	var pick: Array[Character] = []
+	for c in chosen:
+		if c.is_alive():
+			pick.append(c)
+	var single := skill.target_type == Skill.TargetType.SINGLE_ENEMY \
+			or skill.target_type == Skill.TargetType.SINGLE_ALLY
+	if pick.is_empty() and single:
+		var side: Array[Character] = _opponents_of(user) \
+				if skill.target_type == Skill.TargetType.SINGLE_ENEMY else _allies_of(user)
+		var living: Array[Character] = []
+		for c in side:
+			if c.is_alive():
+				living.append(c)
+		if not living.is_empty():
+			pick.append(living[randi() % living.size()])
+	var out: Array[Character] = []
+	for t in expand_targets(user, skill, pick):
+		if t.is_alive():
+			out.append(t)
+	return out
+
+## A charge-up firing on its user's turn: no menu, no AI choice. Measured now —
+## the charger is acting — so a buff landed on them while charging counts.
+func _release_charge(entry: Scheduled) -> void:
+	scheduled.erase(entry)
+	var user := entry.user
+	if enemies.has(user):
+		emit_signal("enemy_move_preview", user, entry.skill.skill_name)
+		await _pause(PREVIEW_PAUSE)
+		emit_signal("enemy_move_preview", user, "")
+	var targets := _strike_targets(user, entry.skill, entry.chosen)
+	if not targets.is_empty():
+		await _strike(user, entry.skill, targets, _measure(user, entry.skill))
+	_start_recharge(user, entry.skill)
 
 ## Waits `seconds` — only while paced (the real battle). A bare manager (every
 ## test) is outside the scene tree and never waits.
@@ -589,6 +686,10 @@ func _execute_enemy_turn():
 
 # --- Helpers ---
 func handle_defeat(character: Character):
+	# Spec C: a downed charger loses its charge (a delayed strike still lands).
+	var lost := _charge_of(character)
+	if lost != null:
+		scheduled.erase(lost)
 	emit_signal("character_defeated", character)
 	# Quest progress: count defeated ENEMIES (not downed heroes). Report a generic
 	# "defeat:any" plus a species key from the first word of the name (e.g. a
@@ -604,11 +705,13 @@ func check_battle_end() -> bool:
 	var enemies_alive = enemies.any(func(c): return c.is_alive())
 
 	if not enemies_alive:
+		scheduled.clear()
 		state = BattleState.BATTLE_OVER
 		var rewards = _calculate_rewards()
 		emit_signal("battle_ended", true, rewards)
 		return true
 	elif not party_alive:
+		scheduled.clear()
 		state = BattleState.BATTLE_OVER
 		emit_signal("battle_ended", false, {})
 		return true

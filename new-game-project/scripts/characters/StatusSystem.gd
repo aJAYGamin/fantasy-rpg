@@ -30,6 +30,9 @@ const DEFENDING := "defending"
 const STATS_EXPIRED := "stats_expired"
 ## A turn lost resting after a recharge move. Routed as a skip banner.
 const RECHARGING := "recharging"
+## A charge-up begins; a charge-up is broken by a skipped turn.
+const CHARGING := "charging"
+const FOCUS_BROKEN := "focus_broken"
 
 const MUTEX_STATUSES := [STUN, POISON, PARALYSIS, SLEEP, SCORCHED, FROSTBITE]
 
@@ -87,6 +90,8 @@ const STATUS_COLORS := {
 	REGENERATE: Color(0.40, 1.00, 0.55), # vital green
 	DEFENDING: Color(0.75, 0.75, 0.85),  # steel grey-blue
 	RECHARGING: Color(0.70, 0.62, 0.85),  # spent lilac
+	CHARGING: Color(1.00, 0.72, 0.35),       # gathering gold
+	FOCUS_BROKEN: Color(0.75, 0.75, 0.85),   # spent grey-blue
 }
 
 const STATUS_LABELS := {
@@ -263,6 +268,17 @@ static func skipped_phrase(character_name: String, status_name: String) -> Strin
 # Banner shown when sleep wears off and the actor will act this same turn.
 static func woke_phrase(character_name: String) -> String:
 	return "%s woke up!" % character_name
+
+## Banner text for Spec C's multi-turn events that are not skips, or "" for a
+## quiet event (one that only refreshes the UI).
+static func multi_turn_phrase(character_name: String, result: Dictionary) -> String:
+	match String(result.get("type", "")):
+		CHARGING:
+			return "%s is gathering power!" % character_name
+		FOCUS_BROKEN:
+			return "%s's focus was broken!" % character_name
+		_:
+			return ""
 
 # --- Skill token parsing ---
 # Returns {"kind": "buff"|"debuff"|"status"|"none", "value": <stat_name or status_name>}
