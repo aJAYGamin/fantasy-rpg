@@ -445,3 +445,132 @@ func test_charge_banner_text() -> void:
 	assert_eq(StatusSystem.multi_turn_phrase("Kael", {"type": StatusSystem.CHARGING}), "Kael is gathering power!", "charging")
 	assert_eq(StatusSystem.multi_turn_phrase("Kael", {"type": StatusSystem.FOCUS_BROKEN}), "Kael's focus was broken!", "broken")
 	assert_eq(StatusSystem.multi_turn_phrase("Kael", {"type": StatusSystem.STATS_EXPIRED}), "", "a quiet event has no banner")
+
+# --------------------------------------------------- Delayed strikes
+
+func _delayed(rounds := 1, target: Skill.TargetType = Skill.TargetType.SINGLE_ENEMY) -> Skill:
+	var s := _skill(target)
+	s.skill_name = "Later"
+	s.delay_rounds = rounds
+	return s
+
+func test_a_delayed_strike_shows_nothing_until_the_round_ends() -> void:
+	var hero := _unit("Aria", true, 50)
+	var foe := _foe()
+	var bm := _battle([hero], [foe])
+	var seen := _log(bm)
+	bm.player_use_skill(hero, _delayed(), [foe])
+	assert_eq(seen, [StatusSystem.STRIKE_SCHEDULED, "buff", StatusSystem.STRIKE_LANDING, "skill_physical"],
+			"cast quietly; the foe acts; then at the round's end it lands")
+	bm.free()
+
+func test_a_two_round_delay_lands_at_the_end_of_the_next_round() -> void:
+	var hero := _unit("Aria", true, 50)
+	var foe := _foe()
+	var bm := _battle([hero], [foe])
+	var before := foe.current_hp
+	bm.player_use_skill(hero, _delayed(2), [foe])
+	assert_eq(foe.current_hp, before, "round 1 ended: not yet")
+	assert_eq(bm.scheduled.size(), 1, "still waiting")
+	bm.player_use_skill(hero, _tap(), [hero])
+	assert_true(foe.current_hp < before, "round 2 ended: it landed")
+	assert_true(bm.scheduled.is_empty(), "and left the list")
+	bm.free()
+
+func test_delayed_strikes_land_in_the_order_cast() -> void:
+	var a := _unit("A", true, 50)
+	var b := _unit("B", true, 40)
+	var foe := _foe()
+	var bm := _battle([a, b], [foe])
+	var landed := []
+	bm.status_effect_triggered.connect(func(_c, r):
+		if r.get("type", "") == StatusSystem.STRIKE_LANDING:
+			landed.append(r["move"]))
+	var first := _delayed()
+	first.skill_name = "First"
+	var second := _delayed()
+	second.skill_name = "Second"
+	bm.player_use_skill(a, first, [foe])
+	bm.player_use_skill(b, second, [foe])
+	assert_eq(landed, ["First", "Second"], "one at a time, in cast order")
+	bm.free()
+
+func test_a_landing_can_miss() -> void:
+	var hero := _unit("Aria", true, 50)
+	var foe := _foe()
+	var bm := _battle([hero], [foe])
+	var hits := _hits(bm)
+	var s := _delayed()
+	s.miss_chance = 1.0
+	bm.player_use_skill(hero, s, [foe])
+	assert_eq(hits.map(func(r): return r["action"]).filter(func(a): return a == "miss").size(), 1,
+			"it rolled its miss chance when it landed")
+	bm.free()
+
+func test_a_delayed_strike_keeps_its_cast_time_strength() -> void:
+	var hero := _unit("Aria", true, 50)
+	var foe := _foe()
+	var bm := _battle([hero], [foe])
+	var hits := _hits(bm)
+	var s := _delayed(2)
+	var expected := s.calculate_value(hero)
+	bm.player_use_skill(hero, s, [foe])
+	hero.apply_debuff("attack")
+	bm.player_use_skill(hero, _tap(), [hero])
+	var landing := hits.filter(func(r): return r["action"] == "skill_physical")
+	assert_eq(landing.size(), 1, "it landed")
+	assert_eq(int(landing[0]["value"]), expected, "as strong as when cast, though the caster's ATK fell since")
+	bm.free()
+
+func test_a_fallen_casters_strike_lands_with_only_its_hits() -> void:
+	# The caster is a HERO, downed by the foe before the round ends.
+	var a := _unit("A", true, 50)
+	var b := _unit("B", true, 40)
+	var crush := _skill(Skill.TargetType.ALL_ENEMIES)
+	crush.skill_name = "Crush"
+	var foe := _foe(crush)
+	var bm := _battle([a, b], [foe])
+	var hits := _hits(bm)
+	var s := _delayed()
+	s.ally_heal_power = 1.0
+	bm.player_use_skill(a, s, [foe])
+	a.current_hp = 1   # the foe's Crush will down A before the round ends
+	var foe_before := foe.current_hp
+	bm.player_use_skill(b, _tap(), [b])
+	assert_false(a.is_alive(), "the caster fell first")
+	assert_true(foe.current_hp < foe_before, "the strike still landed")
+	var from_a := hits.filter(func(r): return r["actor"] == a)
+	assert_false(from_a.any(func(r): return r.get("is_first_target", false)), "no resonance for a fallen caster")
+	assert_false(from_a.any(func(r): return r["action"] == "heal"), "and no ally heal")
+	bm.free()
+
+func test_a_landing_that_ends_the_battle_drops_the_rest() -> void:
+	# Review focus 2. The hero is downed by the first landing (heroes may fall
+	# in tests; enemies may not).
+	var hero := _unit("Hero", true, 0)
+	hero.current_hp = 1
+	var foe1 := _foe(_delayed(1, Skill.TargetType.ALL_ENEMIES), 50)
+	var foe2 := _foe(_delayed(1, Skill.TargetType.ALL_ENEMIES), 40)
+	var bm := _battle([hero], [foe1, foe2])
+	assert_eq(bm.scheduled.size(), 2, "both foes cast")
+	var ended := []
+	bm.battle_ended.connect(func(won, _r): ended.append(won))
+	var events := _events(bm)
+	bm.player_use_skill(hero, _tap(), [hero])
+	assert_eq(ended, [false], "one defeat, once")
+	assert_eq(events.count(StatusSystem.STRIKE_LANDING), 1, "the second strike never landed")
+	assert_true(bm.scheduled.is_empty(), "and was dropped")
+	assert_eq(bm.state, BattleManager.BattleState.BATTLE_OVER, "the battle is over")
+	bm.free()
+
+func test_a_new_battle_starts_with_nothing_scheduled() -> void:
+	# Review focus 3: fleeing ends the scene and its manager; the next battle's
+	# manager starts empty, and heroes' countdowns were cleared on the way out.
+	var bm := BattleManager.new()
+	assert_true(bm.scheduled.is_empty(), "nothing carried in")
+	bm.free()
+
+func test_landing_banner_text() -> void:
+	assert_eq(StatusSystem.multi_turn_phrase("Aria", {"type": StatusSystem.STRIKE_LANDING, "move": "Deluge"}),
+			"Deluge strikes!", "names the move")
+	assert_eq(StatusSystem.multi_turn_phrase("Aria", {"type": StatusSystem.STRIKE_SCHEDULED}), "", "casting is quiet")

@@ -133,6 +133,10 @@ func _next_turn():
 		current_turn_index += 1
 
 	if current_turn_index >= turn_order.size():
+		# Spec C: the round is over — due delayed strikes land before the next.
+		await _land_delayed_strikes()
+		if state == BattleState.BATTLE_OVER:
+			return
 		_start_new_round()
 		return
 
@@ -332,6 +336,19 @@ func resolve_skill(user: Character, skill: Skill, chosen: Array[Character]) -> v
 				"value": 0, "name": user.character_name})
 		await _pause(BANNER_PAUSE)
 		return
+	if skill.delay_rounds > 0:
+		# Spec C delayed strike: measured and paid now, lands at the end of a
+		# later round (_land_delayed_strikes). Nothing about it is shown — the
+		# quiet event only refreshes the panels so the spent MP shows.
+		var entry := Scheduled.new(user, skill, chosen, Scheduled.When.ROUND_END)
+		entry.rounds_left = skill.delay_rounds
+		entry.measured = _measure(user, skill)
+		entry.measured["value"] = skill.calculate_value(user)
+		_pay_costs(user, skill)
+		scheduled.append(entry)
+		emit_signal("status_effect_triggered", user, {"type": StatusSystem.STRIKE_SCHEDULED, "value": 0})
+		_start_recharge(user, skill)
+		return
 	var m := _measure(user, skill)
 	_pay_costs(user, skill)
 	await _strike(user, skill, expand_targets(user, skill, chosen), m)
@@ -461,6 +478,31 @@ func _release_charge(entry: Scheduled) -> void:
 	if not targets.is_empty():
 		await _strike(user, entry.skill, targets, _measure(user, entry.skill))
 	_start_recharge(user, entry.skill)
+
+## The end of a round: every delayed strike that is due lands, one at a time in
+## the order cast — its banner, a pause, the hits (which can miss or be
+## dodged), then the action pause. Nothing prevents one: a fallen caster's
+## strike still lands, with only its hits. A landing that ends the battle drops
+## the rest (check_battle_end clears the list).
+func _land_delayed_strikes() -> void:
+	for entry in scheduled.duplicate():
+		if entry.when != Scheduled.When.ROUND_END:
+			continue
+		entry.rounds_left -= 1
+		if entry.rounds_left > 0:
+			continue
+		scheduled.erase(entry)
+		var targets := _strike_targets(entry.user, entry.skill, entry.chosen)
+		if targets.is_empty():
+			continue
+		state = BattleState.EXECUTING_ACTION
+		emit_signal("status_effect_triggered", entry.user, {"type": StatusSystem.STRIKE_LANDING,
+				"value": 0, "move": entry.skill.skill_name})
+		await _pause(BANNER_PAUSE)
+		await _strike(entry.user, entry.skill, targets, entry.measured, entry.user.is_alive())
+		await _pause(ACTION_PAUSE)
+		if check_battle_end():
+			return
 
 ## Waits `seconds` — only while paced (the real battle). A bare manager (every
 ## test) is outside the scene tree and never waits.
