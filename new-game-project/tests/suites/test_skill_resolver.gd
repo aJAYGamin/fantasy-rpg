@@ -815,8 +815,7 @@ func test_a_target_killed_on_the_first_beat_falls_before_the_second() -> void:
 
 func test_pacing_is_off_unless_the_battle_scene_turns_it_on() -> void:
 	var bm := BattleManager.new()
-	assert_eq(bm.hit_pause, 0.0, "a bare manager resolves every hit at once (tests)")
-	assert_eq(bm.action_pause, 0.0, "and hands the turn on at once")
+	assert_false(bm.paced, "a bare manager never waits (tests)")
 	assert_eq(BattleManager.HIT_PAUSE, 0.8, "the battle's pause between hits (user's choice)")
 	assert_eq(BattleManager.ACTION_PAUSE, 1.0, "and after every action, before the next turn")
 	bm.free()

@@ -113,9 +113,8 @@ const BACKGROUNDS = {
 
 func _ready():
 	battle_manager = BattleManager.new()
-	# The real battle is paced so each hit, and each action, is seen landing.
-	battle_manager.hit_pause = BattleManager.HIT_PAUSE
-	battle_manager.action_pause = BattleManager.ACTION_PAUSE
+	# The real battle is paced, so each hit, action and banner is seen.
+	battle_manager.paced = true
 	add_child(battle_manager)
 	resonance_system = ResonanceSystem.new()
 	add_child(resonance_system)

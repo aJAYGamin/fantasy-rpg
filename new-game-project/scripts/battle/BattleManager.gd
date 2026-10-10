@@ -53,10 +53,18 @@ const HEAL_REGEN_POWER := 0.25
 ## is still dropping. The user chose these lengths after play-testing.
 const HIT_PAUSE := 0.8
 const ACTION_PAUSE := 1.0
-## The pauses in effect. 0 by default, so a bare manager (every test) resolves
-## synchronously; BattleScene sets them to HIT_PAUSE / ACTION_PAUSE.
-var hit_pause := 0.0
-var action_pause := 0.0
+## An enemy's turn before it shows its move, and how long its move name shows
+## under its card before it acts.
+const THINK_PAUSE := 0.4
+const PREVIEW_PAUSE := 1.0
+## Banner waits: each banner's time on screen plus a small buffer, so nothing
+## moves on mid-fade (BattleScene.BANNER_DURATION_WAKE / BANNER_DURATION_SKIP).
+const WAKE_PAUSE := 1.75
+const SKIP_PAUSE := 1.9
+## Off on a bare manager, so every wait returns at once and a whole sequence of
+## turns — enemy turns included — runs synchronously in a test. BattleScene
+## turns it on. Every wait in the turn loop goes through _pause().
+var paced := false
 
 var state: BattleState = BattleState.IDLE:
 	set(value):
@@ -91,9 +99,7 @@ func _build_turn_order():
 func _next_turn():
 	# Blocks while a transformed boss refills, so the player cannot attack into
 	# a bar that is still climbing.
-	var boss_pause: float = check_boss_phases()
-	if boss_pause > 0.0:
-		await get_tree().create_timer(boss_pause).timeout
+	await _pause(check_boss_phases())
 	while current_turn_index < turn_order.size():
 		var actor = turn_order[current_turn_index]
 		if actor.is_alive():
@@ -144,7 +150,7 @@ func _next_turn():
 			"value": 0,
 			"name": current_actor.character_name,
 		})
-		await get_tree().create_timer(1.75).timeout
+		await _pause(WAKE_PAUSE)
 
 	# Skip banner: actor cannot act this turn. Wait for the banner to finish
 	# (BattleScene.BANNER_DURATION_SKIP = 1.70) before advancing to next actor.
@@ -156,7 +162,7 @@ func _next_turn():
 			"skipped": true,
 			"name": current_actor.character_name,
 		})
-		await get_tree().create_timer(1.90).timeout
+		await _pause(SKIP_PAUSE)
 		current_turn_index += 1
 		_next_turn()
 		return
@@ -273,7 +279,7 @@ func resolve_skill(user: Character, skill: Skill, chosen: Array[Character]) -> v
 		if standing.is_empty():
 			break
 		if h > 0:
-			await _pause(hit_pause)
+			await _pause(HIT_PAUSE)
 		var results: Array[Dictionary] = []
 		for target in standing:
 			var result := {"actor": user, "target": target, "skill": skill,
@@ -315,10 +321,10 @@ func resolve_skill(user: Character, skill: Skill, chosen: Array[Character]) -> v
 				handle_defeat(target)
 	_after_action(user, skill, dealt)
 
-## Waits `seconds` in the scene tree; returns at once for 0 (a bare manager in
-## a test is not in a tree, and never needs to wait).
+## Waits `seconds` — only while paced (the real battle). A bare manager (every
+## test) is outside the scene tree and never waits.
 func _pause(seconds: float) -> void:
-	if seconds > 0.0:
+	if paced and seconds > 0.0:
 		await get_tree().create_timer(seconds).timeout
 
 ## Pays MP, then resonance (heroes only — enemies have neither pool), then HP
@@ -464,10 +470,15 @@ func player_defend(character: Character):
 	end_player_turn()
 
 func end_player_turn():
+	await _end_turn()
+
+## The end of ANY actor's turn: the bars finish dropping, then the battle-end
+## check, then the next actor.
+func _end_turn() -> void:
 	state = BattleState.IDLE
 	# Let the bars finish dropping before anything else happens — the next
 	# hero's menu, the next enemy's move, or the victory screen.
-	await _pause(action_pause)
+	await _pause(ACTION_PAUSE)
 	if check_battle_end():
 		return
 	current_turn_index += 1
@@ -475,7 +486,7 @@ func end_player_turn():
 
 # --- Enemy AI ---
 func _execute_enemy_turn():
-	await get_tree().create_timer(0.4).timeout
+	await _pause(THINK_PAUSE)
 
 	var enemy = current_actor
 	var alive_party = party.filter(func(c): return c.is_alive())
@@ -492,7 +503,7 @@ func _execute_enemy_turn():
 	emit_signal("enemy_move_preview", enemy, move_name)
 
 	# Delay before executing
-	await get_tree().create_timer(1.0).timeout
+	await _pause(PREVIEW_PAUSE)
 
 	# Clear move preview
 	emit_signal("enemy_move_preview", enemy, "")
@@ -528,11 +539,7 @@ func _execute_enemy_turn():
 				handle_defeat(target)
 
 	# As after a hero's action: the bars finish before the next turn begins.
-	await _pause(action_pause)
-	if check_battle_end():
-		return
-	current_turn_index += 1
-	_next_turn()
+	_end_turn()
 
 # --- Helpers ---
 func handle_defeat(character: Character):
