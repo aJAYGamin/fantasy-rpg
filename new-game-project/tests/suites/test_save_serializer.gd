@@ -332,3 +332,23 @@ func test_a_save_without_spec_b_fields_loads_with_everything_off() -> void:
 	assert_eq(int(b.scale_with), int(Skill.ScaleWith.NONE), "no scaling")
 	assert_true(b.scale_more_is_stronger, "default direction")
 	assert_eq(b.bonus_multiplier, 1.5, "default bonus")
+
+func test_every_spec_c_option_round_trips() -> void:
+	var s := Skill.new()
+	s.skill_name = "Later"
+	s.charge_turns = 1
+	s.delay_rounds = 2
+	s.recharge_turns = 1
+	s.effect_turns = 3
+	var b := SaveSerializer.deserialize_skill(JSON.parse_string(JSON.stringify(SaveSerializer.serialize_skill(s))))
+	assert_eq(b.charge_turns, 1, "charge")
+	assert_eq(b.delay_rounds, 2, "delay")
+	assert_eq(b.recharge_turns, 1, "recharge")
+	assert_eq(b.effect_turns, 3, "duration")
+
+func test_a_save_without_spec_c_fields_loads_with_everything_off() -> void:
+	var b := SaveSerializer.deserialize_skill({"skill_name": "Old"})
+	assert_eq(b.charge_turns, 0, "no charge")
+	assert_eq(b.delay_rounds, 0, "no delay")
+	assert_eq(b.recharge_turns, 0, "no recharge")
+	assert_eq(b.effect_turns, 0, "permanent effects")

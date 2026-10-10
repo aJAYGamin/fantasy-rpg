@@ -130,6 +130,19 @@ const SCALE_MAX := 1.5
 @export var miss_chance: float = 0.0
 ## A stat raised on every target the move hit.
 @export var target_buff: String = ""
+
+# --- Spec C: multi-turn options ----------------------------------------------
+@export_group("Multi-turn")
+## 1 = the user spends this turn gathering power and releases on their next
+## turn. A stun, sleep or paralysis skip on that turn breaks the charge.
+@export var charge_turns: int = 0
+## 1 = the move lands at the end of this round; 2 = the end of the next round.
+@export var delay_rounds: int = 0
+## After the move is used, the user skips this many of their own turns.
+@export var recharge_turns: int = 0
+## The stat buffs/debuffs this move applies last this many of the AFFECTED
+## character's turns. 0 = the rest of the battle (every move before Spec C).
+@export var effect_turns: int = 0
 @export_group("")
 
 func is_attack_category() -> bool:
@@ -342,7 +355,30 @@ func effect_tags() -> Array[String]:
 		tags.append("Lowers your %s" % StatusSystem.STAT_SHORT.get(self_debuff, self_debuff.to_upper()))
 	if target_buff != "":
 		tags.append("Raises target's %s" % StatusSystem.STAT_SHORT.get(target_buff, target_buff.to_upper()))
+	# Spec C — multi-turn shapes.
+	if charge_turns > 0:
+		tags.append("Charges %s" % _turns(charge_turns))
+	if delay_rounds == 1:
+		tags.append("Lands at round end")
+	elif delay_rounds > 1:
+		tags.append("Lands in %d rounds" % delay_rounds)
+	if recharge_turns > 0:
+		tags.append("Rests %s" % _turns(recharge_turns))
+	if effect_turns > 0 and applies_stat_effect():
+		tags.append("Lasts %s" % _turns(effect_turns))
 	return tags
+
+## True if the move raises or lowers a stat — a "_buff"/"_debuff" token (as a
+## status move's effect or a damage move's rider), a target buff or a
+## self-debuff. These are what effect_turns times; mutex statuses and
+## regenerate keep their own rules.
+func applies_stat_effect() -> bool:
+	var kind: String = StatusSystem.parse_apply_token(status_to_apply)["kind"]
+	return kind == "buff" or kind == "debuff" or target_buff != "" or self_debuff != ""
+
+## "1 turn" / "3 turns".
+static func _turns(n: int) -> String:
+	return "%d turn%s" % [n, "" if n == 1 else "s"]
 
 ## The tags joined for display.
 func effect_text() -> String:
