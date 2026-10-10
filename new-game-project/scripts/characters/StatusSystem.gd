@@ -25,6 +25,9 @@ const FROSTBITE := "frostbite"
 # Positive/legacy non-mutex statuses (kept for compatibility — items, future skills)
 const REGENERATE := "regenerate"
 const DEFENDING := "defending"
+## Spec C event types (status_effect_triggered). STATS_EXPIRED is quiet: it
+## only refreshes the chips when a timed buff/debuff wears off.
+const STATS_EXPIRED := "stats_expired"
 
 const MUTEX_STATUSES := [STUN, POISON, PARALYSIS, SLEEP, SCORCHED, FROSTBITE]
 

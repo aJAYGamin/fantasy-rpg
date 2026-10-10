@@ -68,6 +68,11 @@ var status_effects: Array[String] = []
 # Cleared at battle end via clear_battle_effects().
 var buffs: Dictionary = {}
 var debuffs: Dictionary = {}
+## Turns left on a TIMED buff / debuff, per stat (Spec C). A buffed or
+## debuffed stat with no entry here lasts the whole battle, as every effect
+## did before. Battle-only: cleared by clear_battle_effects, never saved.
+var buff_turns: Dictionary = {}
+var debuff_turns: Dictionary = {}
 # Sleep tracker — increments each turn the actor stays asleep. Used by
 # StatusSystem.resolve_turn_skip() to ramp wake chance: 0 -> 100% sleep,
 # 1 -> 75%, 2 -> 50%, 3 -> 25%, 4 -> guaranteed wake.
@@ -357,27 +362,71 @@ func remove_status(effect: String):
 # to x1.0 (no chip). Applying a buff to a debuffed stat removes the debuff
 # (and vice versa) — net is unbuffed. Stacking is intentionally disabled.
 # Returns a Dictionary describing the outcome for UI/log messages.
-func apply_buff(stat: String) -> Dictionary:
+#
+# turns > 0 makes the effect TIMED (Spec C): it lasts that many of this
+# character's own turns (see tick_stat_timers); 0 = the rest of the battle.
+# A permanent effect always wins: timed on top of permanent changes nothing,
+# permanent on top of timed makes it permanent; timed on timed keeps the longer.
+func apply_buff(stat: String, turns: int = 0) -> Dictionary:
 	if not (stat in StatusSystem.BUFFABLE_STATS):
 		return {"action": "invalid", "stat": stat}
 	if debuffs.get(stat, false):
 		debuffs[stat] = false
+		debuff_turns.erase(stat)
 		return {"action": "cancelled_debuff", "stat": stat}
 	if buffs.get(stat, false):
+		_merge_timer(buff_turns, stat, turns)
 		return {"action": "noop", "stat": stat}
 	buffs[stat] = true
+	if turns > 0:
+		buff_turns[stat] = turns
 	return {"action": "buffed", "stat": stat}
 
-func apply_debuff(stat: String) -> Dictionary:
+func apply_debuff(stat: String, turns: int = 0) -> Dictionary:
 	if not (stat in StatusSystem.BUFFABLE_STATS):
 		return {"action": "invalid", "stat": stat}
 	if buffs.get(stat, false):
 		buffs[stat] = false
+		buff_turns.erase(stat)
 		return {"action": "cancelled_buff", "stat": stat}
 	if debuffs.get(stat, false):
+		_merge_timer(debuff_turns, stat, turns)
 		return {"action": "noop", "stat": stat}
 	debuffs[stat] = true
+	if turns > 0:
+		debuff_turns[stat] = turns
 	return {"action": "debuffed", "stat": stat}
+
+## Re-applying an effect a stat already has. A permanent one (no entry) stays
+## permanent; a timed one turns permanent if the new one is, else keeps the
+## longer time.
+static func _merge_timer(timers: Dictionary, stat: String, turns: int) -> void:
+	if not timers.has(stat):
+		return
+	if turns <= 0:
+		timers.erase(stat)
+	else:
+		timers[stat] = maxi(int(timers[stat]), turns)
+
+## Counts down this character's timed buffs and debuffs at the start of their
+## turn. A 3-turn effect is active for their next 3 turns and is gone when the
+## 4th begins (the turn it was applied in does not count; a skipped turn
+## does). Returns true if any wore off, so the UI can refresh its chips.
+func tick_stat_timers() -> bool:
+	var from_buffs := _tick(buff_turns, buffs)
+	var from_debuffs := _tick(debuff_turns, debuffs)
+	return from_buffs or from_debuffs
+
+static func _tick(timers: Dictionary, flags: Dictionary) -> bool:
+	var expired := false
+	for stat in timers.keys():
+		if int(timers[stat]) <= 0:
+			timers.erase(stat)
+			flags[stat] = false
+			expired = true
+		else:
+			timers[stat] = int(timers[stat]) - 1
+	return expired
 
 # Clears all temporary battle state. Call this at end of every battle so
 # status/buffs/debuffs do NOT leak into the next encounter.
@@ -385,6 +434,8 @@ func clear_battle_effects():
 	status_effects.clear()
 	buffs.clear()
 	debuffs.clear()
+	buff_turns.clear()
+	debuff_turns.clear()
 	sleep_turn = 0
 	is_defending = false
 	regen_turns = 0

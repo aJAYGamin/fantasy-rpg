@@ -107,3 +107,116 @@ func test_every_turn_loop_wait_goes_through_the_pacing_switch() -> void:
 	var src := FileAccess.get_file_as_string("res://scripts/battle/BattleManager.gd")
 	assert_eq(src.count("create_timer("), 1, "only _pause() starts a timer")
 	assert_false(src.contains("var hit_pause"), "Spec B's separate pause variables are gone")
+
+# --------------------------------------------------- Timed buffs and debuffs
+
+func test_a_timed_buff_lasts_its_owners_next_turns() -> void:
+	var c := _unit("Timed", true)
+	c.apply_buff("attack", 3)
+	for t in 3:
+		assert_false(c.tick_stat_timers(), "turn %d: nothing wore off" % (t + 1))
+		assert_true(StatusSystem.is_effectively_buffed(c, "attack"), "turn %d: still buffed" % (t + 1))
+	assert_true(c.tick_stat_timers(), "the 4th turn begins: it wears off")
+	assert_false(StatusSystem.is_effectively_buffed(c, "attack"), "gone")
+
+func test_an_effect_with_no_duration_lasts_the_battle() -> void:
+	var c := _unit("Forever", true)
+	c.apply_debuff("defense")
+	for t in 10:
+		c.tick_stat_timers()
+	assert_true(StatusSystem.is_effectively_debuffed(c, "defense"), "every existing effect is untouched")
+
+func test_a_permanent_effect_wins_either_way() -> void:
+	var c := _unit("PermFirst", true)
+	c.apply_buff("attack")
+	c.apply_buff("attack", 2)
+	for t in 5:
+		c.tick_stat_timers()
+	assert_true(StatusSystem.is_effectively_buffed(c, "attack"), "timed on top of permanent changes nothing")
+	var d := _unit("TimedFirst", true)
+	d.apply_buff("attack", 1)
+	d.apply_buff("attack")
+	for t in 5:
+		d.tick_stat_timers()
+	assert_true(StatusSystem.is_effectively_buffed(d, "attack"), "permanent on top of timed makes it permanent")
+
+func test_re_applying_a_timed_effect_keeps_the_longer() -> void:
+	var c := _unit("Refresh", true)
+	c.apply_buff("speed", 1)
+	c.apply_buff("speed", 3)
+	for t in 3:
+		c.tick_stat_timers()
+	assert_true(StatusSystem.is_effectively_buffed(c, "speed"), "the longer duration holds")
+	assert_true(c.tick_stat_timers(), "and ends after it")
+	var d := _unit("NoShorten", true)
+	d.apply_buff("speed", 3)
+	d.apply_buff("speed", 1)
+	for t in 3:
+		d.tick_stat_timers()
+	assert_true(StatusSystem.is_effectively_buffed(d, "speed"), "a shorter one never cuts it short")
+
+func test_cancelling_a_timed_effect_clears_its_countdown() -> void:
+	var c := _unit("Cancel", true)
+	c.apply_debuff("defense", 2)
+	c.apply_buff("defense")
+	assert_false(c.debuff_turns.has("defense"), "the countdown goes with the cancelled debuff")
+	c.apply_debuff("defense")
+	for t in 5:
+		c.tick_stat_timers()
+	assert_true(StatusSystem.is_effectively_debuffed(c, "defense"), "a later permanent debuff is not cut short by it")
+
+func test_the_chip_matches_the_multiplier_through_timed_and_permanent() -> void:
+	# Review focus 4: whatever the order, the chip and the maths agree.
+	var c := _unit("Chip", true)
+	c.apply_buff("magic", 1)
+	c.apply_buff("magic")
+	assert_true(StatusSystem.is_effectively_buffed(c, "magic"), "buffed chip")
+	assert_eq(StatusSystem.get_buff_multiplier(c, "magic"), 2.0, "x2 behind it")
+	c.apply_debuff("magic", 2)
+	assert_false(StatusSystem.is_effectively_buffed(c, "magic"), "the debuff cancelled the buff: no chip")
+	assert_false(StatusSystem.is_effectively_debuffed(c, "magic"), "and no debuff chip either")
+	assert_eq(StatusSystem.get_buff_multiplier(c, "magic"), 1.0, "x1 behind it")
+	for t in 5:
+		c.tick_stat_timers()
+	assert_eq(StatusSystem.get_buff_multiplier(c, "magic"), 1.0, "no stale countdown brings anything back")
+
+func test_a_battle_end_clears_every_countdown() -> void:
+	var c := _unit("Done", true)
+	c.apply_buff("attack", 3)
+	c.apply_debuff("speed", 2)
+	c.clear_battle_effects()
+	assert_true(c.buff_turns.is_empty() and c.debuff_turns.is_empty(), "nothing carries into the next battle")
+
+func test_a_timed_debuff_from_a_move_wears_off_on_the_targets_turns() -> void:
+	var hero := _unit("Hero", true, 50)
+	var foe := _foe()
+	var bm := _battle([hero], [foe])
+	var events := _events(bm)
+	var s := _skill()
+	s.power = 0.1
+	s.status_to_apply = "defense_debuff"
+	s.status_chance = 1.0
+	s.effect_turns = 1
+	bm.player_use_skill(hero, s, [foe])
+	assert_true(StatusSystem.is_effectively_debuffed(foe, "defense"), "on through the foe's 1 turn")
+	assert_false(events.has(StatusSystem.STATS_EXPIRED), "not worn off yet")
+	bm.player_use_skill(hero, _tap(), [hero])
+	assert_false(StatusSystem.is_effectively_debuffed(foe, "defense"), "gone when the foe's 2nd turn began")
+	assert_true(events.has(StatusSystem.STATS_EXPIRED), "with a quiet refresh event")
+	bm.free()
+
+func test_a_target_buff_and_a_self_debuff_follow_the_moves_duration() -> void:
+	var hero := _unit("Hero", true, 50)
+	var foe := _foe()
+	var bm := _battle([hero], [foe])
+	var s := _skill()
+	s.power = 0.1
+	s.target_buff = "speed"
+	s.self_debuff = "defense"
+	s.effect_turns = 2
+	bm.player_use_skill(hero, s, [foe])
+	# Control returns at the hero's round-2 turn: the foe's turn and the hero's
+	# own turn have each begun once since, so each countdown has ticked once.
+	assert_eq(int(foe.buff_turns.get("speed", 0)), 1, "the foe's SPD buff is timed")
+	assert_eq(int(hero.debuff_turns.get("defense", 0)), 1, "the hero's own DEF debuff is timed")
+	bm.free()

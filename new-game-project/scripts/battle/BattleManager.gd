@@ -128,6 +128,11 @@ func _next_turn():
 			_next_turn()
 			return
 
+	# Spec C: timed buffs / debuffs count down on their owner's turns. Quiet —
+	# the event only refreshes the chips.
+	if current_actor.tick_stat_timers():
+		emit_signal("status_effect_triggered", current_actor, {"type": StatusSystem.STATS_EXPIRED, "value": 0})
+
 	emit_signal("turn_started", current_actor)
 
 	# Skip-turn resolution. StatusSystem owns the rules:
@@ -371,12 +376,12 @@ func _resolve_hit(user: Character, skill: Skill, target: Character, result: Dict
 				# The token may be a stat buff ("attack_buff"), a stat debuff
 				# ("magic_debuff") or a legacy named status ("regenerate").
 				var token: String = skill.status_to_apply if skill.status_to_apply != "" else StatusSystem.REGENERATE
-				_apply_skill_status(target, token)
+				_apply_skill_status(target, token, -1, skill.effect_turns)
 				result["action"] = "buff"
 				result["value"] = 0
 			Skill.StatusType.DEBUFF:
 				if skill.status_to_apply != "":
-					_apply_skill_status(target, skill.status_to_apply)
+					_apply_skill_status(target, skill.status_to_apply, -1, skill.effect_turns)
 				result["action"] = "debuff"
 				result["value"] = 0
 
@@ -391,9 +396,9 @@ func _after_target(skill: Skill, target: Character) -> void:
 	# A damage skill's status rider rolls once per target, not once per hit.
 	if skill.skill_type == Skill.SkillType.DAMAGE and skill.status_to_apply != "" \
 			and randf() < skill.status_chance:
-		_apply_skill_status(target, skill.status_to_apply)
+		_apply_skill_status(target, skill.status_to_apply, -1, skill.effect_turns)
 	if skill.target_buff != "" and target.is_alive():
-		_apply_stat(target, skill.target_buff, true)
+		_apply_stat(target, skill.target_buff, true, skill.effect_turns)
 
 ## A result that is not a hit: the HP cost, an ally heal, recoil, a self-debuff.
 ## Never carries the first-target or first-hit flags, so it cannot take the
@@ -420,14 +425,14 @@ func _after_action(user: Character, skill: Skill, dealt: int) -> void:
 		if recoil > 0:
 			user.current_hp -= recoil
 			_emit_extra(user, user, skill, "recoil", recoil)
-	if skill.self_debuff != "" and _apply_stat(user, skill.self_debuff, false):
+	if skill.self_debuff != "" and _apply_stat(user, skill.self_debuff, false, skill.effect_turns):
 		_emit_extra(user, user, skill, "self_debuff", 0)
 
 ## Raises (buff) or lowers a stat by name. An unknown name is a data error in a
 ## move file: it warns and changes nothing, rather than inventing a status the
 ## way the phantom "burn" once did.
-func _apply_stat(c: Character, stat: String, buff: bool) -> bool:
-	var r: Dictionary = c.apply_buff(stat) if buff else c.apply_debuff(stat)
+func _apply_stat(c: Character, stat: String, buff: bool, turns: int = 0) -> bool:
+	var r: Dictionary = c.apply_buff(stat, turns) if buff else c.apply_debuff(stat, turns)
 	if r.get("action", "") == "invalid":
 		push_warning("Skill stat '%s' is not one of %s — ignored" % [stat, StatusSystem.BUFFABLE_STATS])
 		return false
@@ -784,15 +789,15 @@ func apply_boss_field_effect(boss: Enemy) -> Character:
 # `regen_amount` is the per-turn heal a "regenerate" token gives; -1 (the
 # default) is Character.start_regen's max_hp / 8, which every caller but a HEAL
 # move's attached regen uses.
-func _apply_skill_status(target: Character, token: String, regen_amount: int = -1):
+func _apply_skill_status(target: Character, token: String, regen_amount: int = -1, turns: int = 0):
 	if token == "":
 		return
 	var parsed = StatusSystem.parse_apply_token(token)
 	match parsed["kind"]:
 		"buff":
-			target.apply_buff(parsed["value"])
+			target.apply_buff(parsed["value"], turns)
 		"debuff":
-			target.apply_debuff(parsed["value"])
+			target.apply_debuff(parsed["value"], turns)
 		_:
 			var status_name: String = parsed["value"]
 			# Regenerate is a transient heal-over-time, not a status chip.
