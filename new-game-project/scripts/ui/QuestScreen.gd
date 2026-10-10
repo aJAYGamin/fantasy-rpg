@@ -110,10 +110,9 @@ func _build_chrome() -> void:
 
 	root_v.add_child(_divider())
 
-	var scroll := ScrollContainer.new()
+	var scroll := BattleUITheme.make_scroll()
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.follow_focus = true
 	root_v.add_child(scroll)
 

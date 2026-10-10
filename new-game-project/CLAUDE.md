@@ -48,7 +48,7 @@ art LAST. See **Roadmap** near the bottom for the agreed order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~3872 tests, 47 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~3896 tests, 48 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -127,7 +127,7 @@ tools/                        # one-shot / offline scripts, run as scenes (not -
 tests/
   TestRunner.tscn/.gd         # run this scene (F6) to execute all suites; register suites in SUITE_PATHS
   TestSuite.gd                # base class with assert_* helpers
-  suites/                     # one test_<feature>.gd per system (47 suites)
+  suites/                     # one test_<feature>.gd per system (48 suites)
   fixtures/                   # move_library_baseline.json — pre-migration snapshot for the MoveLibrary suite
 assets/  backgrounds/ characters/ enemies/ icons/ ui/
 fonts/   music/
@@ -858,6 +858,12 @@ Single source of truth for the **amethyst aesthetic**: dark-plum bg, amethyst
 border, rounded corners, drop shadow. Use these everywhere in battle UI:
 - `panel_style(border, bg, border_width, corner_radius)` → StyleBoxFlat
 - `make_panel(...)`, `make_button(text, font_size)`, `style_button(existing_btn, size)`
+- `make_scroll()` / `style_scrollbar(sb)` — **every scrolling list is built with
+  `make_scroll()`** (vertical-only, amethyst scrollbar: dark track, `PANEL_BORDER`
+  grabber). A bare `ScrollContainer.new()` gets Godot's default grey bar; the
+  Loadout / Items / Equipment / Stats / Shop / Quest screens all shipped that way
+  until the user spotted it. `test_scrollbars` fails any `scripts/ui/` screen that
+  builds one by hand.
 - `style_meter_bar(bar, fill_color)` — the rounded XP / resonance / EXP meter
   (Stats screen, Victory screen). ⚠️ **A rounded fill needs a minimum width of
   at least its two corner radii** (its side content margins). ProgressBar draws
@@ -1017,11 +1023,11 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~3872 tests / 47 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~3896 tests / 48 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,
-  auto_save, level_up_screen, defeat_flow, roaming_enemy, move_library, skill_resolver, status_chips, battle_menu_gating, enemy_cards, meter_bars, skill_options.
+  auto_save, level_up_screen, defeat_flow, roaming_enemy, move_library, skill_resolver, status_chips, battle_menu_gating, enemy_cards, meter_bars, skill_options, scrollbars.
 - Tests touching GameManager must snapshot & restore global state.
 - When fixing a bug, add a regression test that fails before the fix.
 - **Adding a new `class_name` file:** the headless test runner won't see it until the
@@ -1165,7 +1171,7 @@ own Testing Policy above — the policy (a suite per feature, registered in
     menu" controller focus is locked to), or no scope is open. A menu left visible beneath a picker or
     modal stays silent. A button that is the way out of the current step but lives in the menu below
     (the battle's "← Back" during target selection) opts in with `set_meta(GameManager.HOVER_SFX_ALWAYS,
-    true)`. Clicks always sound. **Every menu must register its focus scope** — an unregistered menu
+    true)`. A greyed-out (disabled) button is always silent, opted in or not. Clicks always sound. **Every menu must register its focus scope** — an unregistered menu
     would not count as "current".
   - **Display:** window mode (Fullscreen / Borderless / Windowed) + resolution dropdown.
     `apply_display()` is **idempotent** (guards each transition on current mode — re-issuing macOS

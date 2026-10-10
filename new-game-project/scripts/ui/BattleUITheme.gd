@@ -129,6 +129,36 @@ static func mark_no_focus(b: Control) -> void:
 # rounded fill. Shared by the Stats screen and the Victory EXP bars.
 const METER_RADIUS := 4
 
+## The amethyst scrollbar: a dark rounded track with a PANEL_BORDER purple
+## grabber that brightens on hover / drag. Godot's default bar is grey, which
+## the aesthetic rule forbids.
+static func style_scrollbar(sb: ScrollBar) -> void:
+	if sb == null:
+		return
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(0.06, 0.04, 0.10, 0.55)
+	track.set_corner_radius_all(4)
+	track.content_margin_left = 4
+	track.content_margin_right = 4
+	sb.add_theme_stylebox_override("scroll", track)
+	sb.add_theme_stylebox_override("scroll_focus", track)
+	var grab := StyleBoxFlat.new()
+	grab.bg_color = PANEL_BORDER
+	grab.set_corner_radius_all(4)
+	sb.add_theme_stylebox_override("grabber", grab)
+	var grab_hi := grab.duplicate()
+	grab_hi.bg_color = Color(0.85, 0.7, 1.0)
+	sb.add_theme_stylebox_override("grabber_highlight", grab_hi)
+	sb.add_theme_stylebox_override("grabber_pressed", grab_hi)
+
+## A vertical-only scroll list with the themed scrollbar — what every screen's
+## list should be built from, instead of a bare (grey) ScrollContainer.
+static func make_scroll() -> ScrollContainer:
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	style_scrollbar(scroll.get_v_scroll_bar())
+	return scroll
+
 static func style_meter_bar(bar: ProgressBar, fill_color: Color) -> void:
 	var bg := StyleBoxFlat.new()
 	bg.bg_color = Color(0.05, 0.04, 0.09, 0.9)

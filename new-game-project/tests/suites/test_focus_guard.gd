@@ -603,3 +603,17 @@ func test_held_direction_loops_the_menu() -> void:
 
 	GameManager.set_controller_mode_for_test(false)
 	_cleanup([root])
+
+func test_a_greyed_out_button_makes_no_hover_sound() -> void:
+	# The user's call: a disabled button is not something the player can use,
+	# so hovering it is silent — in the current menu, and even when opted in.
+	var scope := _make_scope()
+	GameManager.register_focus_scope(scope)
+	var b: Button = scope.get_child(0)
+	b.disabled = true
+	assert_false(GameManager.hover_sfx_allowed(b), "silent while greyed out")
+	b.set_meta(GameManager.HOVER_SFX_ALWAYS, true)
+	assert_false(GameManager.hover_sfx_allowed(b), "an opted-in button is silent too while disabled")
+	b.disabled = false
+	assert_true(GameManager.hover_sfx_allowed(b), "and sounds again once enabled")
+	_cleanup([scope])

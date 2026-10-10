@@ -554,7 +554,7 @@
 					"secondary_element": 0,
 					"skill_name": "Savage Bellow",
 					"skill_type": 0,
-					"status_chance": 0.5,
+					"status_chance": 1.0,
 					"status_to_apply": "attack_debuff",
 					"status_type": 0,
 					"target_type": 1,
