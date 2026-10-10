@@ -661,6 +661,12 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
     sets `EXECUTING_ACTION` before resolving and `end_player_turn` sets `IDLE`,
     so `_hero_may_act()` is false between beats and during the pause — the
     action menu (which every battle menu re-shows on close) stays hidden.
+  - **The action menu shows only while the battle waits for the hero** (user's
+    rule: never on screen right after they chose). `state` has a setter that
+    emits `state_changed`; `BattleScene._on_battle_state_changed` hides the menu
+    whenever `_hero_may_act()` is false, and `turn_ready_for_action` brings it
+    back for the next hero — after the post-action pause. Picking a target used
+    to restore the menu's buttons and leave it up through the hits and pause.
   - Any new caller of `resolve_skill` / `player_use_skill` /
     `enemy_use_skill` / `end_player_turn` that must run AFTER the action
     finishes has to `await` it.

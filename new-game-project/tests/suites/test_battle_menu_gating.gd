@@ -134,3 +134,52 @@ func test_the_move_details_say_who_a_move_targets() -> void:
 	var sweep := _single_ally_move()
 	sweep.target_type = Skill.TargetType.ALL_ALLIES
 	assert_true(load("res://scripts/battle/AttackMenu.gd").description_text(sweep).contains("All Allies"), "a team heal says so")
+
+# --------------------------------------------------- Hidden while an action plays
+# Picking a target (an enemy, an ally, an item's target) restored the action
+# menu's buttons and never hid the menu, so Attack / Special / Items stayed on
+# screen through the hits and the pause after them — the player had just chosen
+# and the menu looked like it was asking again. The menu now hides the moment
+# the battle stops waiting for the hero, and returns with the next turn.
+
+func test_the_action_menu_hides_once_the_hero_has_chosen() -> void:
+	for busy in [BattleManager.BattleState.EXECUTING_ACTION, BattleManager.BattleState.IDLE]:
+		var scene := _scene(BattleManager.BattleState.CHOOSING_ACTION)
+		scene.action_menu.visible = true
+		scene.battle_manager.state_changed.connect(scene._on_battle_state_changed)
+		scene.battle_manager.state = busy
+		assert_false(scene.action_menu.visible, "hidden while the action plays out (state %d)" % busy)
+		_cleanup()
+
+func test_target_selection_keeps_the_action_menu() -> void:
+	# Choosing a target still shows the menu — it holds "Choose Target" and Back.
+	var scene := _scene(BattleManager.BattleState.CHOOSING_ACTION)
+	scene.action_menu.visible = true
+	scene.battle_manager.state_changed.connect(scene._on_battle_state_changed)
+	scene.battle_manager.state = BattleManager.BattleState.CHOOSING_TARGET
+	assert_true(scene.action_menu.visible, "still there to back out of the choice")
+	_cleanup()
+
+func test_a_heros_action_reports_each_state_it_passes_through() -> void:
+	var bm := BattleManager.new()
+	var hero := Character.new()
+	hero.character_name = "Quick"
+	hero.base_hp = 5000
+	hero.base_speed = 50
+	hero.current_hp = hero.max_hp()
+	var foe := Enemy.new()
+	foe.species = "MenuGatingTestDummy"
+	foe.base_hp = 5000
+	foe.base_speed = 0
+	foe.current_hp = foe.max_hp()
+	bm.party = [hero] as Array[Character]
+	bm.enemies = [foe] as Array[Character]
+	bm.state = BattleManager.BattleState.CHOOSING_ACTION
+	var seen := []
+	bm.state_changed.connect(func(s): seen.append(s))
+	var s := Skill.new()
+	s.target_type = Skill.TargetType.SINGLE_ENEMY
+	bm.player_use_skill(hero, s, [foe] as Array[Character])
+	assert_eq(seen, [BattleManager.BattleState.EXECUTING_ACTION, BattleManager.BattleState.IDLE,
+			BattleManager.BattleState.CHOOSING_ACTION], "busy, handing on, then the next turn")
+	bm.free()

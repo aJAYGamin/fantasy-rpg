@@ -128,6 +128,7 @@ func _ready():
 	battle_manager.battle_ended.connect(_on_battle_ended)
 	battle_manager.enemy_move_preview.connect(_on_enemy_move_preview)
 	battle_manager.status_effect_triggered.connect(_on_status_triggered)
+	battle_manager.state_changed.connect(_on_battle_state_changed)
 	battle_manager.boss_phase_changed.connect(_on_boss_phase_changed)
 
 	attack_btn.pressed.connect(_on_attack_pressed)
@@ -1324,6 +1325,16 @@ func _on_attack_menu_closed():
 ## itself, and the choice resolves the whole turn first — so a "closed" signal
 ## arriving after that must not bring the action menu back for a turn that is
 ## being skipped.
+## The other half of _hero_may_act: the action menu is shown only while the
+## battle waits for the hero, so the moment it stops waiting — the hero has
+## chosen and the action is playing out, or the turn is being handed on — the
+## menu goes. Picking a target used to restore the menu's buttons and leave it
+## up through the hits and the pause, as if asking again. It returns with the
+## next hero's turn_ready_for_action, after the post-action pause.
+func _on_battle_state_changed(_state) -> void:
+	if not _hero_may_act():
+		action_menu.visible = false
+
 func _hero_may_act() -> bool:
 	if _battle_over or current_actor == null or not battle_manager.party.has(current_actor):
 		return false

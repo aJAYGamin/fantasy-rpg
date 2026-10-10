@@ -13,6 +13,10 @@ signal battle_ended(player_won: bool, rewards: Dictionary)
 signal status_effect_triggered(character: Character, result: Dictionary)
 ## A boss crossed into a new phase. BattleScene banners it and rebuilds cards.
 signal boss_phase_changed(enemy: Character, phase: BossPhase)
+## Every change of `state`. BattleScene hides the action menu the moment the
+## battle stops waiting for the hero (a choice was made, or the turn is being
+## handed on), so it never sits on screen while an action plays out.
+signal state_changed(state: BattleState)
 
 ## Hard cap on combatants. The enemy card row is built for exactly this many
 ## (see BattleScene.gd: "10 enemies fill the row"), so a boss may summon 0-9.
@@ -54,7 +58,12 @@ const ACTION_PAUSE := 1.0
 var hit_pause := 0.0
 var action_pause := 0.0
 
-var state: BattleState = BattleState.IDLE
+var state: BattleState = BattleState.IDLE:
+	set(value):
+		if value == state:
+			return
+		state = value
+		state_changed.emit(value)
 var party: Array[Character] = []
 var enemies: Array[Character] = []
 var turn_order: Array[Character] = []
