@@ -13,6 +13,10 @@ signal battle_ended(player_won: bool, rewards: Dictionary)
 signal status_effect_triggered(character: Character, result: Dictionary)
 ## A boss crossed into a new phase. BattleScene banners it and rebuilds cards.
 signal boss_phase_changed(enemy: Character, phase: BossPhase)
+## Every change of `state`. BattleScene hides the action menu the moment the
+## battle stops waiting for the hero (a choice was made, or the turn is being
+## handed on), so it never sits on screen while an action plays out.
+signal state_changed(state: BattleState)
 
 ## Hard cap on combatants. The enemy card row is built for exactly this many
 ## (see BattleScene.gd: "10 enemies fill the row"), so a boss may summon 0-9.
@@ -36,7 +40,30 @@ enum BattleState {
 # Turns a "regenerate" skill heals for (transient heal-over-time, not a status).
 const REGEN_TURNS := 3
 
-var state: BattleState = BattleState.IDLE
+## A HEAL move's attached regen heals this share of the caster's MAG per turn, so
+## Restoring Breeze totals 0.5 + 3 x 0.25 = 1.25 x MAG against its old 1.2 x MAG.
+## The default max_hp / 8 regen stays for BUFF moves like Iron Will.
+const HEAL_REGEN_POWER := 0.25
+
+## Pacing, so the player can SEE an action land. A multi-hit move resolves one
+## beat at a time (beat N is hit N on every target) and the battle waits
+## HIT_PAUSE between beats: the bar's 0.3s drain plus a clear hold. After every
+## action — hero or enemy — it waits ACTION_PAUSE before the next turn begins,
+## so the next hero's menu (or the next enemy's move) never arrives while a bar
+## is still dropping. The user chose these lengths after play-testing.
+const HIT_PAUSE := 0.8
+const ACTION_PAUSE := 1.0
+## The pauses in effect. 0 by default, so a bare manager (every test) resolves
+## synchronously; BattleScene sets them to HIT_PAUSE / ACTION_PAUSE.
+var hit_pause := 0.0
+var action_pause := 0.0
+
+var state: BattleState = BattleState.IDLE:
+	set(value):
+		if value == state:
+			return
+		state = value
+		state_changed.emit(value)
 var party: Array[Character] = []
 var enemies: Array[Character] = []
 var turn_order: Array[Character] = []
@@ -225,67 +252,180 @@ func resolve_skill(user: Character, skill: Skill, chosen: Array[Character]) -> v
 	if not skill.can_use(user):
 		return
 	var targets := expand_targets(user, skill, chosen)
-	# Enemies have no MP pool; Skill.can_use already exempts them.
-	if not (user is Enemy):
-		user.use_mp(skill.mp_cost)
+	# Measured BEFORE costs are paid, so an HP-cost move is not weakened by its
+	# own cost (Spec B, Part 2, step 2).
+	var scale := skill.scale_factor(user)
+	var user_hp_fraction := float(user.current_hp) / float(maxi(1, user.max_hp()))
+	_pay_costs(user, skill)
 
 	var first := true
-	for target in targets:
-		if not target.is_alive():
-			continue
-		var result := {"actor": user, "target": target, "skill": skill, "is_first_target": first}
-		first = false
-
-		# Dodge depends on WHO the skill lands on, not what kind of skill it is:
-		# anything aimed at the user's opponents — damage or status — can be
-		# dodged, on both sides. Anything aimed at the user or its allies always
-		# lands. Rolled per target.
-		if _opponents_of(user).has(target) and EnemyAI.try_dodge(target):
-			result["action"] = "dodge"
-			result["value"] = 0
+	var dealt := 0       # HP actually removed by this action's hits, for recoil
+	var landed := {}     # target -> hits that landed on it
+	var hits := maxi(1, skill.hit_count) if skill.skill_type == Skill.SkillType.DAMAGE else 1
+	# One BEAT per hit: beat N is hit N on every target still standing, shown
+	# together, then a pause before the next beat — so each hit visibly drops
+	# the bars. A target downed in a beat falls at its end and takes no more.
+	for h in hits:
+		var standing: Array[Character] = []
+		for t in targets:
+			if t.is_alive():
+				standing.append(t)
+		if standing.is_empty():
+			break
+		if h > 0:
+			await _pause(hit_pause)
+		var results: Array[Dictionary] = []
+		for target in standing:
+			var result := {"actor": user, "target": target, "skill": skill,
+					"is_first_target": false, "is_first_hit": false}
+			# Dodge depends on WHO the skill lands on, not what kind of skill it
+			# is: anything aimed at the user's opponents can miss (the move's own
+			# chance) or be dodged; the user's own side never rolls either.
+			if _opponents_of(user).has(target):
+				if skill.miss_chance > 0.0 and randf() < skill.miss_chance:
+					results.append(_unlanded(result, "miss", target))
+					continue
+				if EnemyAI.try_dodge(target):
+					results.append(_unlanded(result, "dodge", target))
+					continue
+			# Resonance rides on hits that actually land. "Took damage" resonance
+			# is once per target per action (the first landed hit on that target);
+			# the action's skill resonance is once per action, on its first
+			# LANDED hit — never on a miss or a dodge.
+			result["is_first_hit"] = landed.get(target, 0) == 0
+			result["is_first_target"] = first
+			first = false
+			landed[target] = landed.get(target, 0) + 1
+			var hp_before := target.current_hp
+			_resolve_hit(user, skill, target, result, scale, user_hp_fraction)
+			if skill.skill_type == Skill.SkillType.DAMAGE:
+				dealt += maxi(0, hp_before - target.current_hp)
 			result["target_alive"] = target.is_alive()
-			emit_signal("action_performed", result)
-			continue
+			results.append(result)
+		# Effects rolled once per target (the status rider, the target buff)
+		# go on before the LAST beat is shown, so their chips appear with it.
+		if h == hits - 1 or not targets.any(func(t): return t.is_alive()):
+			for target in targets:
+				if landed.get(target, 0) > 0:
+					_after_target(skill, target)
+		for r in results:
+			emit_signal("action_performed", r)
+		for target in standing:
+			if not target.is_alive():
+				handle_defeat(target)
+	_after_action(user, skill, dealt)
 
-		if skill.skill_type == Skill.SkillType.DAMAGE:
-			var value := skill.calculate_value(user)
-			match skill.attack_type:
-				Skill.AttackType.STRIKE, Skill.AttackType.RANGED:
-					_record_damage(result, target.take_damage(value, skill.element, skill.secondary_element))
-					# "skill_physical", never "attack": for a HERO, "attack" routes to
-					# on_attack instead of on_skill_used and grants different resonance.
-					result["action"] = "skill_physical"
-				Skill.AttackType.MAGIC:
-					_record_damage(result, target.take_magic_damage(value, skill.element, skill.secondary_element))
-					result["action"] = "skill_magic"
-		elif skill.skill_type == Skill.SkillType.STATUS:
-			var value := skill.calculate_value(user)
-			match skill.status_type:
-				Skill.StatusType.HEAL:
-					result["action"] = "heal"
-					result["value"] = target.heal(value)
-				Skill.StatusType.BUFF:
-					# The token may be a stat buff ("attack_buff"), a stat debuff
-					# ("magic_debuff") or a legacy named status ("regenerate").
-					var token: String = skill.status_to_apply if skill.status_to_apply != "" else StatusSystem.REGENERATE
-					_apply_skill_status(target, token)
-					result["action"] = "buff"
-					result["value"] = 0
-				Skill.StatusType.DEBUFF:
-					if skill.status_to_apply != "":
-						_apply_skill_status(target, skill.status_to_apply)
-					result["action"] = "debuff"
-					result["value"] = 0
+## Waits `seconds` in the scene tree; returns at once for 0 (a bare manager in
+## a test is not in a tree, and never needs to wait).
+func _pause(seconds: float) -> void:
+	if seconds > 0.0:
+		await get_tree().create_timer(seconds).timeout
 
-		# A damage skill's status rider rolls per target.
-		if skill.skill_type == Skill.SkillType.DAMAGE and skill.status_to_apply != "" \
-				and randf() < skill.status_chance:
-			_apply_skill_status(target, skill.status_to_apply)
+## Pays MP, then resonance (heroes only — enemies have neither pool), then HP
+## (both sides). Skill.can_use has already guaranteed every cost is affordable
+## and that the HP cost leaves at least 1 HP.
+func _pay_costs(user: Character, skill: Skill) -> void:
+	if not (user is Enemy):
+		user.use_mp(skill.mp_cost)
+		if skill.resonance_cost > 0.0:
+			user.resonance_meter = maxf(0.0, user.resonance_meter - skill.resonance_cost)
+	var cost := skill.hp_cost(user)
+	if cost > 0:
+		user.current_hp = maxi(1, user.current_hp - cost)
+		_emit_extra(user, user, skill, "hp_cost", cost)
 
-		result["target_alive"] = target.is_alive()
-		emit_signal("action_performed", result)
-		if not target.is_alive():
-			handle_defeat(target)
+## One landed hit of `skill` on `target`, written into `result`.
+func _resolve_hit(user: Character, skill: Skill, target: Character, result: Dictionary,
+		scale: float, user_hp_fraction: float) -> void:
+	if skill.skill_type == Skill.SkillType.DAMAGE:
+		var value := int(skill.calculate_value(user) * skill.condition_multiplier(user_hp_fraction, target) * scale)
+		match skill.attack_type:
+			Skill.AttackType.STRIKE, Skill.AttackType.RANGED:
+				_record_damage(result, target.take_damage(value, skill.element, skill.secondary_element,
+						skill.pierce, skill.override_element, skill.override_multiplier()))
+				# "skill_physical", never "attack": for a HERO, "attack" routes to
+				# on_attack instead of on_skill_used and grants different resonance.
+				result["action"] = "skill_physical"
+			Skill.AttackType.MAGIC:
+				_record_damage(result, target.take_magic_damage(value, skill.element, skill.secondary_element,
+						skill.pierce, skill.override_element, skill.override_multiplier()))
+				result["action"] = "skill_magic"
+	elif skill.skill_type == Skill.SkillType.STATUS:
+		var value := skill.calculate_value(user)
+		match skill.status_type:
+			Skill.StatusType.HEAL:
+				result["action"] = "heal"
+				result["value"] = target.heal(value)
+				# A heal's attached effect applies too (Restoring Breeze's regen),
+				# scaled by the caster's MAG like the heal itself.
+				if skill.status_to_apply != "":
+					_apply_skill_status(target, skill.status_to_apply,
+							maxi(1, int(user.magic_power() * HEAL_REGEN_POWER)))
+			Skill.StatusType.BUFF:
+				# The token may be a stat buff ("attack_buff"), a stat debuff
+				# ("magic_debuff") or a legacy named status ("regenerate").
+				var token: String = skill.status_to_apply if skill.status_to_apply != "" else StatusSystem.REGENERATE
+				_apply_skill_status(target, token)
+				result["action"] = "buff"
+				result["value"] = 0
+			Skill.StatusType.DEBUFF:
+				if skill.status_to_apply != "":
+					_apply_skill_status(target, skill.status_to_apply)
+				result["action"] = "debuff"
+				result["value"] = 0
+
+func _unlanded(result: Dictionary, action: String, target: Character) -> Dictionary:
+	result["action"] = action
+	result["value"] = 0
+	result["target_alive"] = target.is_alive()
+	return result
+
+## Effects rolled ONCE per target that took at least one landed hit.
+func _after_target(skill: Skill, target: Character) -> void:
+	# A damage skill's status rider rolls once per target, not once per hit.
+	if skill.skill_type == Skill.SkillType.DAMAGE and skill.status_to_apply != "" \
+			and randf() < skill.status_chance:
+		_apply_skill_status(target, skill.status_to_apply)
+	if skill.target_buff != "" and target.is_alive():
+		_apply_stat(target, skill.target_buff, true)
+
+## A result that is not a hit: the HP cost, an ally heal, recoil, a self-debuff.
+## Never carries the first-target or first-hit flags, so it cannot take the
+## action's resonance.
+func _emit_extra(user: Character, target: Character, skill: Skill, action: String, value: int) -> void:
+	emit_signal("action_performed", {"actor": user, "target": target, "skill": skill,
+			"action": action, "value": value, "is_first_target": false,
+			"is_first_hit": false, "target_alive": target.is_alive()})
+
+## Effects that happen once, after every target, in this order: the ally heal,
+## recoil, the self-debuff (Spec B, Part 2, step 7).
+func _after_action(user: Character, skill: Skill, dealt: int) -> void:
+	if skill.ally_heal_power > 0.0:
+		var amount := int(user.magic_power() * skill.ally_heal_power)
+		for ally in _allies_of(user):
+			if ally.is_alive():
+				# A full-HP ally reports nothing, not a "0 Healed" number.
+				var healed := ally.heal(amount)
+				if healed > 0:
+					_emit_extra(user, ally, skill, "heal", healed)
+	if skill.recoil_percent > 0.0 and dealt > 0:
+		# Recoil never knocks the user out.
+		var recoil := mini(int(dealt * skill.recoil_percent / 100.0), user.current_hp - 1)
+		if recoil > 0:
+			user.current_hp -= recoil
+			_emit_extra(user, user, skill, "recoil", recoil)
+	if skill.self_debuff != "" and _apply_stat(user, skill.self_debuff, false):
+		_emit_extra(user, user, skill, "self_debuff", 0)
+
+## Raises (buff) or lowers a stat by name. An unknown name is a data error in a
+## move file: it warns and changes nothing, rather than inventing a status the
+## way the phantom "burn" once did.
+func _apply_stat(c: Character, stat: String, buff: bool) -> bool:
+	var r: Dictionary = c.apply_buff(stat) if buff else c.apply_debuff(stat)
+	if r.get("action", "") == "invalid":
+		push_warning("Skill stat '%s' is not one of %s — ignored" % [stat, StatusSystem.BUFFABLE_STATS])
+		return false
+	return true
 
 func _record_damage(result: Dictionary, dmg: Dictionary) -> void:
 	result["value"] = dmg.get("damage", 0)
@@ -300,7 +440,10 @@ func player_use_skill(user: Character, skill: Skill, targets: Array[Character]):
 	# turn open, exactly as before.
 	if not skill.can_use(user):
 		return
-	resolve_skill(user, skill, targets)
+	# Busy until the turn is handed on: BattleScene only re-shows the action
+	# menu while the manager is choosing, so it stays hidden between hits.
+	state = BattleState.EXECUTING_ACTION
+	await resolve_skill(user, skill, targets)
 	end_player_turn()
 
 func player_use_item(user: Character, item: Item, target: Character):
@@ -312,7 +455,7 @@ func player_use_item(user: Character, item: Item, target: Character):
 	end_player_turn()
 
 func enemy_use_skill(enemy: Character, skill: Skill, targets: Array[Character]):
-	resolve_skill(enemy, skill, targets)
+	await resolve_skill(enemy, skill, targets)
 
 func player_defend(character: Character):
 	character.start_defend()
@@ -322,6 +465,9 @@ func player_defend(character: Character):
 
 func end_player_turn():
 	state = BattleState.IDLE
+	# Let the bars finish dropping before anything else happens — the next
+	# hero's menu, the next enemy's move, or the victory screen.
+	await _pause(action_pause)
 	if check_battle_end():
 		return
 	current_turn_index += 1
@@ -354,7 +500,7 @@ func _execute_enemy_turn():
 	if skill != null:
 		# Dodge is rolled per target inside resolve_skill. Rolling it here as well
 		# would make every enemy skill dodge-checked twice.
-		enemy_use_skill(enemy, skill, [target])
+		await enemy_use_skill(enemy, skill, [target])
 	else:
 		if EnemyAI.try_dodge(target):
 			var dodge_result = {
@@ -381,6 +527,8 @@ func _execute_enemy_turn():
 			if not target.is_alive():
 				handle_defeat(target)
 
+	# As after a hero's action: the bars finish before the next turn begins.
+	await _pause(action_pause)
 	if check_battle_end():
 		return
 	current_turn_index += 1
@@ -626,7 +774,10 @@ func apply_boss_field_effect(boss: Enemy) -> Character:
 # When a mutex status actually LANDS (target had no prior mutex status, no
 # duplicate), we emit status_effect_triggered with applied=true so the UI can
 # banner "[Name] was Poisoned!" etc.
-func _apply_skill_status(target: Character, token: String):
+# `regen_amount` is the per-turn heal a "regenerate" token gives; -1 (the
+# default) is Character.start_regen's max_hp / 8, which every caller but a HEAL
+# move's attached regen uses.
+func _apply_skill_status(target: Character, token: String, regen_amount: int = -1):
 	if token == "":
 		return
 	var parsed = StatusSystem.parse_apply_token(token)
@@ -639,7 +790,7 @@ func _apply_skill_status(target: Character, token: String):
 			var status_name: String = parsed["value"]
 			# Regenerate is a transient heal-over-time, not a status chip.
 			if status_name == StatusSystem.REGENERATE:
-				target.start_regen(REGEN_TURNS)
+				target.start_regen(REGEN_TURNS, regen_amount)
 				return
 			var was_active: bool = target.is_status(status_name)
 			target.add_status(status_name)

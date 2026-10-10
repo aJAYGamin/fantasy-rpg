@@ -287,3 +287,48 @@ func test_slots_are_isolated() -> void:
 
 	GameManager.delete_slot(TEST_SLOT)
 	_restore_gm(snap)
+
+# --------------------------------------------------- Spec B options in saves
+
+func test_every_spec_b_option_round_trips() -> void:
+	var s := Skill.new()
+	s.skill_name = "Everything"
+	s.hp_cost_percent = 12.0
+	s.resonance_cost = 30.0
+	s.hit_count = 3
+	s.pierce = 0.5
+	s.ally_heal_power = 1.25
+	s.bonus_condition = Skill.BonusCondition.USER_HP_LOW
+	s.bonus_multiplier = 1.75
+	s.override_element = ElementalSystem.Element.WATER
+	s.override_super = true
+	s.scale_with = Skill.ScaleWith.RESONANCE
+	s.scale_more_is_stronger = false
+	s.self_debuff = "defense"
+	s.recoil_percent = 25.0
+	s.miss_chance = 0.3
+	s.target_buff = "attack"
+	var b := SaveSerializer.deserialize_skill(JSON.parse_string(JSON.stringify(SaveSerializer.serialize_skill(s))))
+	assert_eq(b.hp_cost_percent, 12.0, "hp cost")
+	assert_eq(b.resonance_cost, 30.0, "resonance cost")
+	assert_eq(b.hit_count, 3, "hits")
+	assert_eq(b.pierce, 0.5, "pierce")
+	assert_eq(b.ally_heal_power, 1.25, "ally heal")
+	assert_eq(int(b.bonus_condition), int(Skill.BonusCondition.USER_HP_LOW), "condition")
+	assert_eq(b.bonus_multiplier, 1.75, "bonus")
+	assert_eq(int(b.override_element), int(ElementalSystem.Element.WATER), "override element")
+	assert_true(b.override_super, "override strength")
+	assert_eq(int(b.scale_with), int(Skill.ScaleWith.RESONANCE), "scaling pool")
+	assert_false(b.scale_more_is_stronger, "scaling direction")
+	assert_eq(b.self_debuff, "defense", "self-debuff")
+	assert_eq(b.recoil_percent, 25.0, "recoil")
+	assert_eq(b.miss_chance, 0.3, "miss chance")
+	assert_eq(b.target_buff, "attack", "target buff")
+
+func test_a_save_without_spec_b_fields_loads_with_everything_off() -> void:
+	var b := SaveSerializer.deserialize_skill({"skill_name": "Old"})
+	assert_eq(b.hit_count, 1, "one hit")
+	assert_eq(b.hp_cost_percent, 0.0, "no HP cost")
+	assert_eq(int(b.scale_with), int(Skill.ScaleWith.NONE), "no scaling")
+	assert_true(b.scale_more_is_stronger, "default direction")
+	assert_eq(b.bonus_multiplier, 1.5, "default bonus")

@@ -6,6 +6,7 @@
 [ext_resource type="Resource" path="res://data/skills/spear_thrust.tres" id="4_5gm65"]
 [ext_resource type="Resource" path="res://data/skills/skewer.tres" id="5_shcj0"]
 [ext_resource type="Resource" path="res://data/skills/haft_bash.tres" id="6_opb3d"]
+[ext_resource type="Resource" path="res://data/skills/reckless_charge.tres" id="7_reckless"]
 
 [resource]
 script = ExtResource("2_enemy")
@@ -29,4 +30,4 @@ base_defense = 6
 base_magic = 3
 base_arcane = 3
 base_speed = 7
-skills = Array[ExtResource("1_skill")]([ExtResource("4_5gm65"), ExtResource("5_shcj0"), ExtResource("6_opb3d")])
+skills = Array[ExtResource("1_skill")]([ExtResource("4_5gm65"), ExtResource("5_shcj0"), ExtResource("6_opb3d"), ExtResource("7_reckless")])

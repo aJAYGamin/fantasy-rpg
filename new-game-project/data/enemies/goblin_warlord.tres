@@ -7,6 +7,7 @@
 [ext_resource type="Resource" path="res://data/skills/executioner_s_drop.tres" id="4_q44ng"]
 [ext_resource type="Resource" path="res://data/skills/warlord_s_cleave.tres" id="6_g2gb1"]
 [ext_resource type="Resource" path="res://data/skills/savage_bellow.tres" id="7_ouhqc"]
+[ext_resource type="Resource" path="res://data/skills/overreach.tres" id="8_overreach"]
 
 [sub_resource type="Resource" id="Phase_opening"]
 script = ExtResource("3_phase")
@@ -55,4 +56,4 @@ base_defense = 10
 base_magic = 4
 base_arcane = 6
 base_speed = 9
-skills = Array[ExtResource("1_skill")]([ExtResource("6_g2gb1"), ExtResource("7_ouhqc")])
+skills = Array[ExtResource("1_skill")]([ExtResource("6_g2gb1"), ExtResource("7_ouhqc"), ExtResource("8_overreach")])

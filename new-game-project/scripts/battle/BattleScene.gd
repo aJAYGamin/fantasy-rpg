@@ -56,6 +56,27 @@ var _preview_enemy: Character = null
 var _enemy_status_rows: Dictionary = {} # character -> HBoxContainer
 var _bar_tweens: Dictionary = {}      # ProgressBar -> Tween (so we can cancel/restart on rapid updates)
 const BAR_TWEEN_DURATION: float = 0.3
+
+## PLAY-TESTING FLAG. The real game shows an enemy's HP as a bar only; true
+## adds the "120/300" number under it, for checking damage while testing. Must
+## be false in a shipped build.
+const TEST_SHOW_ENEMY_HP := false
+
+## Which target picker a skill needs when the menu left the choice to the
+## player: a single-ally move picks from the hero panels, anything else from
+## the enemy cards.
+static func target_mode_for(skill: Skill) -> String:
+	return "skill_ally" if skill.target_type == Skill.TargetType.SINGLE_ALLY else "skill"
+
+## The hero each hero panel targets, by panel index — or null for a downed
+## hero. Panels are fixed per party slot (hero_status_1..3 = party[0..2]); the
+## picker used to pair panel i with the i-th LIVING hero, so with the first
+## hero down, the second hero's panel healed the third.
+static func ally_panel_targets(party: Array) -> Array:
+	var out: Array = []
+	for hero in party:
+		out.append(hero if hero.is_alive() else null)
+	return out
 ## Width of an ordinary enemy card. A boss card fills the row instead.
 const ENEMY_CARD_WIDTH: float = 124.0
 
@@ -92,6 +113,9 @@ const BACKGROUNDS = {
 
 func _ready():
 	battle_manager = BattleManager.new()
+	# The real battle is paced so each hit, and each action, is seen landing.
+	battle_manager.hit_pause = BattleManager.HIT_PAUSE
+	battle_manager.action_pause = BattleManager.ACTION_PAUSE
 	add_child(battle_manager)
 	resonance_system = ResonanceSystem.new()
 	add_child(resonance_system)
@@ -104,6 +128,7 @@ func _ready():
 	battle_manager.battle_ended.connect(_on_battle_ended)
 	battle_manager.enemy_move_preview.connect(_on_enemy_move_preview)
 	battle_manager.status_effect_triggered.connect(_on_status_triggered)
+	battle_manager.state_changed.connect(_on_battle_state_changed)
 	battle_manager.boss_phase_changed.connect(_on_boss_phase_changed)
 
 	attack_btn.pressed.connect(_on_attack_pressed)
@@ -512,6 +537,8 @@ func _create_enemy_card(enemy: Character) -> PanelContainer:
 	hp_lbl.add_theme_color_override("font_color", hp_color)
 	if cinzel:
 		hp_lbl.add_theme_font_override("font", cinzel)
+	# Kept (and kept updated) either way; shown only while play-testing.
+	hp_lbl.visible = TEST_SHOW_ENEMY_HP
 	vbox.add_child(hp_lbl)
 
 	# Store label reference for live updates
@@ -729,6 +756,11 @@ func _on_action_performed(result: Dictionary):
 				_spawn_heal_number(result.get("value", 0), spawn_pos)
 			"dodge":
 				_spawn_dodge_text(spawn_pos)
+			"miss":
+				_spawn_miss_text(spawn_pos)
+			"hp_cost", "recoil":
+				# Self-inflicted: a plain number over the user.
+				_spawn_damage_number(int(result.get("value", 0)), spawn_pos)
 	# Resonance hooks — ONLY grant on first target so AoE doesn't compound
 	if result.get("is_first_target", false) and result.has("actor") and battle_manager.party.has(result["actor"]):
 		var actor: Character = result["actor"]
@@ -738,10 +770,11 @@ func _on_action_performed(result: Dictionary):
 				resonance_system.on_attack(actor)
 			"skill_magic", "skill_physical", "status":
 				resonance_system.on_skill_used(actor, skill_ref)
-	# Taking damage builds resonance for heroes on receiving end (once per hit)
-	if result.has("target") and battle_manager.party.has(result["target"]):
-		if result.get("action") in ["attack", "skill_magic", "skill_physical"]:
-			resonance_system.on_damage_taken(result["target"])
+	# Taking damage builds resonance for heroes on the receiving end — once per
+	# target per action, so a multi-hit move does not multiply it.
+	if result.has("target") and battle_manager.party.has(result["target"]) \
+			and grants_damage_resonance(result):
+		resonance_system.on_damage_taken(result["target"])
 
 func _on_character_defeated(character: Character):
 	print("%s was defeated!" % character.character_name)
@@ -1072,7 +1105,7 @@ func _enter_target_selection(action: String):
 	_pending_action = action
 	action_title.text = "— Choose Target —"
 	_set_target_selection_ui(true)
-	if action == "item_ally":
+	if action == "item_ally" or action == "skill_ally":
 		_show_ally_target_buttons()
 		GameManager.register_focus_scope(party_status_bar)
 	else:
@@ -1080,16 +1113,16 @@ func _enter_target_selection(action: String):
 		GameManager.register_focus_scope(enemy_info_row)
 
 func _show_ally_target_buttons():
-	var alive_party = battle_manager.get_alive_party()
+	var heroes := ally_panel_targets(battle_manager.party)
 	for i in range(party_status_bar.get_child_count()):
 		var panel = party_status_bar.get_child(i)
-		if i < alive_party.size():
+		if i < heroes.size() and heroes[i] != null:
 			var btn = Button.new()
 			btn.name = "AllyTargetBtn_%d" % i
 			btn.set_anchors_preset(Control.PRESET_FULL_RECT)
 			_style_target_button(btn)
 			panel.add_child(btn)
-			btn.pressed.connect(_on_target_selected.bind(alive_party[i]))
+			btn.pressed.connect(_on_target_selected.bind(heroes[i]))
 			# Highlight ONLY the focused/hovered ally — no extra border on the UI.
 			var idx := i
 			btn.focus_entered.connect(func(): _highlight_ally_target(idx))
@@ -1274,7 +1307,7 @@ func _on_special_pressed():
 func _on_move_selected(skill: Skill, targets: Array):
 	if targets.is_empty():
 		_pending_skill = skill
-		_enter_target_selection("skill")
+		_enter_target_selection(target_mode_for(skill))
 	else:
 		var typed_targets: Array[Character] = []
 		for t in targets:
@@ -1292,6 +1325,16 @@ func _on_attack_menu_closed():
 ## itself, and the choice resolves the whole turn first — so a "closed" signal
 ## arriving after that must not bring the action menu back for a turn that is
 ## being skipped.
+## The other half of _hero_may_act: the action menu is shown only while the
+## battle waits for the hero, so the moment it stops waiting — the hero has
+## chosen and the action is playing out, or the turn is being handed on — the
+## menu goes. Picking a target used to restore the menu's buttons and leave it
+## up through the hits and the pause, as if asking again. It returns with the
+## next hero's turn_ready_for_action, after the post-action pause.
+func _on_battle_state_changed(_state) -> void:
+	if not _hero_may_act():
+		action_menu.visible = false
+
 func _hero_may_act() -> bool:
 	if _battle_over or current_actor == null or not battle_manager.party.has(current_actor):
 		return false
@@ -1675,6 +1718,13 @@ func _spawn_dodge_text(pos: Vector2):
 	label.position = pos + Vector2(randf_range(-20, 20), 0)
 	label.call("setup_dodge")
 
+func _spawn_miss_text(pos: Vector2):
+	var label = Label.new()
+	add_child(label)
+	label.set_script(load("res://scripts/battle/DamageNumber.gd"))
+	label.position = pos + Vector2(randf_range(-20, 20), 0)
+	label.call("setup_miss")
+
 func _spawn_damage_number(amount: int, pos: Vector2, multiplier: float = 1.0):
 	var label = Label.new()
 	add_child(label)
@@ -1688,6 +1738,14 @@ func _spawn_heal_number(amount: int, pos: Vector2):
 	label.set_script(load("res://scripts/battle/DamageNumber.gd"))
 	label.position = pos + Vector2(randf_range(-20, 20), 0)
 	label.call("setup_heal", amount)
+
+## True for a result that builds "took damage" resonance: a damaging action, on
+## the first hit that LANDED on that target this action. Results from paths that
+## predate multi-hit (basic attacks) carry no flag and count. HP costs and recoil
+## are self-inflicted and never count.
+static func grants_damage_resonance(result: Dictionary) -> bool:
+	return result.get("action") in ["attack", "skill_magic", "skill_physical"] \
+		and result.get("is_first_hit", true)
 
 func _get_rarity_icon_path(enemy: Character) -> String:
 	if not enemy is Enemy:

@@ -72,6 +72,21 @@ func setup_dodge():
 	horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_animate()
 
+## The move's OWN miss chance came up — distinct from the target dodging.
+func setup_miss():
+	var cinzel = load("res://fonts/Cinzel-Regular.ttf")
+	if cinzel:
+		add_theme_font_override("font", cinzel)
+	add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.9))
+	add_theme_constant_override("shadow_offset_x", 2)
+	add_theme_constant_override("shadow_offset_y", 2)
+	add_theme_constant_override("shadow_outline_size", 4)
+	text = "Miss!"
+	add_theme_color_override("font_color", Color(0.85, 0.75, 0.55))
+	add_theme_font_size_override("font_size", 14)
+	horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_animate()
+
 func _animate():
 	var tween = create_tween()
 	tween.set_parallel(true)

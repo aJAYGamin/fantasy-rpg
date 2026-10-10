@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+
+[resource]
+script = ExtResource("1_skill")
+skill_name = "Abyssal Tithe"
+description = "Pays the abyss in resonance to drown every enemy."
+attack_type = 2
+target_type = 1
+power = 2.6
+element = 2
+resonance_cost = 30.0

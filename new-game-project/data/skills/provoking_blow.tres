@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+
+[resource]
+script = ExtResource("1_skill")
+skill_name = "Provoking Blow"
+description = "A crushing strike that leaves the foe enraged."
+mp_cost = 14
+power = 2.6
+element = 1
+target_buff = "attack"

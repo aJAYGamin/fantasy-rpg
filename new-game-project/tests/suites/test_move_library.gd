@@ -244,13 +244,26 @@ func _find(hero: Character, skill_name: String) -> Skill:
 			return s
 	return null
 
-## The approved differences from the baseline: the Mend / Grand Mend merge.
-## Keyed "<hero>:<slot>", each the fields allowed to differ and their new value.
+## The approved differences from the pre-migration baseline, keyed
+## "<hero>:<slot>" -> {field: approved value}: the Mend / Grand Mend merge
+## (Spec A) and the five honest-skill fixes (Spec B). Fields the baseline
+## predates (hit_count, pierce, ally_heal_power, …) are not compared at all.
 const MERGE_DELTAS := {
-	"Aria:3": {"mp_cost": 12},
-	"Lyra:1": {"element": ElementalSystem.Element.LIGHT},
-	"Lyra:6": {"element": ElementalSystem.Element.LIGHT},
+	"Aria:1": {"power": 1.4, "status_to_apply": "speed_debuff", "status_chance": 0.4},  # Frost Bolt
+	"Aria:3": {"mp_cost": 12},                                                          # Mend
+	"Aria:5": {"power": 2.4},                                                           # Hydro Pierce
+	"Lyra:1": {"element": ElementalSystem.Element.LIGHT},                               # Mend
+	"Lyra:4": {"power": 2.5},                                                           # Gale Requiem
+	"Lyra:5": {"power": 1.2},                                                           # Cyclone
+	"Lyra:6": {"element": ElementalSystem.Element.LIGHT},                               # Grand Mend
+	"Lyra:10": {"power": 0.5},                                                          # Restoring Breeze
 }
+
+## Equal for a delta's purposes: floats approximately, everything else exactly.
+func _same(a, b) -> bool:
+	if typeof(a) == TYPE_FLOAT or typeof(b) == TYPE_FLOAT:
+		return is_equal_approx(float(a), float(b))
+	return a == b
 
 func test_every_hero_move_is_a_copy_of_a_library_file() -> void:
 	for hero in PartyFactory.create_default_party():
@@ -263,14 +276,16 @@ func test_hero_pools_match_the_baseline() -> void:
 	var b: Dictionary = _baseline().get("heroes", {})
 	for hero in PartyFactory.create_default_party():
 		var want: Array = b.get(hero.character_name, [])
-		assert_eq(hero.skills.size(), want.size(), "%s kept 12 moves" % hero.character_name)
+		# Pools may grow (Spec B added slots 13-15); every baselined slot must stay.
+		assert_true(hero.skills.size() >= want.size(), "%s kept its %d baselined moves" % [hero.character_name, want.size()])
 		for i in mini(hero.skills.size(), want.size()):
 			var key := "%s:%d" % [hero.character_name, i]
 			var allowed: Dictionary = MERGE_DELTAS.get(key, {})
 			var got := SaveSerializer.serialize_skill(hero.skills[i])
 			assert_eq(_move_diff(got, want[i], allowed.keys()), "", "%s unchanged" % key)
 			for field in allowed:
-				assert_eq(int(got[field]), int(allowed[field]), "%s %s is the merged value" % [key, field])
+				assert_true(_same(got[field], allowed[field]),
+						"%s %s is the approved value (got %s)" % [key, field, str(got[field])])
 
 func test_aria_and_lyra_share_one_mend_file() -> void:
 	var aria := _find(_hero("Aria"), "Mend")
@@ -412,3 +427,97 @@ func test_the_library_index_covers_every_move() -> void:
 	# the file count) without failing when a legitimate new move is added.
 	assert_eq(index.size(), _library_files().size(), "every library file is indexed, with no name collisions")
 	assert_eq(index.get("Mend", ""), LIB + "mend.tres", "and names map to files")
+
+# --------------------------------------------------- Spec B: honest skills
+
+## Each move now does what its description promises, and its generated tags say so.
+func test_cyclone_hits_twice() -> void:
+	var s: Skill = load(LIB + "cyclone.tres")
+	assert_eq(s.hit_count, 2, "two hits")
+	assert_true(is_equal_approx(s.power, 1.2), "at 1.2 each")
+	assert_true(s.effect_tags().has("2 hits"), "and says so")
+
+func test_hydro_pierce_pierces() -> void:
+	var s: Skill = load(LIB + "hydro_pierce.tres")
+	assert_eq(s.pierce, 1.0, "ignores all ARC")
+	assert_true(is_equal_approx(s.power, 2.4), "at 2.4")
+	assert_true(s.effect_tags().has("Ignores ARC"), "and says so")
+
+func test_gale_requiem_heals_the_party() -> void:
+	var s: Skill = load(LIB + "gale_requiem.tres")
+	assert_eq(s.ally_heal_power, 1.0, "heals allies by MAG x 1.0")
+	assert_true(is_equal_approx(s.power, 2.5), "damage 2.5")
+	assert_true(s.effect_tags().has("Heals allies"), "and says so")
+
+func test_frost_bolt_can_slow() -> void:
+	var s: Skill = load(LIB + "frost_bolt.tres")
+	assert_eq(s.status_to_apply, "speed_debuff", "lowers SPD")
+	assert_true(is_equal_approx(s.status_chance, 0.4), "40% of the time")
+	assert_true(is_equal_approx(s.power, 1.4), "at 1.4")
+	assert_true(s.effect_tags().has("40% chance: Lowers SPD"), "and says so")
+
+func test_restoring_breeze_regenerates() -> void:
+	var s: Skill = load(LIB + "restoring_breeze.tres")
+	assert_eq(s.status_to_apply, StatusSystem.REGENERATE, "regenerates")
+	assert_true(is_equal_approx(s.power, 0.5), "after a smaller heal of 0.5")
+	assert_true(s.effect_tags().has("Regenerates"), "and says so")
+
+# --------------------------------------------------- Spec B: new moves
+
+const NEW_HERO_MOVES := {
+	"Aria": ["brine_surge.tres", "mana_surge.tres", "abyssal_tithe.tres"],
+	"Kael": ["bloodfire_edge.tres", "last_stand.tres", "provoking_blow.tres"],
+	"Lyra": ["opportune_gust.tres", "resonant_gale.tres", "tempest_gamble.tres"],
+}
+
+func test_each_hero_gains_three_moves_in_slots_13_to_15() -> void:
+	for hero in PartyFactory.create_default_party():
+		var want: Array = NEW_HERO_MOVES[hero.character_name]
+		for i in 3:
+			assert_eq(hero.skills[12 + i].source_path, LIB + want[i], "%s slot %d" % [hero.character_name, 13 + i])
+
+func test_every_new_move_is_described_and_tagged() -> void:
+	var files: Array = []
+	for name in NEW_HERO_MOVES:
+		files.append_array(NEW_HERO_MOVES[name])
+	files.append_array(["reckless_charge.tres", "overreach.tres"])
+	for f in files:
+		var s: Skill = load(LIB + f)
+		assert_true(s.description != "", "%s has a description" % f)
+		# Costs are shown in the cost row, not the tag line, so a move whose only
+		# special trait is an HP or resonance cost counts too.
+		var special := not s.effect_tags().is_empty() or s.cost_parts().any(func(p): return p["kind"] != "mp")
+		assert_true(special, "%s shows what makes it special" % f)
+
+func test_every_new_mechanic_is_used_by_some_move() -> void:
+	var used := {}
+	for f in _library_files():   # full res:// paths
+		var s: Skill = load(f)
+		if s.hp_cost_percent > 0.0: used["hp_cost"] = true
+		if s.resonance_cost > 0.0: used["resonance_cost"] = true
+		if s.hit_count > 1: used["multi_hit"] = true
+		if s.pierce > 0.0: used["pierce"] = true
+		if s.ally_heal_power > 0.0: used["ally_heal"] = true
+		if s.bonus_condition == Skill.BonusCondition.TARGET_AFFLICTED: used["afflicted"] = true
+		if s.bonus_condition == Skill.BonusCondition.USER_HP_LOW: used["low_hp"] = true
+		if s.override_element != ElementalSystem.Element.NORMAL: used["override"] = true
+		if s.scale_with != Skill.ScaleWith.NONE: used["scaling"] = true
+		if s.self_debuff != "": used["self_debuff"] = true
+		if s.recoil_percent > 0.0: used["recoil"] = true
+		if s.miss_chance > 0.0: used["miss"] = true
+		if s.target_buff != "": used["target_buff"] = true
+	for m in ["hp_cost", "resonance_cost", "multi_hit", "pierce", "ally_heal", "afflicted",
+			"low_hp", "override", "scaling", "self_debuff", "recoil", "miss", "target_buff"]:
+		assert_true(used.has(m), "some move uses %s" % m)
+
+func test_goblins_gain_their_trade_off_moves() -> void:
+	var spear: Enemy = load("res://data/enemies/goblin_spearman.tres")
+	var warlord: Enemy = load("res://data/enemies/goblin_warlord.tres")
+	assert_true(spear.skills.map(func(s): return s.skill_name).has("Reckless Charge"), "the Spearman charges recklessly")
+	assert_true(warlord.skills.map(func(s): return s.skill_name).has("Overreach"), "the Warlord overreaches")
+
+func test_brine_surge_is_super_effective_against_water() -> void:
+	var s: Skill = load(LIB + "brine_surge.tres")
+	assert_eq(int(s.override_element), int(ElementalSystem.Element.WATER), "names Water")
+	assert_true(s.override_super, "super-effective")
+	assert_eq(int(s.element), int(ElementalSystem.Element.WATER), "a Water move")

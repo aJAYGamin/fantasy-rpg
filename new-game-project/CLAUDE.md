@@ -48,7 +48,7 @@ art LAST. See **Roadmap** near the bottom for the agreed order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~3443 tests, 46 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~3872 tests, 47 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -118,7 +118,7 @@ scenes/
   OverworldScene.tscn         # has a MapArea (Fallster Plains) assigned via @export
 data/                         # data-driven content (.tres resources)
   enemies/                    # one .tres per enemy (14 enemies; skills are ext_resource refs into skills/)
-  skills/                     # the move library — one .tres per move, flat, snake_case (86 files) — see Move library
+  skills/                     # the move library — one .tres per move, flat, snake_case (97 files) — see Move library
   encounters/                 # EncounterGroup .tres files
   maps/                       # MapArea .tres files (fallster_plains.tres)
 tools/                        # one-shot / offline scripts, run as scenes (not --script) — see Move library
@@ -127,7 +127,7 @@ tools/                        # one-shot / offline scripts, run as scenes (not -
 tests/
   TestRunner.tscn/.gd         # run this scene (F6) to execute all suites; register suites in SUITE_PATHS
   TestSuite.gd                # base class with assert_* helpers
-  suites/                     # one test_<feature>.gd per system (24 suites)
+  suites/                     # one test_<feature>.gd per system (47 suites)
   fixtures/                   # move_library_baseline.json — pre-migration snapshot for the MoveLibrary suite
 assets/  backgrounds/ characters/ enemies/ icons/ ui/
 fonts/   music/
@@ -178,9 +178,12 @@ new one while any is active is **rejected** (first-come-first-served; was previo
 - Non-mutex positive statuses (`regenerate`, `defending`) can coexist with the mutex pool.
   These are transient combat effects, NOT real statuses: defending is a `Character.is_defending`
   bool (halves incoming damage until next turn, `DEFEND_DAMAGE_MULT`); regenerate is
-  `Character.start_regen(turns)` (heal-over-time). Neither lives in `status_effects` (not mutex,
-  never serialized) — they're kept as named constants only for chip rendering + as the default
-  BUFF token. `_apply_skill_status` intercepts the `regenerate` token before `add_status`.
+  `Character.start_regen(turns, amount = -1)` (heal-over-time; the default amount is `max_hp / 8`).
+  Neither lives in `status_effects` (not mutex, never serialized) — they're kept as named
+  constants only for chip rendering + as the default BUFF token. `_apply_skill_status` intercepts
+  the `regenerate` token before `add_status`. `start_regen` never weakens a running regen: while
+  `regen_turns > 0` the per-turn amount is the larger of the current and the new one (so a heal's
+  small MAG-scaled regen can't undercut Iron Will's `max_hp / 8`).
 - **`add_status` guards (enforced at the single mutation point):** a defeated character
   (`not is_alive()`) is never afflicted — a killing blow that also inflicts a status leaves the
   downed character clean. **Element immunity** (`StatusSystem.ELEMENT_IMMUNITY` /
@@ -230,16 +233,92 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
 - `StatusType`: `HEAL`, `BUFF`, `DEBUFF` — used when `skill_type == STATUS`
 - `AttackType`: `STRIKE`, `RANGED`, `MAGIC`, `STATUS`
 - `TargetType`: `SINGLE_ENEMY`, `ALL_ENEMIES`, `SINGLE_ALLY`, `ALL_ALLIES`, `SELF`
-- `can_use(user)`: blocked by stun; **enemies bypass MP cost entirely**; heroes need MP.
+- `can_use(user)`: blocked by stun; **enemies bypass MP cost entirely**; heroes need MP
+  (plus the HP and resonance checks under **Spec B options** below).
 - `status_to_apply` (token, see above) + `status_chance` (roll for DAMAGE skills).
 - `calculate_value`, `is_heal/is_buff/is_debuff`, `is_physical/is_magic`, `get_resonance_gain`
   (default 10.0 for DAMAGE, 0 for STATUS; `resonance_gain_override` ≥ 0 to override).
 - `skills` is `@export` on Character — a POOL (see Move library and Phase P8 below),
   not a fixed attack/special split.
+- **Spec B options** — extra `@export` fields grouped in the Inspector with
+  `@export_group`, resolved by `BattleManager.resolve_skill` (see its resolution
+  order), so each works for heroes AND enemies and is authored by editing a
+  move's `.tres`. **Every option defaults to "off"**, so a move that doesn't set
+  one behaves exactly as before — the 81 existing moves Spec B left alone (86
+  before it, minus the five honest fixes) are unchanged by them.
+  - **Costs:** `hp_cost_percent` (float; % of the user's MAX HP, rounded up —
+    `hp_cost(user)`), `resonance_cost` (float; points of the 0–100 meter).
+  - **Hits:** `hit_count` (int, 1; DAMAGE moves only — a status move always hits
+    once), `pierce` (0–1; share of the target's DEF for physical / ARC for magic
+    that is ignored).
+  - **Extra:** `ally_heal_power` (float; after the hits, heals every living member
+    of the user's side, the user included, by `MAG × this`; a full-HP ally gets no result).
+  - **Conditional:** `bonus_condition` (`BonusCondition`: `NONE` /
+    `TARGET_AFFLICTED` / `USER_HP_LOW`) + `bonus_multiplier` (1.5); and the
+    element override, `override_element` (`NORMAL` = unset, the codebase's
+    existing "not set" convention for elements) + `override_super`.
+  - **Scaling:** `scale_with` (`ScaleWith`: `NONE` / `HP` / `MP` / `RESONANCE` —
+    the user's OWN pool) + `scale_more_is_stronger` (true; false = an emptier pool
+    hits harder).
+  - **Trade-offs:** `self_debuff` (a stat lowered on the user), `recoil_percent`,
+    `miss_chance` (0–1), `target_buff` (a stat raised on every target hit).
+  - **Constants:** `LOW_HP_THRESHOLD = 0.3` (`USER_HP_LOW` holds while the user's
+    HP fraction is strictly below it), `SCALE_MIN = 0.75`, `SCALE_MAX = 1.5`.
+  - **Costs gate `can_use`.** HP: `current_hp > hp_cost(user)`, so paying always
+    leaves ≥ 1 HP — **a cost can never KO the user, on either side**; an
+    unaffordable move greys out (the Attack menu already greys on `can_use`)
+    instead of killing. Resonance (heroes): `resonance_meter >= resonance_cost`.
+    **Enemies pay HP but ignore MP and resonance** (they have no such pools);
+    `EnemyAI._choose_skill` already filters by `can_use`, so an enemy never picks
+    an HP-cost move it cannot afford. A move with a `resonance_cost` builds **no**
+    resonance (`get_resonance_gain()` → 0) — it would refund its own cost.
+  - **Miss follows the dodge rule.** `miss_chance` is the move's own roll
+    (rolled first), separate from the target's dodge (`EnemyAI.try_dodge`, second);
+    both are rolled only against the user's OPPONENTS — anything aimed at the user
+    or its allies always lands and never rolls either. See **The dodge rule**.
+  - **Condition / scaling are measured BEFORE costs are paid**
+    (`condition_multiplier`, `scale_factor`, with `user_hp_fraction` taken in
+    `resolve_skill`). **Why:** an HP-cost move must not be weakened — or have its
+    `USER_HP_LOW` bonus switched off — by its own cost. `TARGET_AFFLICTED` is
+    `Skill.is_afflicted(target)`: an active mutex status OR an effectively-debuffed
+    stat, checked per hit against the target's current state. Scaling is linear
+    from `SCALE_MIN` to `SCALE_MAX` as the pool's fill goes 0→1 (1→0 when
+    `scale_more_is_stronger` is false); a pool the user lacks (an enemy's MP or
+    resonance) gives 1×.
+  - **Element override balance rules (authoring rules):** one element per move;
+    it **replaces one pairing, never stacks onto it** — only the move's PRIMARY
+    element against the named defender element uses `override_multiplier()`
+    (1× = *effective*, or 2× = *super-effective* when `override_super`); the move's
+    secondary element and a dual-typed defender's other element still use the
+    chart; and a move that uses it carries **lower base power** than comparable
+    moves (Brine Surge is 1.2 at 12 MP; Frost Bolt is 1.4 at 12 MP and Glacial
+    Shard 2.0 at 14 MP). Lives in
+    `ElementalSystem.get_combined_multiplier`'s `override_def` / `override_mult`,
+    reached through `Character.take_damage` / `take_magic_damage`'s optional
+    `pierce`, `override_element`, `override_mult` (defaults = today's behaviour).
+    The AI's "prefer super-effective" check ignores overrides.
+  - **`self_debuff` / `target_buff` must name one of `StatusSystem.BUFFABLE_STATS`.**
+    An unknown name `push_warning`s and changes nothing — it is never applied as an
+    invented status (the phantom `burn` showed what an unchecked string does).
+  - ⚠️ **`cost_parts()` / `effect_tags()` drive every menu — never format a cost
+    or an effect by hand.** `cost_parts()` returns labelled pieces in MP, HP,
+    resonance order (`{kind, text}`: `12 MP`, `15% HP`, `25 ✦`; coloured through
+    `BattleUITheme.cost_color(kind)`); `cost_text()` joins them (`12 MP · 15% HP`).
+    `effect_tags()` is a short line generated from the options (`2 hits`,
+    `Ignores ARC`, `×1.5 vs afflicted`, `Lowers your DEF`); `effect_text()` joins
+    it. Read by `AttackMenu`, `StatsScreen` and `LoadoutScreen`. **Why:** generated
+    from the data, the line cannot promise what the move does not do — a
+    hand-written description drifting from the code is exactly how the five
+    "honest skill" gaps happened. A new option needs its tag in `effect_tags()`,
+    or no menu will mention it.
+  - **Saved:** `SaveSerializer.serialize_skill` / `deserialize_skill` carry every
+    option, each read with its default when absent, so an older save and the
+    snapshot fallback both rebuild a move exactly. A new option must be added to
+    both.
 
 ### Move library — `data/skills/`
 - Every hero and enemy move is its own `.tres` **Resource file**, flat in
-  `data/skills/` (**86 files**), named snake_case after the move (e.g.
+  `data/skills/` (**97 files**), named snake_case after the move (e.g.
   `data/skills/cyclone.tres`). No enemy `.tres` holds an inline skill
   sub-resource; no hero move is built in code (`PartyFactory._make_skill` /
   `_make_status_skill` are gone).
@@ -266,7 +345,11 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   would also leak into heroes built later in the session). **Skills are
   read-only at runtime** — per-use / per-fight state (charge-up, conditional
   power, anything that varies by user or by fight) belongs on the `Character`
-  or in `BattleManager`, never on a `Skill`.
+  or in `BattleManager`, never on a `Skill`. **Every Spec B option is read,
+  never written, at runtime** — the resolver measures scaling and conditions
+  into locals (`scale`, `user_hp_fraction`) and puts the results of a hit on the
+  result Dictionary, so the battle copies that share a `Skill` instance never
+  see each other's state.
 - `Skill.source_path` — the library path a hero's copy was loaded from (`""` on
   a library file itself, or on a move with no file). Read by `SaveSerializer`
   to save a hero's pool by reference instead of by value.
@@ -293,6 +376,23 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   between two library files, and now `push_warning`s naming both files when
   that happens — a collision would otherwise silently drop one move from the
   index with no signal.
+- **Old saves gain new pool moves — `PartyFactory.top_up_pool(hero)` /
+  `top_up_party(party)`.** A save keeps a hero's pool exactly as written, so
+  without this a save from before a pool grew (every 12-move save, once Spec B
+  made it 15) would never see the new moves. `top_up_pool` appends, at the END of
+  the pool, a copy of every move in that hero's `POOLS` list the hero lacks —
+  matched by `source_path` or by `skill_name` (the pre-file-era saves) — stamped
+  with **that move's own slot's** unlock level and category
+  (`_stamp_slot`), and returns how many it added; an unknown hero name is left
+  alone and the pool never passes `Character.MAX_SKILLS`. `top_up_party` runs it
+  per hero and calls `auto_equip_unslotted()` **only for a hero that gained
+  something**, which fills EMPTY loadout slots with LEARNED moves only (via
+  `learned_pool_indices`) and never touches the player's existing choices.
+  Hooked in `GameManager.load_from_slot`, right after
+  `SaveSerializer.deserialize_party`. **Why here and not in `SaveSerializer`:**
+  the serializer stays free of any `PartyFactory` dependency (the save design
+  requires it). Covers any future pool growth too — a pool slot is only ever
+  appended, never re-ordered, because the loadout is positional.
 - ⚠️ The loader must `duplicate(true)` (`load()` returns Godot's cached shared
   instance) and must take `unlock_level`/`category` from the **save dict**,
   never the file — library files carry neutral defaults (level 1, ATTACK), so
@@ -322,7 +422,20 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   entry's fields in `tests/fixtures/move_library_baseline.json`, in the same
   commit. A **new** move or a **new** enemy needs nothing — these tests check
   against the baseline's own names/keys, never the live directory, so an
-  addition is simply outside what they look at.
+  addition is simply outside what they look at. (Appending a new move to an
+  EXISTING enemy's move list is different: that enemy's entry changes, so the
+  new move is appended to its list in the fixture.)
+- **What the baseline records today.** `MERGE_DELTAS` has **8 entries**: Spec A's
+  Mend merge (`Aria:3`, `Lyra:1`, `Lyra:6`) and Spec B's five honest fixes
+  (`Aria:1` Frost Bolt, `Aria:5` Hydro Pierce, `Lyra:4` Gale Requiem, `Lyra:5`
+  Cyclone, `Lyra:10` Restoring Breeze). Values compare with `_same` (floats
+  approximately). **Fields the baseline predates** (`hit_count`, `pierce`,
+  `ally_heal_power`, …) **are not compared at all**, so a new option needs no
+  entry. `test_hero_pools_match_the_baseline` accepts pools that GROW (`>=`) —
+  every baselined slot must stay put and match, but the three Spec B slots need
+  nothing. The two enemy additions (the Spearman's Reckless Charge, the
+  Warlord's Overreach) were recorded by appending entries to
+  `tests/fixtures/move_library_baseline.json` in the same commit.
 
 ### ElementalSystem — `scripts/characters/ElementalSystem.gd`
 - Elements: `NORMAL, FIRE, WATER, NATURE, ICE, LIGHTNING, EARTH, WIND, SOUND,
@@ -533,8 +646,93 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   drifted apart (SELF targeting only worked for enemies; dodge rolled in
   different places; the same outcome emitted different action names).
   `player_use_skill` / `enemy_use_skill` are thin wrappers: the player path
-  keeps its `state` check and calls `end_player_turn()` after resolving; the
-  enemy path just calls it.
+  keeps its `state` check, sets `EXECUTING_ACTION`, awaits the resolver and
+  calls `end_player_turn()`; the enemy path just awaits it.
+- **Pacing (play-test fix — the user's rule: every hit and every action must
+  be SEEN landing).** `resolve_skill` is a coroutine: between hit BEATS it
+  waits `hit_pause` (`HIT_PAUSE` = 0.8s — the 0.3s bar drain plus a clear
+  hold). `end_player_turn` and the end of `_execute_enemy_turn` wait
+  `action_pause` (`ACTION_PAUSE` = 1.0s) before the next turn, so the next
+  hero's menu, the next enemy's move and the victory/defeat screen never arrive
+  while a bar is still dropping. Both are **0 on a bare `BattleManager`** —
+  every test resolves synchronously, because `_pause(0)` never awaits —
+  and `BattleScene._ready` sets them to the constants.
+  - ⚠️ **The manager is busy while an action plays out:** `player_use_skill`
+    sets `EXECUTING_ACTION` before resolving and `end_player_turn` sets `IDLE`,
+    so `_hero_may_act()` is false between beats and during the pause — the
+    action menu (which every battle menu re-shows on close) stays hidden.
+  - **The action menu shows only while the battle waits for the hero** (user's
+    rule: never on screen right after they chose). `state` has a setter that
+    emits `state_changed`; `BattleScene._on_battle_state_changed` hides the menu
+    whenever `_hero_may_act()` is false, and `turn_ready_for_action` brings it
+    back for the next hero — after the post-action pause. Picking a target used
+    to restore the menu's buttons and leave it up through the hits and pause.
+  - Any new caller of `resolve_skill` / `player_use_skill` /
+    `enemy_use_skill` / `end_player_turn` that must run AFTER the action
+    finishes has to `await` it.
+- **`resolve_skill` resolution order (Spec B)** — the order is load-bearing:
+  1. **Check** `Skill.can_use` (stun, HP cost leaves ≥ 1, resonance, MP).
+  2. **Measure** `scale_factor` and the user's HP fraction — **before paying**.
+  3. **Pay** (`_pay_costs`): MP (heroes) → resonance (heroes; subtracts from
+     `Character.resonance_meter`, the field `ResonanceSystem` reads) → HP (both
+     sides, floored at 1; emits an `"hp_cost"` result on the user).
+  4. **One BEAT per hit** (`hit_count` for DAMAGE moves; 1 for status moves):
+     beat N is hit N on **every target still standing**, so an area multi-hit
+     like Cyclone lands hit 1 on all enemies together, pauses, then hit 2 on all
+     (the user's choice — never all of one enemy's hits first). Per target in a
+     beat: **miss** (`miss_chance`) → **dodge** (`EnemyAI.try_dodge`) →
+     **damage** (`value = calculate_value × condition × scaling`, then the
+     target's damage function applies `pierce` and the element override). Miss
+     and dodge are rolled only against the user's opponents. A target downed in
+     a beat falls (`handle_defeat`, once) at the **end of that beat** and takes
+     **no further hits**.
+  5. **Once per target that took at least one landed hit** (`_after_target`),
+     just before the LAST beat is shown: roll the status rider (`status_to_apply`
+     / `status_chance`) **once, not once per hit**, then apply `target_buff`
+     (only while the target is alive).
+  6. **After all targets** (`_after_action`), in this order: the **ally heal**
+     (a `"heal"` result on each living ally that was actually healed — none for a
+     full-HP ally, so no "0 Healed" popup), **recoil**, the **self-debuff**.
+  - A STATUS **heal** move now applies its `status_to_apply` after healing (the
+    Restoring Breeze fix — its `regenerate` token used to be ignored). That regen
+    is scaled by the caster's MAG, not max HP: `BattleManager.HEAL_REGEN_POWER`
+    (0.25) × MAG per turn for `REGEN_TURNS`, passed to `_apply_skill_status`'s
+    `regen_amount`; BUFF moves such as Iron Will keep the default `max_hp / 8`.
+  - **Recoil** is `recoil_percent` of the HP the hits actually REMOVED
+    (`dealt`; overkill is not counted, a dead target's later hits never happen),
+    truncated, never leaving the user below 1 HP. No landed damage → no recoil.
+  - ⚠️ **Results are emitted per beat, after the beat's hits.** Each beat's
+    results are collected and emitted together once every target in it has been
+    hit (the last beat only after the riders and target buffs), then that beat's
+    `handle_defeat`s. **Why:** the UI refreshes bars from live HP on every
+    emission, so a beat's results must reach it with exactly that beat's damage
+    taken — that is what makes each hit a separate visible drop — and the
+    rider's chip appears with the last hit.
+  - **A move that lands on no target** (every hit missed or dodged): the
+    **ally heal and the self-debuff still happen** — they are the price / effect of
+    USING the move, applied after all targets — while the **rider, the target buff
+    and recoil do not**, because they are tied to landed hits.
+  - **New result actions:** `"miss"` (the move's own chance; shows "Miss",
+    distinct from `"dodge"`), `"hp_cost"` and `"recoil"` (a plain damage number
+    over the user), `"self_debuff"` (value 0; the stat chip shows it). An
+    ally-heal result is an ordinary `"heal"`. `hp_cost`, `recoil`,
+    `self_debuff` and the ally `heal` are emitted by `_emit_extra`; a `miss` is
+    built by `_unlanded` and travels in its beat's `results` (like a `dodge`). All of them carry **both resonance flags false**, so none
+    can take the action's resonance.
+- **Resonance rides on LANDED hits only.** Each result carries
+  `is_first_target` and `is_first_hit`. **`is_first_target`** is true on the first
+  hit that actually LANDS in the whole action, so a move whose first target
+  dodges still grants its skill resonance on a later landed hit (a `"miss"` /
+  `"dodge"` result always carries false). **`is_first_hit`** is true on the first
+  landed hit **per target**. `BattleScene._on_action_performed` grants skill
+  resonance only on `is_first_target` (once per action — a two-hit move or an
+  area attack doesn't build double), and **`BattleScene.grants_damage_resonance(result)`**
+  gates `on_damage_taken` on `is_first_hit` — a **static** helper, so it is
+  testable without a scene — which makes "took damage" resonance once **per
+  target** per action. The helper is for `"attack"` / `"skill_physical"` /
+  `"skill_magic"` only, and treats a result with no flag (the basic `player_attack`
+  path, which predates multi-hit) as a first hit. HP cost and recoil are
+  self-inflicted and grant nothing.
 - **`expand_targets` is the authoritative target expansion** — always relative
   to the *user's* side (`_opponents_of`/`_allies_of` decide side by
   `party`/`enemies` membership): `SINGLE_ENEMY`/`SINGLE_ALLY` keep the chosen
@@ -548,12 +746,23 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   means "let the player pick one"); `resolve_skill` ignores whatever they
   built for anything but `SINGLE_ENEMY`/`SINGLE_ALLY` and re-expands via
   `expand_targets` regardless.
+- **Single-ally moves let the player choose** (Restoring Breeze, Mend, Wind
+  Barrier). `AttackMenu` sends an empty list unless only one hero stands (it
+  used to send `alive_party[0]`, so every single-ally move hit the first living
+  hero); `BattleScene.target_mode_for(skill)` routes it to `"skill_ally"`, the
+  same hero-panel picker potions use. `BattleScene.ally_panel_targets(party)`
+  maps each hero panel to ITS OWN hero (null when downed) — panels are fixed per
+  party slot, and pairing panel i with the i-th living hero targeted the wrong
+  hero whenever an earlier one was down. The battle "?" panel
+  (`AttackMenu.description_text`) shows who a move targets ("One Ally",
+  "All Enemies", …) ahead of its effect tags.
 - **The dodge rule (user's design): it depends on WHO a skill lands on, not
   what kind of skill it is.** Any skill aimed at the user's opponents —
   damage OR status (a debuff, say) — can be dodged, by heroes and enemies
   alike. Any skill aimed at the user or its allies (heals, buffs, SELF moves)
-  always lands. `resolve_skill` rolls `EnemyAI.try_dodge` once per target,
-  only when `_opponents_of(user).has(target)`. A dodged damage skill's status
+  always lands. `resolve_skill` rolls `EnemyAI.try_dodge` (after the move's own
+  `miss_chance`) once per target per beat, only when
+  `_opponents_of(user).has(target)`. A dodged damage skill's status
   rider does not land either. The enemy turn's old outer dodge (rolled before
   calling any skill) used to cover an enemy's own SELF heal/buff too, so an
   enemy could "dodge" its own move; it no longer can. `_execute_enemy_turn` no
@@ -694,7 +903,10 @@ All anchored bottom-right, sharing the bottom edge (`offset_bottom = -10`):
   semantic colors (green→red HP, blue MP, purple resonance) for readability. Status
   chips appear in a `StatusRow` injected into each panel's layout.
 - **Enemy cards** (`BattleScene._create_enemy_card`): border = `enemy.get_rarity_color()`
-  (rarity tier), dark-plum bg.
+  (rarity tier), dark-plum bg. **Enemy HP shows as a bar only** (user's rule) — the
+  "120/300" label is still built and kept updated, but visible only while the
+  `BattleScene.TEST_SHOW_ENEMY_HP` play-testing flag is on. Hero panels keep
+  their numbers.
 - **Turn order indicator**: per-actor tinted slots (hero palette / enemy element),
   active slot gets the yellow accent border. No enclosing bg panel.
 - **Portrait placeholders**: themed rounded panels (hero accent / enemy element border).
@@ -722,14 +934,44 @@ BattleScene (Node2D)
 
 ## Party / Enemy Setup
 - `PartyFactory.create_default_party()` → Aria (Mage/Water), Kael (Warrior/Fire),
-  Lyra (Healer/Wind); each a **12-move pool** built from library files via
-  `PartyFactory._move` (see **Move library** in Core Systems above) + ultimate
-  meta (`ultimate_name`/`ultimate_desc`). `base_arcane`: Aria 14, Lyra 12, Kael 5.
+  Lyra (Healer/Wind); each a **15-move pool** (7 ATTACK + 8 SPECIAL) built from
+  library files via `PartyFactory._move` (see **Move library** in Core Systems
+  above) + ultimate meta (`ultimate_name`/`ultimate_desc`). `base_arcane`: Aria 14, Lyra 12, Kael 5.
   Heroes start at full HP/MP. (Currently all three start with `experience = 85`
   — one battle from a level-up, for quick level-up testing; lower this for real
   play.)
 - Wired buff skills: Tidal Barrier → `defense_buff`, War Cry → `attack_buff`,
-  Wind Barrier → `defense_buff`, Tailwind → `speed_buff`, Iron Will → `regenerate`.
+  Wind Barrier → `defense_buff`, Tailwind → `speed_buff`, Iron Will → `regenerate`
+  (`max_hp / 8` per turn for 3 turns).
+- **Pool slots 13–15 (Spec B), one new mechanic per move** — in pool order, the
+  slots unlock at levels **3 / 9 / 14** (Attack / Special / Special; shared by all
+  three heroes via `SKILL_UNLOCK_LEVELS` / `SKILL_CATEGORIES`):
+  - **Aria:** Brine Surge (Water, 1.2, 12 MP — `override_element` WATER,
+    super-effective: water normally resists water) / Mana Surge (2.2, 20 MP —
+    `scale_with` MP, more is stronger) / Abyssal Tithe (2.6, all enemies, 0 MP —
+    `resonance_cost` 30).
+  - **Kael:** Bloodfire Edge (Fire strike, 2.7, 0 MP — `hp_cost_percent` 12) /
+    Last Stand (1.6, 10 MP — `USER_HP_LOW`, ×1.75 below 30% HP) / Provoking Blow
+    (2.6, 14 MP — `target_buff "attack"`, raises the target's ATK).
+  - **Lyra:** Opportune Gust (Wind, 1.4, 10 MP — `TARGET_AFFLICTED`, ×1.5) /
+    Resonant Gale (2.0, 16 MP — `scale_with` RESONANCE, more is stronger) /
+    Tempest Gamble (3.0, all enemies, 22 MP — `miss_chance` 0.3).
+  - **Enemies (the two mechanics no hero move uses):** Goblin Spearman gains
+    **Reckless Charge** (`recoil_percent` 25) appended to its moves; Goblin
+    Warlord's **base** moveset gains **Overreach** (`self_debuff "defense"` — an
+    opening for the player). His Unbound Fury phase's moveset is unchanged, so
+    Overreach is only used before it. The Warlord summons Spearmen, so Reckless
+    Charge also shows up in the boss fight.
+- **The five "honest" fixes (Spec B)** — moves whose descriptions promised
+  something the code didn't do now do it, at about their old total strength:
+  Cyclone (`hit_count 2`, power **1.2** — the extra 0.2 offsets defence being
+  subtracted twice), Hydro Pierce (`pierce 1.0` at power **2.4** — ignores all
+  ARC), Gale Requiem (`ally_heal_power 1.0` at power **2.5** — damages all enemies
+  AND heals the party), Frost Bolt (`speed_debuff` at `status_chance 0.4`, power
+  **1.4**), Restoring Breeze (power **0.5**, and its `regenerate` token now
+  applies as `0.25 × MAG` per turn for 3 turns, so **1.25 × MAG** in all against
+  its old 1.2 × MAG — see the heal-move rule in the resolver). Each is a recorded
+  `MERGE_DELTAS` entry (see **Move library**).
 - 14 enemies in `data/enemies/*.tres`, loaded + `.duplicate(true)`'d. Enemies have
   **no MP** and `mp_cost = 0` on all skills. Status inflictors: Fire Drake→scorched,
   Frost Wyrm/Ice Golem→frostbite, Dark Wraith/Void Shade(Null Strike)→poison,
@@ -740,8 +982,11 @@ BattleScene (Node2D)
 
 ## Save System (3-slot, complete)
 - **Full serialization (option 1B)** — `SaveSerializer` turns Character/Skill/Item/
-  Inventory into JSON dicts and back (no PartyFactory dependency at load). Persists
-  `secondary_element`, `resonance_meter`, `base_arcane`. Battle-temp state
+  Inventory into JSON dicts and back (no PartyFactory dependency at load — the
+  pool top-up for old saves happens in `GameManager.load_from_slot`, after
+  deserialising; see **Move library**). Persists
+  `secondary_element`, `resonance_meter`, `base_arcane`, and every Spec B move
+  option. Battle-temp state
   (status/buffs/debuffs/sleep_turn) is intentionally NOT serialized.
 - **3 slots** + `active_slot` (config.cfg). New Game / Continue use `SaveSlotMenu`:
   occupied slots show Load + Copy; Delete only in the New-Game picker (not load mode).
@@ -772,11 +1017,11 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~3443 tests / 46 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~3872 tests / 47 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,
-  auto_save, level_up_screen, defeat_flow, roaming_enemy, move_library, skill_resolver, status_chips, battle_menu_gating, enemy_cards, meter_bars.
+  auto_save, level_up_screen, defeat_flow, roaming_enemy, move_library, skill_resolver, status_chips, battle_menu_gating, enemy_cards, meter_bars, skill_options.
 - Tests touching GameManager must snapshot & restore global state.
 - When fixing a bug, add a regression test that fails before the fix.
 - **Adding a new `class_name` file:** the headless test runner won't see it until the
@@ -1022,11 +1267,11 @@ own Testing Policy above — the policy (a suite per feature, registered in
   - Handoff: `pending_battle_*` + `pending_roamer_id`; `BattleScene._on_battle_ended` records
     `last_battle_won`. Safe zones still suppress spawns + auto-save on entry. Suite `roaming_enemy`.
 - **Phase P8 — Skill learning** (`Skill.unlock_level`, `Character._learn_skills_at_level`):
-  heroes carry their whole pool from the start — **12 moves** (6 ATTACK + 6
+  heroes carry their whole pool from the start — **15 moves** (7 ATTACK + 8
   SPECIAL; category is stamped per-slot from `PartyFactory.SKILL_CATEGORIES`,
-  which is `[ATTACK×4, SPECIAL×4, ATTACK×2, SPECIAL×2]` by position, not one
-  contiguous split) — but a slot only becomes usable once `level` reaches its
-  `unlock_level`. Keeping the pool array whole (never shrinking it as moves
+  which is `[ATTACK×4, SPECIAL×4, ATTACK×2, SPECIAL×2, ATTACK×1, SPECIAL×2]` by
+  position, not one contiguous split) — but a slot only becomes usable once
+  `level` reaches its `unlock_level`. Keeping the pool array whole (never shrinking it as moves
   unlock) preserves the positional contracts built on it: `SKILL_UNLOCK_LEVELS`
   / `SKILL_CATEGORIES` are matched to `hero.skills[i]` by index when the pool is
   built, and the **equipped loadout** (`equipped_attacks`/`equipped_specials`,
@@ -1037,10 +1282,12 @@ own Testing Policy above — the policy (a suite per feature, registered in
   fixed pool range. `unlock_level` defaults to **1**, so enemy skills, every
   `data/skills/*.tres`, and pre-P8 saves are unaffected and only heroes opt in.
   - Curve lives in `PartyFactory.SKILL_UNLOCK_LEVELS` (shared by all three heroes
-    so pacing is easy to balance, now 12 entries — one per pool slot):
-    `[1,1,2,7,1,4,10,15,5,12,8,18]`. Heroes open with 2 attacks + 1 special, and
-    **level 2 always teaches something** — an empty first level-up makes the
-    feature look broken.
+    so pacing is easy to balance, now 15 entries — one per pool slot):
+    `[1,1,2,7,1,4,10,15,5,12,8,18,3,9,14]`. Heroes open with 2 attacks + 1
+    special, and **level 2 always teaches something** — an empty first level-up
+    makes the feature look broken. Slots 13–15 (Spec B) unlock at **3 / 9 / 14**
+    as Attack / Special / Special; a save from before they existed gains them on
+    load (see **Old saves gain new pool moves** in Move library).
   - `Character`: `is_skill_known(i)`, `known_skills()`, `skills_unlocked_at(lvl)`,
     `next_skill_to_learn()`. `pending_learned` collects what a `gain_experience()` call
     taught (covering a multi-level jump) and is cleared at the start of the next award;
@@ -1081,24 +1328,31 @@ profiles, movesets/loadouts, rest areas, and the controller-navigation pass.
 2. **Status-cleansing items — DONE.** Every mutex status now has a cure. See
    **Status cleansing** in Core Systems above. Cleansing SKILLS are still open
    (a Lyra "Purify" move) if that is wanted later.
-3. **More skills, with varied effects and costs.** Split into three specs (see
-   `.claude/docs/superpowers/specs/2026-09-26-move-library-and-unified-resolver-design.md`):
+3. **More skills, with varied effects and costs — Spec A and Spec B DONE; Spec C
+   remains.** Split into three specs (see
+   `.claude/docs/superpowers/specs/2026-09-26-move-library-and-unified-resolver-design.md`
+   and `.claude/docs/superpowers/specs/2026-10-03-skill-mechanics-design.md`):
    - **Spec A — move library + unified resolver — DONE.** Every move lives in
-     its own file (`data/skills/`, 86 files); `BattleManager.resolve_skill` is
+     its own file (`data/skills/`, now 97 files); `BattleManager.resolve_skill` is
      the one resolver for heroes and enemies; enemy area attacks now hit the
      whole party. See **Move library** and **BattleManager** in Core Systems
      above.
-   - **Spec B — new mechanics — remaining.** Widen beyond the current
-     damage/heal/buff shapes: HP-cost or resonance-cost moves, multi-hit,
-     pierce, damage+heal, conditional power, self-debuff trade-offs. `Skill`
-     already carries `status_to_apply`, `status_chance` and
-     `resonance_gain_override` to build on. Also owns the four **"honest
-     skill" gaps** — moves whose description promises something the code
-     doesn't do: Cyclone (says it hits twice; doesn't), Hydro Pierce (says
-     pierce; no pierce mechanic exists), Gale Requiem (says heal + damage;
-     only damages), Frost Bolt (says it slows; doesn't).
+   - **Spec B — new mechanics — DONE.** HP and resonance costs, multi-hit, pierce,
+     damage + ally heal, conditional power (target afflicted / user HP low /
+     per-move element override), scaling with the user's HP / MP / resonance, and
+     the trade-offs (self-debuff, recoil, the move's own miss chance, buffing the
+     target) — all optional fields on `Skill`, resolved in one fixed order by
+     `resolve_skill`. The four "honest skill" gaps (plus Restoring Breeze's
+     ignored `regenerate`) are fixed; heroes have **15-move pools** (nine new
+     moves, one mechanic each); the Goblin Spearman and Warlord carry the two
+     trade-off moves no hero uses; every menu shows every cost and a generated
+     effect line; old saves are topped up on load. See **Spec B options** under
+     Skill, the resolution order under **BattleManager**, the new moves under
+     **Party / Enemy Setup**, and **Old saves gain new pool moves** under Move
+     library.
    - **Spec C — multi-turn effects — remaining.** Charge-up / delayed skills;
-     needs state that survives across turns.
+     needs state that survives across turns (on the `Character` or in
+     `BattleManager` — a `Skill` stays read-only).
 
 #### Track C — Hardening
 - **Roamer state in saves** — currently in-memory only, so a hard quit respawns a
@@ -1191,10 +1445,14 @@ These are **scheduled as Track C** in the Roadmap above; the detail lives here.
   user deferred "to some point later" — expect them.
 - **Roamer state is in-memory only** (per session), not written into the save JSON. After a
   hard quit + load, a region spawns fresh.
-- **Two play-testing flags exist and are currently OFF** — `PartyFactory.TEST_UNLOCK_ALL_SKILLS`
-  (gives every hero its whole 12-move pool at level 1) and the shipping value of
-  `GameManager.REST_REFRESH_BATTLES` (5). Flip them only for play-testing, and turn them
-  back before committing anything that matters.
+- **Three play-testing flags exist and are committed OFF** — `PartyFactory.TEST_UNLOCK_ALL_SKILLS`
+  (gives every hero its whole 15-move pool at level 1), the shipping value of
+  `GameManager.REST_REFRESH_BATTLES` (5; play-testing uses 1), and
+  `BattleScene.TEST_SHOW_ENEMY_HP` (adds the "120/300" number under each enemy's HP
+  bar — the real game shows the bar only, by the user's rule). Flip them only for
+  play-testing, and turn them back before committing anything that matters.
+  `TEST_UNLOCK_ALL_SKILLS` on makes the unlock-curve tests (MoveLibrary,
+  SkillLearning) fail — expected while it is on.
 
 ### Backlog / ideas (not yet scheduled)
 - More heroes (add to `PartyFactory` + `HeroPalette.HERO_BASE_COLORS` +

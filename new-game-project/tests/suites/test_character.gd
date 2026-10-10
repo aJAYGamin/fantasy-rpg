@@ -123,3 +123,34 @@ func test_total_experience_matches_cumulative_gain() -> void:
 	c.experience_to_next = Character.XP_BASE
 	c.gain_experience(250)
 	assert_eq(c.total_experience_earned(), 250, "total earned == cumulative XP gained")
+
+# --------------------------------------------------- Spec B: pierce and override
+
+func test_full_pierce_ignores_defence() -> void:
+	var c = _make()
+	c.base_defense = 6
+	assert_eq(c.take_damage(30)["damage"], 24, "30 - DEF 6")
+	c.current_hp = c.max_hp()
+	assert_eq(c.take_damage(30, ElementalSystem.Element.NORMAL, ElementalSystem.Element.NORMAL, 1.0)["damage"], 30, "pierce 1.0 ignores all DEF")
+
+func test_half_pierce_ignores_half_of_defence() -> void:
+	var c = _make()
+	c.base_defense = 6
+	assert_eq(c.take_damage(30, ElementalSystem.Element.NORMAL, ElementalSystem.Element.NORMAL, 0.5)["damage"], 27, "30 - (6 x 0.5)")
+
+func test_magic_pierce_ignores_arcane() -> void:
+	var c = _make()
+	c.base_arcane = 4
+	assert_eq(c.take_magic_damage(30, ElementalSystem.Element.NORMAL, ElementalSystem.Element.NORMAL, 1.0)["damage"], 30, "pierce 1.0 ignores all ARC")
+
+func test_the_override_reaches_the_damage_maths() -> void:
+	var c = _make()
+	c.base_defense = 0
+	c.element = ElementalSystem.Element.WATER
+	var plain = c.take_damage(20, ElementalSystem.Element.WATER)
+	assert_eq(plain["multiplier"], 0.5, "water resists water")
+	c.current_hp = c.max_hp()
+	var over = c.take_damage(20, ElementalSystem.Element.WATER, ElementalSystem.Element.NORMAL, 0.0,
+			ElementalSystem.Element.WATER, 2.0)
+	assert_eq(over["multiplier"], 2.0, "the override is super-effective")
+	assert_eq(over["damage"], 40, "and the damage follows")

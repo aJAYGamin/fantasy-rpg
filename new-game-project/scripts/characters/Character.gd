@@ -256,41 +256,40 @@ func is_status(effect: String) -> bool:
 # attackers/skills (e.g. resonance attacks Fire+Water) compute the full
 # dual-type multiplier against this character's primary + secondary elements.
 func take_damage(amount: int, attack_element: ElementalSystem.Element = ElementalSystem.Element.NORMAL,
-		attack_secondary_element: ElementalSystem.Element = ElementalSystem.Element.NORMAL) -> Dictionary:
-	var multiplier = ElementalSystem.get_combined_multiplier(
-		attack_element, attack_secondary_element, element, secondary_element)
+		attack_secondary_element: ElementalSystem.Element = ElementalSystem.Element.NORMAL,
+		pierce: float = 0.0,
+		override_element: ElementalSystem.Element = ElementalSystem.Element.NORMAL,
+		override_mult: float = 1.0) -> Dictionary:
+	return _take_hit(amount, defense_power(), attack_element, attack_secondary_element,
+			pierce, override_element, override_mult)
 
-	if extra_weakness != ElementalSystem.Element.NORMAL and attack_element == extra_weakness:
-		multiplier *= 1.5
-	if extra_resistance != ElementalSystem.Element.NORMAL and attack_element == extra_resistance:
-		multiplier *= 0.6
-
-	var base_damage = max(1, amount - defense_power())
-	var final_damage = max(1, int(base_damage * multiplier))
-	if is_defending:
-		final_damage = max(1, int(final_damage * DEFEND_DAMAGE_MULT))
-	current_hp = max(0, current_hp - final_damage)
-
-	return {
-		"damage": final_damage,
-		"multiplier": multiplier,
-		"effectiveness": ElementalSystem.get_effectiveness_text(multiplier),
-		"effectiveness_color": ElementalSystem.get_effectiveness_color(multiplier)
-	}
-
+# Mirror physical damage: the defender's arcane (magic resistance) is what is
+# subtracted before the element multiplier.
 func take_magic_damage(amount: int, attack_element: ElementalSystem.Element = ElementalSystem.Element.NORMAL,
-		attack_secondary_element: ElementalSystem.Element = ElementalSystem.Element.NORMAL) -> Dictionary:
+		attack_secondary_element: ElementalSystem.Element = ElementalSystem.Element.NORMAL,
+		pierce: float = 0.0,
+		override_element: ElementalSystem.Element = ElementalSystem.Element.NORMAL,
+		override_mult: float = 1.0) -> Dictionary:
+	return _take_hit(amount, arcane_power(), attack_element, attack_secondary_element,
+			pierce, override_element, override_mult)
+
+## Shared by both damage functions. `mitigation` is DEF or ARC; `pierce`
+## (0–1) ignores that share of it; the element override replaces one pairing
+## of the type chart (see ElementalSystem.get_combined_multiplier).
+func _take_hit(amount: int, mitigation: int, attack_element: ElementalSystem.Element,
+		attack_secondary_element: ElementalSystem.Element, pierce: float,
+		override_element: ElementalSystem.Element, override_mult: float) -> Dictionary:
 	var multiplier = ElementalSystem.get_combined_multiplier(
-		attack_element, attack_secondary_element, element, secondary_element)
+		attack_element, attack_secondary_element, element, secondary_element,
+		override_element, override_mult)
 
 	if extra_weakness != ElementalSystem.Element.NORMAL and attack_element == extra_weakness:
 		multiplier *= 1.5
 	if extra_resistance != ElementalSystem.Element.NORMAL and attack_element == extra_resistance:
 		multiplier *= 0.6
 
-	# Mirror physical damage: subtract the defender's arcane (magic resistance)
-	# before applying the element multiplier.
-	var base_damage = max(1, amount - arcane_power())
+	var mitigated := int(round(mitigation * (1.0 - clampf(pierce, 0.0, 1.0))))
+	var base_damage = max(1, amount - mitigated)
 	var final_damage = max(1, int(base_damage * multiplier))
 	if is_defending:
 		final_damage = max(1, int(final_damage * DEFEND_DAMAGE_MULT))
@@ -427,10 +426,13 @@ func clear_defend() -> void:
 	is_defending = false
 
 # Begin (or refresh) a regenerate-over-time effect. amount per turn; <=0 amount
-# defaults to 1/8 max HP.
+# defaults to 1/8 max HP. A new regen never weakens one already running: while
+# turns remain the per-turn amount is the larger of the two, so a weak heal's
+# regen (Restoring Breeze) can't undercut a strong buff's (Iron Will).
 func start_regen(turns: int, amount: int = -1) -> void:
+	var new_amount: int = amount if amount > 0 else max(1, max_hp() / 8)
+	regen_amount = max(regen_amount, new_amount) if regen_turns > 0 else new_amount
 	regen_turns = max(regen_turns, turns)
-	regen_amount = amount if amount > 0 else max(1, max_hp() / 8)
 
 # --- Leveling ---
 func gain_experience(amount: int) -> bool:
@@ -456,7 +458,7 @@ func level_up():
 	_learn_skills_at_level()
 
 # P8 — skill learning. A hero's `skills` pool holds every move it can ever
-# learn (up to MAX_SKILLS; 12 defined per hero today), each gated by its own
+# learn (up to MAX_SKILLS; 15 defined per hero today), each gated by its own
 # Skill.unlock_level — a pool entry becomes usable once `level` reaches it.
 # Which battle menu (attack vs. special) a pool slot feeds is positional, per
 # PartyFactory.SKILL_CATEGORIES, not a fixed split of the array. Keeping the

@@ -220,15 +220,20 @@ func _create_skill_slot(skill: Skill, cinzel, cinzel_bold) -> PanelContainer:
 	type_lbl.add_theme_color_override("font_color", ATTACK_TYPE_COLORS.get(attack_type, Color(0.7, 0.7, 0.7)))
 	info_grid.add_child(type_lbl)
 
-	# Column 3: MP cost
-	var mp_lbl = Label.new()
-	mp_lbl.text = "%d MP" % skill.mp_cost if skill.mp_cost > 0 else ""
-	mp_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	mp_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	if cinzel: mp_lbl.add_theme_font_override("font", cinzel)
-	mp_lbl.add_theme_font_size_override("font_size", 9)
-	mp_lbl.add_theme_color_override("font_color", Color(0.4, 0.7, 1.0))
-	info_grid.add_child(mp_lbl)
+	# Column 3: cost — MP, HP and/or resonance, each in its own colour.
+	var cost_box := HBoxContainer.new()
+	cost_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cost_box.alignment = BoxContainer.ALIGNMENT_END
+	cost_box.add_theme_constant_override("separation", 4)
+	cost_box.mouse_filter = Control.MOUSE_FILTER_IGNORE   # clicks reach the move
+	for part in skill.cost_parts():
+		var cost_lbl := Label.new()
+		cost_lbl.text = part["text"]
+		if cinzel: cost_lbl.add_theme_font_override("font", cinzel)
+		cost_lbl.add_theme_font_size_override("font_size", 9)
+		cost_lbl.add_theme_color_override("font_color", BattleUITheme.cost_color(part["kind"]))
+		cost_box.add_child(cost_lbl)
+	info_grid.add_child(cost_box)
 
 	# Connect ? button — shows description above the menu via parent
 	desc_btn.pressed.connect(func():
@@ -272,7 +277,7 @@ func _show_description_above(skill: Skill):
 		add_child(desc_panel)
 
 	var lbl = desc_panel.get_node("DescLabel")
-	var new_text = "%s — %s" % [skill.skill_name, skill.description if skill.description != "" else "No description."]
+	var new_text := description_text(skill)
 	# Toggle off if same skill clicked again
 	if desc_panel.visible and lbl.text == new_text:
 		desc_panel.visible = false
@@ -320,7 +325,10 @@ func _on_skill_selected(skill: Skill):
 			emit_signal("move_selected", skill, t)
 			close()
 		Skill.TargetType.SINGLE_ALLY:
-			var t: Array = [alive_party[0]]
+			# Like a single-enemy move: with one hero standing there is no
+			# choice to make; otherwise an empty list asks the battle to let
+			# the player pick (it used to heal alive_party[0], always).
+			var t: Array = [alive_party[0]] if alive_party.size() == 1 else []
 			emit_signal("move_selected", skill, t)
 			close()
 		Skill.TargetType.ALL_ALLIES:
@@ -332,6 +340,15 @@ func _on_skill_selected(skill: Skill):
 			var t: Array = [_current_hero]
 			emit_signal("move_selected", skill, t)
 			close()
+
+## The "?" panel's text: the description, then who the move targets and its
+## generated effect line ("One Ally · Regenerates"), so a single-target heal
+## can't be mistaken for a team one.
+static func description_text(skill: Skill) -> String:
+	var text := "%s — %s" % [skill.skill_name, skill.description if skill.description != "" else "No description."]
+	var details: Array[String] = [skill.get_target_description()]
+	details.append_array(skill.effect_tags())
+	return text + "\n" + " · ".join(details)
 
 func _get_attack_type(skill: Skill) -> String:
 	return skill.get_skill_type_display()
