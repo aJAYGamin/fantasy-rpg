@@ -206,8 +206,7 @@ func _pool_column() -> VBoxContainer:
 	col.add_child(_label("Known Moves", BattleUITheme.font_bold(), 14,
 		BattleUITheme.TEXT_SUBTITLE, HORIZONTAL_ALIGNMENT_CENTER))
 
-	var scroll := ScrollContainer.new()
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var scroll := BattleUITheme.make_scroll()
 	scroll.custom_minimum_size = Vector2(0, 300)
 	col.add_child(scroll)
 	var list := VBoxContainer.new()

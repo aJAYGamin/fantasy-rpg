@@ -836,3 +836,15 @@ func test_the_battle_is_busy_while_a_heros_skill_plays_out() -> void:
 	assert_eq(states, [BattleManager.BattleState.EXECUTING_ACTION], "executing, not choosing")
 	assert_eq(bm.state, BattleManager.BattleState.CHOOSING_ACTION, "then the next turn is offered")
 	bm.free()
+
+# --------------------------------------------------- The Warlord's roar
+# The user's call after play-testing: Savage Bellow lowers EVERY hero's ATK,
+# not a 50% roll per hero (Lyra kept missing out). A hero can still avoid it
+# only by dodging the hit, which takes a dodge bonus from gear.
+
+func test_savage_bellow_lowers_every_heros_attack() -> void:
+	var bm := _manager(3, 1)
+	bm.resolve_skill(bm.enemies[0], load("res://data/skills/savage_bellow.tres"), [])
+	for hero in bm.party:
+		assert_true(StatusSystem.is_effectively_debuffed(hero, "attack"), "%s's ATK is lowered" % hero.character_name)
+	bm.free()

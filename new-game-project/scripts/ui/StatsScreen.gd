@@ -242,10 +242,9 @@ func _build_chrome() -> void:
 
 	# Scrollable content area — rebuilt per selected hero. Fills the rest of the
 	# panel vertically so the screen uses the full window height.
-	var scroll := ScrollContainer.new()
+	var scroll := BattleUITheme.make_scroll()
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	root_v.add_child(scroll)
 
 	# Reserve a right gutter so the vertical scrollbar never crowds the

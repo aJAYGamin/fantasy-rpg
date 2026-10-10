@@ -816,6 +816,10 @@ const HOVER_SFX_ALWAYS := "hover_sfx_always"
 ## action menu under the items menu, say) stays silent. With no menu open at
 ## all, every button sounds as before. Clicks are unaffected.
 func hover_sfx_allowed(b: Control) -> bool:
+	# A greyed-out button can't be used, so hovering it is silent (user's
+	# call) — even one that opted in to sounding outside the current menu.
+	if b is BaseButton and (b as BaseButton).disabled:
+		return false
 	if b.get_meta(HOVER_SFX_ALWAYS, false):
 		return true
 	var top := top_focus_scope()

@@ -157,11 +157,9 @@ func _build() -> void:
 		_build_controls_menu(outer)
 	else:
 		# Scrollable content area for a single detail view.
-		var scroll := ScrollContainer.new()
-		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		var scroll := BattleUITheme.make_scroll()
 		scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		scroll.custom_minimum_size = Vector2(0, clampf(screen_size.y - 240.0, 200.0, 520.0))
-		_style_scrollbar(scroll.get_v_scroll_bar())
 		# A negative right margin lets the scroll area (and its scrollbar) run
 		# into the panel's right padding, keeping the scrollbar near the border
 		# without shifting the centred title, lines and Back button.
@@ -658,24 +656,6 @@ func _style_popup(popup: PopupMenu) -> void:
 	popup.add_theme_color_override("font_color", BattleUITheme.TEXT_PRIMARY)
 	popup.add_theme_color_override("font_hover_color", ACCENT)
 	popup.add_theme_color_override("font_separator_color", SECTION_COLOR)
-
-func _style_scrollbar(sb: ScrollBar) -> void:
-	if sb == null:
-		return
-	var track := StyleBoxFlat.new()
-	track.bg_color = Color(0.06, 0.04, 0.10, 0.55)
-	track.set_corner_radius_all(4)
-	track.content_margin_left = 4
-	track.content_margin_right = 4
-	sb.add_theme_stylebox_override("scroll", track)
-	var grab := StyleBoxFlat.new()
-	grab.bg_color = BattleUITheme.PANEL_BORDER
-	grab.set_corner_radius_all(4)
-	sb.add_theme_stylebox_override("grabber", grab)
-	var grab_hi := grab.duplicate()
-	grab_hi.bg_color = ACCENT
-	sb.add_theme_stylebox_override("grabber_highlight", grab_hi)
-	sb.add_theme_stylebox_override("grabber_pressed", grab_hi)
 
 func _style_slider(s: HSlider) -> void:
 	var track := StyleBoxFlat.new()

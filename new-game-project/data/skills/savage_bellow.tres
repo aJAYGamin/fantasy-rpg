@@ -9,4 +9,4 @@ description = "A roar that rattles the whole party."
 target_type = 1
 power = 0.8
 status_to_apply = "attack_debuff"
-status_chance = 0.5
+status_chance = 1.0
