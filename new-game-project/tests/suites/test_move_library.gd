@@ -553,3 +553,14 @@ func test_every_multi_turn_shape_is_used_by_some_move() -> void:
 		if s.effect_turns > 0 and s.applies_stat_effect(): used["timed"] = true
 	for m in ["charge", "delay", "recharge", "timed"]:
 		assert_true(used.has(m), "some move uses %s" % m)
+
+func test_spec_c_enemies_carry_their_multi_turn_moves() -> void:
+	var has := func(list: Array, n: String) -> bool:
+		return list.map(func(s): return s.skill_name).has(n)
+	assert_true(has.call(load("res://data/enemies/void_shade.tres").skills, "Doom Sigil"), "the Void Shade curses")
+	assert_true(has.call(load("res://data/enemies/earth_golem.tres").skills, "Tectonic Slam"), "the Earth Golem slams")
+	assert_true(has.call(load("res://data/enemies/dark_wraith.tres").skills, "Withering Hex"), "the Dark Wraith hexes")
+	var warlord: Enemy = load("res://data/enemies/goblin_warlord.tres")
+	var final_phase: BossPhase = warlord.phases[warlord.phases.size() - 1]
+	assert_true(has.call(final_phase.skills, "Earthsplitter"), "the Warlord charges in his final phase")
+	assert_false(has.call(warlord.skills, "Earthsplitter"), "and only there")

@@ -7,6 +7,7 @@
 [ext_resource type="Resource" path="res://data/skills/arcane_bolt.tres" id="5_xpbdj"]
 [ext_resource type="Resource" path="res://data/skills/void_burst.tres" id="6_udy4s"]
 [ext_resource type="Resource" path="res://data/skills/void_mend.tres" id="7_dg6hy"]
+[ext_resource type="Resource" path="res://data/skills/doom_sigil.tres" id="8_doom"]
 
 [resource]
 script = ExtResource("2_enemy")
@@ -22,4 +23,4 @@ base_magic = 13
 base_arcane = 10
 element = 9
 secondary_element = 10
-skills = Array[ExtResource("1_skill")]([ExtResource("4_5mel2"), ExtResource("5_xpbdj"), ExtResource("6_udy4s"), ExtResource("7_dg6hy")])
+skills = Array[ExtResource("1_skill")]([ExtResource("4_5mel2"), ExtResource("5_xpbdj"), ExtResource("6_udy4s"), ExtResource("7_dg6hy"), ExtResource("8_doom")])

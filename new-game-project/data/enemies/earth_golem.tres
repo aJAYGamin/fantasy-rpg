@@ -7,6 +7,7 @@
 [ext_resource type="Resource" path="res://data/skills/stone_spike.tres" id="5_hfw6d"]
 [ext_resource type="Resource" path="res://data/skills/earthquake.tres" id="6_sc8yd"]
 [ext_resource type="Resource" path="res://data/skills/earth_mend.tres" id="7_shw47"]
+[ext_resource type="Resource" path="res://data/skills/tectonic_slam.tres" id="8_tectonic"]
 
 [resource]
 script = ExtResource("2_enemy")
@@ -39,4 +40,4 @@ base_magic = 6
 base_arcane = 4
 base_speed = 6
 element = 6
-skills = Array[ExtResource("1_skill")]([ExtResource("4_1r0wf"), ExtResource("5_hfw6d"), ExtResource("6_sc8yd"), ExtResource("7_shw47")])
+skills = Array[ExtResource("1_skill")]([ExtResource("4_1r0wf"), ExtResource("5_hfw6d"), ExtResource("6_sc8yd"), ExtResource("7_shw47"), ExtResource("8_tectonic")])

@@ -7,6 +7,7 @@
 [ext_resource type="Resource" path="res://data/skills/soul_drain.tres" id="5_iafjc"]
 [ext_resource type="Resource" path="res://data/skills/dark_pulse.tres" id="6_0vx18"]
 [ext_resource type="Resource" path="res://data/skills/void_shroud.tres" id="7_d2i2a"]
+[ext_resource type="Resource" path="res://data/skills/withering_hex.tres" id="8_wither"]
 
 [resource]
 script = ExtResource("2_enemy")
@@ -36,4 +37,4 @@ base_arcane = 10
 base_speed = 9
 element = 14
 secondary_element = 10
-skills = Array[ExtResource("1_skill")]([ExtResource("4_0mmqh"), ExtResource("5_iafjc"), ExtResource("6_0vx18"), ExtResource("7_d2i2a")])
+skills = Array[ExtResource("1_skill")]([ExtResource("4_0mmqh"), ExtResource("5_iafjc"), ExtResource("6_0vx18"), ExtResource("7_d2i2a"), ExtResource("8_wither")])

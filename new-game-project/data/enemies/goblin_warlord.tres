@@ -8,6 +8,7 @@
 [ext_resource type="Resource" path="res://data/skills/warlord_s_cleave.tres" id="6_g2gb1"]
 [ext_resource type="Resource" path="res://data/skills/savage_bellow.tres" id="7_ouhqc"]
 [ext_resource type="Resource" path="res://data/skills/overreach.tres" id="8_overreach"]
+[ext_resource type="Resource" path="res://data/skills/earthsplitter.tres" id="9_earthsplitter"]
 
 [sub_resource type="Resource" id="Phase_opening"]
 script = ExtResource("3_phase")
@@ -28,7 +29,7 @@ script = ExtResource("3_phase")
 enter_at_hp = 0.25
 phase_name = "Unbound Fury"
 banner_text = "The Warlord rises, wreathed in fury!"
-skills = Array[ExtResource("1_skill")]([ExtResource("3_ro5fg"), ExtResource("4_q44ng")])
+skills = Array[ExtResource("1_skill")]([ExtResource("3_ro5fg"), ExtResource("4_q44ng"), ExtResource("9_earthsplitter")])
 stat_multipliers = {
 "attack": 1.5,
 "speed": 1.2
