@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+
+[resource]
+script = ExtResource("1_skill")
+skill_name = "Deluge"
+description = "Calls a deluge that crashes onto every enemy at the end of the next round."
+mp_cost = 28
+attack_type = 2
+target_type = 1
+power = 3.4
+element = 2
+delay_rounds = 2

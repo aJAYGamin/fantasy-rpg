@@ -19,7 +19,7 @@ func test_expected_heroes_present() -> void:
 func test_each_hero_has_eight_skills() -> void:
 	var party = PartyFactory.create_default_party()
 	for h in party:
-		assert_eq(h.skills.size(), 15, "%s has a 15-move pool (7 attack + 8 special)" % h.character_name)
+		assert_eq(h.skills.size(), 18, "%s has an 18-move pool (8 attack + 10 special)" % h.character_name)
 
 func test_heroes_start_at_full_hp_mp() -> void:
 	var party = PartyFactory.create_default_party()

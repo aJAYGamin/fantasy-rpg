@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+
+[resource]
+script = ExtResource("1_skill")
+skill_name = "Undertow"
+description = "A dragging current that leaves a foe's guard sodden for a few turns."
+mp_cost = 12
+attack_type = 2
+power = 1.4
+element = 2
+status_to_apply = "defense_debuff"
+status_chance = 1.0
+effect_turns = 3

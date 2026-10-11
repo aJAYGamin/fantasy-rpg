@@ -521,3 +521,35 @@ func test_brine_surge_is_super_effective_against_water() -> void:
 	assert_eq(int(s.override_element), int(ElementalSystem.Element.WATER), "names Water")
 	assert_true(s.override_super, "super-effective")
 	assert_eq(int(s.element), int(ElementalSystem.Element.WATER), "a Water move")
+
+# --------------------------------------------------- Spec C: new moves
+
+const SPEC_C_HERO_MOVES := {
+	"Aria": ["undertow.tres", "deluge.tres", "tsunami.tres"],
+	"Kael": ["sunforge_strike.tres", "searing_brand.tres", "eruption.tres"],
+	"Lyra": ["gathering_squall.tres", "windrunners_blessing.tres", "dawnsong.tres"],
+}
+
+func test_each_hero_gains_three_moves_in_slots_16_to_18() -> void:
+	for hero in PartyFactory.create_default_party():
+		var want: Array = SPEC_C_HERO_MOVES[hero.character_name]
+		for i in 3:
+			assert_eq(hero.skills[15 + i].source_path, LIB + want[i], "%s slot %d" % [hero.character_name, 16 + i])
+
+func test_every_spec_c_hero_move_is_described_and_tagged() -> void:
+	for name in SPEC_C_HERO_MOVES:
+		for f in SPEC_C_HERO_MOVES[name]:
+			var s: Skill = load(LIB + f)
+			assert_true(s.description != "", "%s has a description" % f)
+			assert_false(s.effect_tags().is_empty(), "%s shows its multi-turn shape" % f)
+
+func test_every_multi_turn_shape_is_used_by_some_move() -> void:
+	var used := {}
+	for f in _library_files():   # full res:// paths
+		var s: Skill = load(f)
+		if s.charge_turns > 0: used["charge"] = true
+		if s.delay_rounds > 0: used["delay"] = true
+		if s.recharge_turns > 0: used["recharge"] = true
+		if s.effect_turns > 0 and s.applies_stat_effect(): used["timed"] = true
+	for m in ["charge", "delay", "recharge", "timed"]:
+		assert_true(used.has(m), "some move uses %s" % m)

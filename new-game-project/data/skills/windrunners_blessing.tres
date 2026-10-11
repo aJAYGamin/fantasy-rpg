@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+
+[resource]
+script = ExtResource("1_skill")
+skill_name = "Windrunner's Blessing"
+description = "Quickens the whole party for a few turns."
+mp_cost = 8
+skill_type = 1
+status_type = 1
+target_type = 3
+element = 7
+status_to_apply = "speed_buff"
+effect_turns = 3

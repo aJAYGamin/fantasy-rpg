@@ -9,7 +9,7 @@ extends RefCounted
 ##
 ## `skills` is a POOL (up to Character.MAX_SKILLS) — heroes learn more moves than
 ## they can carry, and only Character.EQUIP_SLOTS of each category are usable at
-## once. Each hero currently defines 15: seven attacks and eight specials, so
+## once. Each hero currently defines 18: eight attacks and ten specials, so
 ## there is a real choice to make at an NPC or campfire rather than a forced
 ## loadout.
 ##
@@ -32,10 +32,13 @@ const SKILL_UNLOCK_LEVELS: Array[int] = [
 	3,   # 12 attack   (Spec B: Brine Surge / Bloodfire Edge / Opportune Gust)
 	9,   # 13 special  (Spec B: Mana Surge / Last Stand / Resonant Gale)
 	14,  # 14 special  (Spec B: Abyssal Tithe / Provoking Blow / Tempest Gamble)
+	6,   # 15 attack   (Spec C: Undertow / Sunforge Strike / Gathering Squall)
+	11,  # 16 special  (Spec C: Deluge / Searing Brand / Windrunner's Blessing)
+	16,  # 17 special  (Spec C: Tsunami / Eruption / Dawnsong)
 ]
 
-## Which menu each pool slot feeds. Parallel to SKILL_UNLOCK_LEVELS. With seven
-## attacks and eight specials against four slots each, the player always has
+## Which menu each pool slot feeds. Parallel to SKILL_UNLOCK_LEVELS. With eight
+## attacks and ten specials against four slots each, the player always has
 ## something to swap.
 const SKILL_CATEGORIES: Array[int] = [
 	Skill.SkillCategory.ATTACK,  Skill.SkillCategory.ATTACK,
@@ -46,10 +49,12 @@ const SKILL_CATEGORIES: Array[int] = [
 	Skill.SkillCategory.SPECIAL, Skill.SkillCategory.SPECIAL,
 	Skill.SkillCategory.ATTACK,  Skill.SkillCategory.SPECIAL,
 	Skill.SkillCategory.SPECIAL,
+	Skill.SkillCategory.ATTACK,  Skill.SkillCategory.SPECIAL,   # Spec C: slots 16-18
+	Skill.SkillCategory.SPECIAL,
 ]
 
 # Play-testing toggle, OFF for normal play. Flipping it to true collapses every
-# unlock level to 1, so a fresh party knows its whole 15-move pool and the
+# unlock level to 1, so a fresh party knows its whole 18-move pool and the
 # trainer/campfire loadout screens have something to swap between immediately.
 # While it is on the curve in SKILL_UNLOCK_LEVELS never runs and level-ups teach
 # nothing, so it must stay false in a shipped build.
@@ -65,18 +70,21 @@ const POOLS := {
 		"tidal_requiem.tres", "hydro_pierce.tres", "tidal_barrier.tres", "grand_mend.tres",
 		"riptide_lash.tres", "glacial_shard.tres", "abyssal_veil.tres", "maelstrom.tres",
 		"brine_surge.tres", "mana_surge.tres", "abyssal_tithe.tres",
+		"undertow.tres", "deluge.tres", "tsunami.tres",
 	],
 	"Kael": [
 		"flame_strike.tres", "shield_bash.tres", "war_cry.tres", "inferno.tres",
 		"phoenix_fury.tres", "molten_blade.tres", "iron_will.tres", "flame_wall.tres",
 		"cinder_cleave.tres", "guard_crush.tres", "ember_ward.tres", "scorched_earth.tres",
 		"bloodfire_edge.tres", "last_stand.tres", "provoking_blow.tres",
+		"sunforge_strike.tres", "searing_brand.tres", "eruption.tres",
 	],
 	"Lyra": [
 		"wind_slash.tres", "mend.tres", "gust.tres", "wind_barrier.tres",
 		"gale_requiem.tres", "cyclone.tres", "grand_mend.tres", "tailwind.tres",
 		"zephyr_cut.tres", "feather_volley.tres", "restoring_breeze.tres", "sanctuary.tres",
 		"opportune_gust.tres", "resonant_gale.tres", "tempest_gamble.tres",
+		"gathering_squall.tres", "windrunners_blessing.tres", "dawnsong.tres",
 	],
 }
 

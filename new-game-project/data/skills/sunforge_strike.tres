@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+
+[resource]
+script = ExtResource("1_skill")
+skill_name = "Sunforge Strike"
+description = "Heats his blade white for a turn, then brings it down on one foe."
+mp_cost = 14
+power = 4.0
+element = 1
+charge_turns = 1
