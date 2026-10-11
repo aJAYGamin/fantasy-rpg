@@ -563,6 +563,27 @@ func test_a_landing_that_ends_the_battle_drops_the_rest() -> void:
 	assert_eq(bm.state, BattleManager.BattleState.BATTLE_OVER, "the battle is over")
 	bm.free()
 
+func test_a_later_strike_whose_targets_still_stand_is_dropped_once_the_battle_ends() -> void:
+	# Review focus 2, pinned for real: the SECOND due strike has a target that is
+	# still standing (the foe), so only the in-loop battle-end check stops it —
+	# without that check it would land and the defeat would be reported twice.
+	var hero := _unit("Hero", true, 0)
+	hero.current_hp = 1
+	var foe := _foe(_delayed(1, Skill.TargetType.ALL_ENEMIES), 50)
+	var bm := _battle([hero], [foe])
+	assert_eq(bm.scheduled.size(), 1, "round 1: the foe cast first")
+	var ended := []
+	bm.battle_ended.connect(func(won, _r): ended.append(won))
+	var events := _events(bm)
+	var foe_before := foe.current_hp
+	bm.player_use_skill(hero, _delayed(), [foe])
+	assert_eq(ended, [false], "the defeat was reported once")
+	assert_eq(events.count(StatusSystem.STRIKE_LANDING), 1, "only the foe's strike landed")
+	assert_eq(foe.current_hp, foe_before, "the hero's strike never landed on the standing foe")
+	assert_true(bm.scheduled.is_empty(), "nothing left waiting")
+	assert_eq(bm.state, BattleManager.BattleState.BATTLE_OVER, "the battle is over")
+	bm.free()
+
 func test_a_new_battle_starts_with_nothing_scheduled() -> void:
 	# Review focus 3: fleeing ends the scene and its manager; the next battle's
 	# manager starts empty, and heroes' countdowns were cleared on the way out.
