@@ -193,9 +193,9 @@ func _next_turn():
 	var skip_result: Dictionary = StatusSystem.resolve_turn_skip(current_actor)
 
 	# Wake-up banner: sleep was active and resolved to "wake", actor will act
-	# THIS same turn after the banner finishes. Wait long enough for the banner
-	# to play fully (BattleScene.BANNER_DURATION_WAKE = 1.55) plus a small
-	# buffer so the action menu doesn't appear mid-fade.
+	# THIS same turn after the banner finishes. Wait WAKE_PAUSE: the banner's
+	# time on screen (BattleScene.BANNER_DURATION_WAKE, 1.55s) plus a small
+	# buffer, so the action menu doesn't appear mid-fade.
 	if skip_result.get("woke_up", false):
 		emit_signal("status_effect_triggered", current_actor, {
 			"type": "woke_up",
@@ -204,8 +204,9 @@ func _next_turn():
 		})
 		await _pause(WAKE_PAUSE)
 
-	# Skip banner: actor cannot act this turn. Wait for the banner to finish
-	# (BattleScene.BANNER_DURATION_SKIP = 1.70) before advancing to next actor.
+	# Skip banner: actor cannot act this turn. Wait SKIP_PAUSE: the banner's time
+	# on screen (BattleScene.BANNER_DURATION_SKIP, 1.70s) plus a small buffer,
+	# before advancing to next actor.
 	var skip_status: String = skip_result.get("skip", "")
 	if skip_status != "":
 		# Spec C: a skipped turn breaks a charge-up; its costs stay spent.

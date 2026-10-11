@@ -512,7 +512,7 @@ func level_up():
 	_learn_skills_at_level()
 
 # P8 — skill learning. A hero's `skills` pool holds every move it can ever
-# learn (up to MAX_SKILLS; 15 defined per hero today), each gated by its own
+# learn (up to MAX_SKILLS; 18 defined per hero today), each gated by its own
 # Skill.unlock_level — a pool entry becomes usable once `level` reaches it.
 # Which battle menu (attack vs. special) a pool slot feeds is positional, per
 # PartyFactory.SKILL_CATEGORIES, not a fixed split of the array. Keeping the
