@@ -221,6 +221,33 @@ func test_a_target_buff_and_a_self_debuff_follow_the_moves_duration() -> void:
 	assert_eq(int(hero.debuff_turns.get("defense", 0)), 1, "the hero's own DEF debuff is timed")
 	bm.free()
 
+func test_a_status_buff_or_debuff_move_passes_its_duration_on() -> void:
+	# A STATUS move reaches _apply_skill_status through its own BUFF / DEBUFF
+	# branches; dropping effect_turns there would make Windrunner's Blessing
+	# permanent. The fast hero's round-2 turn is when control returns.
+	var hero := _unit("Hero", true, 50)
+	var foe := _foe()
+	var bm := _battle([hero], [foe])
+	var buff := Skill.new()
+	buff.skill_name = "Timed Buff"
+	buff.skill_type = Skill.SkillType.STATUS
+	buff.status_type = Skill.StatusType.BUFF
+	buff.target_type = Skill.TargetType.SELF
+	buff.status_to_apply = "speed_buff"
+	buff.effect_turns = 2
+	bm.player_use_skill(hero, buff, [hero])
+	assert_eq(int(hero.buff_turns.get("speed", 0)), 1, "the BUFF move is timed: one of the hero's own turns has begun since")
+	bm.free()
+
+	var hero2 := _unit("Hero", true, 50)
+	var foe2 := _foe()
+	var bm2 := _battle([hero2], [foe2])
+	var debuff := _status_move("defense_debuff", Skill.TargetType.SINGLE_ENEMY)
+	debuff.effect_turns = 2
+	bm2.player_use_skill(hero2, debuff, [foe2])
+	assert_eq(int(foe2.debuff_turns.get("defense", 0)), 1, "the DEBUFF move is timed: the foe's turn has begun once since")
+	bm2.free()
+
 # --------------------------------------------------- Recharge
 
 func _status_move(token: String, target: Skill.TargetType) -> Skill:
@@ -302,12 +329,17 @@ func test_a_charge_up_hits_on_the_users_next_turn() -> void:
 	var foe := _foe()
 	var bm := _battle([hero], [foe])
 	var seen := _log(bm)
+	var offered := []
+	bm.turn_ready_for_action.connect(func(c): offered.append(c))
 	var before := foe.current_hp
 	bm.player_use_skill(hero, _charge(), [foe])
 	# Round 1: the charge (banner only) and the foe's Tap. Round 2: the release,
 	# then the foe's Tap. Round 3: the hero chooses again.
 	assert_eq(seen, [StatusSystem.CHARGING, "buff", "skill_physical", "buff"], "nothing hits until the release")
 	assert_true(foe.current_hp < before, "the release hit")
+	# Review focus 1: the release is the hero's whole turn — no menu for it. The
+	# hero is offered only in round 3 (the foe is offered in rounds 1 and 2).
+	assert_eq(offered.filter(func(c): return c == hero).size(), 1, "no menu on the release turn; offered once, in round 3")
 	assert_eq(bm.current_actor, hero, "then the hero chooses again")
 	assert_true(bm.scheduled.is_empty(), "the charge is spent")
 	bm.free()
@@ -419,9 +451,12 @@ func test_an_enemy_charge_releases_without_the_ai_acting_again() -> void:
 	assert_eq(bm.scheduled.size(), 1, "round 1: the foe began charging")
 	var previews := []
 	bm.enemy_move_preview.connect(func(_e, m): previews.append(m))
+	var offered := []
+	bm.turn_ready_for_action.connect(func(c): offered.append(c))
 	var hits := _hits(bm)
 	var before := hero.current_hp
 	bm.player_use_skill(hero, _tap(), [hero])
+	assert_eq(offered, [hero], "the release was the foe's whole turn; the hero is offered once")
 	var on_hero := hits.filter(func(r): return r["action"] == "skill_physical")
 	assert_eq(on_hero.size(), 1, "round 2: one release")
 	assert_true(hero.current_hp < before, "that hit the hero")

@@ -944,9 +944,9 @@ func _summon_from_spec(boss: Enemy, spec: Dictionary) -> void:
 ## mean a status landed — _apply_skill_status can still no-op below (element
 ## immunity, the mutex rule), same as it would on the ordinary skill path.
 ##
-## Hooked to the boss's OWN turn rather than "each round": the turn-order model
-## has no explicit round boundary, and this way the effect fires exactly once per
-## cycle and stops naturally when the boss dies. It resolves BEFORE the boss
+## Hooked to the boss's OWN turn rather than "each round": it is a per-turn
+## effect tied to the boss acting, so it fires exactly once per boss turn and
+## stops naturally when the boss dies. It resolves BEFORE the boss
 ## chooses its action, so a hero paralysed here is already paralysed when the
 ## boss picks a target.
 func apply_boss_field_effect(boss: Enemy) -> Character:

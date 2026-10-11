@@ -585,8 +585,8 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
      with no card and no visible HP.
   4. **Field effects** — `turn_effect` + `turn_effect_chance`, rolled on the
      **boss's own turn** (`apply_boss_field_effect`, called from `_next_turn`
-     before the boss picks its action) rather than "each round" — the
-     turn-order model has no round boundary to hook. Delegates to
+     before the boss picks its action) rather than "each round" — it is a
+     per-turn effect tied to the boss acting. Delegates to
      `_apply_skill_status`, inheriting element immunity, the mutex rule and the
      downed-character guard for free.
   5. **Transformation** — `max_hp_multiplier` + `restore_hp`. The only way to
