@@ -33,6 +33,7 @@ any of the three. The new cursor must not take anything away from any of them.
 | Fullscreen | The game holds the mouse while it is in front; the player sees only the game's cursor. |
 | Windowed | Pushing the cursor past the window's edge lets it **slip out to the desktop**; **clicking back in** picks it up again. |
 | All inputs | Every screen must be fully usable by controller, by keyboard, and by mouse. |
+| Controller cursor | The controller's **right stick moves the cursor**, and **pressing the right stick clicks** with it — that single press is all a click takes. The Controller settings page is updated to match (below). |
 
 ### The ten shapes
 
@@ -86,7 +87,9 @@ Their exact shades are the palettes in the art reference.
 - **Cursor Colour** — `◀ ▶` steps through the twenty colours in wheel order,
   wrapping round. The row shows the colour's name and a dot of that colour.
 - **Mouse Sensitivity** — a slider styled like the existing stick-sensitivity
-  sliders.
+  sliders. It sets the mouse's speed only; how fast the right stick moves the
+  cursor is the Controller page's Right Stick Sensitivity. The chosen shape and
+  colour apply to the cursor whichever of the two is moving it.
 - Works with all three inputs: mouse (click the arrows, drag the slider),
   keyboard and controller (up/down between rows, left/right to change a row,
   like the other settings pages).
@@ -120,12 +123,48 @@ Their exact shades are the palettes in the art reference.
 - *My call:* the game draws its cursor once per frame, so with Max FPS capped
   very low (30) it moves a little less smoothly than the desktop pointer. That
   is accepted, not worked around.
-- *My call:* the cursor shows only while the mouse is the input in use. Using
-  the keyboard or a controller hides it (the game already switches menus to
-  focus navigation then); moving the mouse brings it back where it was.
-- *My call:* the controller's right stick does **not** move the cursor. It stays
-  reserved, as the Controller page already says.
+- *My call:* the cursor shows only while it's being used — the mouse, or the
+  controller's right stick (next section). Using the keyboard, or navigating
+  with the controller's d-pad / left stick, hides it (menus already switch to
+  focus navigation then); moving the mouse or the right stick brings it back
+  where it was.
 - *My call:* no click animation — the hover glow is the feedback.
+
+### The cursor on a controller
+
+- **The right stick moves the cursor; pressing the right stick (R3) clicks
+  wherever the cursor is.** It is the same cursor — same shape, colour, glow —
+  doing everything a mouse click does.
+- The d-pad / left stick keep moving the menu highlight exactly as now, and the
+  face buttons keep confirming and cancelling. The stick cursor is an extra way
+  to point, not a replacement.
+- *My call:* **holding** the stick press acts like holding the mouse button, so
+  sliders and scrollbars can be dragged by holding R3 and moving the stick.
+- *My call:* pushing the stick further moves the cursor faster: a small dead
+  zone, fine control near the centre, and at full tilt it crosses the screen in
+  about a second and a half at 1.00×. The **Right Stick Sensitivity** slider
+  scales that speed.
+- *My call:* if the cursor is hidden (the player was using the d-pad), pressing
+  R3 first brings it back at its last spot without clicking, so a click never
+  lands somewhere the player can't see.
+- *My call:* the stick cursor never leaves the game window — slipping out at
+  the edge is only for the mouse.
+- The right stick stops being "reserved for future camera control". If a free
+  camera is ever added, it will need a different control.
+
+### The Controller page (Settings → Controls → Controller)
+
+Updated for the new control:
+- **Right Stick Sensitivity** now sets how fast the right stick moves the
+  cursor (same slider and range as today). The note "Right stick is reserved for
+  future camera control." becomes a short line saying the right stick moves the
+  cursor and pressing it clicks.
+- A new remappable row, **Cursor Click**, defaulting to the right stick press,
+  joins the binding list (Move Up … Pause / Menu). It works like every other row
+  — press-to-bind, reset, per-profile. It is a controller-only control, so it
+  does not appear on the Keyboard page.
+- Moving the cursor stays on the right stick (sticks aren't remappable today
+  either).
 
 ### Holding and releasing the mouse
 
@@ -167,8 +206,10 @@ proven not to have broken anything. Screens to cover:
 - Overworld and interiors (moving, zones, transitions, the pause/save path).
 
 For each screen and each input: every control can be reached and used, and
-Back / cancel works. Keep a short written record of the pass (screen × input,
-fine or fixed) for the user.
+Back / cancel works. "Controller" means both ways of using one — the d-pad /
+left-stick highlight with the face buttons, **and** the right-stick cursor with
+the stick press. Keep a short written record of the pass (screen × input, fine
+or fixed) for the user.
 
 ## Success criteria
 
@@ -186,6 +227,10 @@ fine or fixed) for the user.
    use and comes back with the mouse.
 6. Windowed play: the mouse slips out at the edges and is picked up again by a
    click; switching apps always releases it.
+6a. On a controller, the right stick moves the same cursor anywhere in the game
+   and the stick press clicks (holding it drags); Right Stick Sensitivity sets
+   its speed; Cursor Click can be remapped on the Controller page like any other
+   control.
 7. The every-screen pass is done and recorded, with any gaps fixed.
 8. The automated suite stays green, with new tests for the settings, their
    saving, and the mouse-input forwarding wherever it can be tested headless.
@@ -195,8 +240,7 @@ fine or fixed) for the user.
 - **Not** a custom system cursor on its own — that can't honour a sensitivity
   setting. (A themed system cursor is used only for the "let go" moment above.)
 - **No** preview section on the Mouse page; **no** cursor-size option; **no**
-  cursor movement by the right stick; **no** per-save cursor choices; **no**
-  click animation.
+  per-save cursor choices; **no** click animation.
 - No new shapes or colours beyond the approved 10 × 20; no restyling of them.
 - Anti-goals — any of these is a failure even if everything else works:
   any screen losing mouse, keyboard or controller usability; a cursor that lags,
