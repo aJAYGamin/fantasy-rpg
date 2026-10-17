@@ -333,9 +333,10 @@ func test_a_charge_up_hits_on_the_users_next_turn() -> void:
 	bm.turn_ready_for_action.connect(func(c): offered.append(c))
 	var before := foe.current_hp
 	bm.player_use_skill(hero, _charge(), [foe])
-	# Round 1: the charge (banner only) and the foe's Tap. Round 2: the release,
-	# then the foe's Tap. Round 3: the hero chooses again.
-	assert_eq(seen, [StatusSystem.CHARGING, "buff", "skill_physical", "buff"], "nothing hits until the release")
+	# Round 1: the charge (banner only) and the foe's Tap. Round 2: the release
+	# banner, then its hit, then the foe's Tap. Round 3: the hero chooses again.
+	assert_eq(seen, [StatusSystem.CHARGING, "buff", StatusSystem.CHARGE_RELEASED, "skill_physical", "buff"],
+			"nothing hits until the release, which is announced first")
 	assert_true(foe.current_hp < before, "the release hit")
 	# Review focus 1: the release is the hero's whole turn — no menu for it. The
 	# hero is offered only in round 3 (the foe is offered in rounds 1 and 2).
@@ -454,6 +455,7 @@ func test_an_enemy_charge_releases_without_the_ai_acting_again() -> void:
 	var offered := []
 	bm.turn_ready_for_action.connect(func(c): offered.append(c))
 	var hits := _hits(bm)
+	var events := _events(bm)
 	var before := hero.current_hp
 	bm.player_use_skill(hero, _tap(), [hero])
 	assert_eq(offered, [hero], "the release was the foe's whole turn; the hero is offered once")
@@ -462,6 +464,7 @@ func test_an_enemy_charge_releases_without_the_ai_acting_again() -> void:
 	assert_true(hero.current_hp < before, "that hit the hero")
 	assert_true(bm.scheduled.is_empty(), "and the AI did not start a new charge in the same turn")
 	assert_true(previews.has("Gather"), "the move name showed under its card")
+	assert_false(events.has(StatusSystem.CHARGE_RELEASED), "like any enemy move, not as a banner")
 	bm.free()
 
 func test_stunning_a_charging_enemy_breaks_its_attack() -> void:
@@ -479,6 +482,8 @@ func test_stunning_a_charging_enemy_breaks_its_attack() -> void:
 func test_charge_banner_text() -> void:
 	assert_eq(StatusSystem.multi_turn_phrase("Kael", {"type": StatusSystem.CHARGING}), "Kael is gathering power!", "charging")
 	assert_eq(StatusSystem.multi_turn_phrase("Kael", {"type": StatusSystem.FOCUS_BROKEN}), "Kael's focus was broken!", "broken")
+	assert_eq(StatusSystem.multi_turn_phrase("Kael", {"type": StatusSystem.CHARGE_RELEASED, "move": "Sunforge Strike"}),
+			"Kael unleashes Sunforge Strike!", "released")
 	assert_eq(StatusSystem.multi_turn_phrase("Kael", {"type": StatusSystem.STATS_EXPIRED}), "", "a quiet event has no banner")
 
 # --------------------------------------------------- Delayed strikes

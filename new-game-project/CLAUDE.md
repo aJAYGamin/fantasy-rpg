@@ -765,7 +765,8 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
     charge release); `WAKE_PAUSE` 1.75 and `SKIP_PAUSE` 1.9 — the wake-up and
     skip banners, including "recovering" (the banner's
     `BattleScene.BANNER_DURATION_*` of 1.55 / 1.70 plus a buffer);
-    `BANNER_PAUSE` 1.75 — "gathering power", "focus broken" and "<Move> strikes!".
+    `BANNER_PAUSE` 1.75 — "gathering power", "focus broken", "<Hero> unleashes
+    <Move>!" and "<Move> strikes!".
   - `_end_turn()` is the end of ANY actor's turn: `state = IDLE`,
     `_pause(ACTION_PAUSE)`, `check_battle_end()`, then the next actor.
     `end_player_turn` awaits it; `_execute_enemy_turn` and a charge release end
@@ -881,8 +882,11 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
     an empty list.
   - **Charge release.** `_release_charge(entry)` drops the entry, shows an
     enemy's move name under its card first (`enemy_move_preview` +
-    `PREVIEW_PAUSE`, no `THINK_PAUSE`), picks `_strike_targets`, `_strike`s with a
-    fresh `_measure`, then `_start_recharge`. It IS the actor's turn: `_next_turn`
+    `PREVIEW_PAUSE`, no `THINK_PAUSE`), or for a hero the `CHARGE_RELEASED` banner
+    ("Kael unleashes Sunforge Strike!") + `BANNER_PAUSE` — so a release never hits
+    the instant the turn begins (play-test: a hero's release was easy to miss) —
+    then picks `_strike_targets`, `_strike`s with a fresh `_measure`, then
+    `_start_recharge`. It IS the actor's turn: `_next_turn`
     follows it with `_end_turn()`, never `_execute_enemy_turn`, so an enemy never
     also runs the AI for the same turn. **A skipped turn breaks the charge** —
     stun, a sleep skip, or a paralysis skip that actually fires (its 25% roll;

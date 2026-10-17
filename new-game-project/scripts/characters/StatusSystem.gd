@@ -30,9 +30,11 @@ const DEFENDING := "defending"
 const STATS_EXPIRED := "stats_expired"
 ## A turn lost resting after a recharge move. Routed as a skip banner.
 const RECHARGING := "recharging"
-## A charge-up begins; a charge-up is broken by a skipped turn.
+## A charge-up begins; a charge-up is broken by a skipped turn; a hero's
+## charge-up is released (an enemy's shows its move name under its card).
 const CHARGING := "charging"
 const FOCUS_BROKEN := "focus_broken"
+const CHARGE_RELEASED := "charge_released"
 ## A delayed strike is cast (quiet: only refreshes the spent MP); one lands.
 const STRIKE_SCHEDULED := "strike_scheduled"
 const STRIKE_LANDING := "strike_landing"
@@ -95,6 +97,7 @@ const STATUS_COLORS := {
 	RECHARGING: Color(0.70, 0.62, 0.85),  # spent lilac
 	CHARGING: Color(1.00, 0.72, 0.35),       # gathering gold
 	FOCUS_BROKEN: Color(0.75, 0.75, 0.85),   # spent grey-blue
+	CHARGE_RELEASED: Color(1.00, 0.72, 0.35),  # gathering gold, let loose
 	STRIKE_LANDING: Color(0.85, 0.55, 1.00),  # amethyst
 }
 
@@ -281,6 +284,8 @@ static func multi_turn_phrase(character_name: String, result: Dictionary) -> Str
 			return "%s is gathering power!" % character_name
 		FOCUS_BROKEN:
 			return "%s's focus was broken!" % character_name
+		CHARGE_RELEASED:
+			return "%s unleashes %s!" % [character_name, String(result.get("move", ""))]
 		STRIKE_LANDING:
 			return "%s strikes!" % String(result.get("move", ""))
 		_:

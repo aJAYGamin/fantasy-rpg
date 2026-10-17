@@ -472,6 +472,9 @@ func _strike_targets(user: Character, skill: Skill, chosen: Array[Character]) ->
 
 ## A charge-up firing on its user's turn: no menu, no AI choice. Measured now —
 ## the charger is acting — so a buff landed on them while charging counts.
+## Announced first, so the hit never lands the instant the turn begins: an
+## enemy's move name shows under its card as for any enemy move; a hero's
+## release gets a banner, then a pause.
 func _release_charge(entry: Scheduled) -> void:
 	scheduled.erase(entry)
 	var user := entry.user
@@ -479,6 +482,10 @@ func _release_charge(entry: Scheduled) -> void:
 		emit_signal("enemy_move_preview", user, entry.skill.skill_name)
 		await _pause(PREVIEW_PAUSE)
 		emit_signal("enemy_move_preview", user, "")
+	else:
+		emit_signal("status_effect_triggered", user, {"type": StatusSystem.CHARGE_RELEASED,
+				"value": 0, "name": user.character_name, "move": entry.skill.skill_name})
+		await _pause(BANNER_PAUSE)
 	var targets := _strike_targets(user, entry.skill, entry.chosen)
 	if not targets.is_empty():
 		await _strike(user, entry.skill, targets, _measure(user, entry.skill))
