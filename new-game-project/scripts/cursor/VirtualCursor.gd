@@ -17,6 +17,12 @@ extends Node
 ## dragging like a held mouse button. The Controller page needs to see the raw stick and
 ## button to bind them, so GameManager.raw_input_passthrough hands both back untouched.
 ##
+## The game holds the mouse (captured: the system pointer hidden) while it is in front.
+## Windowed, a deliberate push past an edge lets it go (CursorHold decides); switching
+## away always does. While let go the system pointer wears the cursor's look, no mouse
+## event reaches the game, and a click inside the window (pressing nothing) or the right
+## stick picks it up again.
+##
 ## Embedded popups (an OptionButton's list) draw above every CanvasLayer of the
 ## root, so the cursor is also copied into each open one (update_mirrors).
 ##
@@ -29,6 +35,8 @@ const GLOW_SHADER := preload("res://scripts/cursor/cursor_glow.gdshader")
 ## The glow's two blur radii in base pixels: the tight one and the wide one.
 const GLOW_RADIUS_1 := 4.0
 const GLOW_RADIUS_2 := 8.0
+## The most pixels across a system cursor image may be (Godot refuses a bigger one).
+const OS_CURSOR_MAX := 256.0
 
 ## Where the cursor's tip is, in root-viewport (base pixel) coordinates.
 var pointer_pos := Vector2.ZERO
@@ -40,6 +48,8 @@ var installed := false
 var sprite: Sprite2D
 ## The cursor is over something clickable, so it is drawn glowing.
 var glowing := false
+## Whether the game holds the mouse or has let it go.
+var hold := CursorHold.new()
 
 ## The mouse buttons this cursor is holding down, as a MouseButtonMask. Kept from
 ## the button events it routes rather than read from Input, so it is right
@@ -50,6 +60,14 @@ var _buttons := 0
 var _click_down := false
 ## The Cursor Click control is held down (an edge, so one pull of a trigger is one press).
 var _click_held := false
+## The game is the app in front, and its window has the system's focus (it can lose it
+## with the app still in front: minimised, say). Both start true: the window opens in
+## front, and a notification sent before the scene tree existed would never arrive.
+var _app_focused := true
+var _window_focused := true
+## The left click that picked the mouse up has not been let go yet: its release is the
+## pick-up's too, so it is swallowed.
+var _swallow_release := false
 ## Each open popup's copy of the cursor, by the popup's instance id.
 var _mirrors := {}
 ## The glow shader's settings, shared by the cursor and every copy of it, so one
@@ -66,6 +84,10 @@ func _ready() -> void:
 	pointer_pos = get_tree().root.get_visible_rect().size / 2.0
 	# A pad at launch means the menus open on the focus highlight, not the mouse.
 	shown = not GameManager.is_controller_mode()
+	# The window may not be in front yet: still opening, or the player switched away while
+	# the game loaded (focus news from then never reached this node). The mouse is taken
+	# when it comes to the front.
+	_window_focused = DisplayServer.window_is_focused()
 	refresh_style()
 
 func _process(delta: float) -> void:
@@ -89,14 +111,16 @@ func _right_stick() -> Vector2:
 ## Controller page is waiting for a button (raw_input_passthrough). The move is clamped
 ## to the window (only the mouse slips out of it) and pushed as a mouse move at the new
 ## spot, with the stick's speed as its velocity, which a dropdown list needs to light a
-## row, and the buttons held, so Cursor Click held drags.
+## row, and the buttons held, so Cursor Click held drags. A mouse that was let go is
+## picked up first, unless another app is in front.
 func step_stick(axis: Vector2, delta: float) -> void:
 	if GameManager.raw_input_passthrough:
 		return
 	var velocity := CursorMotion.stick_velocity(axis, GameManager.settings.stick_sensitivity_right)
 	if velocity == Vector2.ZERO:
 		return
-	shown = true
+	if not _show_for_pad():
+		return
 	var before := pointer_pos
 	# Already in base pixels, so no window scale and no mouse sensitivity.
 	pointer_pos = CursorMotion.mouse_step(pointer_pos, velocity * delta, Vector2.ONE, 1.0,
@@ -116,18 +140,13 @@ func install() -> void:
 		return
 	DisplayServer.window_set_input_event_callback(route_os_event, DisplayServer.MAIN_WINDOW_ID)
 	installed = true
-	_apply_mouse_mode()
-
-## The game holds the mouse: the OS pointer is hidden and relative motion keeps
-## coming past the window's edges. One place, so letting the mouse go can take
-## it over.
-func _apply_mouse_mode() -> void:
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	_apply_hold()
 
 ## The hook's body, called with every OS input event once install() has run
 ## (tests call it directly). A mouse move steps pointer_pos at the mouse
 ## sensitivity; every mouse event is pushed into the root at pointer_pos, so
-## clicks, hovers, drags and the wheel act where the cursor is drawn. The right
+## clicks, hovers, drags and the wheel act where the cursor is drawn. While the mouse
+## is let go, mouse events are the system pointer's (_route_released). The right
 ## stick and Cursor Click belong to the cursor (_route_other); anything else goes
 ## in untouched.
 func route_os_event(ev: InputEvent) -> void:
@@ -135,9 +154,14 @@ func route_os_event(ev: InputEvent) -> void:
 	if EngineDebugger.is_active() and ev is InputEventKey and ev.pressed and not ev.echo and ev.keycode == KEY_F8:
 		EngineDebugger.send_message("request_quit", [])   # the editor's Stop shortcut
 	var root := get_tree().root
-	if ev is InputEventMouseMotion:
+	if (ev is InputEventMouse or ev is InputEventGesture) and hold.state == CursorHold.State.RELEASED:
+		_route_released(ev, root)
+	elif ev is InputEventMouseMotion:
 		_route_motion(ev, root)
 	elif ev is InputEventMouseButton:
+		if _swallow_release and ev.button_index == MOUSE_BUTTON_LEFT and not ev.pressed:
+			_swallow_release = false   # the end of the click that picked the mouse up
+			return
 		shown = true
 		_push_button(ev.duplicate())
 	elif ev is InputEventGesture:
@@ -176,7 +200,7 @@ func _route_other(ev: InputEvent) -> void:
 					_click_down = true
 					_push_click(true)
 				else:
-					shown = true   # the first press only shows it, so a click never lands unseen
+					_show_for_pad()   # the first press only shows it, so a click never lands unseen
 			return
 	if _hides_cursor(ev):
 		shown = false
@@ -196,9 +220,16 @@ func _route_motion(ev: InputEventMouseMotion, root: Window) -> void:
 		return
 	shown = true
 	var sensitivity := GameManager.settings.mouse_sensitivity
+	var bounds := root.get_visible_rect().size
 	var before := pointer_pos
-	pointer_pos = CursorMotion.mouse_step(pointer_pos, ev.relative, window_scale, sensitivity,
-			root.get_visible_rect().size)
+	pointer_pos = CursorMotion.mouse_step(pointer_pos, ev.relative, window_scale, sensitivity, bounds)
+	# A windowed game lets go once the cursor is pushed far enough past an edge. The push
+	# is the move mouse_step made, in base pixels at the sensitivity, from where the cursor
+	# stood before it; a report with no movement in it neither adds to it nor restarts it.
+	var step := ev.relative / window_scale * sensitivity
+	if step != Vector2.ZERO and hold.on_motion(CursorMotion.overshoot(before, step, bounds), _windowed()):
+		_let_go()
+		return
 	# A copy keeps the modifier keys. Its speed goes into base pixels like the move:
 	# a dropdown list ignores a move with no speed when it lights up the row under it.
 	var mm: InputEventMouseMotion = ev.duplicate()
@@ -252,16 +283,185 @@ func _hides_cursor(ev: InputEvent) -> bool:
 		return absf(ev.axis_value) > 0.5
 	return false
 
+# --- Holding and letting go of the mouse --------------------------------------------
+
+## Switching away, or the window losing focus any other way (minimised, say), always lets
+## the mouse go, so a player is never stuck with a mouse they can't take elsewhere. Coming
+## back to a fullscreen or borderless game picks it up at once; a windowed one waits for a
+## click inside it.
+func _notification(what: int) -> void:
+	var was_in_front := _in_front()
+	match what:
+		NOTIFICATION_APPLICATION_FOCUS_OUT:
+			_app_focused = false
+		NOTIFICATION_APPLICATION_FOCUS_IN:
+			_app_focused = true
+		NOTIFICATION_WM_WINDOW_FOCUS_OUT, NOTIFICATION_WM_WINDOW_FOCUS_IN:
+			# A dropdown list taking focus inside the window sends these too: only the
+			# system's word on the window itself counts.
+			_window_focused = DisplayServer.window_is_focused()
+		_:
+			return
+	if was_in_front and not _in_front():
+		if hold.state == CursorHold.State.HELD:
+			hold.on_focus(false, _windowed())
+			_let_go()
+		else:
+			_let_go_of_buttons()   # nothing should be held while let go; make sure
+	elif not was_in_front and _in_front():
+		if hold.state == CursorHold.State.RELEASED:
+			hold.on_focus(true, _windowed())
+			if hold.state == CursorHold.State.HELD:
+				_hold_again()
+		else:
+			_apply_hold()   # held all along (the game opened behind another app): take it now
+
+func _in_front() -> bool:
+	return _app_focused and _window_focused
+
+## After a window mode or size change. The window is hooked again (a recreated one would
+## drop the hook) and held as its new mode wants: a let-go mouse is picked up if the game,
+## in front, is now fullscreen or borderless; a let-go pointer is re-dressed at the new size.
+func on_display_changed() -> void:
+	if hold.state == CursorHold.State.RELEASED and _in_front() and not _windowed():
+		hold.on_focus(true, false)
+		_hold_again()
+	install()
+
+## A mouse event while the mouse is let go: the system pointer is the player's and reaches
+## nothing, except a left press inside the window, which picks the mouse up with the
+## cursor where it was pressed. That click, press and release, presses nothing.
+func _route_released(ev: InputEvent, root: Window) -> void:
+	var mb := ev as InputEventMouseButton
+	if mb == null or not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
+		return
+	var to_root := root.get_final_transform()
+	if not is_finite(to_root.determinant()) or is_zero_approx(to_root.determinant()):
+		return   # a minimised window: no sensible spot
+	var spot := to_root.affine_inverse() * mb.position
+	if not root.get_visible_rect().has_point(spot):
+		return
+	hold.on_click_while_released()
+	pointer_pos = spot
+	_swallow_release = true
+	shown = true
+	_apply_hold()
+	# A still move at the new spot, so whatever is under it lights up (and the menus
+	# switch to the mouse) before the mouse moves again. It presses nothing.
+	_push_motion(InputEventMouseMotion.new(), Vector2.ZERO)
+
+## The pad brings the cursor back. A let-go mouse is picked up first, so the drawn
+## cursor and the system pointer never both show, but never while another app is in
+## front: that would take the mouse from it. Returns whether the cursor shows.
+func _show_for_pad() -> bool:
+	if hold.state == CursorHold.State.RELEASED:
+		if not _in_front():
+			return false
+		hold.on_stick()
+		_apply_hold()
+	shown = true
+	return true
+
+## The mouse has just been let go (hold says so already). Anything held is let go, the
+## drawn cursor hides, and the system pointer, dressed as the cursor, appears where the
+## cursor was and carries on from there.
+func _let_go() -> void:
+	_let_go_of_buttons()
+	_swallow_release = false   # a let-go mouse's events are all ignored, that release too
+	shown = false
+	_apply_hold()
+	if installed:
+		var root := get_tree().root
+		# Only a visible pointer can be warped, so this comes after the switch.
+		Input.warp_mouse(root.get_final_transform() * pointer_pos)
+		# The last control under the cursor may have asked for an I-beam or a hand.
+		DisplayServer.cursor_set_shape(DisplayServer.CURSOR_ARROW)
+
+## Lets go of every button the cursor holds down and of Cursor Click, so nothing stays
+## pressed while the game isn't holding the mouse: a slider being dragged lets go.
+func _let_go_of_buttons() -> void:
+	for index in range(MOUSE_BUTTON_LEFT, MOUSE_BUTTON_XBUTTON2 + 1):
+		if _buttons & (1 << (index - 1)):
+			var mb := InputEventMouseButton.new()
+			mb.button_index = index
+			mb.pressed = false
+			_push_button(mb)
+	_click_down = false
+	_click_held = false
+
+## The mouse is held again without a click: the game came back to the front, or became
+## fullscreen. The cursor carries on from the system pointer if it is over the game, so a
+## click that brought a borderless game back lands where it was aimed. The cursor shows
+## when the mouse next moves.
+func _hold_again() -> void:
+	if installed:
+		var root := get_tree().root
+		# The one place the system pointer is read: it is still visible here, where the
+		# player last saw it, and capturing will hide it.
+		var spot := root.get_mouse_position()
+		if root.get_visible_rect().has_point(spot):
+			pointer_pos = spot
+	_apply_hold()
+
+## Puts the system mouse in the mode hold wants (_wanted_mouse_mode), dressed as the
+## cursor while let go. Nothing headless.
+func _apply_hold() -> void:
+	if not installed:
+		return
+	if hold.state == CursorHold.State.RELEASED:
+		_dress_system_pointer()
+	Input.mouse_mode = _wanted_mouse_mode()
+
+## Captured while held (hidden, deltas only), but never while the game isn't in front: that
+## would take the mouse from the app that is. Visible while let go.
+func _wanted_mouse_mode() -> int:
+	return hold.mouse_mode() if _in_front() else Input.MOUSE_MODE_VISIBLE
+
+## Dresses the system pointer as the cursor, at the size the cursor is drawn: while the
+## mouse is let go it is all the player sees of the cursor. The hand too, in case a
+## control under the pointer asks for it.
+func _dress_system_pointer() -> void:
+	var style := _style()
+	var window_scale := get_tree().root.get_final_transform().get_scale()
+	var s := os_cursor_scale(minf(window_scale.x, window_scale.y), DisplayServer.screen_get_max_scale(), style[0])
+	if not (s > 0.0 and is_finite(s)):
+		return   # a minimised window
+	# An Image, not the texture: the system keeps what it is given until after the renderer
+	# has shut down, and a texture freed then is an error at every quit.
+	var image := CursorArt.texture(style[0], style[1], s).get_image()
+	var tip := CursorArt.hotspot(style[0]) * s
+	Input.set_custom_mouse_cursor(image, Input.CURSOR_ARROW, tip)
+	Input.set_custom_mouse_cursor(image, Input.CURSOR_POINTING_HAND, tip)
+
+## System-cursor pixels per symbol unit for the system pointer to look the size the cursor
+## is drawn. `window_scale` is window pixels per base pixel; `screen_scale` is window
+## pixels per screen point (DisplayServer.screen_get_max_scale: 2 on a Retina Mac, whose
+## cursor images Godot sizes in points, 1 elsewhere). Capped so the image, glow margin
+## and all, stays within a system cursor's OS_CURSOR_MAX pixels.
+static func os_cursor_scale(window_scale: float, screen_scale: float, shape: String) -> float:
+	var view: Rect2 = CursorArt.SHAPE_DATA[shape]["view"]
+	var art := maxf(view.size.x, view.size.y) + 2.0 * CursorArt.GLOW_MARGIN
+	return minf(window_scale / screen_scale, OS_CURSOR_MAX / art)
+
+func _windowed() -> bool:
+	return GameManager.settings.window_mode == SettingsModel.WindowMode.WINDOWED
+
+## The shape and colour chosen in Settings, or the defaults if config.cfg names ones the
+## catalogue doesn't know (a hand-edited file).
+func _style() -> Array[String]:
+	var style: Array[String] = [GameManager.settings.cursor_shape, GameManager.settings.cursor_colour]
+	if not CursorArt.is_known(style[0], style[1]):
+		style = [CursorArt.DEFAULT_SHAPE, CursorArt.DEFAULT_COLOUR]
+	return style
+
 # --- Drawing -------------------------------------------------------------------
 
-## Dresses the cursor, and every open popup's copy, in the shape and colour chosen
-## in Settings.
+## Dresses the cursor, every open popup's copy, and a let-go system pointer, in the
+## shape and colour chosen in Settings.
 func refresh_style() -> void:
-	var shape := GameManager.settings.cursor_shape
-	var colour := GameManager.settings.cursor_colour
-	if not CursorArt.is_known(shape, colour):   # a hand-edited config.cfg
-		shape = CursorArt.DEFAULT_SHAPE
-		colour = CursorArt.DEFAULT_COLOUR
+	var style := _style()
+	var shape := style[0]
+	var colour := style[1]
 	sprite.texture = CursorArt.texture(shape, colour)
 	# The art is drawn from the texture's corner; this offset puts the tip on the
 	# sprite's position.
@@ -272,6 +472,8 @@ func refresh_style() -> void:
 	for id in _mirrors:
 		if is_instance_valid(_mirrors[id]):   # a freed popup's copy waits for update_mirrors
 			_copy_style(_mirrors[id])
+	if installed and hold.state == CursorHold.State.RELEASED:
+		_dress_system_pointer()
 
 ## Keeps a copy of the cursor in every open embedded popup, at the cursor: popups
 ## draw above every CanvasLayer of the root, so an open dropdown list would

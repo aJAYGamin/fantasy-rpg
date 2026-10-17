@@ -196,14 +196,14 @@ func apply_display() -> void:
 	match window_mode:
 		WindowMode.FULLSCREEN:
 			if not is_fullscreen:
-				DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
+				_set_borderless(false)
 				DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 		WindowMode.BORDERLESS:
 			# Borderless "fullscreen window": a windowed mode filling the screen
 			# with no title bar.
 			if is_fullscreen:
 				DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
-			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, true)
+			_set_borderless(true)
 			var screen := DisplayServer.window_get_current_screen()
 			DisplayServer.window_set_size(DisplayServer.screen_get_size(screen))
 			DisplayServer.window_set_position(DisplayServer.screen_get_position(screen))
@@ -214,7 +214,7 @@ func apply_display() -> void:
 			# silently do nothing without clearing that mode first.
 			if cur_mode != DisplayServer.WINDOW_MODE_WINDOWED:
 				DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
-			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
+			_set_borderless(false)
 			var size: Vector2i = RESOLUTIONS[clampi(window_size_index, 0, RESOLUTIONS.size() - 1)]
 			# Clamp so the window (including its title bar) fits in the usable screen
 			# area. window_set_size, screen_get_usable_rect and screen sizes are all in
@@ -228,6 +228,13 @@ func apply_display() -> void:
 			size.y = mini(size.y, usable.size.y - maxi(0, decor.y))
 			DisplayServer.window_set_size(size)
 			_center_window(size)
+
+# Sets the window's borderless flag, only if that changes it: on macOS setting it hides
+# the window and shows it again, which takes the system's focus from the window for a
+# moment, and the themed cursor lets go of the mouse whenever the window loses focus.
+func _set_borderless(on: bool) -> void:
+	if DisplayServer.window_get_flag(DisplayServer.WINDOW_FLAG_BORDERLESS) != on:
+		DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, on)
 
 # Centers the window (decorations included) within the usable screen area, clamped
 # so no edge goes off-screen. Same pixel space throughout — no scale conversion.

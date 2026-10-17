@@ -1120,11 +1120,43 @@ the game has to take the mouse over and move and draw the cursor itself.
   `settings.mouse_sensitivity`; every mouse event — and a trackpad pan/pinch gesture — is
   pushed into the root again at `pointer_pos` (`push_input(ev, true)`); everything else goes
   in untouched. Pushed moves carry the buttons the cursor holds (`_buttons`, tracked from the
-  button events it routes), so drags work. `install()` also captures the mouse
-  (`_apply_mouse_mode`) and does nothing headless. Checked in a real (non-headless) macOS
+  button events it routes), so drags work. `install()` also puts the mouse in the mode the
+  hold wants (`_apply_hold`, below) and does nothing headless. Checked in a real (non-headless) macOS
   run with events fed through `Input.parse_input_event`, which takes the OS path through the
   hook: hover, click, slider drag, wheel, trackpad pan, dropdown open + pick with the cursor
   drawn over the list, and one click reaching `_input` once.
+- **Holding and letting go of the mouse** (`hold: CursorHold`, the spec's "Holding and releasing
+  the mouse"). Held = captured (system pointer hidden). **Windowed**, a mouse move pushing the
+  cursor `CursorMotion.SLIP_OUT_DISTANCE` (24) base px past an edge lets go: `_route_motion` feeds
+  `hold.on_motion` the overshoot of the step `mouse_step` made (base px at the sensitivity, from the
+  pre-step spot; a zero step is skipped). Fullscreen and borderless never let go at an edge; the
+  stick never slips out. **Letting go** (`_let_go`) releases every button the cursor holds and Cursor
+  Click (so no drag sticks), hides the drawn cursor, switches to VISIBLE, *then* warps the system
+  pointer to `pointer_pos` (a captured pointer can't be warped) and sets the arrow shape. While let
+  go the system pointer wears the cursor (`_dress_system_pointer`: `Input.set_custom_mouse_cursor`
+  for ARROW and POINTING_HAND, re-dressed by `refresh_style` and `on_display_changed`), and **no mouse
+  event reaches the game** (`_route_released`) except a left press inside the window, which picks
+  the mouse up with `pointer_pos` at the press and swallows that press and its release (the click
+  presses nothing), then pushes a still move there so hover and the glow are right at once. The
+  right stick or Cursor Click picks it up too (`_show_for_pad`). **Focus:** the mouse is held only
+  while the game is in front: `_app_focused` (`NOTIFICATION_APPLICATION_FOCUS_IN/OUT`) **and**
+  `_window_focused` (`NOTIFICATION_WM_WINDOW_FOCUS_IN/OUT`, read from
+  `DisplayServer.window_is_focused()` because an embedded dropdown taking focus sends the root a
+  window focus-out too). Losing either (Cmd-Tab, minimising) lets go; coming back picks up a
+  fullscreen or borderless game at once (the cursor carries on from the system pointer if it is
+  over the game), while a windowed one waits for a click. Never captured while not in front
+  (`_wanted_mouse_mode`): a game that opens behind another app takes the mouse when it comes to the
+  front. `on_display_changed()` (from `GameManager.apply_display_and_save`, deferred, and the
+  launch display apply) re-hooks and picks a let-go mouse up if the game is now fullscreen or
+  borderless. The system cursor is sized to match the drawn one: `os_cursor_scale` = window px per
+  base px ÷ `DisplayServer.screen_get_max_scale()` (Godot sizes a macOS cursor image in points),
+  capped at 256 px. Checked in a real macOS run: slip-out, pick-up click, hover at once after it,
+  focus out/in in both modes, minimise/restore, a dropdown opening (keeps the mouse), a windowed
+  resolution re-apply (keeps the mouse). Built only on Godot's cross-platform calls; Windows and
+  Linux untested.
+  - ⚠️ macOS can take the app's focus away and give it back while it is still opening; if that
+    happens after the cursor exists, a windowed game starts with the mouse let go (one click picks
+    it up).
 - **Shown / hidden.** Mouse events show the cursor; keys, controller buttons and a stick
   pushed past 0.5 hide it — the same events `GameManager._input` takes as a switch to the
   focus highlight, so the cursor and the highlight are never both up. Moving the mouse brings
@@ -1176,7 +1208,8 @@ the game has to take the mouse over and move and draw the cursor itself.
 - ⚠️ **Never read the OS mouse position** (`get_mouse_position()` / `get_global_mouse_position()`
   on the root, `DisplayServer.mouse_get_position()`): with the mouse captured it is the
   hidden OS pointer, not the cursor. Read `GameManager.virtual_cursor.pointer_pos`, or the
-  position on the event.
+  position on the event. The one exception is `VirtualCursor._hold_again`, which reads it while the
+  system pointer is still visible, just before capturing, so the cursor carries on from it.
 - ⚠️ **A synthetic mouse move needs a `velocity`.** A PopupMenu ignores a move with zero
   velocity when lighting up the row under it, so the hook converts the OS move's velocity to
   base pixels like its `relative`. Anything that invents moves (the right stick) must set one.
@@ -1569,7 +1602,9 @@ own Testing Policy above — the policy (a suite per feature, registered in
     would not count as "current".
   - **Display:** window mode (Fullscreen / Borderless / Windowed) + resolution dropdown.
     `apply_display()` is **idempotent** (guards each transition on current mode — re-issuing macOS
-    fullscreen crashes). Game **boots windowed** (`project.godot` has no `window/size/mode`) then
+    fullscreen crashes; the borderless flag is set only when it changes, `_set_borderless`, because on
+    macOS setting it hides and re-shows the window, a focus loss that lets go of the mouse). Game
+    **boots windowed** (`project.godot` has no `window/size/mode`) then
     applies the saved mode deferred, so the saved mode sticks across restarts. NOTE: window ops are
     no-ops while the game runs **embedded in the editor's Game tab** (Godot 4.6) — that's an editor
     toggle, not a code issue.

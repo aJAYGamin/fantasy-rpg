@@ -65,9 +65,20 @@ func _begin() -> CanvasLayer:
 		"stick": s.stick_sensitivity_right,
 		"passthrough": GameManager.raw_input_passthrough,
 		"cursor_click": InputMap.action_get_events("cursor_click"),
+		"window_mode": s.window_mode,
+		"hold": _vc().hold,
+		"app_focused": _vc()._app_focused,
+		"window_focused": _vc()._window_focused,
 	}
 	s.mouse_sensitivity = 1.0   # the moves below assume 1.00x
 	s.stick_sensitivity_right = 1.0   # and the stick's speeds assume 1.00x too
+	# Nothing lets go at an edge unless a test says so. Set directly: apply_display would
+	# change the real window.
+	s.window_mode = SettingsModel.WindowMode.FULLSCREEN
+	_vc().hold = CursorHold.new()   # held, with no push counted
+	_vc()._app_focused = true
+	_vc()._window_focused = true
+	_vc()._swallow_release = false
 	GameManager.raw_input_passthrough = false
 	_bind_cursor_click(JOY_BUTTON_RIGHT_STICK)   # the default, whatever the player has set
 	_layer = CanvasLayer.new()
@@ -90,6 +101,11 @@ func _end() -> void:
 	_vc()._click_down = false
 	_vc()._click_held = false
 	_vc()._buttons = 0
+	s.window_mode = _saved["window_mode"]
+	_vc().hold = _saved["hold"]
+	_vc()._app_focused = _saved["app_focused"]
+	_vc()._window_focused = _saved["window_focused"]
+	_vc()._swallow_release = false
 	s.cursor_shape = _saved["shape"]
 	s.cursor_colour = _saved["colour"]
 	_vc().refresh_style()
@@ -109,6 +125,23 @@ func _motion_to(target: Vector2) -> void:
 	ev.relative = (target - _vc().pointer_pos) * _window_scale()
 	ev.velocity = ev.relative * 60.0   # a real move carries the mouse's speed
 	ev.position = Vector2(576, 324)
+	_vc().route_os_event(ev)
+
+## A mouse move of `step` base pixels at 1.00x.
+func _push(step: Vector2) -> void:
+	var ev := InputEventMouseMotion.new()
+	ev.relative = step * _window_scale()
+	ev.velocity = ev.relative * 60.0
+	ev.position = Vector2(576, 324)
+	_vc().route_os_event(ev)
+
+## A left press or release where the visible system pointer is, at `spot` in base pixels:
+## the OS reports it in window pixels.
+func _left_at(spot: Vector2, pressed: bool) -> void:
+	var ev := InputEventMouseButton.new()
+	ev.button_index = MOUSE_BUTTON_LEFT
+	ev.pressed = pressed
+	ev.position = GameManager.get_tree().root.get_final_transform() * spot
 	_vc().route_os_event(ev)
 
 func _button(index: int, pressed: bool) -> void:
@@ -861,4 +894,289 @@ func test_every_routed_event_is_announced_on_the_windows_input_signal() -> void:
 	_pad_button(JOY_BUTTON_DPAD_DOWN, true)
 	assert_eq(seen.size(), 1, "a controller button is announced once")
 	root.window_input.disconnect(listener)
+	_end()
+
+# --- Holding and letting go of the mouse ---------------------------------------------
+
+func _bounds() -> Vector2:
+	return GameManager.get_tree().root.get_visible_rect().size
+
+func _held() -> bool:
+	return _vc().hold.state == CursorHold.State.HELD
+
+## Windowed, the cursor at the right edge, pushed out until the mouse is let go.
+func _slip_out() -> void:
+	GameManager.settings.window_mode = SettingsModel.WindowMode.WINDOWED
+	_vc().pointer_pos = Vector2(_bounds().x - 1.0, 300)
+	_vc().shown = true
+	_push(Vector2(30, 0))
+
+func test_pushing_out_of_a_windowed_game_lets_the_mouse_go() -> void:
+	_begin()
+	GameManager.settings.window_mode = SettingsModel.WindowMode.WINDOWED
+	_vc().pointer_pos = Vector2(_bounds().x - 1.0, 300)
+	_vc().shown = true
+	for i in 3:
+		_push(Vector2(10, 0))
+	assert_eq(_vc().hold.state, CursorHold.State.RELEASED, "pushing 30 px past the right edge lets the mouse go")
+	assert_false(_vc().shown, "and the drawn cursor hides: the system pointer carries on from there")
+	_end()
+
+func test_the_click_that_picks_the_mouse_up_presses_nothing() -> void:
+	var layer := _begin()
+	var b := _make_button(layer, Rect2(100, 100, 120, 40))
+	var presses := [0]
+	b.pressed.connect(func() -> void: presses[0] += 1)
+	_slip_out()
+	var spot := Vector2(160, 120)
+	_left_at(spot, true)
+	_left_at(spot, false)
+	assert_eq(_vc().hold.state, CursorHold.State.HELD, "a click inside the window picks the mouse up")
+	assert_true(_vc().pointer_pos.is_equal_approx(spot), "with the cursor where the click happened (at %s)" % _vc().pointer_pos)
+	assert_eq(presses[0], 0, "and the button it landed on is not pressed")
+	_end()
+
+func test_switching_away_and_back() -> void:
+	_begin()
+	var s := GameManager.settings
+	_vc().notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	assert_eq(_vc().hold.state, CursorHold.State.RELEASED, "switching away lets the mouse go")
+	_vc().notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
+	assert_eq(_vc().hold.state, CursorHold.State.HELD, "coming back to a fullscreen game picks it up at once")
+	s.window_mode = SettingsModel.WindowMode.WINDOWED
+	_vc().notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	_vc().notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
+	assert_eq(_vc().hold.state, CursorHold.State.RELEASED, "coming back to a windowed game waits for a click")
+	_end()
+
+func test_a_fullscreen_game_never_lets_go_at_the_edge() -> void:
+	_begin()
+	GameManager.settings.window_mode = SettingsModel.WindowMode.FULLSCREEN
+	var edge := Vector2(_bounds().x - 1.0, 300)
+	_vc().pointer_pos = edge
+	for i in 20:
+		_push(Vector2(50, 0))
+	assert_eq(_vc().hold.state, CursorHold.State.HELD, "1000 px past the edge, a fullscreen game still holds the mouse")
+	assert_eq(_vc().pointer_pos, edge, "and the cursor stays at the edge")
+	_end()
+
+func test_borderless_holds_like_fullscreen() -> void:
+	_begin()
+	GameManager.settings.window_mode = SettingsModel.WindowMode.BORDERLESS
+	_vc().pointer_pos = Vector2(0, 300)
+	for i in 20:
+		_push(Vector2(-50, 0))
+	assert_true(_held(), "pushing out of a borderless game's left edge doesn't let go")
+	assert_eq(_vc().pointer_pos, Vector2(0, 300), "the cursor stays at the edge")
+	_vc().notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	_vc().notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
+	assert_true(_held(), "and coming back to it picks the mouse up at once")
+	_end()
+
+func test_a_nudge_at_the_window_edge_keeps_the_mouse() -> void:
+	_begin()
+	GameManager.settings.window_mode = SettingsModel.WindowMode.WINDOWED
+	_vc().pointer_pos = Vector2(_bounds().x - 1.0, 300)
+	_push(Vector2(20, 0))
+	_push(Vector2(-5, 0))   # back in a little
+	_push(Vector2(5, 0))   # back to the edge: no push yet
+	_push(Vector2(20, 0))
+	assert_true(_held(), "two short pushes with a move back in between don't add up")
+	assert_true(_vc().shown, "the drawn cursor is still the one showing")
+	_push(Vector2(10, 0))
+	assert_false(_held(), "a push that keeps going past %s px does let go" % CursorMotion.SLIP_OUT_DISTANCE)
+	_end()
+
+func test_a_move_that_goes_nowhere_does_not_restart_the_push() -> void:
+	_begin()
+	GameManager.settings.window_mode = SettingsModel.WindowMode.WINDOWED
+	_vc().pointer_pos = Vector2(_bounds().x - 1.0, 300)
+	_push(Vector2(20, 0))
+	_push(Vector2.ZERO)   # a report with no movement in it
+	_push(Vector2(5, 0))
+	assert_false(_held(), "20 px, a still report, then 5 px is still one push of 25 px")
+	_end()
+
+func test_the_push_is_counted_in_the_cursors_own_pixels() -> void:
+	_begin()
+	GameManager.settings.window_mode = SettingsModel.WindowMode.WINDOWED
+	GameManager.settings.mouse_sensitivity = 2.0
+	_vc().pointer_pos = Vector2(_bounds().x - 1.0, 300)
+	_push(Vector2(12, 0))   # 24 px of cursor movement at 2.00x
+	assert_false(_held(), "at 2.00x a 12 px mouse move is the cursor pushing 24 px: it lets go")
+	_end()
+
+func test_a_let_go_mouse_reaches_nothing() -> void:
+	var layer := _begin()
+	var reader := InputReader.new()
+	layer.add_child(reader)
+	_slip_out()
+	var spot := _vc().pointer_pos
+	reader.last = null
+	reader.last_motion = null
+	_motion_to(Vector2(300, 300))
+	_button(MOUSE_BUTTON_WHEEL_DOWN, true)
+	_button(MOUSE_BUTTON_WHEEL_DOWN, false)
+	var right := InputEventMouseButton.new()
+	right.button_index = MOUSE_BUTTON_RIGHT
+	right.pressed = true
+	right.position = GameManager.get_tree().root.get_final_transform() * Vector2(300, 300)
+	_vc().route_os_event(right)
+	assert_true(reader.last == null, "while let go, no mouse event reaches the game")
+	assert_eq(_vc().pointer_pos, spot, "and the cursor stays where it let go")
+	assert_false(_held(), "only a left click picks the mouse up")
+	_end()
+
+func test_after_picking_up_the_next_click_clicks() -> void:
+	var layer := _begin()
+	var b := _make_button(layer, Rect2(100, 100, 120, 40))
+	var presses := [0]
+	b.pressed.connect(func() -> void: presses[0] += 1)
+	var reader := InputReader.new()
+	layer.add_child(reader)
+	_slip_out()
+	_left_at(Vector2(160, 120), true)
+	_left_at(Vector2(160, 120), false)
+	assert_eq(reader.presses + reader.releases, 0, "the pick-up click's press and release reach no _input reader")
+	assert_true(_vc().shown, "the drawn cursor is back")
+	_click()
+	assert_eq(presses[0], 1, "the next click presses the button under the cursor")
+	assert_eq(reader.releases, 1, "its release is not swallowed")
+	_end()
+
+func test_the_right_stick_picks_a_let_go_mouse_up() -> void:
+	_begin()
+	_slip_out()
+	var spot := _vc().pointer_pos
+	_vc().step_stick(Vector2(-1, 0), 0.5)
+	assert_true(_held(), "moving the right stick picks the mouse up")
+	assert_near(spot.x - _vc().pointer_pos.x, 384.0, 0.01, "and moves the cursor from where it let go")
+	assert_true(_vc().shown, "which shows again")
+	_end()
+
+func test_a_stick_press_picks_a_let_go_mouse_up_without_clicking() -> void:
+	var layer := _begin()
+	var reader := InputReader.new()
+	layer.add_child(reader)
+	_slip_out()
+	_stick_click()
+	assert_true(_held(), "a Cursor Click while let go picks the mouse up")
+	assert_true(_vc().shown, "and shows the cursor")
+	assert_eq(reader.presses + reader.releases, 0, "without clicking")
+	_end()
+
+func test_the_stick_never_takes_the_mouse_from_another_app() -> void:
+	_begin()
+	_vc().pointer_pos = Vector2(500, 300)
+	_vc().notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	_vc().step_stick(Vector2(1, 0), 0.5)
+	assert_false(_held(), "with another app in front the stick leaves the mouse alone")
+	assert_eq(_vc().pointer_pos, Vector2(500, 300), "and doesn't move the cursor")
+	assert_false(_vc().shown, "or show it")
+	_stick_click()
+	assert_false(_held(), "nor does its press")
+	_end()
+
+func test_the_stick_never_lets_go_at_the_edge() -> void:
+	_begin()
+	GameManager.settings.window_mode = SettingsModel.WindowMode.WINDOWED
+	_vc().pointer_pos = Vector2(_bounds().x - 1.0, 300)
+	for i in 5:
+		_vc().step_stick(Vector2(1, 0), 0.5)
+	assert_true(_held(), "the stick pushing past a window's edge keeps the mouse: only the mouse slips out")
+	_end()
+
+func test_switching_away_lets_go_of_everything_held() -> void:
+	var layer := _begin()
+	var reader := InputReader.new()
+	layer.add_child(reader)
+	_vc().pointer_pos = Vector2(300, 300)
+	_vc().shown = true
+	_pad_button(JOY_BUTTON_RIGHT_STICK, true)   # Cursor Click held: a left drag
+	_button(MOUSE_BUTTON_RIGHT, true)   # and the mouse's right button
+	assert_eq(reader.presses, 2, "two buttons held")
+	_vc().notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	assert_eq(reader.releases, 2, "switching away lets go of both, so no drag sticks")
+	assert_eq(_vc()._buttons, 0, "the cursor holds nothing")
+	assert_false(_vc()._click_down, "Cursor Click is no longer pressing")
+	assert_false(_vc()._click_held, "and its next press starts afresh")
+	_vc().notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
+	_pad_button(JOY_BUTTON_RIGHT_STICK, false)
+	assert_eq(reader.releases, 2, "the stick's late release lets go of nothing more")
+	_vc().step_stick(Vector2(1, 0), 0.1)
+	assert_eq(reader.last_motion_mask, 0, "and later moves carry no held button")
+	_end()
+
+func test_becoming_fullscreen_picks_a_let_go_mouse_up() -> void:
+	_begin()
+	_slip_out()
+	GameManager.settings.window_mode = SettingsModel.WindowMode.FULLSCREEN
+	_vc().notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	_vc().on_display_changed()
+	assert_false(_held(), "not while another app is in front")
+	_vc().notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
+	assert_true(_held(), "and coming back to it, as fullscreen, picks the mouse up")
+	_slip_out()
+	GameManager.settings.window_mode = SettingsModel.WindowMode.BORDERLESS
+	_vc().on_display_changed()
+	assert_true(_held(), "switching a let-go window to borderless picks the mouse up")
+	_end()
+
+func test_the_system_cursor_is_the_size_the_cursor_is_drawn() -> void:
+	# A window 2.625x the base size on a Retina screen: 2.625 window pixels a base pixel,
+	# 2 window pixels a point, and a Mac cursor image is measured in points.
+	assert_near(VirtualCursor.os_cursor_scale(2.625, 2.0, "A"), 1.3125, 0.0001, "a Retina Mac draws it in points")
+	assert_near(VirtualCursor.os_cursor_scale(1.5, 1.0, "A"), 1.5, 0.0001, "elsewhere in window pixels")
+	for shape: String in CursorArt.SHAPES:
+		var s := VirtualCursor.os_cursor_scale(12.0, 1.0, shape)
+		var tex := CursorArt.texture(shape, "amethyst", s)
+		var big := maxi(tex.get_width(), tex.get_height())
+		assert_true(big <= 256, "%s fits a system cursor's 256 px at any window size (%d px)" % [shape, big])
+		assert_true(big >= 250, "%s is capped only as far as it must be (%d px)" % [shape, big])
+
+func test_a_dropdown_taking_focus_inside_the_window_keeps_the_mouse() -> void:
+	# An embedded popup grabbing focus sends the root a window focus-out too; only the
+	# system's word on the window itself (here: still focused) may let the mouse go.
+	_begin()
+	assert_true(DisplayServer.window_is_focused(), "the test runner's window counts as focused")
+	_vc().notification(Node.NOTIFICATION_WM_WINDOW_FOCUS_OUT)
+	assert_true(_held(), "a window focus-out while the system says the window is focused keeps the mouse")
+	_vc().notification(Node.NOTIFICATION_WM_WINDOW_FOCUS_IN)
+	assert_true(_held(), "and the focus-in after it changes nothing")
+	_end()
+
+func test_the_mouse_is_held_only_while_both_the_app_and_its_window_are_in_front() -> void:
+	_begin()
+	_vc().notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	_vc()._window_focused = false   # and its window minimised (headless can't say so itself)
+	_vc().notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
+	assert_false(_held(), "the app coming back doesn't pick the mouse up while its window is unfocused")
+	_vc().step_stick(Vector2(1, 0), 0.5)
+	assert_false(_held(), "nor does the stick")
+	_vc().notification(Node.NOTIFICATION_WM_WINDOW_FOCUS_IN)   # the system now says it is focused
+	assert_true(_held(), "once the window has focus again too, a fullscreen game holds it")
+	_end()
+
+func test_the_mouse_is_only_ever_captured_while_the_game_is_in_front() -> void:
+	_begin()
+	assert_eq(_vc()._wanted_mouse_mode(), Input.MOUSE_MODE_CAPTURED, "held and in front: captured")
+	_vc()._window_focused = false   # the window still opening, or minimised
+	assert_true(_held(), "the mouse still counts as held")
+	assert_eq(_vc()._wanted_mouse_mode(), Input.MOUSE_MODE_VISIBLE, "but it is not captured until the game is in front")
+	_vc()._window_focused = true
+	_slip_out()
+	assert_eq(_vc()._wanted_mouse_mode(), Input.MOUSE_MODE_VISIBLE, "let go: visible")
+	_end()
+
+func test_a_game_that_opens_behind_another_app_holds_the_mouse_once_in_front() -> void:
+	# macOS can take the focus away and give it back while the game is still opening.
+	_begin()
+	GameManager.settings.window_mode = SettingsModel.WindowMode.WINDOWED
+	_vc()._window_focused = false   # as the cursor found the window when it was made
+	_vc().notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	assert_true(_held(), "a focus-out before the game was ever in front lets nothing go")
+	_vc().notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
+	_vc().notification(Node.NOTIFICATION_WM_WINDOW_FOCUS_IN)
+	assert_true(_held(), "once in front, even a windowed game holds the mouse without a click")
+	assert_eq(_vc()._wanted_mouse_mode(), Input.MOUSE_MODE_CAPTURED, "and takes it")
 	_end()

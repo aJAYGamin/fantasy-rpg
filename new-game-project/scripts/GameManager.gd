@@ -617,7 +617,7 @@ func _apply_display_deferred() -> void:
 	await get_tree().process_frame
 	await get_tree().create_timer(0.1).timeout
 	settings.apply_display()
-	virtual_cursor.install()   # a window change can drop the cursor's input hook
+	virtual_cursor.on_display_changed()   # re-hook, and hold the mouse as the mode wants
 
 # Persists the [settings] section, merge-preserving the [save] section.
 func _write_settings_config() -> void:
@@ -638,9 +638,9 @@ func apply_display_and_save() -> void:
 	settings.clamp_all()
 	settings.apply_display()
 	_write_settings_config()
-	# A window change can drop the cursor's input hook: hook it again once the
-	# change has gone through.
-	virtual_cursor.install.call_deferred()
+	# Once the change has gone through, the cursor hooks the window again (a window
+	# change can drop the hook) and holds or lets go of the mouse as the new mode wants.
+	virtual_cursor.on_display_changed.call_deferred()
 
 func apply_performance_and_save() -> void:
 	settings.clamp_all()
