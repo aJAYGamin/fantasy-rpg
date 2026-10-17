@@ -73,6 +73,16 @@ const SENS_MAX := 2.0
 var stick_sensitivity_left: float = 1.0
 var stick_sensitivity_right: float = 1.0
 
+# Themed cursor (see CursorArt). Shape and colour are validated separately, so a
+# bad colour never resets a good shape. Mouse speed has its own range: the stick
+# bounds above stay as they are.
+const MOUSE_SENS_MIN := 0.25
+const MOUSE_SENS_MAX := 3.0
+const MOUSE_SENS_STEP := 0.05
+var cursor_shape: String = CursorArt.DEFAULT_SHAPE
+var cursor_colour: String = CursorArt.DEFAULT_COLOUR
+var mouse_sensitivity: float = 1.0
+
 # --- Difficulty-derived modifiers --------------------------------------------
 # Multiplier applied to every enemy combat stat at battle start.
 func enemy_stat_mult() -> float:
@@ -105,6 +115,11 @@ func clamp_all() -> void:
 	difficulty = clampi(difficulty, 0, Difficulty.size() - 1)
 	stick_sensitivity_left = clampf(stick_sensitivity_left, SENS_MIN, SENS_MAX)
 	stick_sensitivity_right = clampf(stick_sensitivity_right, SENS_MIN, SENS_MAX)
+	if not CursorArt.SHAPES.has(cursor_shape):
+		cursor_shape = CursorArt.DEFAULT_SHAPE
+	if not CursorArt.COLOURS.has(cursor_colour):
+		cursor_colour = CursorArt.DEFAULT_COLOUR
+	mouse_sensitivity = clampf(mouse_sensitivity, MOUSE_SENS_MIN, MOUSE_SENS_MAX)
 
 func from_config(cfg: ConfigFile) -> void:
 	volume_master = float(cfg.get_value(CONFIG_SECTION, "volume_master", volume_master))
@@ -119,6 +134,9 @@ func from_config(cfg: ConfigFile) -> void:
 	difficulty = int(cfg.get_value(CONFIG_SECTION, "difficulty", difficulty))
 	stick_sensitivity_left = float(cfg.get_value(CONFIG_SECTION, "stick_sensitivity_left", stick_sensitivity_left))
 	stick_sensitivity_right = float(cfg.get_value(CONFIG_SECTION, "stick_sensitivity_right", stick_sensitivity_right))
+	cursor_shape = str(cfg.get_value(CONFIG_SECTION, "cursor_shape", cursor_shape))
+	cursor_colour = str(cfg.get_value(CONFIG_SECTION, "cursor_colour", cursor_colour))
+	mouse_sensitivity = float(cfg.get_value(CONFIG_SECTION, "mouse_sensitivity", mouse_sensitivity))
 	clamp_all()
 
 func to_config(cfg: ConfigFile) -> void:
@@ -134,6 +152,9 @@ func to_config(cfg: ConfigFile) -> void:
 	cfg.set_value(CONFIG_SECTION, "difficulty", difficulty)
 	cfg.set_value(CONFIG_SECTION, "stick_sensitivity_left", stick_sensitivity_left)
 	cfg.set_value(CONFIG_SECTION, "stick_sensitivity_right", stick_sensitivity_right)
+	cfg.set_value(CONFIG_SECTION, "cursor_shape", cursor_shape)
+	cfg.set_value(CONFIG_SECTION, "cursor_colour", cursor_colour)
+	cfg.set_value(CONFIG_SECTION, "mouse_sensitivity", mouse_sensitivity)
 
 # Linear [0,1] -> dB, with a silent floor so 0 doesn't become -inf.
 static func linear_volume_to_db(linear: float) -> float:

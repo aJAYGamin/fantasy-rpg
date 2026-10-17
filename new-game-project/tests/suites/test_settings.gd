@@ -202,6 +202,52 @@ func test_apply_performance_sets_max_fps() -> void:
 	# Restore the live settings so we don't leave the engine capped.
 	GameManager.settings.apply_performance()
 
+func test_cursor_defaults() -> void:
+	var s := SettingsModel.new()
+	assert_eq(s.cursor_shape, "A", "Amethyst Arrow by default")
+	assert_eq(s.cursor_colour, "amethyst", "in Amethyst")
+	assert_near(s.mouse_sensitivity, 1.0, 0.0001, "1.00× by default")
+
+func test_cursor_settings_round_trip_through_config() -> void:
+	var a := SettingsModel.new()
+	a.cursor_shape = "AK"
+	a.cursor_colour = "garnet"
+	a.mouse_sensitivity = 2.35
+	var cfg := ConfigFile.new()
+	a.to_config(cfg)
+	var b := SettingsModel.new()
+	b.from_config(cfg)
+	assert_eq(b.cursor_shape, "AK", "shape survives a restart")
+	assert_eq(b.cursor_colour, "garnet", "colour survives")
+	assert_near(b.mouse_sensitivity, 2.35, 0.0001, "sensitivity survives")
+
+func test_bad_cursor_values_fall_back() -> void:
+	var s := SettingsModel.new()
+	s.cursor_shape = "Z"
+	s.cursor_colour = "teal"
+	s.mouse_sensitivity = 9.0
+	s.clamp_all()
+	assert_eq(s.cursor_shape, "A", "unknown shape → default")
+	assert_eq(s.cursor_colour, "amethyst", "unknown colour → default")
+	assert_near(s.mouse_sensitivity, 3.0, 0.0001, "clamped to the top")
+	s.mouse_sensitivity = 0.0
+	s.clamp_all()
+	assert_near(s.mouse_sensitivity, 0.25, 0.0001, "clamped to the bottom")
+
+func test_cursor_shape_and_colour_validate_independently() -> void:
+	# A bad colour must not reset a good shape, and a bad shape must not reset a good colour.
+	var s := SettingsModel.new()
+	s.cursor_shape = "AK"
+	s.cursor_colour = "teal"
+	s.clamp_all()
+	assert_eq(s.cursor_shape, "AK", "a good shape survives a bad colour")
+	assert_eq(s.cursor_colour, "amethyst", "the bad colour alone falls back")
+	s.cursor_shape = "Z"
+	s.cursor_colour = "garnet"
+	s.clamp_all()
+	assert_eq(s.cursor_shape, "A", "the bad shape alone falls back")
+	assert_eq(s.cursor_colour, "garnet", "a good colour survives a bad shape")
+
 # --------------------------------------------------- settings panel layout
 
 ## Every settings view — the category lists AND the detail sub-menus (Game,
