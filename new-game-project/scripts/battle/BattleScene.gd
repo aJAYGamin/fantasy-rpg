@@ -963,7 +963,7 @@ func _on_status_triggered(character: Character, result: Dictionary):
 		action_menu.visible = false
 		var skip_color: Color = StatusSystem.STATUS_COLORS.get(event_type, Color(0.8, 0.8, 0.9))
 		_show_status_banner(
-			StatusSystem.skipped_phrase(nm, event_type),
+			StatusSystem.skipped_phrase(nm, event_type, result.get("woke_up", false)),
 			skip_color,
 			BANNER_DURATION_SKIP
 		)

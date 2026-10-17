@@ -171,14 +171,16 @@ func _next_turn():
 
 	# Spec C: resting after a recharge move. The status skip still resolves on
 	# this same turn, so a stun is used up by it and a sleep counter advances —
-	# one lost turn, not two.
+	# one lost turn, not two. A sleeper who wakes now gets one banner for both
+	# ("woke up and recovered!").
 	if current_actor.recharge_turns_left > 0:
 		current_actor.recharge_turns_left -= 1
-		StatusSystem.resolve_turn_skip(current_actor)
+		var rest_skip := StatusSystem.resolve_turn_skip(current_actor)
 		emit_signal("status_effect_triggered", current_actor, {
 			"type": StatusSystem.RECHARGING,
 			"value": 0,
 			"skipped": true,
+			"woke_up": rest_skip.get("woke_up", false),
 			"name": current_actor.character_name,
 		})
 		await _pause(SKIP_PAUSE)
@@ -741,10 +743,12 @@ func _execute_enemy_turn():
 
 # --- Helpers ---
 func handle_defeat(character: Character):
-	# Spec C: a downed charger loses its charge (a delayed strike still lands).
+	# Spec C: a downed charger loses its charge (a delayed strike still lands),
+	# and a pending rest, so a revived hero owes none.
 	var lost := _charge_of(character)
 	if lost != null:
 		scheduled.erase(lost)
+	character.recharge_turns_left = 0
 	emit_signal("character_defeated", character)
 	# Quest progress: count defeated ENEMIES (not downed heroes). Report a generic
 	# "defeat:any" plus a species key from the first word of the name (e.g. a

@@ -264,12 +264,17 @@ static func applied_phrase(character_name: String, status_name: String) -> Strin
 # Banner shown on a turn the actor cannot act because of a status.
 # Stun reads as "reoriented themself" — they were dazed but recover; the
 # others stay punchier since those conditions persist.
-static func skipped_phrase(character_name: String, status_name: String) -> String:
+## `woke_up`: a sleeper woke on a rest turn, which still goes to the rest — one
+## banner covers both.
+static func skipped_phrase(character_name: String, status_name: String, woke_up := false) -> String:
 	match status_name:
 		STUN:      return "%s reoriented themself" % character_name
 		SLEEP:     return "%s is Asleep!" % character_name
 		PARALYSIS: return "%s is Paralyzed!" % character_name
-		RECHARGING: return "%s is recovering!" % character_name
+		RECHARGING:
+			if woke_up:
+				return "%s woke up and recovered!" % character_name
+			return "%s is recovering!" % character_name
 		_:         return "%s is %s!" % [character_name, status_name.capitalize()]
 
 # Banner shown when sleep wears off and the actor will act this same turn.
