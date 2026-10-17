@@ -565,10 +565,7 @@ func _resolve_hit(user: Character, skill: Skill, target: Character, result: Dict
 					_apply_skill_status(target, skill.status_to_apply,
 							maxi(1, int(user.magic_power() * HEAL_REGEN_POWER)))
 			Skill.StatusType.BUFF:
-				# The token may be a stat buff ("attack_buff"), a stat debuff
-				# ("magic_debuff") or a legacy named status ("regenerate").
-				var token: String = skill.status_to_apply if skill.status_to_apply != "" else StatusSystem.REGENERATE
-				_apply_skill_status(target, token, -1, skill.effect_turns)
+				_apply_skill_status(target, skill.applied_effect(), -1, skill.effect_turns)
 				result["action"] = "buff"
 				result["value"] = 0
 			Skill.StatusType.DEBUFF:

@@ -49,7 +49,7 @@ order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~4193 tests, 50 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~4243 tests, 50 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -989,12 +989,19 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
 
 ### EnemyAI (static)
 - `choose_action(enemy, party, enemies)` → `{skill, target, echo_tier}`.
-- **No wasted turns.** `would_waste_turn(skill, enemy, allies)` drops a move that
-  would change nothing: a heal with nobody it reaches hurt (`hurt_heal_targets`).
-  An ally heal goes to the hurt ally with the lowest HP share. Nothing worth
-  using → `skill` null → a basic attack. No move cures a status yet; one that
-  does belongs in `would_waste_turn` too (a choice only while someone it reaches
-  is afflicted).
+- **No wasted turns.** `would_waste_turn(skill, enemy, allies, foes)` drops a
+  move that would change nothing: a heal with nobody it reaches hurt
+  (`hurt_heal_targets`), or a buff/debuff already on, in full, on everyone it
+  reaches (`effect_targets`, which asks the target: `stat_effect_would_change` —
+  a re-cast counts only if it adds time, `status_would_land` — immunity, already
+  on, mutex, and `regen_would_change`). An ally heal goes to the hurt ally with
+  the lowest HP share; a buff to an ally it would change; a debuff to a hero it
+  would change (echo memory picks among them). Nothing worth using → `skill`
+  null → a basic attack. A damage move is never wasted, even if its rider is.
+  No move cures a status yet; one that does belongs in `would_waste_turn` too (a
+  choice only while someone it reaches is afflicted). Test filler moves an enemy
+  should keep using every turn must stay worth re-casting (`test_multi_turn`'s
+  `_tap()` is a 1-turn buff for that reason).
 - Memory Echo dodge tiers (must match `Enemy.MEMORY_THRESHOLD_*`): Tier1=3 enc→5%,
   Tier2=7→10%, Tier3=15→15%. `try_dodge` checked for both directions; resonance/
   can't-miss always hit.
@@ -1279,7 +1286,7 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~4193 tests / 50 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~4243 tests / 50 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,

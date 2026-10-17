@@ -213,6 +213,14 @@ func is_buff() -> bool:
 func is_debuff() -> bool:
 	return skill_type == SkillType.STATUS and status_type == StatusType.DEBUFF
 
+## What a buff or debuff move puts on its targets: a stat buff ("attack_buff"),
+## a stat debuff ("magic_debuff") or a named status ("regenerate"). A buff that
+## names none regenerates.
+func applied_effect() -> String:
+	if is_buff() and status_to_apply == "":
+		return StatusSystem.REGENERATE
+	return status_to_apply
+
 func get_target_description() -> String:
 	match target_type:
 		TargetType.SINGLE_ENEMY: return "One Enemy"

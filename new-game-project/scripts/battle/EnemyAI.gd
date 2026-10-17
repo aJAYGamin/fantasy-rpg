@@ -81,11 +81,40 @@ static func usable_skills(enemy: Character) -> Array:
 	return enemy.skills
 
 ## True for a move that would change nothing if used now, so picking it would
-## waste the turn: a heal with nobody it can reach hurt.
-static func would_waste_turn(skill: Skill, enemy: Character, allies: Array) -> bool:
+## waste the turn: a heal with nobody it can reach hurt, or a buff or debuff
+## that is already on, in full, on everyone it can reach.
+static func would_waste_turn(skill: Skill, enemy: Character, allies: Array, foes: Array) -> bool:
 	if skill.is_heal():
 		return hurt_heal_targets(skill, enemy, allies).is_empty()
+	if skill.is_buff() or skill.is_debuff():
+		return effect_targets(skill, enemy, allies, foes).is_empty()
 	return false
+
+## Everyone still standing that a buff or debuff move can reach and would change.
+static func effect_targets(skill: Skill, enemy: Character, allies: Array, foes: Array) -> Array:
+	var reach: Array
+	match skill.target_type:
+		Skill.TargetType.SELF:
+			reach = [enemy]
+		Skill.TargetType.SINGLE_ALLY, Skill.TargetType.ALL_ALLIES:
+			reach = allies
+		_:
+			reach = foes
+	return reach.filter(func(c): return c.is_alive() and _effect_would_change(skill, c))
+
+## Whether a buff or debuff move's effect would change anything on `target`.
+static func _effect_would_change(skill: Skill, target: Character) -> bool:
+	var parsed := StatusSystem.parse_apply_token(skill.applied_effect())
+	match parsed["kind"]:
+		"none":
+			return false
+		"buff":
+			return target.stat_effect_would_change(parsed["value"], true, skill.effect_turns)
+		"debuff":
+			return target.stat_effect_would_change(parsed["value"], false, skill.effect_turns)
+	if parsed["value"] == StatusSystem.REGENERATE:
+		return target.regen_would_change(BattleManager.REGEN_TURNS)
+	return target.status_would_land(parsed["value"])
 
 ## The hurt characters a heal could mend: the user alone for a self-heal,
 ## otherwise every ally still standing who is below full HP.
@@ -100,7 +129,7 @@ static func _choose_skill(enemy: Character, alive_party: Array, allies: Array, e
 
 	# With nothing worth using, no skill: the enemy makes a basic attack.
 	var usable = usable_skills(enemy).filter(func(s):
-		return s.can_use(enemy) and not would_waste_turn(s, enemy, allies))
+		return s.can_use(enemy) and not would_waste_turn(s, enemy, allies, alive_party))
 	if usable.is_empty():
 		return null
 
@@ -156,9 +185,15 @@ static func _choose_target(enemy: Character, alive_party: Array, enemies: Array,
 		elif skill.is_buff():
 			if skill.target_type == Skill.TargetType.SELF:
 				return enemy
-			var alive_enemies = enemies.filter(func(e): return e.is_alive())
-			if not alive_enemies.is_empty():
-				return alive_enemies[randi() % alive_enemies.size()]
+			# An ally the buff would change, never one that already has it.
+			var changed := effect_targets(skill, enemy, enemies, alive_party)
+			if not changed.is_empty():
+				return changed[randi() % changed.size()]
+		elif skill.is_debuff():
+			# Only a hero the debuff would change; echo memory picks among them.
+			var changed := effect_targets(skill, enemy, enemies, alive_party)
+			if not changed.is_empty():
+				alive_party = changed
 
 	# Echo tier 2+ — target hero weak to skill element
 	if echo_tier >= 2 and skill != null and skill.element != ElementalSystem.Element.NORMAL:

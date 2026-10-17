@@ -326,29 +326,35 @@ func use_mp(amount: int) -> bool:
 	return false
 
 func add_status(effect: String):
+	if not status_would_land(effect):
+		return
+	# A fresh sleep starts the wake counter at 0 (= 100% sleep on first turn).
+	if effect == StatusSystem.SLEEP:
+		sleep_turn = 0
+	status_effects.append(effect)
+
+## Whether add_status(effect) would put the status on. The enemy AI asks this
+## before spending a turn on a status move.
+func status_would_land(effect: String) -> bool:
 	# A defeated character can't be afflicted — a killing blow that also inflicts
 	# a status (e.g. a scorching hit that downs the hero) must not leave the status
 	# on the corpse. Statuses only apply to the living.
 	if not is_alive():
-		return
+		return false
 	# Element immunity: Fire can't be scorched, Metal poisoned, Lightning paralyzed,
 	# Ice frostbitten (checked against both element + secondary_element).
 	if StatusSystem.is_immune_to(self, effect):
-		return
+		return false
+	if is_status(effect):
+		return false
 	# Mutex statuses are first-come-first-served — if the character already has
 	# ANY mutex status, the new one is rejected. This gives the player a window
 	# to cleanse before stacking up; statuses can't pile on top of each other.
 	if effect in StatusSystem.MUTEX_STATUSES:
 		for existing in StatusSystem.MUTEX_STATUSES:
 			if is_status(existing):
-				# Already has a mutex status — drop the new application entirely.
-				return
-		# No mutex status active yet — applying a fresh sleep starts the wake
-		# counter at 0 (= 100% sleep on first turn).
-		if effect == StatusSystem.SLEEP:
-			sleep_turn = 0
-	if not is_status(effect):
-		status_effects.append(effect)
+				return false
+	return true
 
 func has_status(effect: String) -> bool:
 	return effect in status_effects
@@ -398,6 +404,20 @@ func apply_debuff(stat: String, turns: int = 0) -> Dictionary:
 	if turns > 0:
 		debuff_turns[stat] = turns
 	return {"action": "debuffed", "stat": stat}
+
+## Whether apply_buff (`buff`) or apply_debuff would change anything — what the
+## enemy AI asks before spending a turn on one. Only re-applying the same
+## effect can change nothing: when it is already permanent, or timed with at
+## least `turns` left (see _merge_timer).
+func stat_effect_would_change(stat: String, buff: bool, turns: int = 0) -> bool:
+	if not (stat in StatusSystem.BUFFABLE_STATS):
+		return false
+	if not (buffs if buff else debuffs).get(stat, false):
+		return true  # it lands, or cancels the opposite effect
+	var timers: Dictionary = buff_turns if buff else debuff_turns
+	if not timers.has(stat):
+		return false
+	return turns <= 0 or turns > int(timers[stat])
 
 ## Re-applying an effect a stat already has. A permanent one (no entry) stays
 ## permanent; a timed one turns permanent if the new one is, else keeps the
@@ -487,6 +507,14 @@ func start_regen(turns: int, amount: int = -1) -> void:
 	var new_amount: int = amount if amount > 0 else max(1, max_hp() / 8)
 	regen_amount = max(regen_amount, new_amount) if regen_turns > 0 else new_amount
 	regen_turns = max(regen_turns, turns)
+
+## Whether start_regen(turns, amount) would change anything: no regen running,
+## or the new one runs longer or ticks harder.
+func regen_would_change(turns: int, amount: int = -1) -> bool:
+	if regen_turns <= 0:
+		return true
+	var new_amount: int = amount if amount > 0 else max(1, max_hp() / 8)
+	return turns > regen_turns or new_amount > regen_amount
 
 # --- Leveling ---
 func gain_experience(amount: int) -> bool:

@@ -37,7 +37,9 @@ func _skill(target: Skill.TargetType = Skill.TargetType.SINGLE_ENEMY) -> Skill:
 	return s
 
 ## A harmless move: raises the user's own ARC (no damage, no randomness). ARC,
-## so it never cancels a DEF/ATK debuff a test is watching.
+## so it never cancels a DEF/ATK debuff a test is watching. Lasts one turn, so
+## each recast adds time: the enemy AI, which skips a buff that would change
+## nothing, keeps tapping instead of attacking a random hero.
 func _tap() -> Skill:
 	var s := Skill.new()
 	s.skill_name = "Tap"
@@ -45,6 +47,7 @@ func _tap() -> Skill:
 	s.status_type = Skill.StatusType.BUFF
 	s.target_type = Skill.TargetType.SELF
 	s.status_to_apply = "arcane_buff"
+	s.effect_turns = 1
 	return s
 
 ## A foe whose only move is `move` (so the AI always picks it). Slow by
