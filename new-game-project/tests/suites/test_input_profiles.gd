@@ -248,6 +248,62 @@ func test_corrupt_config_entries_are_dropped() -> void:
 			"'%s' still has an entry" % meta["action"])
 	_restore()
 
+## A stored controller profile with `cursor_click` taken out — what an older save
+## holds, written before that action existed.
+func _cfg_with_controller_profile_lacking_cursor_click() -> ConfigFile:
+	var cfg := ConfigFile.new()
+	InputProfiles.new().to_config(cfg)
+	var stored: Dictionary = cfg.get_value(InputProfiles.SECTION, "controller_0").duplicate(true)
+	stored.erase("cursor_click")
+	cfg.set_value(InputProfiles.SECTION, "controller_0", stored)
+	return cfg
+
+func test_a_stored_profile_with_no_cursor_click_gets_the_default() -> void:
+	# An action absent from the stored data takes its default, so an upgraded save
+	# still clicks with the stick. Unbind it live first so the assert can't pass
+	# on a binding left over from earlier.
+	_fresh()
+	InputMap.action_erase_events("cursor_click")
+	var loaded := InputProfiles.new()
+	loaded.from_config(_cfg_with_controller_profile_lacking_cursor_click())
+	var stored: Array = loaded.bindings_for(false, 0).get("cursor_click", [])
+	assert_eq(stored.size(), 1, "the loaded profile holds the default")
+	loaded.apply_active()
+	var evs := InputMap.action_get_events("cursor_click")
+	assert_eq(evs.size(), 1, "bound once applied")
+	assert_true(evs.size() > 0 and evs[0] is InputEventJoypadButton and evs[0].button_index == JOY_BUTTON_RIGHT_STICK, "to R3")
+	_restore()
+
+func test_a_stored_empty_cursor_click_stays_unbound() -> void:
+	# Present-but-empty is the player having cleared it — the fallback must not
+	# bring the default back.
+	_fresh()
+	var cfg := _cfg_with_controller_profile_lacking_cursor_click()
+	var stored: Dictionary = cfg.get_value(InputProfiles.SECTION, "controller_0").duplicate(true)
+	stored["cursor_click"] = []
+	cfg.set_value(InputProfiles.SECTION, "controller_0", stored)
+	var loaded := InputProfiles.new()
+	loaded.from_config(cfg)
+	assert_true(loaded.bindings_for(false, 0).get("cursor_click", [null]).is_empty(), "loaded profile keeps it cleared")
+	loaded.apply_active()
+	assert_eq(InputMap.action_get_events("cursor_click").size(), 0, "left unbound once applied")
+	_restore()
+
+func test_a_legacy_config_with_no_cursor_click_gets_the_default() -> void:
+	# Same for the pre-profiles flat [input] section: migrated profile 1 takes the
+	# default for an action the old file never had, on each device.
+	_fresh()
+	var cfg := ConfigFile.new()
+	InputMapConfig.save_to_config(cfg)
+	cfg.erase_section_key(InputMapConfig.CONFIG_SECTION, "cursor_click")
+	var loaded := InputProfiles.new()
+	loaded.from_config(cfg)
+	var pad: Array = loaded.bindings_for(false, 0).get("cursor_click", [])
+	assert_eq(pad.size(), 1, "controller profile 1 gets the default")
+	assert_eq(int(pad[0].get("button", -1)), JOY_BUTTON_RIGHT_STICK, "R3")
+	assert_true(loaded.bindings_for(true, 0).get("cursor_click", [null]).is_empty(), "keyboard profile gets none")
+	_restore()
+
 # ---------------------------------------------------------- device snapshots
 
 func test_apply_device_keeps_the_other_device() -> void:
@@ -269,4 +325,18 @@ func test_capture_device_is_device_scoped() -> void:
 	for action in pad:
 		for d in pad[action]:
 			assert_ne(String(d.get("type", "")), "key", "capture(controller) yields no key events")
+	_restore()
+
+func test_a_profile_saved_before_cursor_click_still_clicks_with_the_stick() -> void:
+	# `bindings` lacking an action means "never saved", so it takes the default;
+	# an action present with [] stays unbound.
+	var old_profile := InputMapConfig.device_defaults(false)
+	old_profile.erase("cursor_click")             # what an older save holds
+	InputMapConfig.apply_device(old_profile, false)
+	var evs := InputMap.action_get_events("cursor_click")
+	assert_eq(evs.size(), 1, "falls back to the default binding")
+	assert_true(evs.size() > 0 and evs[0] is InputEventJoypadButton and evs[0].button_index == JOY_BUTTON_RIGHT_STICK, "R3")
+	old_profile["cursor_click"] = []
+	InputMapConfig.apply_device(old_profile, false)
+	assert_eq(InputMap.action_get_events("cursor_click").size(), 0, "a cleared binding stays cleared")
 	_restore()

@@ -321,6 +321,8 @@ func _build_keyboard(v: VBoxContainer) -> void:
 	v.add_child(_divider())
 	v.add_child(_label("Click a binding, then press a key. Esc cancels.", BattleUITheme.font_regular(), 11, NOTE_COLOR, HORIZONTAL_ALIGNMENT_CENTER))
 	for meta in InputMapConfig.ACTIONS:
+		if InputMapConfig.is_pad_only(meta["action"]):
+			continue   # e.g. Cursor Click — only the Controller page lists it
 		v.add_child(_kb_remap_row(meta["action"], meta["label"]))
 
 	var reset_all := BattleUITheme.make_button("Reset This Profile to Defaults", 12)
@@ -336,7 +338,7 @@ func _build_controller(v: VBoxContainer) -> void:
 	v.add_child(_divider())
 	v.add_child(_sens_row("Left Stick Sensitivity", s.stick_sensitivity_left, func(val): s.stick_sensitivity_left = val))
 	v.add_child(_sens_row("Right Stick Sensitivity", s.stick_sensitivity_right, func(val): s.stick_sensitivity_right = val))
-	v.add_child(_label("Right stick is reserved for future camera control.", BattleUITheme.font_regular(), 11, NOTE_COLOR, HORIZONTAL_ALIGNMENT_CENTER))
+	v.add_child(_label("Right stick moves the cursor — press it to click.", BattleUITheme.font_regular(), 11, NOTE_COLOR, HORIZONTAL_ALIGNMENT_CENTER))
 
 	v.add_child(_divider())
 	v.add_child(_profile_block(false))

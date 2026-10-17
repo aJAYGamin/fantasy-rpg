@@ -165,3 +165,22 @@ func test_focusutil_category_keyboard() -> void:
 	w.keycode = KEY_W
 	w.pressed = true
 	assert_false(FocusUtil.is_prev_category(w), "W does not cycle category")
+
+func test_cursor_click_defaults_to_the_right_stick_press() -> void:
+	InputMapConfig.reset_all()
+	var evs := InputMap.action_get_events("cursor_click")
+	assert_eq(evs.size(), 1, "one binding")
+	assert_true(evs.size() > 0 and evs[0] is InputEventJoypadButton and evs[0].button_index == JOY_BUTTON_RIGHT_STICK, "R3")
+	assert_true(InputMapConfig.is_pad_only("cursor_click"), "controller-only")
+	assert_false(InputMapConfig.is_pad_only("confirm"), "others are not")
+	assert_eq(InputMapConfig.describe_controller("cursor_click"), "R-Stick Click", "reads as R3 in Settings")
+
+func test_cursor_click_has_no_keyboard_default() -> void:
+	# Controller-only: the keyboard half must not invent a key for it, or the
+	# Keyboard profile would carry (and could clash on) a binding with no row.
+	assert_true(InputMapConfig.device_defaults(true)["cursor_click"].is_empty(), "no keyboard default")
+	assert_eq(InputMapConfig.device_defaults(false)["cursor_click"].size(), 1, "one controller default")
+	InputMapConfig.reset_all()
+	InputMapConfig.reset_keyboard_action("cursor_click")
+	assert_eq(InputMap.action_get_events("cursor_click").size(), 1, "a keyboard reset leaves the pad binding")
+	InputMapConfig.reset_all()

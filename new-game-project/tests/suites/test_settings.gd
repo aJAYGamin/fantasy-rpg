@@ -298,3 +298,35 @@ func test_scrolling_settings_content_shares_the_centred_column() -> void:
 				"%s: content ends %dpx from the border, like the title and Back" % [view, SettingsScreen.PANEL_MARGIN_X])
 	GameManager.remove_child(screen)
 	screen.free()
+
+# ------------------------------------------------------ the Cursor Click row
+
+func _texts_of_labels(screen: SettingsScreen) -> PackedStringArray:
+	var out := PackedStringArray()
+	for l in screen.find_children("*", "Label", true, false):
+		out.append((l as Label).text)
+	return out
+
+func test_the_keyboard_page_has_no_cursor_click_row_and_the_controller_page_does() -> void:
+	var screen := SettingsScreen.new()
+	GameManager.add_child(screen)
+
+	screen._view = "keyboard"
+	screen._build()
+	assert_false("Cursor Click" in _texts_of_labels(screen), "no Cursor Click label on the Keyboard page")
+	assert_false(screen._kb_buttons.has("cursor_click"), "no keyboard binding button for it")
+	assert_true(screen._kb_buttons.has("confirm"), "the other actions still have rows")
+	assert_eq(screen._kb_buttons.size(), InputMapConfig.ACTIONS.size() - 1, "every action but the pad-only one")
+
+	screen._view = "controller"
+	screen._build()
+	var texts := _texts_of_labels(screen)
+	assert_true("Cursor Click" in texts, "a Cursor Click row on the Controller page")
+	assert_true(screen._pad_buttons.has("cursor_click"), "with a controller binding button")
+	assert_eq(screen._pad_buttons.size(), InputMapConfig.ACTIONS.size(), "alongside every other action")
+	assert_true("Right stick moves the cursor — press it to click." in texts, "the note explains the stick")
+	assert_false("Right stick is reserved for future camera control." in texts, "the old camera note is gone")
+
+	GameManager.remove_child(screen)
+	screen.free()
+
