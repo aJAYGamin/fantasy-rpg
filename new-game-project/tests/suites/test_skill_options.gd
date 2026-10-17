@@ -207,3 +207,48 @@ func test_each_cost_kind_has_its_own_colour() -> void:
 	assert_ne(mp, hp, "MP and HP differ")
 	assert_ne(hp, res, "HP and resonance differ")
 	assert_ne(mp, res, "MP and resonance differ")
+
+# --------------------------------------------------- Spec C: multi-turn options
+
+func test_multi_turn_options_default_to_off() -> void:
+	var s := Skill.new()
+	assert_eq(s.charge_turns, 0, "no charge-up")
+	assert_eq(s.delay_rounds, 0, "lands at once")
+	assert_eq(s.recharge_turns, 0, "no rest after")
+	assert_eq(s.effect_turns, 0, "buffs and debuffs last the battle")
+
+func test_multi_turn_effect_tags() -> void:
+	var s := Skill.new()
+	s.charge_turns = 1
+	assert_true(s.effect_tags().has("Charges 1 turn"), "charge-up")
+	s = Skill.new()
+	s.delay_rounds = 1
+	assert_true(s.effect_tags().has("Lands at round end"), "a one-round delay")
+	s.delay_rounds = 2
+	assert_true(s.effect_tags().has("Lands in 2 rounds"), "a two-round delay")
+	s = Skill.new()
+	s.recharge_turns = 1
+	assert_true(s.effect_tags().has("Rests 1 turn"), "recharge")
+	s.recharge_turns = 2
+	assert_true(s.effect_tags().has("Rests 2 turns"), "plural")
+
+func test_a_duration_is_tagged_only_on_a_move_with_a_stat_effect() -> void:
+	var rider := Skill.new()
+	rider.status_to_apply = "defense_debuff"
+	rider.status_chance = 1.0
+	rider.effect_turns = 3
+	assert_true(rider.effect_tags().has("Lasts 3 turns"), "a timed debuff rider")
+	var blessing := Skill.new()
+	blessing.skill_type = Skill.SkillType.STATUS
+	blessing.status_type = Skill.StatusType.BUFF
+	blessing.status_to_apply = "speed_buff"
+	blessing.effect_turns = 1
+	assert_true(blessing.effect_tags().has("Lasts 1 turn"), "singular, on a status buff")
+	var plain := Skill.new()
+	plain.effect_turns = 3
+	assert_false(plain.effect_tags().has("Lasts 3 turns"), "a move with no stat effect says nothing")
+	var poison := Skill.new()
+	poison.status_to_apply = "poison"
+	poison.status_chance = 1.0
+	poison.effect_turns = 3
+	assert_false(poison.applies_stat_effect(), "a mutex status is not a stat effect")

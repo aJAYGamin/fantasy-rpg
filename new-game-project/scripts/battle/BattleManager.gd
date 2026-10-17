@@ -53,10 +53,20 @@ const HEAL_REGEN_POWER := 0.25
 ## is still dropping. The user chose these lengths after play-testing.
 const HIT_PAUSE := 0.8
 const ACTION_PAUSE := 1.0
-## The pauses in effect. 0 by default, so a bare manager (every test) resolves
-## synchronously; BattleScene sets them to HIT_PAUSE / ACTION_PAUSE.
-var hit_pause := 0.0
-var action_pause := 0.0
+## An enemy's turn before it shows its move, and how long its move name shows
+## under its card before it acts.
+const THINK_PAUSE := 0.4
+const PREVIEW_PAUSE := 1.0
+## Banner waits: each banner's time on screen plus a small buffer, so nothing
+## moves on mid-fade (BattleScene.BANNER_DURATION_WAKE / BANNER_DURATION_SKIP).
+const WAKE_PAUSE := 1.75
+const SKIP_PAUSE := 1.9
+## The Spec C banners ("gathering power", "focus broken", "<Move> strikes!").
+const BANNER_PAUSE := 1.75
+## Off on a bare manager, so every wait returns at once and a whole sequence of
+## turns — enemy turns included — runs synchronously in a test. BattleScene
+## turns it on. Every wait in the turn loop goes through _pause().
+var paced := false
 
 var state: BattleState = BattleState.IDLE:
 	set(value):
@@ -69,6 +79,30 @@ var enemies: Array[Character] = []
 var turn_order: Array[Character] = []
 var current_turn_index: int = 0
 var current_actor: Character
+
+## A move that resolves later (Spec C): a charge-up waiting for its user's next
+## turn, or a delayed strike waiting for the end of a round. A future "fires
+## later" shape is a new When.
+class Scheduled:
+	enum When { CASTER_TURN, ROUND_END }
+	var user: Character
+	var skill: Skill
+	var chosen: Array[Character]
+	var when: When
+	## Delayed strikes only: rounds until it lands, and the cast-time
+	## measurements (_measure plus the caster's "value").
+	var rounds_left := 0
+	var measured: Dictionary = {}
+
+	func _init(u: Character, s: Skill, c: Array[Character], w: When) -> void:
+		user = u
+		skill = s
+		chosen = c.duplicate()
+		when = w
+
+## Every move waiting to resolve, in the order it was used. A fresh list per
+## battle (a fresh manager), cleared when the battle ends.
+var scheduled: Array = []
 
 func start_battle(player_party: Array[Character], enemy_group: Array[Character]):
 	party = player_party
@@ -91,9 +125,7 @@ func _build_turn_order():
 func _next_turn():
 	# Blocks while a transformed boss refills, so the player cannot attack into
 	# a bar that is still climbing.
-	var boss_pause: float = check_boss_phases()
-	if boss_pause > 0.0:
-		await get_tree().create_timer(boss_pause).timeout
+	await _pause(check_boss_phases())
 	while current_turn_index < turn_order.size():
 		var actor = turn_order[current_turn_index]
 		if actor.is_alive():
@@ -101,6 +133,10 @@ func _next_turn():
 		current_turn_index += 1
 
 	if current_turn_index >= turn_order.size():
+		# Spec C: the round is over — due delayed strikes land before the next.
+		await _land_delayed_strikes()
+		if state == BattleState.BATTLE_OVER:
+			return
 		_start_new_round()
 		return
 
@@ -118,11 +154,37 @@ func _next_turn():
 		emit_signal("status_effect_triggered", current_actor, result)
 		if not current_actor.is_alive():
 			handle_defeat(current_actor)
+			# The tick may have downed the last character on a side. End the
+			# battle here, or the next enemy turn finds nobody to hit and stalls.
+			if check_battle_end():
+				return
 			current_turn_index += 1
 			_next_turn()
 			return
 
+	# Spec C: timed buffs / debuffs count down on their owner's turns. Quiet —
+	# the event only refreshes the chips.
+	if current_actor.tick_stat_timers():
+		emit_signal("status_effect_triggered", current_actor, {"type": StatusSystem.STATS_EXPIRED, "value": 0})
+
 	emit_signal("turn_started", current_actor)
+
+	# Spec C: resting after a recharge move. The status skip still resolves on
+	# this same turn, so a stun is used up by it and a sleep counter advances —
+	# one lost turn, not two.
+	if current_actor.recharge_turns_left > 0:
+		current_actor.recharge_turns_left -= 1
+		StatusSystem.resolve_turn_skip(current_actor)
+		emit_signal("status_effect_triggered", current_actor, {
+			"type": StatusSystem.RECHARGING,
+			"value": 0,
+			"skipped": true,
+			"name": current_actor.character_name,
+		})
+		await _pause(SKIP_PAUSE)
+		current_turn_index += 1
+		_next_turn()
+		return
 
 	# Skip-turn resolution. StatusSystem owns the rules:
 	#   stun       -> always skip + auto-clear
@@ -135,30 +197,46 @@ func _next_turn():
 	var skip_result: Dictionary = StatusSystem.resolve_turn_skip(current_actor)
 
 	# Wake-up banner: sleep was active and resolved to "wake", actor will act
-	# THIS same turn after the banner finishes. Wait long enough for the banner
-	# to play fully (BattleScene.BANNER_DURATION_WAKE = 1.55) plus a small
-	# buffer so the action menu doesn't appear mid-fade.
+	# THIS same turn after the banner finishes. Wait WAKE_PAUSE: the banner's
+	# time on screen (BattleScene.BANNER_DURATION_WAKE, 1.55s) plus a small
+	# buffer, so the action menu doesn't appear mid-fade.
 	if skip_result.get("woke_up", false):
 		emit_signal("status_effect_triggered", current_actor, {
 			"type": "woke_up",
 			"value": 0,
 			"name": current_actor.character_name,
 		})
-		await get_tree().create_timer(1.75).timeout
+		await _pause(WAKE_PAUSE)
 
-	# Skip banner: actor cannot act this turn. Wait for the banner to finish
-	# (BattleScene.BANNER_DURATION_SKIP = 1.70) before advancing to next actor.
+	# Skip banner: actor cannot act this turn. Wait SKIP_PAUSE: the banner's time
+	# on screen (BattleScene.BANNER_DURATION_SKIP, 1.70s) plus a small buffer,
+	# before advancing to next actor.
 	var skip_status: String = skip_result.get("skip", "")
 	if skip_status != "":
+		# Spec C: a skipped turn breaks a charge-up; its costs stay spent.
+		var broken := _charge_of(current_actor)
+		if broken != null:
+			scheduled.erase(broken)
+			emit_signal("status_effect_triggered", current_actor, {"type": StatusSystem.FOCUS_BROKEN,
+					"value": 0, "name": current_actor.character_name})
+			await _pause(BANNER_PAUSE)
 		emit_signal("status_effect_triggered", current_actor, {
 			"type": skip_status,
 			"value": 0,
 			"skipped": true,
 			"name": current_actor.character_name,
 		})
-		await get_tree().create_timer(1.90).timeout
+		await _pause(SKIP_PAUSE)
 		current_turn_index += 1
 		_next_turn()
+		return
+
+	# Spec C: a charge-up releases on its user's turn — no menu, no AI choice.
+	var charge := _charge_of(current_actor)
+	if charge != null:
+		state = BattleState.EXECUTING_ACTION
+		await _release_charge(charge)
+		_end_turn()
 		return
 
 	# Actor is ready — UI shows action menu / starts enemy AI.
@@ -248,17 +326,55 @@ func _allies_of(user: Character) -> Array[Character]:
 ## ~50-line near-copies that had already drifted: SELF targeting existed on one
 ## side only, dodge was rolled in different places, and the same outcome
 ## emitted different action names. Every skill mechanic lands here, once.
+##
+## USING a move — check, measure, pay — is separate from STRIKING with it, so a
+## move that fires later (Spec C) strikes through the same code.
 func resolve_skill(user: Character, skill: Skill, chosen: Array[Character]) -> void:
 	if not skill.can_use(user):
 		return
-	var targets := expand_targets(user, skill, chosen)
-	# Measured BEFORE costs are paid, so an HP-cost move is not weakened by its
-	# own cost (Spec B, Part 2, step 2).
-	var scale := skill.scale_factor(user)
-	var user_hp_fraction := float(user.current_hp) / float(maxi(1, user.max_hp()))
+	if skill.charge_turns > 0:
+		# Spec C charge-up: pay now, gather power this turn, release on the
+		# user's next turn (_release_charge) — measured then, not now.
+		_pay_costs(user, skill)
+		scheduled.append(Scheduled.new(user, skill, chosen, Scheduled.When.CASTER_TURN))
+		emit_signal("status_effect_triggered", user, {"type": StatusSystem.CHARGING,
+				"value": 0, "name": user.character_name})
+		await _pause(BANNER_PAUSE)
+		return
+	if skill.delay_rounds > 0:
+		# Spec C delayed strike: measured and paid now, lands at the end of a
+		# later round (_land_delayed_strikes). Nothing about it is shown — the
+		# quiet event only refreshes the panels so the spent MP shows.
+		var entry := Scheduled.new(user, skill, chosen, Scheduled.When.ROUND_END)
+		entry.rounds_left = skill.delay_rounds
+		entry.measured = _measure(user, skill)
+		entry.measured["value"] = skill.calculate_value(user)
+		_pay_costs(user, skill)
+		scheduled.append(entry)
+		emit_signal("status_effect_triggered", user, {"type": StatusSystem.STRIKE_SCHEDULED, "value": 0})
+		_start_recharge(user, skill)
+		return
+	var m := _measure(user, skill)
 	_pay_costs(user, skill)
+	await _strike(user, skill, expand_targets(user, skill, chosen), m)
+	_start_recharge(user, skill)
 
-	var first := true
+## What a strike needs from the moment a move is measured — BEFORE its costs
+## are paid, so an HP-cost move is not weakened by its own cost (Spec B).
+func _measure(user: Character, skill: Skill) -> Dictionary:
+	return {"scale": skill.scale_factor(user),
+			"hp_fraction": float(user.current_hp) / float(maxi(1, user.max_hp()))}
+
+## The hits of a move: Spec B's paced beats, per-target effects and
+## after-action effects. `m` comes from _measure; a delayed strike adds its
+## caster's cast-time "value". A fallen caster's strike lands only its hits —
+## no result takes the action's resonance, and there are no after-effects.
+func _strike(user: Character, skill: Skill, targets: Array[Character], m: Dictionary,
+		caster_standing: bool = true) -> void:
+	var scale: float = m["scale"]
+	var user_hp_fraction: float = m["hp_fraction"]
+	var base_value: int = int(m.get("value", -1))
+	var first := caster_standing
 	var dealt := 0       # HP actually removed by this action's hits, for recoil
 	var landed := {}     # target -> hits that landed on it
 	var hits := maxi(1, skill.hit_count) if skill.skill_type == Skill.SkillType.DAMAGE else 1
@@ -273,7 +389,7 @@ func resolve_skill(user: Character, skill: Skill, chosen: Array[Character]) -> v
 		if standing.is_empty():
 			break
 		if h > 0:
-			await _pause(hit_pause)
+			await _pause(HIT_PAUSE)
 		var results: Array[Dictionary] = []
 		for target in standing:
 			var result := {"actor": user, "target": target, "skill": skill,
@@ -297,7 +413,7 @@ func resolve_skill(user: Character, skill: Skill, chosen: Array[Character]) -> v
 			first = false
 			landed[target] = landed.get(target, 0) + 1
 			var hp_before := target.current_hp
-			_resolve_hit(user, skill, target, result, scale, user_hp_fraction)
+			_resolve_hit(user, skill, target, result, scale, user_hp_fraction, base_value)
 			if skill.skill_type == Skill.SkillType.DAMAGE:
 				dealt += maxi(0, hp_before - target.current_hp)
 			result["target_alive"] = target.is_alive()
@@ -313,12 +429,97 @@ func resolve_skill(user: Character, skill: Skill, chosen: Array[Character]) -> v
 		for target in standing:
 			if not target.is_alive():
 				handle_defeat(target)
-	_after_action(user, skill, dealt)
+	if caster_standing:
+		_after_action(user, skill, dealt)
 
-## Waits `seconds` in the scene tree; returns at once for 0 (a bare manager in
-## a test is not in a tree, and never needs to wait).
+## Spec C recharge: the user rests their next `recharge_turns` turns.
+func _start_recharge(user: Character, skill: Skill) -> void:
+	if skill.recharge_turns > 0:
+		user.recharge_turns_left = skill.recharge_turns
+
+## The user's waiting charge-up, or null.
+func _charge_of(user: Character) -> Scheduled:
+	for e in scheduled:
+		if e.user == user and e.when == Scheduled.When.CASTER_TURN:
+			return e
+	return null
+
+## A later strike's targets. Area moves hit whoever stands now; a single
+## target that has fallen is replaced by a random living character on its
+## side, so a charge or delayed strike is never spent on the fallen. Nobody
+## standing: an empty list.
+func _strike_targets(user: Character, skill: Skill, chosen: Array[Character]) -> Array[Character]:
+	var pick: Array[Character] = []
+	for c in chosen:
+		if c.is_alive():
+			pick.append(c)
+	var single := skill.target_type == Skill.TargetType.SINGLE_ENEMY \
+			or skill.target_type == Skill.TargetType.SINGLE_ALLY
+	if pick.is_empty() and single:
+		var side: Array[Character] = _opponents_of(user) \
+				if skill.target_type == Skill.TargetType.SINGLE_ENEMY else _allies_of(user)
+		var living: Array[Character] = []
+		for c in side:
+			if c.is_alive():
+				living.append(c)
+		if not living.is_empty():
+			pick.append(living[randi() % living.size()])
+	var out: Array[Character] = []
+	for t in expand_targets(user, skill, pick):
+		if t.is_alive():
+			out.append(t)
+	return out
+
+## A charge-up firing on its user's turn: no menu, no AI choice. Measured now —
+## the charger is acting — so a buff landed on them while charging counts.
+## Announced first, so the hit never lands the instant the turn begins: an
+## enemy's move name shows under its card as for any enemy move; a hero's
+## release gets a banner, then a pause.
+func _release_charge(entry: Scheduled) -> void:
+	scheduled.erase(entry)
+	var user := entry.user
+	if enemies.has(user):
+		emit_signal("enemy_move_preview", user, entry.skill.skill_name)
+		await _pause(PREVIEW_PAUSE)
+		emit_signal("enemy_move_preview", user, "")
+	else:
+		emit_signal("status_effect_triggered", user, {"type": StatusSystem.CHARGE_RELEASED,
+				"value": 0, "name": user.character_name, "move": entry.skill.skill_name})
+		await _pause(BANNER_PAUSE)
+	var targets := _strike_targets(user, entry.skill, entry.chosen)
+	if not targets.is_empty():
+		await _strike(user, entry.skill, targets, _measure(user, entry.skill))
+	_start_recharge(user, entry.skill)
+
+## The end of a round: every delayed strike that is due lands, one at a time in
+## the order cast — its banner, a pause, the hits (which can miss or be
+## dodged), then the action pause. Nothing prevents one: a fallen caster's
+## strike still lands, with only its hits. A landing that ends the battle drops
+## the rest (check_battle_end clears the list).
+func _land_delayed_strikes() -> void:
+	for entry in scheduled.duplicate():
+		if entry.when != Scheduled.When.ROUND_END:
+			continue
+		entry.rounds_left -= 1
+		if entry.rounds_left > 0:
+			continue
+		scheduled.erase(entry)
+		var targets := _strike_targets(entry.user, entry.skill, entry.chosen)
+		if targets.is_empty():
+			continue
+		state = BattleState.EXECUTING_ACTION
+		emit_signal("status_effect_triggered", entry.user, {"type": StatusSystem.STRIKE_LANDING,
+				"value": 0, "move": entry.skill.skill_name})
+		await _pause(BANNER_PAUSE)
+		await _strike(entry.user, entry.skill, targets, entry.measured, entry.user.is_alive())
+		await _pause(ACTION_PAUSE)
+		if check_battle_end():
+			return
+
+## Waits `seconds` — only while paced (the real battle). A bare manager (every
+## test) is outside the scene tree and never waits.
 func _pause(seconds: float) -> void:
-	if seconds > 0.0:
+	if paced and seconds > 0.0:
 		await get_tree().create_timer(seconds).timeout
 
 ## Pays MP, then resonance (heroes only — enemies have neither pool), then HP
@@ -336,9 +537,11 @@ func _pay_costs(user: Character, skill: Skill) -> void:
 
 ## One landed hit of `skill` on `target`, written into `result`.
 func _resolve_hit(user: Character, skill: Skill, target: Character, result: Dictionary,
-		scale: float, user_hp_fraction: float) -> void:
+		scale: float, user_hp_fraction: float, base_value: int = -1) -> void:
+	# The move's raw strength: measured now, or carried from the cast (Spec C).
+	var raw: int = base_value if base_value >= 0 else skill.calculate_value(user)
 	if skill.skill_type == Skill.SkillType.DAMAGE:
-		var value := int(skill.calculate_value(user) * skill.condition_multiplier(user_hp_fraction, target) * scale)
+		var value := int(raw * skill.condition_multiplier(user_hp_fraction, target) * scale)
 		match skill.attack_type:
 			Skill.AttackType.STRIKE, Skill.AttackType.RANGED:
 				_record_damage(result, target.take_damage(value, skill.element, skill.secondary_element,
@@ -351,7 +554,7 @@ func _resolve_hit(user: Character, skill: Skill, target: Character, result: Dict
 						skill.pierce, skill.override_element, skill.override_multiplier()))
 				result["action"] = "skill_magic"
 	elif skill.skill_type == Skill.SkillType.STATUS:
-		var value := skill.calculate_value(user)
+		var value := raw
 		match skill.status_type:
 			Skill.StatusType.HEAL:
 				result["action"] = "heal"
@@ -362,15 +565,12 @@ func _resolve_hit(user: Character, skill: Skill, target: Character, result: Dict
 					_apply_skill_status(target, skill.status_to_apply,
 							maxi(1, int(user.magic_power() * HEAL_REGEN_POWER)))
 			Skill.StatusType.BUFF:
-				# The token may be a stat buff ("attack_buff"), a stat debuff
-				# ("magic_debuff") or a legacy named status ("regenerate").
-				var token: String = skill.status_to_apply if skill.status_to_apply != "" else StatusSystem.REGENERATE
-				_apply_skill_status(target, token)
+				_apply_skill_status(target, skill.applied_effect(), -1, skill.effect_turns)
 				result["action"] = "buff"
 				result["value"] = 0
 			Skill.StatusType.DEBUFF:
 				if skill.status_to_apply != "":
-					_apply_skill_status(target, skill.status_to_apply)
+					_apply_skill_status(target, skill.status_to_apply, -1, skill.effect_turns)
 				result["action"] = "debuff"
 				result["value"] = 0
 
@@ -385,9 +585,9 @@ func _after_target(skill: Skill, target: Character) -> void:
 	# A damage skill's status rider rolls once per target, not once per hit.
 	if skill.skill_type == Skill.SkillType.DAMAGE and skill.status_to_apply != "" \
 			and randf() < skill.status_chance:
-		_apply_skill_status(target, skill.status_to_apply)
+		_apply_skill_status(target, skill.status_to_apply, -1, skill.effect_turns)
 	if skill.target_buff != "" and target.is_alive():
-		_apply_stat(target, skill.target_buff, true)
+		_apply_stat(target, skill.target_buff, true, skill.effect_turns)
 
 ## A result that is not a hit: the HP cost, an ally heal, recoil, a self-debuff.
 ## Never carries the first-target or first-hit flags, so it cannot take the
@@ -414,14 +614,14 @@ func _after_action(user: Character, skill: Skill, dealt: int) -> void:
 		if recoil > 0:
 			user.current_hp -= recoil
 			_emit_extra(user, user, skill, "recoil", recoil)
-	if skill.self_debuff != "" and _apply_stat(user, skill.self_debuff, false):
+	if skill.self_debuff != "" and _apply_stat(user, skill.self_debuff, false, skill.effect_turns):
 		_emit_extra(user, user, skill, "self_debuff", 0)
 
 ## Raises (buff) or lowers a stat by name. An unknown name is a data error in a
 ## move file: it warns and changes nothing, rather than inventing a status the
 ## way the phantom "burn" once did.
-func _apply_stat(c: Character, stat: String, buff: bool) -> bool:
-	var r: Dictionary = c.apply_buff(stat) if buff else c.apply_debuff(stat)
+func _apply_stat(c: Character, stat: String, buff: bool, turns: int = 0) -> bool:
+	var r: Dictionary = c.apply_buff(stat, turns) if buff else c.apply_debuff(stat, turns)
 	if r.get("action", "") == "invalid":
 		push_warning("Skill stat '%s' is not one of %s — ignored" % [stat, StatusSystem.BUFFABLE_STATS])
 		return false
@@ -464,10 +664,15 @@ func player_defend(character: Character):
 	end_player_turn()
 
 func end_player_turn():
+	await _end_turn()
+
+## The end of ANY actor's turn: the bars finish dropping, then the battle-end
+## check, then the next actor.
+func _end_turn() -> void:
 	state = BattleState.IDLE
 	# Let the bars finish dropping before anything else happens — the next
 	# hero's menu, the next enemy's move, or the victory screen.
-	await _pause(action_pause)
+	await _pause(ACTION_PAUSE)
 	if check_battle_end():
 		return
 	current_turn_index += 1
@@ -475,11 +680,14 @@ func end_player_turn():
 
 # --- Enemy AI ---
 func _execute_enemy_turn():
-	await get_tree().create_timer(0.4).timeout
+	await _pause(THINK_PAUSE)
 
 	var enemy = current_actor
 	var alive_party = party.filter(func(c): return c.is_alive())
 	if alive_party.is_empty():
+		# Nobody left to hit: end the turn (its battle-end check reports the
+		# defeat) rather than return and leave the battle hanging.
+		_end_turn()
 		return
 
 	# Use EnemyAI to decide action
@@ -492,7 +700,7 @@ func _execute_enemy_turn():
 	emit_signal("enemy_move_preview", enemy, move_name)
 
 	# Delay before executing
-	await get_tree().create_timer(1.0).timeout
+	await _pause(PREVIEW_PAUSE)
 
 	# Clear move preview
 	emit_signal("enemy_move_preview", enemy, "")
@@ -528,14 +736,14 @@ func _execute_enemy_turn():
 				handle_defeat(target)
 
 	# As after a hero's action: the bars finish before the next turn begins.
-	await _pause(action_pause)
-	if check_battle_end():
-		return
-	current_turn_index += 1
-	_next_turn()
+	_end_turn()
 
 # --- Helpers ---
 func handle_defeat(character: Character):
+	# Spec C: a downed charger loses its charge (a delayed strike still lands).
+	var lost := _charge_of(character)
+	if lost != null:
+		scheduled.erase(lost)
 	emit_signal("character_defeated", character)
 	# Quest progress: count defeated ENEMIES (not downed heroes). Report a generic
 	# "defeat:any" plus a species key from the first word of the name (e.g. a
@@ -551,11 +759,13 @@ func check_battle_end() -> bool:
 	var enemies_alive = enemies.any(func(c): return c.is_alive())
 
 	if not enemies_alive:
+		scheduled.clear()
 		state = BattleState.BATTLE_OVER
 		var rewards = _calculate_rewards()
 		emit_signal("battle_ended", true, rewards)
 		return true
 	elif not party_alive:
+		scheduled.clear()
 		state = BattleState.BATTLE_OVER
 		emit_signal("battle_ended", false, {})
 		return true
@@ -745,9 +955,9 @@ func _summon_from_spec(boss: Enemy, spec: Dictionary) -> void:
 ## mean a status landed — _apply_skill_status can still no-op below (element
 ## immunity, the mutex rule), same as it would on the ordinary skill path.
 ##
-## Hooked to the boss's OWN turn rather than "each round": the turn-order model
-## has no explicit round boundary, and this way the effect fires exactly once per
-## cycle and stops naturally when the boss dies. It resolves BEFORE the boss
+## Hooked to the boss's OWN turn rather than "each round": it is a per-turn
+## effect tied to the boss acting, so it fires exactly once per boss turn and
+## stops naturally when the boss dies. It resolves BEFORE the boss
 ## chooses its action, so a hero paralysed here is already paralysed when the
 ## boss picks a target.
 func apply_boss_field_effect(boss: Enemy) -> Character:
@@ -777,15 +987,15 @@ func apply_boss_field_effect(boss: Enemy) -> Character:
 # `regen_amount` is the per-turn heal a "regenerate" token gives; -1 (the
 # default) is Character.start_regen's max_hp / 8, which every caller but a HEAL
 # move's attached regen uses.
-func _apply_skill_status(target: Character, token: String, regen_amount: int = -1):
+func _apply_skill_status(target: Character, token: String, regen_amount: int = -1, turns: int = 0):
 	if token == "":
 		return
 	var parsed = StatusSystem.parse_apply_token(token)
 	match parsed["kind"]:
 		"buff":
-			target.apply_buff(parsed["value"])
+			target.apply_buff(parsed["value"], turns)
 		"debuff":
-			target.apply_debuff(parsed["value"])
+			target.apply_debuff(parsed["value"], turns)
 		_:
 			var status_name: String = parsed["value"]
 			# Regenerate is a transient heal-over-time, not a status chip.

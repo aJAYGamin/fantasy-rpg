@@ -258,7 +258,7 @@ func test_an_enemy_skill_is_dodge_rolled_once_not_twice() -> void:
 	# inside resolve_skill, so the enemy turn must not roll it again first —
 	# two rolls would make a 50% dodge land 75% of the time.
 	var src := FileAccess.get_file_as_string("res://scripts/battle/BattleManager.gd")
-	assert_true(_function_body(src, "resolve_skill").contains("try_dodge"), "the resolver rolls dodge")
+	assert_true(_function_body(src, "_strike").contains("try_dodge"), "the strike rolls dodge")
 	var turn := _function_body(src, "_execute_enemy_turn")
 	var skill_branch := turn.substr(turn.find("if skill != null:"))
 	skill_branch = skill_branch.substr(0, skill_branch.find("\n\telse:"))
@@ -815,8 +815,7 @@ func test_a_target_killed_on_the_first_beat_falls_before_the_second() -> void:
 
 func test_pacing_is_off_unless_the_battle_scene_turns_it_on() -> void:
 	var bm := BattleManager.new()
-	assert_eq(bm.hit_pause, 0.0, "a bare manager resolves every hit at once (tests)")
-	assert_eq(bm.action_pause, 0.0, "and hands the turn on at once")
+	assert_false(bm.paced, "a bare manager never waits (tests)")
 	assert_eq(BattleManager.HIT_PAUSE, 0.8, "the battle's pause between hits (user's choice)")
 	assert_eq(BattleManager.ACTION_PAUSE, 1.0, "and after every action, before the next turn")
 	bm.free()

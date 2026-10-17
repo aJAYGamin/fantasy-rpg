@@ -40,6 +40,10 @@ static func serialize_skill(s: Skill) -> Dictionary:
 		"recoil_percent": s.recoil_percent,
 		"miss_chance": s.miss_chance,
 		"target_buff": s.target_buff,
+		"charge_turns": s.charge_turns,
+		"delay_rounds": s.delay_rounds,
+		"recharge_turns": s.recharge_turns,
+		"effect_turns": s.effect_turns,
 	}
 
 static func deserialize_skill(d: Dictionary) -> Skill:
@@ -81,6 +85,11 @@ static func deserialize_skill(d: Dictionary) -> Skill:
 	s.recoil_percent = float(d.get("recoil_percent", 0.0))
 	s.miss_chance = float(d.get("miss_chance", 0.0))
 	s.target_buff = String(d.get("target_buff", ""))
+	# Spec C options — the same "off" defaults for a save written before them.
+	s.charge_turns = int(d.get("charge_turns", 0))
+	s.delay_rounds = int(d.get("delay_rounds", 0))
+	s.recharge_turns = int(d.get("recharge_turns", 0))
+	s.effect_turns = int(d.get("effect_turns", 0))
 	return s
 
 const MOVE_LIBRARY := "res://data/skills/"

@@ -7,7 +7,7 @@ extends RefCounted
 
 var _pass: int = 0
 var _fail: int = 0
-var _log: Array[String] = []
+var _lines: Array[String] = []
 
 func suite_name() -> String:
 	return "Unnamed Suite"
@@ -16,10 +16,10 @@ func suite_name() -> String:
 func _record(ok: bool, label: String) -> void:
 	if ok:
 		_pass += 1
-		_log.append("  PASS  " + label)
+		_lines.append("  PASS  " + label)
 	else:
 		_fail += 1
-		_log.append("  FAIL  " + label)
+		_lines.append("  FAIL  " + label)
 
 func assert_true(cond, label: String) -> void:
 	_record(cond == true, label)
@@ -45,4 +45,4 @@ func run() -> Dictionary:
 		var n: String = m["name"]
 		if n.begins_with("test_"):
 			call(n)
-	return {"name": suite_name(), "pass": _pass, "fail": _fail, "log": _log}
+	return {"name": suite_name(), "pass": _pass, "fail": _fail, "log": _lines}

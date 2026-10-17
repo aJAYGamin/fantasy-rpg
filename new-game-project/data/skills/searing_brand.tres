@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+
+[resource]
+script = ExtResource("1_skill")
+skill_name = "Searing Brand"
+description = "A burning cut that saps a foe's strength for a few turns."
+mp_cost = 12
+power = 1.8
+element = 1
+status_to_apply = "attack_debuff"
+status_chance = 1.0
+effect_turns = 3

@@ -18,9 +18,10 @@ map-to-map transitions, town + shop + inn interiors, dialogue **with a choice UI
 quests, shops, time-of-day, per-device input profiles, 20-move pools with equipped
 loadouts, campfire rest areas, and a full controller-navigation pass.
 
-**Next up:** **Track B — systems breadth** (boss fights → status cleansing → new
-skill shapes), then Track C hardening, then Track A story progression, with real
-art LAST. See **Roadmap** near the bottom for the agreed order and its contents.
+**Next up:** **Track C — hardening** (Track B, systems breadth — boss fights,
+status cleansing, the three move specs — is done), then Track A story
+progression, with real art LAST. See **Roadmap** near the bottom for the agreed
+order and its contents.
 
 > **Aesthetic rule (applies to everything):** anything added to the UI must be
 > visually appealing and match the game's amethyst aesthetic. Reuse
@@ -48,7 +49,7 @@ art LAST. See **Roadmap** near the bottom for the agreed order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~3896 tests, 48 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~4243 tests, 50 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -118,7 +119,7 @@ scenes/
   OverworldScene.tscn         # has a MapArea (Fallster Plains) assigned via @export
 data/                         # data-driven content (.tres resources)
   enemies/                    # one .tres per enemy (14 enemies; skills are ext_resource refs into skills/)
-  skills/                     # the move library — one .tres per move, flat, snake_case (97 files) — see Move library
+  skills/                     # the move library — one .tres per move, flat, snake_case (110 files) — see Move library
   encounters/                 # EncounterGroup .tres files
   maps/                       # MapArea .tres files (fallster_plains.tres)
 tools/                        # one-shot / offline scripts, run as scenes (not --script) — see Move library
@@ -127,7 +128,7 @@ tools/                        # one-shot / offline scripts, run as scenes (not -
 tests/
   TestRunner.tscn/.gd         # run this scene (F6) to execute all suites; register suites in SUITE_PATHS
   TestSuite.gd                # base class with assert_* helpers
-  suites/                     # one test_<feature>.gd per system (48 suites)
+  suites/                     # one test_<feature>.gd per system (50 suites)
   fixtures/                   # move_library_baseline.json — pre-migration snapshot for the MoveLibrary suite
 assets/  backgrounds/ characters/ enemies/ icons/ ui/
 fonts/   music/
@@ -152,9 +153,13 @@ Base class for all heroes and enemies.
 - **Elemental affinity:** `element`, `secondary_element`, `extra_weakness`, `extra_resistance`.
 - **Runtime state (persists across battles):** `current_hp`, `current_mp`, `resonance_meter`.
 - **Battle-temp state (NOT serialized; cleared at battle end):** `status_effects: Array[String]`,
-  `buffs: Dictionary`, `debuffs: Dictionary`, `sleep_turn: int`.
+  `buffs: Dictionary`, `debuffs: Dictionary`, `sleep_turn: int`, and Spec C's
+  `buff_turns` / `debuff_turns` (timed-stat countdowns) and `recharge_turns_left`
+  — all reset by `clear_battle_effects()`.
 - **Status API:** `add_status(name)` (enforces mutex — see StatusSystem), `remove_status`,
-  `is_status`/`has_status`, `apply_buff(stat)`, `apply_debuff(stat)`, `clear_battle_effects()`.
+  `is_status`/`has_status`, `apply_buff(stat, turns := 0)`, `apply_debuff(stat, turns := 0)`
+  (`turns > 0` = timed, see **Timed buffs / debuffs** under StatusSystem),
+  `tick_stat_timers()`, `clear_battle_effects()`.
 - **MP:** heroes pay MP; **enemies ignore MP entirely** (no MP pool — see Skill.can_use).
 - **Leveling:** `gain_experience(amount)` → `true` if leveled; level-up does NOT restore HP/MP.
 - Inventory: per-character `Inventory` resource.
@@ -201,6 +206,36 @@ new one while any is active is **rejected** (first-come-first-served; was previo
   Frostbite (×0.5) + MAG debuff (×0.5) = 25; then a MAG buff cancels the debuff →
   100 × 1.0 × 0.5 (Frostbite) = 50.
 - `StatusSystem.get_buff_multiplier`, `is_effectively_buffed/debuffed` (for chip rendering).
+- **Timed buffs / debuffs (Spec C).** `apply_buff(stat, turns := 0)` /
+  `apply_debuff(stat, turns := 0)`: `turns > 0` records a countdown in
+  `Character.buff_turns[stat]` / `debuff_turns[stat]`; a stat with **no entry
+  lasts the whole battle**, exactly as every effect did before (`turns = 0` is
+  the default, so nothing existing changed). The countdown runs on the
+  **affected character's own turns**: `Character.tick_stat_timers()` is called once
+  at the start of each of their turns (`_next_turn`, after tick damage, before
+  `turn_started`), removing an entry already at 0 and otherwise decrementing it.
+  So a 3-turn effect is active for their next 3 turns and gone when the 4th
+  begins — **the turn it was applied in does not count, a skipped turn does**.
+  It returns true when something wore off; `_next_turn` then emits the quiet
+  `StatusSystem.STATS_EXPIRED` event so the chips refresh — **no banner, no
+  number**; the chip just disappears.
+  - **Re-applying** (`Character._merge_timer`): **permanent wins** — a permanent
+    apply on a timed stat deletes its timer (it becomes permanent), and a timed
+    apply on a permanently-buffed stat changes nothing; **longer wins** — timed on
+    timed keeps the larger of the two remaining counts; **cancelling is
+    unchanged** — a debuff on a buffed stat (or the reverse) cancels it as it
+    always did, and the cancelled side's timer is erased with it (so the chip can
+    never disagree with the multiplier). Stats still never stack.
+  - `Skill.effect_turns` times **every stat buff/debuff a move applies**: a
+    `_buff` / `_debuff` token (a STATUS move's effect or a damage move's rider),
+    `target_buff` and `self_debuff` (`_apply_skill_status` / `_apply_stat` pass it
+    on). The six mutex statuses and `regenerate` are untouched and keep their own
+    rules. A boss's `self_buffs` call `apply_buff(stat)`, so they stay permanent.
+- **Recharge (Spec C).** `Character.recharge_turns_left` (battle-only, never
+  saved, reset by `clear_battle_effects`) is set by `BattleManager._start_recharge`
+  after a move with `recharge_turns`; each of the user's turns it counts down by
+  one and that turn is skipped with a **"<Name> is recovering!"** banner — see the
+  turn-start order under **BattleManager**.
 
 **Inflicting statuses:** `Skill.status_to_apply` is a token consumed by
 `BattleManager._apply_skill_status`. Tokens: a mutex/legacy status name
@@ -226,7 +261,9 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   a `StatusBannerLayer` CanvasLayer. Fires on: status applied ("X was Poisoned!"),
   skip-turn ("X reoriented themself" / "X is Asleep!" / "X is Paralyzed!"),
   and wake ("X woke up!"). The skip/wake banners gate the action menu — see
-  BattleManager turn flow below.
+  BattleManager turn flow below. Spec C adds the recharge skip ("X is
+  recovering!", routed as a skip) and three non-skip banners phrased by
+  `StatusSystem.multi_turn_phrase` — see **Multi-turn moves** under BattleManager.
 
 ### Skill (Resource) — `scripts/characters/Skill.gd`
 - `SkillType`: `DAMAGE`, `STATUS`  (⚠️ refactored — was `DAMAGE/HEAL/BUFF`)
@@ -315,10 +352,39 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
     option, each read with its default when absent, so an older save and the
     snapshot fallback both rebuild a move exactly. A new option must be added to
     both.
+- **Spec C options** — four more `@export` fields in a `Multi-turn` Inspector
+  group, resolved by `BattleManager` (see **Multi-turn moves** under it). Same
+  rules as Spec B: **every one defaults to 0 = "off"**, so a move that sets none
+  behaves exactly as before, and all four are read, never written, at runtime
+  (the per-use state lives in `BattleManager.scheduled` and on the `Character`).
+  - `charge_turns` (int) — `1` = the user spends this turn gathering power and
+    releases on their next turn; a stun / sleep / paralysis **skip** on that turn
+    breaks it.
+  - `delay_rounds` (int) — `1` = lands at the end of the current round, `2` = the
+    end of the next.
+  - `recharge_turns` (int) — after the move is used, the user skips this many of
+    their own turns.
+  - `effect_turns` (int) — the stat buffs/debuffs the move applies last this many
+    of the AFFECTED character's turns; `0` = the rest of the battle.
+  - **`applies_stat_effect()`** is true when the move raises or lowers a stat: a
+    `_buff` / `_debuff` token (a STATUS move's effect or a damage move's rider,
+    read through `StatusSystem.parse_apply_token`), a `target_buff` or a
+    `self_debuff`. It is what `effect_turns` times — mutex statuses and
+    `regenerate` are not stat effects and ignore it — so `effect_tags()` shows
+    `Lasts N turns` only when it is true.
+  - **Effect tags**, after the Spec B ones and in this order: `Charges 1 turn`,
+    `Lands at round end` (`delay_rounds` 1) / `Lands in N rounds` (N > 1),
+    `Rests 1 turn` / `Rests N turns`, `Lasts 1 turn` / `Lasts N turns`.
+  - Shapes combine: a charge-up with `recharge_turns` releases, then the user
+    rests. ⚠️ `charge_turns` and `delay_rounds` on the SAME move is not a
+    combination — `resolve_skill` checks the charge first and the delay is
+    ignored.
+  - **Saved:** `SaveSerializer` writes and reads all four, each defaulting to 0
+    when absent (an older save rebuilds a move with them off).
 
 ### Move library — `data/skills/`
 - Every hero and enemy move is its own `.tres` **Resource file**, flat in
-  `data/skills/` (**97 files**), named snake_case after the move (e.g.
+  `data/skills/` (**110 files**), named snake_case after the move (e.g.
   `data/skills/cyclone.tres`). No enemy `.tres` holds an inline skill
   sub-resource; no hero move is built in code (`PartyFactory._make_skill` /
   `_make_status_skill` are gone).
@@ -378,8 +444,9 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   index with no signal.
 - **Old saves gain new pool moves — `PartyFactory.top_up_pool(hero)` /
   `top_up_party(party)`.** A save keeps a hero's pool exactly as written, so
-  without this a save from before a pool grew (every 12-move save, once Spec B
-  made it 15) would never see the new moves. `top_up_pool` appends, at the END of
+  without this a save from before a pool grew (every 12-move save once Spec B
+  made it 15, every 15-move save once Spec C made it 18) would never see the
+  new moves. `top_up_pool` appends, at the END of
   the pool, a copy of every move in that hero's `POOLS` list the hero lacks —
   matched by `source_path` or by `skill_name` (the pre-file-era saves) — stamped
   with **that move's own slot's** unlock level and category
@@ -432,10 +499,13 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   approximately). **Fields the baseline predates** (`hit_count`, `pierce`,
   `ally_heal_power`, …) **are not compared at all**, so a new option needs no
   entry. `test_hero_pools_match_the_baseline` accepts pools that GROW (`>=`) —
-  every baselined slot must stay put and match, but the three Spec B slots need
-  nothing. The two enemy additions (the Spearman's Reckless Charge, the
-  Warlord's Overreach) were recorded by appending entries to
-  `tests/fixtures/move_library_baseline.json` in the same commit.
+  every baselined slot must stay put and match, but the three Spec B slots (and
+  Spec C's three) need nothing. The two Spec B enemy additions (the Spearman's
+  Reckless Charge, the Warlord's Overreach) were recorded by appending entries to
+  `tests/fixtures/move_library_baseline.json` in the same commit, and so were
+  Spec C's four: the Void Shade's Doom Sigil, the Earth Golem's Tectonic Slam, the
+  Dark Wraith's Withering Hex and the Warlord's Earthsplitter (in his final
+  phase's moveset).
 
 ### ElementalSystem — `scripts/characters/ElementalSystem.gd`
 - Elements: `NORMAL, FIRE, WATER, NATURE, ICE, LIGHTNING, EARTH, WIND, SOUND,
@@ -515,8 +585,8 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
      with no card and no visible HP.
   4. **Field effects** — `turn_effect` + `turn_effect_chance`, rolled on the
      **boss's own turn** (`apply_boss_field_effect`, called from `_next_turn`
-     before the boss picks its action) rather than "each round" — the
-     turn-order model has no round boundary to hook. Delegates to
+     before the boss picks its action) rather than "each round" — it is a
+     per-turn effect tied to the boss acting. Delegates to
      `_apply_skill_status`, inheriting element immunity, the mutex rule and the
      downed-character guard for free.
   5. **Transformation** — `max_hp_multiplier` + `restore_hp`. The only way to
@@ -554,10 +624,10 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   lands in half a dozen places (player attack, player skill, enemy skill,
   counter...), and hooking there also guarantees a boss never acts in a stale
   phase.
-- `EnemyAI`'s hard-coded low-HP enrage now applies to **non-boss enemies only**.
-  A boss expresses the same idea through phase data; running both would leave
-  two parallel mechanisms for "fights differently when hurt" interacting
-  invisibly.
+- `EnemyAI` has **no low-HP enrage** for any enemy (removed for bosses with
+  phases, then for everyone at the user's request, 2026-10-16): echo memory
+  alone steers move choice. A boss fights differently when hurt only through its
+  phase data.
 - Turn order is **NOT** re-sorted mid-round when a phase changes `speed` — it
   re-sorts only at `_start_new_round()`. Turn order locked for the round in
   progress is the genre convention, and re-sorting mid-round could give an
@@ -624,11 +694,33 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
 ### BattleManager (Node)
 - State machine: `IDLE → CHOOSING_ACTION → CHOOSING_TARGET → EXECUTING_ACTION → ENEMY_TURN → BATTLE_OVER`.
 - Turn order by `speed()`, rebuilt each round.
-- **Turn-start flow (`_next_turn`)**: tick damage (poison/scorched/frostbite) →
-  `emit turn_started` (UI hides action menu) → `StatusSystem.resolve_turn_skip` →
-  if `woke_up`: emit wake banner, await ~1.75s → if `skip`: emit skip banner,
-  await ~1.9s, advance to next actor → else `emit turn_ready_for_action`
-  (UI shows action menu only now, so it never flashes during a skip).
+- **Turn-start flow (`_next_turn`)** — steps marked **(C)** are Spec C's:
+  1. boss phase check (awaits the refill) → skip the downed → boss field effect →
+     clear defend;
+  2. tick damage / regen (poison/scorched/frostbite; a death here ends the turn, and
+     **checks for the battle's end** — before that fix a party whose last hero fell to
+     a tick never lost: the next enemy turn found nobody to hit and stalled);
+  3. **(C) timed buffs/debuffs count down** — `tick_stat_timers`; a quiet
+     `STATS_EXPIRED` event if any wore off;
+  4. `emit turn_started` (UI hides action menu);
+  5. **(C) recharging?** If `recharge_turns_left > 0` it counts down and the turn
+     is skipped: `RECHARGING` event ("<Name> is recovering!"), `_pause(SKIP_PAUSE)`,
+     next actor. `StatusSystem.resolve_turn_skip` still runs on this same turn
+     with its result discarded (no stun/sleep/wake banner), so a stun is used up
+     and a sleep counter advances — **one lost turn, not two**;
+  6. `StatusSystem.resolve_turn_skip` → if `woke_up`: emit wake banner,
+     `_pause(WAKE_PAUSE)` → if `skip`: **(C) a waiting charge-up is dropped
+     first** (`FOCUS_BROKEN` event, `_pause(BANNER_PAUSE)`), then the skip banner,
+     `_pause(SKIP_PAUSE)`, advance to next actor. (A sleeper who wakes and acts
+     keeps the charge.);
+  7. **(C) a waiting charge-up releases** — state `EXECUTING_ACTION` (so the
+     action menu stays hidden), no menu for a hero, no AI choice for an enemy,
+     then `_end_turn()`;
+  8. else `emit turn_ready_for_action` (UI shows action menu only now, so it never
+     flashes during a skip).
+
+  When the last actor of the round has finished, **(C) `_land_delayed_strikes()`**
+  runs before `_start_new_round()`.
   - ⚠️ **Nothing may re-show the action menu unless the battle is waiting for
     the hero** — `BattleScene._hero_may_act()`: party actor, not over, and the
     manager in `CHOOSING_ACTION`/`CHOOSING_TARGET`. Each battle menu emits its
@@ -649,18 +741,42 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   keeps its `state` check, sets `EXECUTING_ACTION`, awaits the resolver and
   calls `end_player_turn()`; the enemy path just awaits it.
 - **Pacing (play-test fix — the user's rule: every hit and every action must
-  be SEEN landing).** `resolve_skill` is a coroutine: between hit BEATS it
-  waits `hit_pause` (`HIT_PAUSE` = 0.8s — the 0.3s bar drain plus a clear
-  hold). `end_player_turn` and the end of `_execute_enemy_turn` wait
-  `action_pause` (`ACTION_PAUSE` = 1.0s) before the next turn, so the next
-  hero's menu, the next enemy's move and the victory/defeat screen never arrive
-  while a bar is still dropping. Both are **0 on a bare `BattleManager`** —
-  every test resolves synchronously, because `_pause(0)` never awaits —
-  and `BattleScene._ready` sets them to the constants.
+  be SEEN landing).** `resolve_skill` is a coroutine, and **one switch decides
+  whether any wait really waits**: `BattleManager.paced` (**`false` on a bare
+  manager**; `BattleScene._ready` sets it `true`) gates `_pause(seconds)` — paced,
+  it awaits a scene-tree timer; unpaced, it returns at once. **Every wait in the
+  turn loop goes through `_pause`** — the Spec B hit/action waits, the enemy's
+  think/preview waits, the wake/skip banner waits, the boss refill wait
+  (`_next_turn` opens with `await _pause(check_boss_phases())`) and Spec C's new
+  banner waits — and `test_multi_turn` pins that by counting `create_timer(` in
+  the source (exactly one, inside `_pause`). **Why:** a test drives a whole
+  multi-turn sequence — enemy turns included, which were untestable while their
+  waits were hard-coded timers — synchronously, with no `await` in the test.
+  - ⚠️ **Spec B's `hit_pause` / `action_pause` variables no longer exist** — the
+    switch replaced them. Don't reintroduce a per-instance pause length; add a
+    constant and `await _pause(CONSTANT)`.
+  - The seven constants (the real game's timings are unchanged — the 0.4 / 1.0 /
+    1.75 / 1.9 waits were hard-coded in the turn loop before): `HIT_PAUSE` 0.8 —
+    between hit beats (the 0.3s bar drain plus a clear hold); `ACTION_PAUSE` 1.0 —
+    after every action (`_end_turn`) and every delayed landing, so the next hero's
+    menu, the next enemy's move and the victory/defeat screen never arrive while a
+    bar is still dropping; `THINK_PAUSE` 0.4 — an enemy's turn before it shows its
+    move; `PREVIEW_PAUSE` 1.0 — its move name under its card (also before a
+    charge release); `WAKE_PAUSE` 1.75 and `SKIP_PAUSE` 1.9 — the wake-up and
+    skip banners, including "recovering" (the banner's
+    `BattleScene.BANNER_DURATION_*` of 1.55 / 1.70 plus a buffer);
+    `BANNER_PAUSE` 1.75 — "gathering power", "focus broken", "<Hero> unleashes
+    <Move>!" and "<Move> strikes!".
+  - `_end_turn()` is the end of ANY actor's turn: `state = IDLE`,
+    `_pause(ACTION_PAUSE)`, `check_battle_end()`, then the next actor.
+    `end_player_turn` awaits it; `_execute_enemy_turn` and a charge release end
+    in it.
   - ⚠️ **The manager is busy while an action plays out:** `player_use_skill`
-    sets `EXECUTING_ACTION` before resolving and `end_player_turn` sets `IDLE`,
-    so `_hero_may_act()` is false between beats and during the pause — the
-    action menu (which every battle menu re-shows on close) stays hidden.
+    sets `EXECUTING_ACTION` before resolving and `_end_turn` (via
+    `end_player_turn`) sets `IDLE`, so `_hero_may_act()` is false between beats
+    and during the pause — the action menu (which every battle menu re-shows on
+    close) stays hidden. A charge release and a delayed landing hold
+    `EXECUTING_ACTION` the same way.
   - **The action menu shows only while the battle waits for the hero** (user's
     rule: never on screen right after they chose). `state` has a setter that
     emits `state_changed`; `BattleScene._on_battle_state_changed` hides the menu
@@ -670,7 +786,9 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   - Any new caller of `resolve_skill` / `player_use_skill` /
     `enemy_use_skill` / `end_player_turn` that must run AFTER the action
     finishes has to `await` it.
-- **`resolve_skill` resolution order (Spec B)** — the order is load-bearing:
+- **`resolve_skill` resolution order (Spec B)** — the order is load-bearing (Spec C
+  splits it into *use* and *strike* — steps 1–3 USE the move, 4–6 are `_strike`;
+  see **Multi-turn moves** below):
   1. **Check** `Skill.can_use` (stun, HP cost leaves ≥ 1, resonance, MP).
   2. **Measure** `scale_factor` and the user's HP fraction — **before paying**.
   3. **Pay** (`_pay_costs`): MP (heroes) → resonance (heroes; subtracts from
@@ -719,6 +837,100 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
     `self_debuff` and the ally `heal` are emitted by `_emit_extra`; a `miss` is
     built by `_unlanded` and travels in its beat's `results` (like a `dodge`). All of them carry **both resonance flags false**, so none
     can take the action's resonance.
+- **Multi-turn moves (Spec C)** — spec:
+  `.claude/docs/superpowers/specs/2026-10-10-multi-turn-moves-design.md`. Four
+  shapes, each a plain `Skill` option (see **Spec C options**): charge-up,
+  delayed strike, recharge, and timed buffs/debuffs (the last lives on the
+  `Character` — see **Timed buffs / debuffs** under StatusSystem). Architecture:
+  **one scheduled-move list in `BattleManager`** for the two "fire later" shapes
+  plus **per-character countdowns** (`recharge_turns_left`, the stat timers) —
+  deliberately not a generic effect framework and not statuses.
+  - **Use vs strike.** `resolve_skill` only USES a move: **check** (`can_use`),
+    then — a **charge-up** (`charge_turns > 0`) pays its costs, appends a
+    `CASTER_TURN` entry, emits the `CHARGING` event and `_pause(BANNER_PAUSE)`,
+    and returns (nothing hits this turn); a **delayed strike**
+    (`delay_rounds > 0`) **measures** (`_measure`, plus the caster's
+    `Skill.calculate_value` stored as `measured["value"]`), pays, appends a
+    `ROUND_END` entry with `rounds_left = delay_rounds`, emits the quiet
+    `STRIKE_SCHEDULED` event and starts any recharge (the cast is the effort);
+    **otherwise** measure → pay → `_strike` now → `_start_recharge`. `_measure`
+    returns the pre-payment `{scale, hp_fraction}`. `_strike(user, skill, targets,
+    m, caster_standing := true)` is the Spec B beat loop (steps 4–6 above) taking
+    already-measured values — what a charge release and a delayed landing call
+    too. `_start_recharge` sets `user.recharge_turns_left = skill.recharge_turns`
+    (a no-op for 0).
+  - **Who is measured when.** A charge-up's costs are **paid at charge time**
+    (`can_use` is checked then, never again) and its release is **measured at
+    release** — the charger is acting then, so a buff an ally landed on them while
+    charging makes the release hit harder. A delayed strike is **measured and paid
+    at cast**: the caster's strength is fixed then, while the target's defence,
+    element and dodge are read when it lands.
+  - **The scheduled list.** `BattleManager.scheduled` holds inner-class
+    `Scheduled` records: `user`, `skill`, `chosen` (a copy of the targets picked
+    when the move was used), `when` (`Scheduled.When.CASTER_TURN` = a charge-up
+    waiting for its user's next turn, `ROUND_END` = a delayed strike), and, for
+    delayed strikes, `rounds_left` and `measured`. **A future "fires later" shape
+    is a new `When`.** The list is per battle (a fresh `BattleManager` each fight);
+    `check_battle_end` clears it when either side is wiped out; fleeing frees the
+    scene and its manager, and `_on_run_pressed` clears the heroes' countdowns.
+    `_charge_of(user)` returns a user's waiting charge-up or null.
+  - **Targets, later.** `_strike_targets(user, skill, chosen)` = the living
+    members of `chosen`; an area move re-expands to whoever stands now (summons
+    included); a **fallen single target is replaced by a random living
+    character on its side** (`_opponents_of` for `SINGLE_ENEMY`, `_allies_of` for
+    `SINGLE_ALLY`), so a strike is never spent on the fallen; nobody standing →
+    an empty list.
+  - **Charge release.** `_release_charge(entry)` drops the entry, shows an
+    enemy's move name under its card first (`enemy_move_preview` +
+    `PREVIEW_PAUSE`, no `THINK_PAUSE`), or for a hero the `CHARGE_RELEASED` banner
+    ("Kael unleashes Sunforge Strike!") + `BANNER_PAUSE` — so a release never hits
+    the instant the turn begins (play-test: a hero's release was easy to miss) —
+    then picks `_strike_targets`, `_strike`s with a fresh `_measure`, then
+    `_start_recharge`. It IS the actor's turn: `_next_turn`
+    follows it with `_end_turn()`, never `_execute_enemy_turn`, so an enemy never
+    also runs the AI for the same turn. **A skipped turn breaks the charge** —
+    stun, a sleep skip, or a paralysis skip that actually fires (its 25% roll;
+    poison / scorched / frostbite never do): the entry is dropped and
+    `FOCUS_BROKEN` plays before the skip banner; the costs stay spent.
+    `handle_defeat` drops a downed charger's entry (a downed caster's delayed
+    strike is NOT dropped).
+  - **Delayed landing.** `_land_delayed_strikes()` runs when the last actor of the
+    round has finished, before the next round's order is built. For each
+    `ROUND_END` entry, in the order cast: `rounds_left` counts down; at 0 it
+    leaves the list and lands — `_strike_targets` (empty: nothing happens, no
+    banner), `state = EXECUTING_ACTION`, the `STRIKE_LANDING` event (banner
+    "<Move> strikes!"), `_pause(BANNER_PAUSE)`, `_strike` with the cast-time
+    `measured` values (miss and dodge roll as for any attack on opponents),
+    `_pause(ACTION_PAUSE)`, then `check_battle_end()`.
+    - **Nothing prevents it** — not downing the caster, not anything; it can
+      still miss or be dodged. A **fallen caster's strike lands only its hits**
+      (`_strike(..., caster_standing = false)`): no skill resonance and none of
+      `_after_action`'s ally heal / recoil / self-debuff; the per-target rider and
+      target buff still ride on the hits.
+    - ⚠️ **A landing that ends the battle returns at once** — later due entries
+      are dropped, and `_next_turn` sees `BATTLE_OVER` and stops. The loop walks a
+      COPY of `scheduled`, so it is that immediate `return` (not
+      `check_battle_end` clearing the list) that stops the later landings; without
+      it one would run against a finished battle (rewards computed twice, a second
+      victory screen). Pinned by two tests in `test_multi_turn`, one of which
+      gives the second strike a still-standing target so only this check can stop
+      it.
+  - **Resonance.** A charge release grants the skill's resonance on its first
+    landed hit; a delayed strike on its landing's first landed hit, and only if
+    the caster is standing (`is_first_target` stays false otherwise). "Took
+    damage" resonance is unchanged.
+  - **New `status_effect_triggered` event types** (constants on `StatusSystem`):
+    `CHARGING` ("<Name> is gathering power!"), `FOCUS_BROKEN` ("<Name>'s focus was
+    broken!") and `STRIKE_LANDING` ("<Move> strikes!") are **banner** events,
+    phrased by `StatusSystem.multi_turn_phrase` and shown by BattleScene's final
+    `else:` branch in `_on_status_triggered` (a quiet event's phrase is `""`);
+    `RECHARGING` carries `skipped: true`, so it takes the ordinary skip-banner
+    branch ("<Name> is recovering!", via `skipped_phrase`; that branch also
+    force-hides the action menu). **Quiet** events only refresh the panels and
+    chips — **no banner, no text**: `STATS_EXPIRED` (a timed buff/debuff wore
+    off) and `STRIKE_SCHEDULED` (a delayed strike was cast — the panels refresh
+    only on events, so without it the spent MP would not show; nothing about the
+    strike itself is shown).
 - **Resonance rides on LANDED hits only.** Each result carries
   `is_first_target` and `is_first_hit`. **`is_first_target`** is true on the first
   hit that actually LANDS in the whole action, so a move whose first target
@@ -776,7 +988,20 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   action names, and the resonance hook skips non-heroes).
 
 ### EnemyAI (static)
-- `choose_action(enemy, party, enemies)` → `{skill, target, is_enraged, echo_tier}`.
+- `choose_action(enemy, party, enemies)` → `{skill, target, echo_tier}`.
+- **No wasted turns.** `would_waste_turn(skill, enemy, allies, foes)` drops a
+  move that would change nothing: a heal with nobody it reaches hurt
+  (`hurt_heal_targets`), or a buff/debuff already on, in full, on everyone it
+  reaches (`effect_targets`, which asks the target: `stat_effect_would_change` —
+  a re-cast counts only if it adds time, `status_would_land` — immunity, already
+  on, mutex, and `regen_would_change`). An ally heal goes to the hurt ally with
+  the lowest HP share; a buff to an ally it would change; a debuff to a hero it
+  would change (echo memory picks among them). Nothing worth using → `skill`
+  null → a basic attack. A damage move is never wasted, even if its rider is.
+  No move cures a status yet; one that does belongs in `would_waste_turn` too (a
+  choice only while someone it reaches is afflicted). Test filler moves an enemy
+  should keep using every turn must stay worth re-casting (`test_multi_turn`'s
+  `_tap()` is a 1-turn buff for that reason).
 - Memory Echo dodge tiers (must match `Enemy.MEMORY_THRESHOLD_*`): Tier1=3 enc→5%,
   Tier2=7→10%, Tier3=15→15%. `try_dodge` checked for both directions; resonance/
   can't-miss always hit.
@@ -940,7 +1165,7 @@ BattleScene (Node2D)
 
 ## Party / Enemy Setup
 - `PartyFactory.create_default_party()` → Aria (Mage/Water), Kael (Warrior/Fire),
-  Lyra (Healer/Wind); each a **15-move pool** (7 ATTACK + 8 SPECIAL) built from
+  Lyra (Healer/Wind); each an **18-move pool** (8 ATTACK + 10 SPECIAL) built from
   library files via `PartyFactory._move` (see **Move library** in Core Systems
   above) + ultimate meta (`ultimate_name`/`ultimate_desc`). `base_arcane`: Aria 14, Lyra 12, Kael 5.
   Heroes start at full HP/MP. (Currently all three start with `experience = 85`
@@ -978,6 +1203,40 @@ BattleScene (Node2D)
   applies as `0.25 × MAG` per turn for 3 turns, so **1.25 × MAG** in all against
   its old 1.2 × MAG — see the heal-move rule in the resolver). Each is a recorded
   `MERGE_DELTAS` entry (see **Move library**).
+- **Pool slots 16–18 (Spec C), one multi-turn shape per move** — pool indices
+  15–17, shared by all three heroes via `SKILL_UNLOCK_LEVELS` /
+  `SKILL_CATEGORIES`: unlock levels **6 / 11 / 16**, categories **ATTACK /
+  SPECIAL / SPECIAL**:
+  - **Aria:** Undertow (Water magic, one enemy, 1.4, 12 MP — `defense_debuff` at
+    100%, `effect_turns` 3) / Deluge (Water magic, all enemies, 3.4, 28 MP —
+    `delay_rounds` 2) / Tsunami (Water magic, all enemies, 5.5, 40 MP —
+    `charge_turns` 1).
+  - **Kael:** Sunforge Strike (Fire strike, one enemy, 4.0, 14 MP —
+    `charge_turns` 1) / Searing Brand (Fire strike, one enemy, 1.8, 12 MP —
+    `attack_debuff` at 100%, `effect_turns` 3) / Eruption (Fire strike, all
+    enemies, 5.0, 35 MP — `recharge_turns` 1).
+  - **Lyra:** Gathering Squall (Wind magic, one enemy, 2.0, 10 MP —
+    `delay_rounds` 1) / Windrunner's Blessing (file `windrunners_blessing.tres`;
+    Wind STATUS buff, all allies, `speed_buff`, 8 MP — `effect_turns` 3) / Dawnsong
+    (Light STATUS heal, all allies, power 3.0, 30 MP — `recharge_turns` 1).
+  - **Enemies (all four shapes in play; they choose these like any other move —
+    `EnemyAI` needed no change, and enemies pay no MP):** Goblin Warlord gains
+    **Earthsplitter** (Normal strike, whole party, 2.6 — `charge_turns` 1) in his
+    **final phase's** moveset only (Unbound Fury, beside Ruinous Sweep and
+    Executioner's Drop — not his base moveset); Void Shade gains **Doom Sigil**
+    (Psychic magic, one hero, 2.4 — `delay_rounds` 2); Earth Golem gains
+    **Tectonic Slam** (Earth strike, whole party, 1.8 — `recharge_turns` 1); Dark
+    Wraith gains **Withering Hex** (Dark magic, whole party, 0.6 — `attack_debuff`
+    at 100%, `effect_turns` 3). The Void Shade, Golem and Wraith get theirs
+    appended to their base movesets.
+  - **Balance:** charge-ups and recharges are ~1.4–2× an instant equivalent (they
+    cost a turn, and a charge can be broken) — Tsunami 5.5 vs Tidal Requiem 3.5
+    (40 MP), Sunforge 4.0 vs Molten Blade 2.8, Eruption 5.0 vs Phoenix Fury 4.0
+    (45 MP), Dawnsong 3.0 vs Grand Mend 1.5 (30 MP). Delayed strikes get a smaller
+    bonus — Deluge 3.4 vs Maelstrom 3.0 (35 MP), Gathering Squall 2.0 vs Resonant
+    Gale 2.0 (16 MP). Timed effects are cheaper or more certain than their
+    permanent cousins — Windrunner's Blessing 8 MP vs Tailwind 22 MP, Undertow /
+    Searing Brand land 100% vs Guard Crush's 45%.
 - 14 enemies in `data/enemies/*.tres`, loaded + `.duplicate(true)`'d. Enemies have
   **no MP** and `mp_cost = 0` on all skills. Status inflictors: Fire Drake→scorched,
   Frost Wyrm/Ice Golem→frostbite, Dark Wraith/Void Shade(Null Strike)→poison,
@@ -991,9 +1250,13 @@ BattleScene (Node2D)
   Inventory into JSON dicts and back (no PartyFactory dependency at load — the
   pool top-up for old saves happens in `GameManager.load_from_slot`, after
   deserialising; see **Move library**). Persists
-  `secondary_element`, `resonance_meter`, `base_arcane`, and every Spec B move
-  option. Battle-temp state
-  (status/buffs/debuffs/sleep_turn) is intentionally NOT serialized.
+  `secondary_element`, `resonance_meter`, `base_arcane`, and every Spec B and
+  Spec C move option (`charge_turns` / `delay_rounds` / `recharge_turns` /
+  `effect_turns`, each read with its "off" default when absent). Battle-temp state
+  (status/buffs/debuffs/sleep_turn, and Spec C's timed-stat countdowns, recharge
+  rest, charges and delayed strikes) is intentionally NOT serialized — a save
+  never holds mid-battle state. An older save gains the nine new hero moves on
+  load through `top_up_party` (the player's existing loadout choices are untouched).
 - **3 slots** + `active_slot` (config.cfg). New Game / Continue use `SaveSlotMenu`:
   occupied slots show Load + Copy; Delete only in the New-Game picker (not load mode).
 - **Save UX is pause-menu driven** — Esc → `PauseMenu` → Save writes to `active_slot`.
@@ -1023,11 +1286,18 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~3896 tests / 48 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~4243 tests / 50 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,
-  auto_save, level_up_screen, defeat_flow, roaming_enemy, move_library, skill_resolver, status_chips, battle_menu_gating, enemy_cards, meter_bars, skill_options, scrollbars.
+  auto_save, level_up_screen, defeat_flow, roaming_enemy, move_library, skill_resolver, status_chips, battle_menu_gating, enemy_cards, meter_bars, skill_options, scrollbars, multi_turn.
+- ⚠️ **`TOTAL … 0 failed` can hide a runtime script error.** A `SCRIPT ERROR` inside
+  a test aborts that test method WITHOUT recording a failure, so a broken test
+  just stops counting. After a full run also grep the output for `SCRIPT ERROR`
+  (there must be none) and check that each suite you touched asserted MORE than
+  before; a GDScript parse error likewise silently drops a whole suite.
+- `TestSuite`'s private line buffer is `_lines` (it was `_log`), so a suite may
+  define its own `_log` helper — `test_multi_turn` does.
 - Tests touching GameManager must snapshot & restore global state.
 - When fixing a bug, add a regression test that fails before the fix.
 - **Adding a new `class_name` file:** the headless test runner won't see it until the
@@ -1273,12 +1543,12 @@ own Testing Policy above — the policy (a suite per feature, registered in
   - Handoff: `pending_battle_*` + `pending_roamer_id`; `BattleScene._on_battle_ended` records
     `last_battle_won`. Safe zones still suppress spawns + auto-save on entry. Suite `roaming_enemy`.
 - **Phase P8 — Skill learning** (`Skill.unlock_level`, `Character._learn_skills_at_level`):
-  heroes carry their whole pool from the start — **15 moves** (7 ATTACK + 8
+  heroes carry their whole pool from the start — **18 moves** (8 ATTACK + 10
   SPECIAL; category is stamped per-slot from `PartyFactory.SKILL_CATEGORIES`,
-  which is `[ATTACK×4, SPECIAL×4, ATTACK×2, SPECIAL×2, ATTACK×1, SPECIAL×2]` by
-  position, not one contiguous split) — but a slot only becomes usable once
-  `level` reaches its `unlock_level`. Keeping the pool array whole (never shrinking it as moves
-  unlock) preserves the positional contracts built on it: `SKILL_UNLOCK_LEVELS`
+  which is `[ATTACK×4, SPECIAL×4, ATTACK×2, SPECIAL×2, ATTACK×1, SPECIAL×2,
+  ATTACK×1, SPECIAL×2]` by position, not one contiguous split) — but a slot
+  only becomes usable once `level` reaches its `unlock_level`. Keeping the pool
+  array whole (never shrinking it as moves unlock) preserves the positional contracts built on it: `SKILL_UNLOCK_LEVELS`
   / `SKILL_CATEGORIES` are matched to `hero.skills[i]` by index when the pool is
   built, and the **equipped loadout** (`equipped_attacks`/`equipped_specials`,
   4 slots each — see `Character.equip_skill`/`equipped_skill`) stores pool
@@ -1288,12 +1558,13 @@ own Testing Policy above — the policy (a suite per feature, registered in
   fixed pool range. `unlock_level` defaults to **1**, so enemy skills, every
   `data/skills/*.tres`, and pre-P8 saves are unaffected and only heroes opt in.
   - Curve lives in `PartyFactory.SKILL_UNLOCK_LEVELS` (shared by all three heroes
-    so pacing is easy to balance, now 15 entries — one per pool slot):
-    `[1,1,2,7,1,4,10,15,5,12,8,18,3,9,14]`. Heroes open with 2 attacks + 1
+    so pacing is easy to balance, now 18 entries — one per pool slot):
+    `[1,1,2,7,1,4,10,15,5,12,8,18,3,9,14,6,11,16]`. Heroes open with 2 attacks + 1
     special, and **level 2 always teaches something** — an empty first level-up
     makes the feature look broken. Slots 13–15 (Spec B) unlock at **3 / 9 / 14**
-    as Attack / Special / Special; a save from before they existed gains them on
-    load (see **Old saves gain new pool moves** in Move library).
+    and slots 16–18 (Spec C) at **6 / 11 / 16**, each as Attack / Special /
+    Special; a save from before they existed gains them on load (see **Old saves
+    gain new pool moves** in Move library).
   - `Character`: `is_skill_known(i)`, `known_skills()`, `skills_unlocked_at(lvl)`,
     `next_skill_to_learn()`. `pending_learned` collects what a `gain_experience()` call
     taught (covering a multi-level jump) and is cleared at the start of the next award;
@@ -1307,10 +1578,10 @@ own Testing Policy above — the policy (a suite per feature, registered in
 
 ### Roadmap (agreed order — work top-down)
 
-> **Next session starts at Track B.** Art stays parked until Track D: a 70-prop
-> library and one animation are committed under `assets/props/` but **nothing is
-> placed in any scene on purpose**. Don't place props, repaint maps, or generate
-> art unless explicitly asked. See **Art pipeline (parked)** below for what
+> **Next session starts at Track C** (Track B is complete). Art stays parked
+> until Track D: a 70-prop library and one animation are committed under
+> `assets/props/` but **nothing is placed in any scene on purpose**. Don't place
+> props, repaint maps, or generate art unless explicitly asked. See **Art pipeline (parked)** below for what
 > already exists so it isn't rebuilt.
 
 **What is already done** (the older P7p2/P10 entries here were stale and have been
@@ -1320,7 +1591,7 @@ dialogue system **including its choice UI** (`DialogueBox`), the quest system
 (`Quest`/`QuestFactory`/`QuestLog` + `QuestScreen`), shops, time-of-day, input
 profiles, movesets/loadouts, rest areas, and the controller-navigation pass.
 
-#### Track B — Systems breadth  ← **current**
+#### Track B — Systems breadth — **DONE**
 1. **Boss enemies — DONE.** `is_boss()` on `Enemy` (an enemy with `phases` IS a
    boss — no separate flag), a full-width battle card, and full multi-phase
    behaviour: moveset, stats, summons, field effects, transformation, self-buffs.
@@ -1334,12 +1605,13 @@ profiles, movesets/loadouts, rest areas, and the controller-navigation pass.
 2. **Status-cleansing items — DONE.** Every mutex status now has a cure. See
    **Status cleansing** in Core Systems above. Cleansing SKILLS are still open
    (a Lyra "Purify" move) if that is wanted later.
-3. **More skills, with varied effects and costs — Spec A and Spec B DONE; Spec C
-   remains.** Split into three specs (see
-   `.claude/docs/superpowers/specs/2026-09-26-move-library-and-unified-resolver-design.md`
-   and `.claude/docs/superpowers/specs/2026-10-03-skill-mechanics-design.md`):
+3. **More skills, with varied effects and costs — Specs A, B and C all DONE.**
+   Split into three specs (see
+   `.claude/docs/superpowers/specs/2026-09-26-move-library-and-unified-resolver-design.md`,
+   `.claude/docs/superpowers/specs/2026-10-03-skill-mechanics-design.md` and
+   `.claude/docs/superpowers/specs/2026-10-10-multi-turn-moves-design.md`):
    - **Spec A — move library + unified resolver — DONE.** Every move lives in
-     its own file (`data/skills/`, now 97 files); `BattleManager.resolve_skill` is
+     its own file (`data/skills/`, now 110 files); `BattleManager.resolve_skill` is
      the one resolver for heroes and enemies; enemy area attacks now hit the
      whole party. See **Move library** and **BattleManager** in Core Systems
      above.
@@ -1349,18 +1621,29 @@ profiles, movesets/loadouts, rest areas, and the controller-navigation pass.
      the trade-offs (self-debuff, recoil, the move's own miss chance, buffing the
      target) — all optional fields on `Skill`, resolved in one fixed order by
      `resolve_skill`. The four "honest skill" gaps (plus Restoring Breeze's
-     ignored `regenerate`) are fixed; heroes have **15-move pools** (nine new
-     moves, one mechanic each); the Goblin Spearman and Warlord carry the two
-     trade-off moves no hero uses; every menu shows every cost and a generated
-     effect line; old saves are topped up on load. See **Spec B options** under
+     ignored `regenerate`) are fixed; heroes got **15-move pools** (nine new
+     moves, one mechanic each — Spec C later grew them to 18); the Goblin
+     Spearman and Warlord carry the two trade-off moves no hero uses; every
+     menu shows every cost and a generated effect line; old saves are topped up on load. See **Spec B options** under
      Skill, the resolution order under **BattleManager**, the new moves under
      **Party / Enemy Setup**, and **Old saves gain new pool moves** under Move
      library.
-   - **Spec C — multi-turn effects — remaining.** Charge-up / delayed skills;
-     needs state that survives across turns (on the `Character` or in
-     `BattleManager` — a `Skill` stays read-only).
+   - **Spec C — multi-turn moves — DONE.** Four shapes, each a plain option on a
+     move: a **charge-up** (gather power a turn, release on the next; a skipped
+     turn breaks it), a **delayed strike** (cast now, lands at the end of a later
+     round, in the order cast, and cannot be prevented), **recharge** (a huge move
+     now, then the user rests) and **timed buffs/debuffs** (they wear off on their
+     owner's turns). One scheduled-move list in `BattleManager` plus per-character
+     countdowns — a `Skill` stays read-only. Every wait in the turn loop now goes
+     through one pacing switch, so enemy turns are unit-tested. Heroes have
+     **18-move pools** (nine new moves, one shape each); the Warlord (final phase),
+     Void Shade, Earth Golem and Dark Wraith carry the four enemy moves; saves
+     carry the four options and older saves gain the new moves on load. See **Spec
+     C options** under Skill, **Multi-turn moves** and **Pacing** under
+     BattleManager, **Timed buffs / debuffs** under StatusSystem, and the new moves
+     under **Party / Enemy Setup**.
 
-#### Track C — Hardening
+#### Track C — Hardening  ← **current**
 - **Roamer state in saves** — currently in-memory only, so a hard quit respawns a
   region. Write it into the save JSON.
 - **Virtual cursor + mouse sensitivity** (the deferred "Chunk D" of P4) — needs a
@@ -1452,7 +1735,7 @@ These are **scheduled as Track C** in the Roadmap above; the detail lives here.
 - **Roamer state is in-memory only** (per session), not written into the save JSON. After a
   hard quit + load, a region spawns fresh.
 - **Three play-testing flags exist and are committed OFF** — `PartyFactory.TEST_UNLOCK_ALL_SKILLS`
-  (gives every hero its whole 15-move pool at level 1), the shipping value of
+  (gives every hero its whole 18-move pool at level 1), the shipping value of
   `GameManager.REST_REFRESH_BATTLES` (5; play-testing uses 1), and
   `BattleScene.TEST_SHOW_ENEMY_HP` (adds the "120/300" number under each enemy's HP
   bar — the real game shows the bar only, by the user's rule). Flip them only for

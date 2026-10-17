@@ -51,6 +51,7 @@ const SUITE_PATHS := [
 	"res://tests/suites/test_moveset.gd",
 	"res://tests/suites/test_rest_area.gd",
 	"res://tests/suites/test_loadout_editor.gd",
+	"res://tests/suites/test_loadout_screen.gd",
 	"res://tests/suites/test_boss_phases.gd",
 	"res://tests/suites/test_move_library.gd",
 	"res://tests/suites/test_skill_resolver.gd",
@@ -60,6 +61,7 @@ const SUITE_PATHS := [
 	"res://tests/suites/test_meter_bars.gd",
 	"res://tests/suites/test_skill_options.gd",
 	"res://tests/suites/test_scrollbars.gd",
+	"res://tests/suites/test_multi_turn.gd",
 ]
 
 func _ready() -> void:

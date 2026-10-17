@@ -70,6 +70,23 @@
 					"status_type": 0,
 					"target_type": 4,
 					"unlock_level": 1
+				},
+				{
+					"attack_type": 2,
+					"category": 0,
+					"description": "A hex that saps every hero's strength for a few turns.",
+					"element": 14,
+					"mp_cost": 0,
+					"power": 0.6,
+					"resonance_gain_override": -1.0,
+					"secondary_element": 0,
+					"skill_name": "Withering Hex",
+					"skill_type": 0,
+					"status_chance": 1.0,
+					"status_to_apply": "attack_debuff",
+					"status_type": 0,
+					"target_type": 1,
+					"unlock_level": 1
 				}
 			],
 			"uid": "uid://bl0bs60k5j6oa"
@@ -200,6 +217,23 @@
 					"status_to_apply": "",
 					"status_type": 0,
 					"target_type": 4,
+					"unlock_level": 1
+				},
+				{
+					"attack_type": 0,
+					"category": 0,
+					"description": "Slams the earth so hard the whole party is thrown — and the golem must recover.",
+					"element": 6,
+					"mp_cost": 0,
+					"power": 1.8,
+					"resonance_gain_override": -1.0,
+					"secondary_element": 0,
+					"skill_name": "Tectonic Slam",
+					"skill_type": 0,
+					"status_chance": 0.0,
+					"status_to_apply": "",
+					"status_type": 0,
+					"target_type": 1,
 					"unlock_level": 1
 				}
 			],
@@ -521,6 +555,23 @@
 						"status_to_apply": "",
 						"status_type": 0,
 						"target_type": 0,
+						"unlock_level": 1
+					},
+					{
+						"attack_type": 0,
+						"category": 0,
+						"description": "The Warlord heaves his axe skyward, gathering every ounce of strength for one ground-splitting blow.",
+						"element": 0,
+						"mp_cost": 0,
+						"power": 2.6,
+						"resonance_gain_override": -1.0,
+						"secondary_element": 0,
+						"skill_name": "Earthsplitter",
+						"skill_type": 0,
+						"status_chance": 0.0,
+						"status_to_apply": "",
+						"status_type": 0,
+						"target_type": 1,
 						"unlock_level": 1
 					}
 				]
@@ -945,6 +996,23 @@
 					"status_to_apply": "",
 					"status_type": 0,
 					"target_type": 4,
+					"unlock_level": 1
+				},
+				{
+					"attack_type": 2,
+					"category": 0,
+					"description": "Etches a sigil on its victim that detonates when the next round ends.",
+					"element": 9,
+					"mp_cost": 0,
+					"power": 2.4,
+					"resonance_gain_override": -1.0,
+					"secondary_element": 0,
+					"skill_name": "Doom Sigil",
+					"skill_type": 0,
+					"status_chance": 0.0,
+					"status_to_apply": "",
+					"status_type": 0,
+					"target_type": 0,
 					"unlock_level": 1
 				}
 			],

@@ -25,6 +25,19 @@ const FROSTBITE := "frostbite"
 # Positive/legacy non-mutex statuses (kept for compatibility — items, future skills)
 const REGENERATE := "regenerate"
 const DEFENDING := "defending"
+## Spec C event types (status_effect_triggered). STATS_EXPIRED is quiet: it
+## only refreshes the chips when a timed buff/debuff wears off.
+const STATS_EXPIRED := "stats_expired"
+## A turn lost resting after a recharge move. Routed as a skip banner.
+const RECHARGING := "recharging"
+## A charge-up begins; a charge-up is broken by a skipped turn; a hero's
+## charge-up is released (an enemy's shows its move name under its card).
+const CHARGING := "charging"
+const FOCUS_BROKEN := "focus_broken"
+const CHARGE_RELEASED := "charge_released"
+## A delayed strike is cast (quiet: only refreshes the spent MP); one lands.
+const STRIKE_SCHEDULED := "strike_scheduled"
+const STRIKE_LANDING := "strike_landing"
 
 const MUTEX_STATUSES := [STUN, POISON, PARALYSIS, SLEEP, SCORCHED, FROSTBITE]
 
@@ -81,6 +94,11 @@ const STATUS_COLORS := {
 	FROSTBITE: Color(0.60, 0.85, 1.00),  # ice blue
 	REGENERATE: Color(0.40, 1.00, 0.55), # vital green
 	DEFENDING: Color(0.75, 0.75, 0.85),  # steel grey-blue
+	RECHARGING: Color(0.70, 0.62, 0.85),  # spent lilac
+	CHARGING: Color(1.00, 0.72, 0.35),       # gathering gold
+	FOCUS_BROKEN: Color(0.75, 0.75, 0.85),   # spent grey-blue
+	CHARGE_RELEASED: Color(1.00, 0.72, 0.35),  # gathering gold, let loose
+	STRIKE_LANDING: Color(0.85, 0.55, 1.00),  # amethyst
 }
 
 const STATUS_LABELS := {
@@ -251,11 +269,27 @@ static func skipped_phrase(character_name: String, status_name: String) -> Strin
 		STUN:      return "%s reoriented themself" % character_name
 		SLEEP:     return "%s is Asleep!" % character_name
 		PARALYSIS: return "%s is Paralyzed!" % character_name
+		RECHARGING: return "%s is recovering!" % character_name
 		_:         return "%s is %s!" % [character_name, status_name.capitalize()]
 
 # Banner shown when sleep wears off and the actor will act this same turn.
 static func woke_phrase(character_name: String) -> String:
 	return "%s woke up!" % character_name
+
+## Banner text for Spec C's multi-turn events that are not skips, or "" for a
+## quiet event (one that only refreshes the UI).
+static func multi_turn_phrase(character_name: String, result: Dictionary) -> String:
+	match String(result.get("type", "")):
+		CHARGING:
+			return "%s is gathering power!" % character_name
+		FOCUS_BROKEN:
+			return "%s's focus was broken!" % character_name
+		CHARGE_RELEASED:
+			return "%s unleashes %s!" % [character_name, String(result.get("move", ""))]
+		STRIKE_LANDING:
+			return "%s strikes!" % String(result.get("move", ""))
+		_:
+			return ""
 
 # --- Skill token parsing ---
 # Returns {"kind": "buff"|"debuff"|"status"|"none", "value": <stat_name or status_name>}

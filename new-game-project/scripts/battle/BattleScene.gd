@@ -113,9 +113,8 @@ const BACKGROUNDS = {
 
 func _ready():
 	battle_manager = BattleManager.new()
-	# The real battle is paced so each hit, and each action, is seen landing.
-	battle_manager.hit_pause = BattleManager.HIT_PAUSE
-	battle_manager.action_pause = BattleManager.ACTION_PAUSE
+	# The real battle is paced, so each hit, action and banner is seen.
+	battle_manager.paced = true
 	add_child(battle_manager)
 	resonance_system = ResonanceSystem.new()
 	add_child(resonance_system)
@@ -975,6 +974,13 @@ func _on_status_triggered(character: Character, result: Dictionary):
 			apply_color,
 			BANNER_DURATION_APPLIED
 		)
+	else:
+		# Spec C: charge-up and delayed-strike banners ("" = a quiet event).
+		var line := StatusSystem.multi_turn_phrase(nm, result)
+		if line != "":
+			_show_status_banner(line,
+					StatusSystem.STATUS_COLORS.get(event_type, Color(0.85, 0.7, 1.0)),
+					BANNER_DURATION_APPLIED)
 
 # Enqueues a banner request and kicks off the queue processor if it isn't
 # already running. Safe to call repeatedly, including several times in the

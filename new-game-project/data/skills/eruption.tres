@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+
+[resource]
+script = ExtResource("1_skill")
+skill_name = "Eruption"
+description = "Unleashes everything at once on every enemy — then he has to catch his breath."
+mp_cost = 35
+target_type = 1
+power = 5.0
+element = 1
+recharge_turns = 1

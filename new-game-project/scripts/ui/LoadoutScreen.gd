@@ -18,6 +18,10 @@ signal closed
 signal back_requested
 
 const SLOT_H := 34
+const POOL_ROW_GAP := 4
+## Rows the Known Moves list shows before it scrolls: a hero's ten specials,
+## the longer of their two lists, so every learned move is in view at once.
+const POOL_VISIBLE_ROWS := 10
 
 var _editor: LoadoutEditor = null
 var _hero_index: int = 0
@@ -206,11 +210,15 @@ func _pool_column() -> VBoxContainer:
 	col.add_child(_label("Known Moves", BattleUITheme.font_bold(), 14,
 		BattleUITheme.TEXT_SUBTITLE, HORIZONTAL_ALIGNMENT_CENTER))
 
+	# Tall enough for every learned move. An open details panel can still push
+	# the list past that, so a row reached by keyboard or controller scrolls in.
 	var scroll := BattleUITheme.make_scroll()
-	scroll.custom_minimum_size = Vector2(0, 300)
+	scroll.custom_minimum_size = Vector2(0, POOL_VISIBLE_ROWS * (SLOT_H + POOL_ROW_GAP) - POOL_ROW_GAP)
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.follow_focus = true
 	col.add_child(scroll)
 	var list := VBoxContainer.new()
-	list.add_theme_constant_override("separation", 4)
+	list.add_theme_constant_override("separation", POOL_ROW_GAP)
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(list)
 

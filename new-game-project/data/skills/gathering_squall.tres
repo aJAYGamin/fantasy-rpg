@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Skill" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/Skill.gd" id="1_skill"]
+
+[resource]
+script = ExtResource("1_skill")
+skill_name = "Gathering Squall"
+description = "A squall that gathers through the round and breaks on one foe at its end."
+mp_cost = 10
+attack_type = 2
+power = 2.0
+element = 7
+delay_rounds = 1
