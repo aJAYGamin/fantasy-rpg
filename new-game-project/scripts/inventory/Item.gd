@@ -95,7 +95,7 @@ func use(target: Character) -> Dictionary:
 			result["value"] = 0
 		ItemType.DODGE_BUFF:
 			# effect_value is dodge chance as percentage (e.g. 20 = 20%)
-			target.set_meta("dodge_chance", effect_value / 100.0)
+			target.dodge_chance = effect_value / 100.0
 			result["action"] = "dodge_buff"
 			result["value"] = effect_value
 	return result

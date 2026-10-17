@@ -205,6 +205,9 @@ var regen_turns: int = 0
 var regen_amount: int = 0
 ## Turns left resting after a recharge move (Spec C). Battle-only.
 var recharge_turns_left: int = 0
+## Chance (0-1) to dodge an attack, from Smoke Veil. Like Defend, it lasts until
+## this character's next turn starts. Battle-only.
+var dodge_chance: float = 0.0
 
 func _init():
 	inventory = Inventory.new()
@@ -463,6 +466,7 @@ func clear_battle_effects():
 	regen_turns = 0
 	regen_amount = 0
 	recharge_turns_left = 0
+	dodge_chance = 0.0
 	phase_multipliers.clear()
 	max_hp_multiplier = 1.0
 

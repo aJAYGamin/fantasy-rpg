@@ -253,6 +253,28 @@ func test_a_status_buff_or_debuff_move_passes_its_duration_on() -> void:
 
 # --------------------------------------------------- Recharge
 
+func test_smoke_veil_dodge_lasts_until_the_heros_next_turn() -> void:
+	# "A 20% chance to dodge attacks for one turn": like Defend, it covers the
+	# enemy turns in between and wears off when the hero acts again. It used to
+	# last until the game was quit.
+	var a := _unit("A", true, 50)
+	var foe := _foe()
+	var bm := _battle([a], [foe])
+	var seen := []
+	bm.turn_started.connect(func(c): seen.append([c.character_name, a.dodge_chance]))
+	bm.player_use_item(a, ItemFactory.create("Smoke Veil"), a)
+	assert_eq(seen.size(), 2, "the foe's turn, then A's")
+	assert_near(seen[0][1], 0.2, 0.0001, "A can dodge through the foe's turn")
+	assert_eq(seen[1][0], "A", "then A acts again")
+	assert_near(seen[1][1], 0.0, 0.0001, "and the dodge has worn off")
+	bm.free()
+
+func test_a_battle_end_clears_a_dodge() -> void:
+	var c := _unit("Veiled", true)
+	c.dodge_chance = 0.2
+	c.clear_battle_effects()
+	assert_near(c.dodge_chance, 0.0, 0.0001, "no dodge carries into the next battle")
+
 func _status_move(token: String, target: Skill.TargetType) -> Skill:
 	var s := Skill.new()
 	s.skill_name = "Inflict"

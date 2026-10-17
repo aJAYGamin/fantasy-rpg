@@ -37,8 +37,8 @@ static func try_dodge(target: Character, is_resonance: bool = false, can_miss: b
 	if target is Enemy:
 		dodge_chance = get_dodge_chance(target)
 	else:
-		# Heroes can have dodge from buffs/items
-		dodge_chance = target.get_meta("dodge_chance", 0.0)
+		# Heroes dodge only while Smoke Veil lasts
+		dodge_chance = target.dodge_chance
 	return randf() < dodge_chance
 
 static func choose_action(enemy: Character, party: Array[Character], enemies: Array[Character]) -> Dictionary:

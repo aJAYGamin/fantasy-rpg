@@ -181,7 +181,9 @@ new one while any is active is **rejected** (first-come-first-served; was previo
 | `scorched` | 1/20 max HP | ATK ×0.5 | — | heal / KO |
 | `frostbite` | 1/20 max HP | MAG ×0.5 | — | heal / KO |
 - Non-mutex positive statuses (`regenerate`, `defending`) can coexist with the mutex pool.
-  These are transient combat effects, NOT real statuses: defending is a `Character.is_defending`
+  These are transient combat effects, NOT real statuses (and so is Smoke Veil's dodge,
+  `Character.dodge_chance`, which like Defend lasts until the hero's next turn starts and
+  ends with the battle): defending is a `Character.is_defending`
   bool (halves incoming damage until next turn, `DEFEND_DAMAGE_MULT`); regenerate is
   `Character.start_regen(turns, amount = -1)` (heal-over-time; the default amount is `max_hp / 8`).
   Neither lives in `status_effects` (not mutex, never serialized) — they're kept as named
@@ -698,7 +700,7 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
 - Turn order by `speed()`, rebuilt each round.
 - **Turn-start flow (`_next_turn`)** — steps marked **(C)** are Spec C's:
   1. boss phase check (awaits the refill) → skip the downed → boss field effect →
-     clear defend;
+     clear defend and Smoke Veil's dodge;
   2. tick damage / regen (poison/scorched/frostbite; a death here ends the turn, and
      **checks for the battle's end** — before that fix a party whose last hero fell to
      a tick never lost: the next enemy turn found nobody to hit and stalled);
