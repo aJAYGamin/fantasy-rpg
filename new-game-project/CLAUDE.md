@@ -49,7 +49,7 @@ order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~4562 tests, 51 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~4585 tests, 51 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -1028,7 +1028,7 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   P6 helpers: `has_active_save()`, `load_active_slot()` (loads active slot, sets
   `resuming_from_save`, returns the saved overworld scene path; used by DefeatScreen).
   `_build_save_dict()` / `_apply_save_dict(data)` are the two halves of a save, data only
-  (`load_from_slot` adds the slot, the roamer reset and the signals). The old
+  (`load_from_slot` adds the slot, the arrival grace and the signals). The old
   single-file `save_game` / `load_game` (`user://savegame.json`) is gone — nothing called it.
 - **Settings (P4):** `settings: SettingsModel` (live), loaded/applied at launch; persisted in
   `config.cfg [settings]`. Targeted apply helpers: `apply_audio_and_save`,
@@ -1045,7 +1045,8 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
 - **Roaming-enemy handoff + region state (P7):** `pending_roamer_id`, `last_battle_won`,
   `pending_flee_iframes`; region-scoped roamer persistence (`roamer_region`,
   `roamer_states`, `has_roamer_state_for`, `set_roamer_state`, `remove_roamer_state`,
-  `clear_roamer_state`). See the Overworld & Encounters section.
+  `clear_roamer_state`), plus `roamer_snapshot` — the live map's hook a save calls for
+  current positions. See the Overworld & Encounters section.
 
 ### Overworld & Encounters (P7 — visible roaming enemies)
 - `OverworldScene.gd` reads `@export var area: MapArea` (+ `@export field_rect`); hosts the
@@ -1063,9 +1064,21 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   reloads after every battle, so roamer state (id, group_index, position, home rect) is
   saved in `GameManager` keyed by scene path. On return to the SAME region the survivors
   are restored in place; a roamer the player **defeated** is dropped permanently. Entering a
-  DIFFERENT region — or loading a save / starting a new game — calls `clear_roamer_state()`,
+  DIFFERENT region (a town building counts) or starting a new game calls `clear_roamer_state()`,
   so that original region repopulates fresh on the next visit. Fighting within a region
   never respawns it.
+- **Roamers in saves (Track C):** a save holds a `roamers` block — the region and each
+  roamer's id, group, position, patrol rect and polygon (`SaveSerializer.serialize_roamer_state`,
+  plain number lists in JSON). While a map's roamers are live it sets
+  `GameManager.roamer_snapshot = _persist_roamers` (after the spawn/restore, so an arrival
+  auto-save never sees an empty map) and clears it in `_exit_tree`; `_build_save_dict` calls it
+  first, so a save records where they stand NOW. `_apply_save_dict` restores them only when the
+  block's region is the map the player resumes on — a cleared map stays cleared. Any other
+  map starts fresh (so after a save made inside a town building the outside map refills, as
+  walking out always did), and so does a save from before this. A damaged
+  entry reads back with `group_index -1` and is skipped. **Loading grants the flee grace**
+  (`load_from_slot` sets `pending_flee_iframes`): a roamer saved on the player's heels must not
+  start a fight on arrival.
 - **Flee i-frames:** fleeing a battle sets `pending_flee_iframes`; on return the player gets
   `FLEE_IFRAME_TIME` (3s) where no roamer touch can start a fight (player + roamers fade,
   but roamers keep wandering). If an enemy is still touching the player the instant the
@@ -1310,7 +1323,7 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~4562 tests / 51 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~4585 tests / 51 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,
@@ -1558,9 +1571,10 @@ own Testing Policy above — the policy (a suite per feature, registered in
     is persisted in `GameManager` keyed by the region's scene path (`roamer_region` /
     `roamer_states` / `has_roamer_state_for`). The scene reloads after each battle, so on return
     the survivors are **restored** in place; a WON roamer is removed permanently
-    (`remove_roamer_state(id)`). Entering a *different* region (or loading a save / new game)
+    (`remove_roamer_state(id)`). Entering a *different* region (or a new game)
     clears the state via `clear_roamer_state()`, so the original region repopulates fresh on the
-    next visit — but fighting within a region never respawns it.
+    next visit — but fighting within a region never respawns it. A save remembers the
+    current map's roamers (Track C — see **Roamers in saves** above).
   - **Flee i-frames:** running from a battle sets `pending_flee_iframes`; on overworld return the
     player gets `FLEE_IFRAME_TIME` (3s) where no roamer touch can start a battle (immune to all),
     roamers fade (`set_faded`) but keep wandering, then normal play resumes.
@@ -1668,8 +1682,8 @@ profiles, movesets/loadouts, rest areas, and the controller-navigation pass.
      under **Party / Enemy Setup**.
 
 #### Track C — Hardening  ← **current**
-- **Roamer state in saves** — currently in-memory only, so a hard quit respawns a
-  region. Write it into the save JSON.
+- **Roamer state in saves — DONE** (branch `roamers-in-saves`, 2026-10-16): a save holds the
+  current map's roamers; loading restores them (with the flee grace). See **Roamers in saves**.
 - **Virtual cursor + mouse sensitivity** (the deferred "Chunk D" of P4) — needs a
   virtual cursor that reworks menu click routing.
 - **Stats screen format tweaks** — minor visual/format work the user deferred.

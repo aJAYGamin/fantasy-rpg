@@ -175,6 +175,24 @@ func test_slot_save_load_roundtrip() -> void:
 	assert_false(GameManager.slot_exists(TEST_SLOT), "slot deleted")
 	_restore_gm(snap)
 
+func test_loading_a_save_grants_the_flee_grace() -> void:
+	# A save may have been made with a roamer on the player's heels; loading puts
+	# that roamer back too, so the player gets the same short grace as after
+	# fleeing instead of landing straight in a fight.
+	var snap = _snapshot_gm()
+	var grace_before: bool = GameManager.pending_flee_iframes
+	if GameManager.slot_exists(TEST_SLOT):
+		GameManager.delete_slot(TEST_SLOT)
+	GameManager.party = [_make_character()] as Array[Character]
+	GameManager.save_to_slot(TEST_SLOT)
+	GameManager.pending_flee_iframes = false
+	GameManager.load_from_slot(TEST_SLOT)
+	var granted: bool = GameManager.pending_flee_iframes
+	GameManager.pending_flee_iframes = grace_before
+	GameManager.delete_slot(TEST_SLOT)
+	_restore_gm(snap)
+	assert_true(granted, "the grace is waiting for the overworld")
+
 func test_slot_metadata() -> void:
 	var snap = _snapshot_gm()
 	if GameManager.slot_exists(TEST_SLOT):

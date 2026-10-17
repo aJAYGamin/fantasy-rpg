@@ -19,7 +19,6 @@ func suite_name() -> String:
 const BATTLE_ONLY := "battle-only, cleared by Character.clear_battle_effects"
 const HAND_OFF := "a one-shot hand-off between scenes, used up on arrival"
 const CONFIG_FILE := "kept in user://config.cfg, not inside a save slot"
-const NOT_YET := "Track C: roamers are not saved yet, so a load repopulates the region"
 
 const CHARACTER_NOT_SAVED := {
 	"portrait": "art, not progress: nothing sets it yet, and hero art will come from the hero's definition",
@@ -59,6 +58,10 @@ const GAME_SAVED := {
 	"rest_swaps_remaining": "rest_swaps_remaining",
 	"battles_since_rest_refresh": "battles_since_rest_refresh",
 	"rest_available": "rest_available",
+	# The roamers of the map the save was made on (initialized = a region is named).
+	"roamer_region": "roamers/region",
+	"roamers_initialized": "roamers/region",
+	"roamer_states": "roamers/states",
 }
 const GAME_NOT_SAVED := {
 	"in_overworld_battle": HAND_OFF,
@@ -75,9 +78,7 @@ const GAME_NOT_SAVED := {
 	"transition_origin_scene": HAND_OFF,
 	"transition_origin_pos": HAND_OFF,
 	"resuming_from_save": HAND_OFF,
-	"roamer_region": NOT_YET,
-	"roamers_initialized": NOT_YET,
-	"roamer_states": NOT_YET,
+	"roamer_snapshot": "a live hook into the current map's roamers, not data",
 	"active_slot": CONFIG_FILE,
 	"settings": CONFIG_FILE,
 	"input_profiles": CONFIG_FILE,
@@ -214,6 +215,11 @@ func test_the_game_state_survives_a_round_trip() -> void:
 	gm.battles_since_rest_refresh = 4
 	gm.rest_available = not gm.rest_available
 	var probe_rest_available := gm.rest_available
+	var roamers_before := {"region": gm.roamer_region, "init": gm.roamers_initialized,
+			"states": gm.roamer_states, "hook": gm.roamer_snapshot}
+	gm.roamer_snapshot = Callable()
+	gm.set_roamer_state("res://probe.tscn", [{"id": 5, "group_index": 0, "position": Vector2(40, 50),
+			"home": Rect2(0, 0, 900, 900), "home_poly": PackedVector2Array()}])
 	var saved := _through_json(gm._build_save_dict())
 	# Back to the original values first, so a field the loader skips keeps the
 	# original and shows up as wrong.
@@ -226,9 +232,14 @@ func test_the_game_state_survives_a_round_trip() -> void:
 		"pos": gm.save_overworld_position, "inn": gm.inn_cost_tier,
 		"swaps": gm.rest_swaps_remaining, "battles": gm.battles_since_rest_refresh,
 		"rest": gm.rest_available,
+		"roamer_region": gm.roamer_region, "roamers": gm.roamer_states.duplicate(),
 	}
 	gm._apply_save_dict(original)
 	gm.party = party_before
+	gm.roamer_region = roamers_before["region"]
+	gm.roamers_initialized = roamers_before["init"]
+	gm.roamer_states = roamers_before["states"]
+	gm.roamer_snapshot = roamers_before["hook"]
 	assert_eq(got["gold"], 4321, "gold")
 	assert_eq(got["map"], "probe_map", "current map")
 	assert_near(got["minutes"], 777.0, 0.01, "time of day")
@@ -242,6 +253,10 @@ func test_the_game_state_survives_a_round_trip() -> void:
 	assert_eq(got["swaps"], maxi(0, GameManager.REST_SWAP_ALLOWANCE - 1), "rest-area swaps left")
 	assert_eq(got["battles"], 4, "battles since the rest area refreshed")
 	assert_eq(got["rest"], probe_rest_available, "rest available")
+	assert_eq(got["roamer_region"], "res://probe.tscn", "the saved map's roamers")
+	assert_eq(got["roamers"].size(), 1, "every one left")
+	assert_eq(got["roamers"][0]["position"] if got["roamers"].size() > 0 else null, Vector2(40, 50),
+			"where each stood")
 
 # --- Saves written before prices were stored ------------------------------------
 

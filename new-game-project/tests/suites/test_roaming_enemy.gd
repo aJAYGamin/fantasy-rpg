@@ -123,3 +123,96 @@ func test_roamer_handoff_fields() -> void:
 	assert_true(GameManager.last_battle_won, "win recorded for return check")
 	GameManager.pending_roamer_id = prev_id
 	GameManager.last_battle_won = prev_won
+
+# --- Roamers in saves (Track C) -------------------------------------------------
+# A save remembers the roaming enemies of the map it was made on — which are
+# left, where each stands and the area it patrols — so a cleared map stays
+# cleared after a quit and load. Leaving a map still refills it.
+
+func _snapshot_roamers() -> Dictionary:
+	return {"region": GameManager.roamer_region, "init": GameManager.roamers_initialized,
+			"states": GameManager.roamer_states.duplicate(), "hook": GameManager.roamer_snapshot,
+			"path": GameManager.save_overworld_scene_path}
+
+func _restore_roamers(s: Dictionary) -> void:
+	GameManager.roamer_region = s["region"]
+	GameManager.roamers_initialized = s["init"]
+	GameManager.roamer_states = s["states"]
+	GameManager.roamer_snapshot = s["hook"]
+	GameManager.save_overworld_scene_path = s["path"]
+
+func _a_roamer(id: int, pos: Vector2) -> Dictionary:
+	return {"id": id, "group_index": 1, "position": pos, "home": Rect2(100, 200, 900, 900),
+			"home_poly": PackedVector2Array([Vector2(100, 200), Vector2(1000, 200), Vector2(550, 1100)])}
+
+## Loads a save that differs from the current game only in where it was made and
+## its roamers block (null = a save from before roamers were saved), reports the
+## roamer state that results, then puts the whole game back.
+func _roamers_after_loading(scene: String, roamers) -> Dictionary:
+	var party_before: Array[Character] = GameManager.party
+	var snap := _snapshot_roamers()
+	var original: Dictionary = GameManager._build_save_dict()
+	var data: Dictionary = original.duplicate(true)
+	data["overworld_scene_path"] = scene
+	if roamers == null:
+		data.erase("roamers")
+	else:
+		data["roamers"] = roamers
+	GameManager._apply_save_dict(JSON.parse_string(JSON.stringify(data)))
+	var got := {"initialized": GameManager.roamers_initialized, "region": GameManager.roamer_region,
+			"states": GameManager.roamer_states.duplicate()}
+	GameManager._apply_save_dict(original)
+	GameManager.party = party_before
+	_restore_roamers(snap)
+	return got
+
+func test_a_roamer_survives_the_save_file() -> void:
+	var s := _a_roamer(7, Vector2(321.5, 654.25))
+	var back := SaveSerializer.deserialize_roamer_state(
+			JSON.parse_string(JSON.stringify(SaveSerializer.serialize_roamer_state(s))))
+	assert_eq(back["id"], 7, "which roamer")
+	assert_eq(typeof(back["id"]), TYPE_INT, "as a whole number")
+	assert_eq(back["group_index"], 1, "its encounter group")
+	assert_eq(back["position"], Vector2(321.5, 654.25), "where it stood")
+	assert_eq(back["home"], Rect2(100, 200, 900, 900), "the area it patrols")
+	assert_eq(back["home_poly"], s["home_poly"], "and that area's shape")
+
+func test_a_damaged_roamer_entry_is_dropped() -> void:
+	var back := SaveSerializer.deserialize_roamer_state({"id": 3, "group_index": 0, "position": "nope"})
+	assert_eq(back["group_index"], -1, "skipped on restore, never placed at a made-up spot")
+
+func test_a_save_records_where_the_roamers_are_now() -> void:
+	var snap := _snapshot_roamers()
+	GameManager.save_overworld_scene_path = "res://A.tscn"
+	GameManager.set_roamer_state("res://A.tscn", [_a_roamer(1, Vector2(10, 10))])  # as the last battle left it
+	GameManager.roamer_snapshot = func():
+		GameManager.set_roamer_state("res://A.tscn", [_a_roamer(1, Vector2(500, 600))])
+	var d: Dictionary = GameManager._build_save_dict()
+	_restore_roamers(snap)
+	assert_eq(d["roamers"]["region"], "res://A.tscn", "the map's roamers are in the save")
+	assert_eq(d["roamers"]["states"].size(), 1, "every one of them")
+	assert_eq(SaveSerializer.deserialize_roamer_state(d["roamers"]["states"][0])["position"], Vector2(500, 600),
+			"where it is now, not where it was after the last battle")
+
+func test_loading_brings_back_the_roamers_of_the_map_you_load_into() -> void:
+	var got := _roamers_after_loading("res://A.tscn", {"region": "res://A.tscn",
+			"states": [SaveSerializer.serialize_roamer_state(_a_roamer(4, Vector2(70, 80)))]})
+	assert_true(got["initialized"], "the map's roamers are restored, not respawned")
+	assert_eq(got["region"], "res://A.tscn", "for the map you load into")
+	assert_eq(got["states"].size(), 1, "the same ones")
+	assert_eq(got["states"][0]["id"], 4, "that roamer")
+	assert_eq(got["states"][0]["position"], Vector2(70, 80), "where it stood")
+
+func test_a_cleared_map_stays_cleared_after_loading() -> void:
+	var got := _roamers_after_loading("res://A.tscn", {"region": "res://A.tscn", "states": []})
+	assert_true(got["initialized"], "the map counts as visited")
+	assert_eq(got["states"].size(), 0, "with nobody left, so nothing respawns")
+
+func test_roamers_from_another_map_are_not_restored() -> void:
+	var got := _roamers_after_loading("res://B.tscn", {"region": "res://A.tscn",
+			"states": [SaveSerializer.serialize_roamer_state(_a_roamer(4, Vector2(70, 80)))]})
+	assert_false(got["initialized"], "map B starts fresh")
+
+func test_an_old_save_without_roamers_starts_the_map_fresh() -> void:
+	var got := _roamers_after_loading("res://A.tscn", null)
+	assert_false(got["initialized"], "a fresh set, as before roamers were saved")
