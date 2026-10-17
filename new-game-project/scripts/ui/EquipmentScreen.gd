@@ -162,6 +162,7 @@ func _build_chrome() -> void:
 	var scroll := BattleUITheme.make_scroll()
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.follow_focus = true   # a long gear list runs past the bottom; keep the highlight in view
 	root_v.add_child(scroll)
 
 	var scroll_margin := MarginContainer.new()
