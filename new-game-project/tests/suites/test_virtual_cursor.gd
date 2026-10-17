@@ -2,7 +2,8 @@ extends TestSuite
 
 ## The virtual cursor (VirtualCursor): the hook that re-delivers every mouse event at
 ## the drawn cursor's position, passes keyboard and controller input through
-## untouched, and draws the themed cursor (over an open dropdown list too).
+## untouched, and draws the themed cursor (over an open dropdown list too), glowing
+## over anything clickable.
 ##
 ## Headless can't install the hook, so these call route_os_event exactly as the OS
 ## would. Each test's controls sit on a high CanvasLayer under GameManager (the root
@@ -74,6 +75,7 @@ func _end() -> void:
 	_vc().refresh_style()
 	_vc().pointer_pos = _saved["pointer"]
 	_vc().shown = _saved["shown"]
+	_vc().update_glow()   # the test's controls are gone; don't leave the glow lit
 	GameManager._apply_input_mode(_saved["controller"], _saved["keyboard"])
 	GameManager._last_kb_ms = _saved["kb_ms"]
 	GameManager._last_mouse_ms = _saved["mouse_ms"]
@@ -344,3 +346,119 @@ func test_the_hook_is_not_installed_headless() -> void:
 	_vc().install()
 	assert_false(_vc().installed, "install() leaves the test runner's input alone")
 	assert_eq(Input.mouse_mode, Input.MOUSE_MODE_VISIBLE, "and doesn't take the mouse")
+
+# --- The hover glow ----------------------------------------------------------------
+
+## The glow's shader material on the cursor's sprite, or null.
+func _glow_material(sprite: Sprite2D) -> ShaderMaterial:
+	return sprite.material as ShaderMaterial
+
+func test_what_counts_as_clickable() -> void:
+	var b := Button.new()
+	assert_true(VirtualCursor.is_clickable(b, Vector2.ZERO), "a button")
+	b.disabled = true
+	assert_false(VirtualCursor.is_clickable(b, Vector2.ZERO), "not a greyed button")
+	var check := CheckBox.new()
+	assert_true(VirtualCursor.is_clickable(check, Vector2.ZERO), "a check box is a button too")
+	var slider := HSlider.new()
+	assert_true(VirtualCursor.is_clickable(slider, Vector2.ZERO), "a slider")
+	slider.editable = false
+	assert_false(VirtualCursor.is_clickable(slider, Vector2.ZERO), "not a slider that can't be moved")
+	var bar := VScrollBar.new()
+	bar.max_value = 100.0
+	bar.page = 20.0
+	assert_true(VirtualCursor.is_clickable(bar, Vector2.ZERO), "a scrollbar with something to scroll")
+	bar.page = 100.0
+	assert_false(VirtualCursor.is_clickable(bar, Vector2.ZERO), "not a scrollbar that has nothing to scroll")
+	var line := LineEdit.new()
+	assert_true(VirtualCursor.is_clickable(line, Vector2.ZERO), "a text field")
+	line.editable = false
+	assert_false(VirtualCursor.is_clickable(line, Vector2.ZERO), "not a read-only text field")
+	assert_false(VirtualCursor.is_clickable(Label.new(), Vector2.ZERO), "not a label")
+	var panel := Panel.new()
+	assert_false(VirtualCursor.is_clickable(panel, Vector2.ZERO), "not a plain panel")
+	var hand := Control.new()
+	hand.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	assert_true(VirtualCursor.is_clickable(hand, Vector2.ZERO), "Stats-screen style hit areas")
+	for c: Control in [b, check, slider, bar, line, panel, hand]:
+		c.free()
+
+func test_the_cursor_glows_over_a_button_and_not_over_empty_space() -> void:
+	var layer := _begin()
+	GameManager.settings.cursor_shape = "A"
+	GameManager.settings.cursor_colour = "rose"
+	_vc().refresh_style()
+	var mat := _glow_material(_vc().sprite)
+	assert_true(mat != null, "the cursor is drawn through the glow shader")
+	if mat == null:
+		_end()
+		return
+	var b := _make_button(layer, Rect2(100, 100, 120, 40))
+	_motion_to(Vector2(400, 400))
+	_vc().update_glow()
+	assert_false(_vc().glowing, "plain, over empty space")
+	assert_false(mat.get_shader_parameter("glowing"), "and the shader is off")
+	_motion_to(Vector2(160, 120))
+	_vc().update_glow()
+	assert_true(_vc().glowing, "glowing over a button")
+	assert_true(mat.get_shader_parameter("glowing"), "and the shader is on")
+	var rose := CursorArt.glow_colours("rose")
+	assert_eq(mat.get_shader_parameter("glow1"), rose[0], "the light glow is Rose's")
+	assert_eq(mat.get_shader_parameter("glow2"), rose[1], "the mid glow is Rose's")
+	b.disabled = true
+	_vc().update_glow()
+	assert_false(_vc().glowing, "a greyed-out button doesn't glow")
+	b.disabled = false
+	_vc().update_glow()
+	assert_true(_vc().glowing, "an enabled one does again")
+	_vc().shown = false
+	_vc().update_glow()
+	assert_false(_vc().glowing, "a hidden cursor has nothing to glow")
+	_vc().shown = true
+	_motion_to(Vector2(400, 400))
+	_vc().update_glow()
+	assert_false(_vc().glowing, "moving off the button puts it out")
+	assert_false(mat.get_shader_parameter("glowing"), "in the shader too")
+	_end()
+
+func test_the_glow_wears_the_chosen_colour() -> void:
+	_begin()
+	var mat := _glow_material(_vc().sprite)
+	GameManager.settings.cursor_colour = "lunar"
+	_vc().refresh_style()
+	assert_eq(mat.get_shader_parameter("glow1"), Color("#FFFFFF"), "Lunar glows white")
+	assert_eq(mat.get_shader_parameter("glow2"), Color("#B9C0D4"), "and silver")
+	GameManager.settings.cursor_colour = "ember"
+	_vc().refresh_style()
+	var ember := CursorArt.glow_colours("ember")
+	assert_eq(mat.get_shader_parameter("glow1"), ember[0], "changing the colour changes the glow's")
+	assert_eq(mat.get_shader_parameter("glow2"), ember[1], "both tones")
+	_end()
+
+func test_the_cursor_glows_over_an_open_dropdown_list_and_so_does_its_copy() -> void:
+	var layer := _begin()
+	var opt := OptionButton.new()
+	for item in ["One", "Two", "Three", "Four"]:
+		opt.add_item(item)
+	opt.position = Vector2(700, 100)
+	opt.size = Vector2(160, 31)
+	layer.add_child(opt)
+	var popup := opt.get_popup()
+	_motion_to(Vector2(780, 115))
+	_vc().update_glow()
+	assert_true(_vc().glowing, "glowing over the dropdown button")
+	_click()
+	assert_true(popup.visible, "clicking it opens the list")
+	_motion_to(Vector2(popup.position) + Vector2(popup.size.x * 0.5, popup.size.y * 0.6))
+	_vc().update_mirrors()
+	_vc().update_glow()
+	assert_true(_vc().glowing, "glowing over an item in the list")
+	var mirror := _mirror_in(popup)
+	assert_true(mirror != null, "the cursor is drawn inside the open list")
+	if mirror != null:
+		var mat := _glow_material(mirror)
+		assert_true(mat != null and mat.get_shader_parameter("glowing"), "the copy in the list glows too")
+		assert_eq(mirror.material, _vc().sprite.material, "it shares the cursor's glow, colours and all")
+	_click()
+	assert_false(popup.visible, "choosing an item closes the list")
+	_end()

@@ -79,6 +79,7 @@ scripts/
     CursorMotion.gd           # class_name CursorMotion — pure maths: mouse step at the sensitivity, stick speed, edge push
     CursorHold.gd             # class_name CursorHold — pure state: the game holds the mouse, or has let it go
     VirtualCursor.gd          # class_name VirtualCursor — the window's input hook + the drawn cursor (child of GameManager)
+    cursor_glow.gdshader      # the hover glow: 20% brighter + two soft glows in the colour (on VirtualCursor's sprites)
   overworld/
     OverworldScene.gd         # Free-roam controller; roaming-enemy spawner/manager; auto-save; pause host
     Player.gd                 # CharacterBody2D, 8-dir keyboard/controller movement (stick sensitivity)
@@ -1137,6 +1138,19 @@ the game has to take the mouse over and move and draw the cursor itself.
   CanvasLayer of the root, so an open list would cover the cursor. `update_mirrors()` (every
   frame) gives each open window in `get_embedded_subwindows()` its own internal CanvasLayer +
   Sprite2D copy at `(pointer_pos - window.position) / content_scale_factor`.
+- **The hover glow.** Over anything clickable the cursor is drawn 20% brighter with two soft
+  glows behind it (`cursor_glow.gdshader`; the art file's `filter: brightness(1.2)
+  drop-shadow(0 0 4px s2) drop-shadow(0 0 8px s4)`, glow colours from `CursorArt.glow_colours`).
+  `update_glow()` (every frame, after `update_mirrors`) sets `glowing` from the control under
+  `pointer_pos` (`gui_get_hovered_control()` + `is_clickable(control, local_pos)`: an enabled
+  `BaseButton`, a movable `Slider`/`ScrollBar`, an editable `LineEdit`, or anything whose
+  `get_cursor_shape` is the pointing hand — the Stats screen's hit areas) or from the cursor being
+  over an open `PopupMenu`'s rect, and never while the cursor is hidden. One `ShaderMaterial`
+  (`VirtualCursor._glow`) is shared by the cursor and every popup copy, so a single write lights
+  them all. The blur is 64 equal-weight taps on a Gaussian-importance-sampled spiral (both glows in one
+  pass); the wide glow is raised to the 1.5th power to match the CSS chain, which casts it from the
+  art plus the tight glow. Checked against a CPU rendering of the CSS chain (mean difference under
+  0.005 on a 0-1 scale).
 - ⚠️ **Never read the OS mouse position** (`get_mouse_position()` / `get_global_mouse_position()`
   on the root, `DisplayServer.mouse_get_position()`): with the mouse captured it is the
   hidden OS pointer, not the cursor. Read `GameManager.virtual_cursor.pointer_pos`, or the

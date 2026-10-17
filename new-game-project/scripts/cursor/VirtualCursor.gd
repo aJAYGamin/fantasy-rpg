@@ -14,9 +14,16 @@ extends Node
 ##
 ## Embedded popups (an OptionButton's list) draw above every CanvasLayer of the
 ## root, so the cursor is also copied into each open one (update_mirrors).
+##
+## Over anything clickable the cursor glows (update_glow): cursor_glow.gdshader, one
+## material shared by the cursor and every popup copy.
 
 ## Above everything else, including the FPS overlay (128).
 const LAYER := 200
+const GLOW_SHADER := preload("res://scripts/cursor/cursor_glow.gdshader")
+## The glow's two blur radii in base pixels: the tight one and the wide one.
+const GLOW_RADIUS_1 := 4.0
+const GLOW_RADIUS_2 := 8.0
 
 ## Where the cursor's tip is, in root-viewport (base pixel) coordinates.
 var pointer_pos := Vector2.ZERO
@@ -26,6 +33,8 @@ var shown := true
 var installed := false
 ## The drawn cursor.
 var sprite: Sprite2D
+## The cursor is over something clickable, so it is drawn glowing.
+var glowing := false
 
 ## The mouse buttons this cursor is holding down, as a MouseButtonMask. Kept from
 ## the button events it routes rather than read from Input, so it is right
@@ -34,6 +43,9 @@ var sprite: Sprite2D
 var _buttons := 0
 ## Each open popup's copy of the cursor, by the popup's instance id.
 var _mirrors := {}
+## The glow shader's settings, shared by the cursor and every copy of it, so one
+## write lights them all. The radii are in texture pixels (RENDER_SCALE per base pixel).
+var _glow := _make_glow_material()
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -51,6 +63,7 @@ func _process(_delta: float) -> void:
 	sprite.position = pointer_pos
 	sprite.visible = shown
 	update_mirrors()
+	update_glow()
 
 # --- The hook ------------------------------------------------------------------
 
@@ -156,6 +169,9 @@ func refresh_style() -> void:
 	# The art is drawn from the texture's corner; this offset puts the tip on the
 	# sprite's position.
 	sprite.offset = -CursorArt.hotspot(shape) * CursorArt.RENDER_SCALE
+	var glow := CursorArt.glow_colours(colour)
+	_glow.set_shader_parameter("glow1", glow[0])
+	_glow.set_shader_parameter("glow2", glow[1])
 	for id in _mirrors:
 		if is_instance_valid(_mirrors[id]):   # a freed popup's copy waits for update_mirrors
 			_copy_style(_mirrors[id])
@@ -179,6 +195,52 @@ func update_mirrors() -> void:
 		mirror.scale = Vector2.ONE / (CursorArt.RENDER_SCALE * f)
 		mirror.visible = shown
 
+## Lights or puts out the glow: on while the cursor is shown over something
+## clickable. Called every frame.
+func update_glow() -> void:
+	var on := shown and _over_clickable()
+	if on == glowing:
+		return
+	glowing = on
+	_glow.set_shader_parameter("glowing", on)
+
+## True when the cursor's tip is on an open dropdown list or on a control that is_clickable.
+func _over_clickable() -> bool:
+	for w: Window in get_tree().root.get_embedded_subwindows():
+		# A dropdown's rows are all clickable; a tooltip is a popup too, and is not.
+		if w is PopupMenu and w.visible and Rect2(Vector2(w.position), Vector2(w.size)).has_point(pointer_pos):
+			return true
+	var c := get_tree().root.gui_get_hovered_control()
+	if c == null:
+		return false
+	# Not get_local_mouse_position(): the OS mouse is not where the cursor is.
+	var local := c.get_global_transform_with_canvas().affine_inverse() * pointer_pos
+	return is_clickable(c, local)
+
+## Whether a click on `c` at `local_pos` (in its own space) would do something: an
+## enabled button, a slider or scrollbar that can move, a text field that can be
+## typed in, or anything that asks for the pointing hand (the Stats screen's hit areas).
+static func is_clickable(c: Control, local_pos: Vector2) -> bool:
+	if c is BaseButton:
+		return not (c as BaseButton).disabled
+	if c is Slider:
+		return (c as Slider).editable
+	if c is ScrollBar:
+		# One whose page covers its whole range has nothing to drag.
+		var bar := c as ScrollBar
+		return bar.max_value - bar.min_value > bar.page
+	if c is LineEdit:
+		return (c as LineEdit).editable
+	return c.get_cursor_shape(local_pos) == Control.CURSOR_POINTING_HAND
+
+static func _make_glow_material() -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = GLOW_SHADER
+	m.set_shader_parameter("glowing", false)
+	m.set_shader_parameter("r1_px", GLOW_RADIUS_1 * CursorArt.RENDER_SCALE)
+	m.set_shader_parameter("r2_px", GLOW_RADIUS_2 * CursorArt.RENDER_SCALE)
+	return m
+
 func _add_mirror(w: Window) -> Sprite2D:
 	var layer := CanvasLayer.new()
 	layer.layer = LAYER
@@ -196,6 +258,7 @@ func _new_sprite() -> Sprite2D:
 	var s := Sprite2D.new()
 	s.centered = false
 	s.scale = Vector2.ONE / CursorArt.RENDER_SCALE
+	s.material = _glow
 	return s
 
 func _copy_style(mirror: Sprite2D) -> void:
