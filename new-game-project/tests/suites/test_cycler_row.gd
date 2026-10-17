@@ -149,6 +149,119 @@ func test_a_keys_own_repeat_is_swallowed_not_stepped() -> void:
 	assert_eq(r.get_viewport().gui_get_focus_owner(), r, "and doesn't move focus either")
 	_end([box])
 
+func _stick(axis_value: float) -> void:
+	var ev := InputEventJoypadMotion.new()
+	ev.axis = JOY_AXIS_LEFT_X
+	ev.axis_value = axis_value
+	GameManager.get_viewport().push_input(ev)
+
+func _dpad(button: JoyButton) -> void:
+	var ev := InputEventJoypadButton.new()
+	ev.button_index = button
+	ev.pressed = true
+	GameManager.get_viewport().push_input(ev)
+
+## A row whose idea of "the action just became pressed" the test decides (see
+## CyclerRow._newly_pressed).
+class PushRow extends CyclerRow:
+	var newly_pressed := false
+	func _newly_pressed(_action: String) -> bool:
+		return newly_pressed
+
+func test_a_stick_steps_once_per_push_not_once_per_motion_event() -> void:
+	# A stick push sends a stream of changing axis values, every one past the deadzone.
+	# Like Godot's own focus navigation, only the event that makes the action newly
+	# pressed steps; the rest of the stream is consumed but does nothing.
+	_begin()
+	var box := VBoxContainer.new()
+	var r := PushRow.new()
+	r.setup("Colour", PackedStringArray(["A", "B", "C", "D", "E", "F", "G", "H"]), 0)
+	var right := Button.new()
+	box.add_child(r)
+	box.add_child(right)
+	GameManager.add_child(box)
+	r.focus_neighbor_right = r.get_path_to(right)
+	r.grab_focus()
+
+	# A push: one event crosses the deadzone, then the stream carries on past it.
+	r.newly_pressed = true
+	_stick(0.6)
+	r.newly_pressed = false
+	for v in [0.8, 1.0, 0.97, 1.0, 0.95]:
+		_stick(v)
+	assert_eq(r.index, 1, "six events, one push, one step")
+	assert_eq(r.get_viewport().gui_get_focus_owner(), r, "and focus never left the row")
+
+	# The next push steps again.
+	r.newly_pressed = true
+	_stick(0.7)
+	r.newly_pressed = false
+	_stick(1.0)
+	assert_eq(r.index, 2, "a second push steps once more")
+	_end([box])
+
+func test_a_stick_push_steps_a_real_row_through_inputs_own_bookkeeping() -> void:
+	# The production check, not the stand-in: with the action newly pressed in Input,
+	# the event that crossed the deadzone steps the row once.
+	_begin()
+	var box := VBoxContainer.new()
+	var r := _row("Colour", ["A", "B", "C"])
+	box.add_child(r)
+	GameManager.add_child(box)
+	r.grab_focus()
+	Input.action_press("ui_right")
+	_stick(0.6)
+	Input.action_release("ui_right")
+	assert_eq(r.index, 1, "the first event of a push steps once")
+	_end([box])
+
+func test_a_held_stick_repeats_at_the_nav_repeat_cadence_not_per_motion_event() -> void:
+	# While the stick stays pushed the row keeps stepping through GameManager's nav
+	# repeat; motion events arriving every frame on top add nothing.
+	_begin()
+	var delta := 1.0 / 60.0
+	var counts := []
+	for with_events in [false, true]:
+		var scope := VBoxContainer.new()
+		var r := PushRow.new()
+		r.setup("Colour", PackedStringArray(["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]), 0)
+		scope.add_child(r)
+		GameManager.add_child(scope)
+		GameManager.register_focus_scope(scope)
+		GameManager.set_controller_mode_for_test(true)
+		GameManager.update_focus_guard_for_test()
+		r.grab_focus()
+		Input.action_press("ui_right")
+		var t := 0.0
+		while t < 1.0:
+			if with_events:
+				_stick(1.0)
+			GameManager.update_nav_repeat_for_test(delta)
+			t += delta
+		Input.action_release("ui_right")
+		GameManager.update_nav_repeat_for_test(delta)
+		counts.append(r.index)
+		GameManager.unregister_focus_scope(scope)
+		scope.free()
+	assert_true(counts[0] >= 2, "the held stick repeats (index %d)" % counts[0])
+	assert_eq(counts[1], counts[0], "and motion events every frame change nothing")
+	GameManager._apply_input_mode(_saved_controller, _saved_keyboard)
+
+func test_a_dpad_press_still_steps_once() -> void:
+	# A button isn't a stream: every press steps, with no action state to consult.
+	_begin()
+	var box := VBoxContainer.new()
+	var r := _row("Colour", ["A", "B", "C"])
+	box.add_child(r)
+	GameManager.add_child(box)
+	r.grab_focus()
+	_dpad(JOY_BUTTON_DPAD_RIGHT)
+	assert_eq(r.index, 1, "d-pad right steps forward")
+	_dpad(JOY_BUTTON_DPAD_LEFT)
+	_dpad(JOY_BUTTON_DPAD_LEFT)
+	assert_eq(r.index, 2, "d-pad left steps back and wraps")
+	_end([box])
+
 func test_up_and_down_still_move_between_rows() -> void:
 	_begin()
 	var box := VBoxContainer.new()

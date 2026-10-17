@@ -1632,8 +1632,9 @@ own Testing Policy above — the policy (a suite per feature, registered in
   - **`CyclerRow`** (`scripts/ui/CyclerRow.gd`): name · `◀` · `[icon or dot] value` · `▶`, same width for every row so
     steppers line up. ONE focus stop: the arrows are click-only (`BattleUITheme.mark_no_focus`, so the focus guard
     never makes them focusable), and the row consumes `ui_left`/`ui_right` while focused (`_gui_input`, stepping
-    ±1 and wrapping; a key's own echo is swallowed) so the guard's neighbour search and wrap-around never slide
-    focus sideways. `GameManager._set_scope_focusable` treats it as a focusable control, and its focus ring is
+    ±1 and wrapping; a key's own echo is swallowed, and of a stick push's stream of motion events only the one
+    that makes the action newly pressed steps, as in Godot's own focus navigation) so the guard's neighbour
+    search and wrap-around never slide focus sideways. `GameManager._set_scope_focusable` treats it as a focusable control, and its focus ring is
     `BattleUITheme.focus_style()` — the same one `style_button` gives buttons. It emits `changed(index)`; the
     screen decides what that means.
   - **Controller menu navigation (centralized focus guard):** `GameManager` tracks input mode

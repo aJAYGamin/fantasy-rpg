@@ -77,10 +77,13 @@ func _refresh() -> void:
 	_value_label.text = labels[index] if index < labels.size() else ""
 
 func _gui_input(event: InputEvent) -> void:
+	var action := ""
 	var dir := 0
 	if event.is_action_pressed("ui_left", true):
+		action = "ui_left"
 		dir = -1
 	elif event.is_action_pressed("ui_right", true):
+		action = "ui_right"
 		dir = 1
 	if dir == 0:
 		return
@@ -88,8 +91,19 @@ func _gui_input(event: InputEvent) -> void:
 	# slide sideways (or wrap round) instead. A key's own repeat is swallowed too: a
 	# held direction repeats through GameManager's nav repeat, the same for every device.
 	accept_event()
-	if not event.is_echo():
-		step(dir)
+	if event.is_echo():
+		return
+	# A stick push is a stream of motion events, every one past the deadzone: only the
+	# one that makes the action newly pressed steps, as in Godot's own focus navigation.
+	if event is InputEventJoypadMotion and not _newly_pressed(action):
+		return
+	step(dir)
+
+## True when `action` became pressed this frame. A method so a test can stand in for
+## Input's frame bookkeeping: in a synchronous test run every test shares one frame, so
+## an earlier press leaves an action "just pressed" for the rest of the run.
+func _newly_pressed(action: String) -> bool:
+	return Input.is_action_just_pressed(action)
 
 func _draw() -> void:
 	if has_focus():
