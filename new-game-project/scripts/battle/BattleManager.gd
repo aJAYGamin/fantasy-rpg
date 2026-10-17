@@ -171,14 +171,16 @@ func _next_turn():
 
 	# Spec C: resting after a recharge move. The status skip still resolves on
 	# this same turn, so a stun is used up by it and a sleep counter advances —
-	# one lost turn, not two.
+	# one lost turn, not two. A sleeper who wakes now gets one banner for both
+	# ("woke up and recovered!").
 	if current_actor.recharge_turns_left > 0:
 		current_actor.recharge_turns_left -= 1
-		StatusSystem.resolve_turn_skip(current_actor)
+		var rest_skip := StatusSystem.resolve_turn_skip(current_actor)
 		emit_signal("status_effect_triggered", current_actor, {
 			"type": StatusSystem.RECHARGING,
 			"value": 0,
 			"skipped": true,
+			"woke_up": rest_skip.get("woke_up", false),
 			"name": current_actor.character_name,
 		})
 		await _pause(SKIP_PAUSE)
@@ -396,8 +398,9 @@ func _strike(user: Character, skill: Skill, targets: Array[Character], m: Dictio
 					"is_first_target": false, "is_first_hit": false}
 			# Dodge depends on WHO the skill lands on, not what kind of skill it
 			# is: anything aimed at the user's opponents can miss (the move's own
-			# chance) or be dodged; the user's own side never rolls either.
-			if _opponents_of(user).has(target):
+			# chance) or be dodged; the user's own side never rolls either. A
+			# resonance ultimate always lands.
+			if _opponents_of(user).has(target) and not skill.is_resonance:
 				if skill.miss_chance > 0.0 and randf() < skill.miss_chance:
 					results.append(_unlanded(result, "miss", target))
 					continue
@@ -740,10 +743,12 @@ func _execute_enemy_turn():
 
 # --- Helpers ---
 func handle_defeat(character: Character):
-	# Spec C: a downed charger loses its charge (a delayed strike still lands).
+	# Spec C: a downed charger loses its charge (a delayed strike still lands),
+	# and a pending rest, so a revived hero owes none.
 	var lost := _charge_of(character)
 	if lost != null:
 		scheduled.erase(lost)
+	character.recharge_turns_left = 0
 	emit_signal("character_defeated", character)
 	# Quest progress: count defeated ENEMIES (not downed heroes). Report a generic
 	# "defeat:any" plus a species key from the first word of the name (e.g. a

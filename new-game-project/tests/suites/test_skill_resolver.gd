@@ -847,3 +847,36 @@ func test_savage_bellow_lowers_every_heros_attack() -> void:
 	for hero in bm.party:
 		assert_true(StatusSystem.is_effectively_debuffed(hero, "attack"), "%s's ATK is lowered" % hero.character_name)
 	bm.free()
+
+# --------------------------------------------------- Resonance ultimates always land
+# The dodge rule has one exception: a resonance ultimate never misses and is
+# never dodged. It used to be built as a plain skill, so an enemy with Memory
+# Echo dodge could dodge it.
+
+func test_a_resonance_ultimate_is_never_dodged() -> void:
+	var saved = GameManager.species_memory.duplicate()
+	GameManager.species_memory["SkillResolverTestDummy"] = 999  # 15% dodge, the most there is
+	var bm := _manager(1, 1)
+	var hits := _capture(bm)
+	var ult := BattleScene.ultimate_skill("Test Ultimate", 3.5,
+			ElementalSystem.Element.NORMAL, ElementalSystem.Element.NORMAL)
+	for i in 100:
+		bm.enemies[0].current_hp = bm.enemies[0].max_hp()  # never down it
+		bm.resolve_skill(bm.party[0], ult, [])
+	GameManager.species_memory = saved
+	assert_true(ult.is_resonance, "an ultimate is built as a resonance move")
+	assert_eq(hits.filter(func(r): return r["action"] == "dodge").size(), 0,
+			"100 ultimates against a 15% dodger: none dodged")
+	bm.free()
+
+func test_a_resonance_ultimate_never_misses() -> void:
+	var bm := _manager(1, 1)
+	var hits := _capture(bm)
+	var ult := BattleScene.ultimate_skill("Test Ultimate", 3.5,
+			ElementalSystem.Element.NORMAL, ElementalSystem.Element.NORMAL)
+	ult.miss_chance = 1.0
+	var before := bm.enemies[0].current_hp
+	bm.resolve_skill(bm.party[0], ult, [])
+	assert_eq(hits.filter(func(r): return r["action"] == "miss").size(), 0, "even a sure miss lands")
+	assert_true(bm.enemies[0].current_hp < before, "and it hurt")
+	bm.free()

@@ -49,7 +49,7 @@ order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~4243 tests, 50 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~4257 tests, 50 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -234,7 +234,9 @@ new one while any is active is **rejected** (first-come-first-served; was previo
 - **Recharge (Spec C).** `Character.recharge_turns_left` (battle-only, never
   saved, reset by `clear_battle_effects`) is set by `BattleManager._start_recharge`
   after a move with `recharge_turns`; each of the user's turns it counts down by
-  one and that turn is skipped with a **"<Name> is recovering!"** banner — see the
+  one and that turn is skipped with a **"<Name> is recovering!"** banner ("<Name>
+  woke up and recovered!" if a sleeper wakes on it). A downed character loses a
+  pending rest (`handle_defeat`), so a revived hero owes none — see the
   turn-start order under **BattleManager**.
 
 **Inflicting statuses:** `Skill.status_to_apply` is a token consumed by
@@ -706,7 +708,8 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   5. **(C) recharging?** If `recharge_turns_left > 0` it counts down and the turn
      is skipped: `RECHARGING` event ("<Name> is recovering!"), `_pause(SKIP_PAUSE)`,
      next actor. `StatusSystem.resolve_turn_skip` still runs on this same turn
-     with its result discarded (no stun/sleep/wake banner), so a stun is used up
+     (no separate stun/sleep/wake banner: a wake rides on the `RECHARGING` event as
+     `woke_up`, read "<Name> woke up and recovered!"), so a stun is used up
      and a sleep counter advances — **one lost turn, not two**;
   6. `StatusSystem.resolve_turn_skip` → if `woke_up`: emit wake banner,
      `_pause(WAKE_PAUSE)` → if `skip`: **(C) a waiting charge-up is dropped
@@ -892,7 +895,8 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
     stun, a sleep skip, or a paralysis skip that actually fires (its 25% roll;
     poison / scorched / frostbite never do): the entry is dropped and
     `FOCUS_BROKEN` plays before the skip banner; the costs stay spent.
-    `handle_defeat` drops a downed charger's entry (a downed caster's delayed
+    `handle_defeat` drops a downed charger's entry and any pending rest (a
+    downed caster's delayed
     strike is NOT dropped).
   - **Delayed landing.** `_land_delayed_strikes()` runs when the last actor of the
     round has finished, before the next round's order is built. For each
@@ -972,7 +976,9 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   what kind of skill it is.** Any skill aimed at the user's opponents —
   damage OR status (a debuff, say) — can be dodged, by heroes and enemies
   alike. Any skill aimed at the user or its allies (heals, buffs, SELF moves)
-  always lands. `resolve_skill` rolls `EnemyAI.try_dodge` (after the move's own
+  always lands. **One exception: a resonance ultimate (`Skill.is_resonance`)
+  always lands on opponents too — never missed, never dodged.**
+  `resolve_skill` rolls `EnemyAI.try_dodge` (after the move's own
   `miss_chance`) once per target per beat, only when
   `_opponents_of(user).has(target)`. A dodged damage skill's status
   rider does not land either. The enemy turn's old outer dodge (rolled before
@@ -1003,8 +1009,10 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   should keep using every turn must stay worth re-casting (`test_multi_turn`'s
   `_tap()` is a 1-turn buff for that reason).
 - Memory Echo dodge tiers (must match `Enemy.MEMORY_THRESHOLD_*`): Tier1=3 enc→5%,
-  Tier2=7→10%, Tier3=15→15%. `try_dodge` checked for both directions; resonance/
-  can't-miss always hit.
+  Tier2=7→10%, Tier3=15→15%. `try_dodge` checked for both directions. A resonance
+  ultimate (`Skill.is_resonance`, set by `BattleScene.ultimate_skill`) skips the
+  miss and dodge rolls in `_strike` entirely; a can't-miss `try_dodge` call always
+  hits.
 
 ### GameManager (Autoload)
 - `party: Array[Character]` (max 4), source of truth, persists across battles.
@@ -1286,7 +1294,7 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~4243 tests / 50 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~4257 tests / 50 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,

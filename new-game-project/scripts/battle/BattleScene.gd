@@ -963,7 +963,7 @@ func _on_status_triggered(character: Character, result: Dictionary):
 		action_menu.visible = false
 		var skip_color: Color = StatusSystem.STATUS_COLORS.get(event_type, Color(0.8, 0.8, 0.9))
 		_show_status_banner(
-			StatusSystem.skipped_phrase(nm, event_type),
+			StatusSystem.skipped_phrase(nm, event_type, result.get("woke_up", false)),
 			skip_color,
 			BANNER_DURATION_SKIP
 		)
@@ -1608,37 +1608,39 @@ func _on_resonance_action(action_type: String, heroes: Array, targets: Array):
 	for h in heroes:
 		total_magic += h.magic_power()
 
-	var resonance_skill = Skill.new()
-	resonance_skill.mp_cost = 0
-	resonance_skill.resonance_gain_override = 0.0  # Don't give resonance for ultimates
-	resonance_skill.skill_type = Skill.SkillType.DAMAGE
-	resonance_skill.attack_type = Skill.AttackType.MAGIC
-	resonance_skill.target_type = Skill.TargetType.ALL_ENEMIES
-
+	var resonance_skill: Skill
 	if action_type == "solo":
-		resonance_skill.skill_name = "%s Ultimate" % heroes[0].character_name
-		resonance_skill.power = 3.5
 		# Solo ultimate uses the hero's own element pair.
-		resonance_skill.element = heroes[0].element
-		resonance_skill.secondary_element = heroes[0].secondary_element
-		battle_manager.player_use_skill(heroes[0], resonance_skill, typed_targets)
+		resonance_skill = ultimate_skill("%s Ultimate" % heroes[0].character_name, 3.5,
+				heroes[0].element, heroes[0].secondary_element)
 	elif action_type == "triple":
-		resonance_skill.skill_name = "Amethyst Requiem"
-		resonance_skill.power = 8.0
 		# Triple resonance is pure Amethyst — universally super-effective via the chart.
-		resonance_skill.element = ElementalSystem.Element.AMETHYST
-		resonance_skill.secondary_element = ElementalSystem.Element.NORMAL
-		battle_manager.player_use_skill(heroes[0], resonance_skill, typed_targets)
+		resonance_skill = ultimate_skill("Amethyst Requiem", 8.0,
+				ElementalSystem.Element.AMETHYST, ElementalSystem.Element.NORMAL)
 	else:
 		# Combined (duo) resonance — element pair depends on which two heroes.
 		var info = _combined_resonance_info(heroes)
-		resonance_skill.skill_name = info["name"]
-		resonance_skill.element = info["element"]
-		resonance_skill.secondary_element = info["secondary"]
-		resonance_skill.power = 5.0
-		battle_manager.player_use_skill(heroes[0], resonance_skill, typed_targets)
+		resonance_skill = ultimate_skill(info["name"], 5.0, info["element"], info["secondary"])
+	battle_manager.player_use_skill(heroes[0], resonance_skill, typed_targets)
 
 	_refresh_all_panels()
+
+## A resonance ultimate: magic damage to every enemy that builds no resonance
+## and always lands — never misses, never dodged.
+static func ultimate_skill(skill_name: String, power: float,
+		element: ElementalSystem.Element, secondary: ElementalSystem.Element) -> Skill:
+	var s := Skill.new()
+	s.skill_name = skill_name
+	s.mp_cost = 0
+	s.resonance_gain_override = 0.0  # Don't give resonance for ultimates
+	s.skill_type = Skill.SkillType.DAMAGE
+	s.attack_type = Skill.AttackType.MAGIC
+	s.target_type = Skill.TargetType.ALL_ENEMIES
+	s.power = power
+	s.element = element
+	s.secondary_element = secondary
+	s.is_resonance = true
+	return s
 
 # Resolves the duo-resonance attack name + element pair for a 2-hero combination.
 # Elements are derived from the heroes' own primary elements (works for any

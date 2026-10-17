@@ -319,6 +319,53 @@ func test_a_battle_end_clears_the_rest() -> void:
 func test_a_heros_recharge_skip_reads_as_recovering() -> void:
 	assert_eq(StatusSystem.skipped_phrase("Kael", StatusSystem.RECHARGING), "Kael is recovering!", "banner text")
 
+func test_waking_on_a_rest_turn_shows_one_combined_banner() -> void:
+	var a := _unit("A", true, 50)
+	var b := _unit("B", true, 40)
+	var foe := _foe()
+	var bm := _battle([a, b], [foe])
+	var s := _skill()
+	s.recharge_turns = 1
+	bm.player_use_skill(a, s, [foe])
+	a.add_status(StatusSystem.SLEEP)
+	a.sleep_turn = 4  # no chance left to stay asleep: A wakes on its next turn
+	var seen := []
+	bm.status_effect_triggered.connect(func(c, r):
+		if c == a:
+			seen.append(r))
+	bm.player_use_skill(b, _tap(), [b])  # then the foe, then A's rest turn
+	assert_false(a.is_status(StatusSystem.SLEEP), "A woke up")
+	var rests := seen.filter(func(r): return r.get("type") == StatusSystem.RECHARGING)
+	assert_eq(rests.size(), 1, "one banner for the rest turn")
+	assert_true(rests[0].get("woke_up", false), "and it says A woke up too")
+	assert_true(seen.filter(func(r): return r.get("type") == "woke_up").is_empty(), "no separate wake banner")
+	assert_eq(bm.current_actor, b, "the rest still took A's turn")
+	bm.free()
+
+func test_a_rest_turn_wake_reads_as_woke_up_and_recovered() -> void:
+	assert_eq(StatusSystem.skipped_phrase("Aria", StatusSystem.RECHARGING, true), "Aria woke up and recovered!", "banner text")
+
+func test_a_revived_hero_owes_no_rest() -> void:
+	var a := _unit("A", true, 50)
+	var b := _unit("B", true, 40)
+	var foe := _foe()
+	var bm := _battle([a, b], [foe])
+	var s := _skill()
+	s.recharge_turns = 1
+	bm.player_use_skill(a, s, [foe])
+	assert_eq(a.recharge_turns_left, 1, "A owes a rest")
+	a.current_hp = 0
+	bm.handle_defeat(a)
+	var feather := Item.new()
+	feather.item_type = Item.ItemType.REVIVAL
+	feather.effect_value = 50
+	feather.use(a)
+	assert_true(a.is_alive(), "A is back")
+	bm.player_use_skill(b, _tap(), [b])  # then the foe, then round 2
+	assert_eq(bm.current_actor, a, "round 2: A acts at once, no rest owed")
+	assert_eq(bm.state, BattleManager.BattleState.CHOOSING_ACTION, "with the menu")
+	bm.free()
+
 # --------------------------------------------------- Charge-ups
 
 func _charge(target: Skill.TargetType = Skill.TargetType.SINGLE_ENEMY) -> Skill:
