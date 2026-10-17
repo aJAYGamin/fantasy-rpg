@@ -44,6 +44,7 @@ static func serialize_skill(s: Skill) -> Dictionary:
 		"delay_rounds": s.delay_rounds,
 		"recharge_turns": s.recharge_turns,
 		"effect_turns": s.effect_turns,
+		"is_resonance": s.is_resonance,
 	}
 
 static func deserialize_skill(d: Dictionary) -> Skill:
@@ -90,6 +91,7 @@ static func deserialize_skill(d: Dictionary) -> Skill:
 	s.delay_rounds = int(d.get("delay_rounds", 0))
 	s.recharge_turns = int(d.get("recharge_turns", 0))
 	s.effect_turns = int(d.get("effect_turns", 0))
+	s.is_resonance = bool(d.get("is_resonance", false))
 	return s
 
 const MOVE_LIBRARY := "res://data/skills/"
@@ -157,6 +159,7 @@ static func serialize_item(item: Item) -> Dictionary:
 		"effect_stat": item.effect_stat,
 		"cures": item.cures,
 		"quantity": item.quantity,
+		"price": item.price,
 	}
 
 static func deserialize_item(d: Dictionary) -> Item:
@@ -178,6 +181,9 @@ static func deserialize_item(d: Dictionary) -> Item:
 		typed_cures.append(StatusSystem.POISON)
 	i.cures = typed_cures
 	i.quantity = int(d.get("quantity", 1))
+	# Saves written before prices were stored: the catalog's price, so what the
+	# player carries can be sold again (it loaded at 0 and vanished from Sell).
+	i.price = int(d.get("price", ItemFactory.DEFS.get(i.item_name, {}).get("price", 0)))
 	return i
 
 # --- Equipment ---
@@ -190,6 +196,7 @@ static func serialize_equipment(eq: Equipment) -> Dictionary:
 		"stat_bonuses": eq.stat_bonuses.duplicate(true),
 		"class_restriction": eq.class_restriction.duplicate(),
 		"element_restriction": eq.element_restriction.duplicate(),
+		"price": eq.price,
 	}
 
 static func deserialize_equipment(d: Dictionary) -> Equipment:
@@ -211,6 +218,12 @@ static func deserialize_equipment(d: Dictionary) -> Equipment:
 	for el in d.get("element_restriction", []):
 		els.append(int(el))
 	e.element_restriction = els
+	# Saves written before prices were stored: the catalog's price (worked out
+	# when a piece is made), or 0 for gear it doesn't know.
+	if d.has("price"):
+		e.price = int(d["price"])
+	elif EquipmentFactory.has_equipment(e.equipment_name):
+		e.price = EquipmentFactory.create(e.equipment_name).price
 	return e
 
 # --- Inventory ---

@@ -184,7 +184,7 @@ func test_self_heals_the_hero_who_casts_it() -> void:
 
 func test_a_self_skill_always_lands() -> void:
 	var bm := _manager(1, 1)
-	bm.party[0].set_meta("dodge_chance", 1.0)
+	bm.party[0].dodge_chance = 1.0
 	var s := _skill(Skill.TargetType.SELF, Skill.SkillType.STATUS)
 	s.status_type = Skill.StatusType.HEAL
 	bm.party[0].current_hp = 100
@@ -198,7 +198,7 @@ func test_a_self_skill_always_lands() -> void:
 func test_a_skill_on_allies_always_lands() -> void:
 	var bm := _manager(3, 1)
 	for h in bm.party:
-		h.set_meta("dodge_chance", 1.0)
+		h.dodge_chance = 1.0
 	var s := _skill(Skill.TargetType.ALL_ALLIES, Skill.SkillType.STATUS)
 	s.status_type = Skill.StatusType.BUFF
 	s.status_to_apply = "defense_buff"
@@ -214,7 +214,7 @@ func test_a_debuff_on_an_opponent_can_be_dodged() -> void:
 	# (_opponents_of), but enemy dodge comes from Memory Echo and tops out at
 	# 15%, so it cannot be pinned to "always" in a test.
 	var bm := _manager(2, 1)
-	bm.party[0].set_meta("dodge_chance", 1.0)
+	bm.party[0].dodge_chance = 1.0
 	var s := _skill(Skill.TargetType.ALL_ENEMIES, Skill.SkillType.STATUS)
 	s.status_type = Skill.StatusType.DEBUFF
 	s.status_to_apply = "attack_debuff"
@@ -229,7 +229,7 @@ func test_a_debuff_on_an_opponent_can_be_dodged() -> void:
 
 func test_dodge_is_rolled_per_target() -> void:
 	var bm := _manager(3, 1)
-	bm.party[1].set_meta("dodge_chance", 1.0)
+	bm.party[1].dodge_chance = 1.0
 	var hits := _capture(bm)
 	bm.enemy_use_skill(bm.enemies[0], _skill(Skill.TargetType.ALL_ENEMIES), [bm.party[0]])
 	var dodged := hits.filter(func(r): return r["action"] == "dodge")
@@ -497,7 +497,7 @@ func test_skill_resonance_rides_on_the_first_hit_that_lands() -> void:
 	# The first target dodges; the action still grants its resonance, once,
 	# on the second target's landed hit.
 	var bm := _manager(2, 1)
-	bm.party[0].set_meta("dodge_chance", 1.0)
+	bm.party[0].dodge_chance = 1.0
 	var s := _skill(Skill.TargetType.ALL_ENEMIES)
 	var hits := _capture(bm)
 	bm.resolve_skill(bm.enemies[0], s, [])

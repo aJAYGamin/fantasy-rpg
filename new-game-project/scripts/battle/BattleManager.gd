@@ -146,8 +146,10 @@ func _next_turn():
 		apply_boss_field_effect(current_actor as Enemy)
 
 	# Defend lasts until the defender's next turn — it protected them through the
-	# intervening enemy turns, so clear it now that they're acting again.
+	# intervening enemy turns, so clear it now that they're acting again. Smoke
+	# Veil's dodge ("for one turn") works the same way.
 	current_actor.clear_defend()
+	current_actor.dodge_chance = 0.0
 
 	var status_results = current_actor.process_status_effects()
 	for result in status_results:

@@ -49,7 +49,7 @@ order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~4257 tests, 50 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~4562 tests, 51 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -128,7 +128,7 @@ tools/                        # one-shot / offline scripts, run as scenes (not -
 tests/
   TestRunner.tscn/.gd         # run this scene (F6) to execute all suites; register suites in SUITE_PATHS
   TestSuite.gd                # base class with assert_* helpers
-  suites/                     # one test_<feature>.gd per system (50 suites)
+  suites/                     # one test_<feature>.gd per system (51 suites)
   fixtures/                   # move_library_baseline.json — pre-migration snapshot for the MoveLibrary suite
 assets/  backgrounds/ characters/ enemies/ icons/ ui/
 fonts/   music/
@@ -181,7 +181,9 @@ new one while any is active is **rejected** (first-come-first-served; was previo
 | `scorched` | 1/20 max HP | ATK ×0.5 | — | heal / KO |
 | `frostbite` | 1/20 max HP | MAG ×0.5 | — | heal / KO |
 - Non-mutex positive statuses (`regenerate`, `defending`) can coexist with the mutex pool.
-  These are transient combat effects, NOT real statuses: defending is a `Character.is_defending`
+  These are transient combat effects, NOT real statuses (and so is Smoke Veil's dodge,
+  `Character.dodge_chance`, which like Defend lasts until the hero's next turn starts and
+  ends with the battle): defending is a `Character.is_defending`
   bool (halves incoming damage until next turn, `DEFEND_DAMAGE_MULT`); regenerate is
   `Character.start_regen(turns, amount = -1)` (heal-over-time; the default amount is `max_hp / 8`).
   Neither lives in `status_effects` (not mutex, never serialized) — they're kept as named
@@ -457,7 +459,7 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   per hero and calls `auto_equip_unslotted()` **only for a hero that gained
   something**, which fills EMPTY loadout slots with LEARNED moves only (via
   `learned_pool_indices`) and never touches the player's existing choices.
-  Hooked in `GameManager.load_from_slot`, right after
+  Hooked in `GameManager._apply_save_dict` (which `load_from_slot` calls), right after
   `SaveSerializer.deserialize_party`. **Why here and not in `SaveSerializer`:**
   the serializer stays free of any `PartyFactory` dependency (the save design
   requires it). Covers any future pool growth too — a pool slot is only ever
@@ -698,7 +700,7 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
 - Turn order by `speed()`, rebuilt each round.
 - **Turn-start flow (`_next_turn`)** — steps marked **(C)** are Spec C's:
   1. boss phase check (awaits the refill) → skip the downed → boss field effect →
-     clear defend;
+     clear defend and Smoke Veil's dodge;
   2. tick damage / regen (poison/scorched/frostbite; a death here ends the turn, and
      **checks for the battle's end** — before that fix a party whose last hero fell to
      a tick never lost: the next enemy turn found nobody to hit and stalled);
@@ -1025,8 +1027,9 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   `load_from_slot`, `slot_exists`, `get_slot_metadata`, `delete_slot`, `copy_slot`.
   P6 helpers: `has_active_save()`, `load_active_slot()` (loads active slot, sets
   `resuming_from_save`, returns the saved overworld scene path; used by DefeatScreen).
-  (`user://savegame.json` is a legacy single-file path still referenced by an older
-  Continue branch.)
+  `_build_save_dict()` / `_apply_save_dict(data)` are the two halves of a save, data only
+  (`load_from_slot` adds the slot, the roamer reset and the signals). The old
+  single-file `save_game` / `load_game` (`user://savegame.json`) is gone — nothing called it.
 - **Settings (P4):** `settings: SettingsModel` (live), loaded/applied at launch; persisted in
   `config.cfg [settings]`. Targeted apply helpers: `apply_audio_and_save`,
   `apply_display_and_save`, `apply_performance_and_save`, `apply_fps_overlay_and_save`,
@@ -1256,7 +1259,7 @@ BattleScene (Node2D)
 ## Save System (3-slot, complete)
 - **Full serialization (option 1B)** — `SaveSerializer` turns Character/Skill/Item/
   Inventory into JSON dicts and back (no PartyFactory dependency at load — the
-  pool top-up for old saves happens in `GameManager.load_from_slot`, after
+  pool top-up for old saves happens in `GameManager._apply_save_dict`, after
   deserialising; see **Move library**). Persists
   `secondary_element`, `resonance_meter`, `base_arcane`, and every Spec B and
   Spec C move option (`charge_turns` / `delay_rounds` / `recharge_turns` /
@@ -1265,6 +1268,19 @@ BattleScene (Node2D)
   rest, charges and delayed strikes) is intentionally NOT serialized — a save
   never holds mid-battle state. An older save gains the nine new hero moves on
   load through `top_up_party` (the player's existing loadout choices are untouched).
+- **The save safety net (`tests/suites/test_save_coverage.gd`).** Every field on
+  `Character`, `Skill`, `Item`, `Equipment`, `Inventory` and `GameManager` must
+  either be saved or be listed in that suite's `*_NOT_SAVED` tables with a reason
+  (battle-only, a scene hand-off, kept in config.cfg, ...); a new field that is
+  neither fails the tests. Round-trip tests give every saved number, flag and
+  text a non-default value, pass it through JSON and check it comes back, so a
+  field the LOADER forgets fails too. **Adding a field:** write it, read it with
+  a default an older save can fall back on, or add it to the not-saved table with
+  why. Found by the first run: item and gear `price` (everything carried loaded
+  at 0 and vanished from the Sell tab — older saves now take the catalog's price
+  by name, `ItemFactory.DEFS` / `EquipmentFactory.create`) and `inn_cost_tier`.
+  JSON has one number type, so `_apply_save_dict` turns Memory Echo counts back
+  into whole numbers.
 - **3 slots** + `active_slot` (config.cfg). New Game / Continue use `SaveSlotMenu`:
   occupied slots show Load + Copy; Delete only in the New-Game picker (not load mode).
 - **Save UX is pause-menu driven** — Esc → `PauseMenu` → Save writes to `active_slot`.
@@ -1294,7 +1310,7 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~4257 tests / 50 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~4562 tests / 51 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,
@@ -1657,8 +1673,9 @@ profiles, movesets/loadouts, rest areas, and the controller-navigation pass.
 - **Virtual cursor + mouse sensitivity** (the deferred "Chunk D" of P4) — needs a
   virtual cursor that reworks menu click routing.
 - **Stats screen format tweaks** — minor visual/format work the user deferred.
-- **Save/load edge cases** — every new field must reach `SaveSerializer` or it
-  silently resets on load.
+- **Save/load edge cases — DONE** (branch `save-check`, 2026-10-16): the
+  `SaveCoverage` safety net (see **Save System**); item and gear prices, the inn
+  price tier and whole-number Memory Echo counts now survive a load.
 
 #### Track A — Story progression (second to last)
 - `GameManager.story_flags` exists but is **referenced by nothing** — the story
