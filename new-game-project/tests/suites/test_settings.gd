@@ -662,3 +662,78 @@ func test_the_mouse_page_is_reachable_by_focus_navigation() -> void:
 		assert_eq((b as Button).focus_mode, Control.FOCUS_NONE, "and the arrows stay clickable but unfocusable")
 	_close(screen)
 	_restore()
+
+
+# ------------------------------------------- every page, every input (Task 10)
+
+func test_the_long_settings_pages_scroll_to_the_highlighted_row() -> void:
+	# The Keyboard and Controller pages are taller than their scroll area. Godot's
+	# ScrollContainer only scrolls to the focused control when follow_focus is on, so
+	# without it the d-pad / arrow keys walked the highlight off the bottom of the
+	# page and it went on moving out of sight.
+	for view in ["keyboard", "controller"]:
+		var screen := _open(view)
+		var scroll := screen.find_children("*", "ScrollContainer", true, false)[0] as ScrollContainer
+		var content := scroll.get_child(0) as Control
+		assert_true(content.get_combined_minimum_size().y > scroll.custom_minimum_size.y,
+				"%s: the page is taller than its scroll area, so it scrolls" % view)
+		_close(screen)
+	for view in ["game", "audio", "display", "performance", "keyboard", "controller", "mouse"]:
+		var screen := _open(view)
+		var scroll := screen.find_children("*", "ScrollContainer", true, false)[0] as ScrollContainer
+		assert_true(scroll.follow_focus, "%s: the page scrolls to the highlighted row" % view)
+		_close(screen)
+
+func test_a_controller_backs_out_of_waiting_for_a_key() -> void:
+	# A pad player who presses A on a Keyboard-page binding has no key to press. Their
+	# Cancel (B) ends the wait without binding anything, as Esc does; before, nothing
+	# on the pad did, and the right stick's cursor is off while the page waits.
+	_protect()   # binding B below saves the bindings to config.cfg
+	var kept_cancel := InputMap.action_get_events("ui_cancel")
+	InputMap.action_erase_events("ui_cancel")
+	var pad_b := InputEventJoypadButton.new()
+	pad_b.button_index = JOY_BUTTON_B
+	InputMap.action_add_event("ui_cancel", pad_b)
+	var kept_click := InputMap.action_get_events("cursor_click")
+	var was_passthrough := GameManager.raw_input_passthrough
+
+	var screen := _open("keyboard")
+	var confirm_before: Array = []
+	for ev in InputMap.action_get_events("confirm"):
+		confirm_before.append(InputMapConfig.serialize_event(ev))
+	screen._start_listening("confirm", true)
+	assert_true(screen._listening, "the page waits for a key")
+	var press := pad_b.duplicate() as InputEventJoypadButton
+	press.pressed = true
+	screen._input(press)
+	assert_false(screen._listening, "the pad's Cancel ends the wait")
+	assert_false(GameManager.raw_input_passthrough, "and hands the right stick back to the cursor")
+	assert_true(GameManager.has_focus_scope(screen), "and gives the page its highlight back")
+	assert_eq(screen._kb_buttons["confirm"].text, InputMapConfig.describe_keyboard("confirm"), "the row shows its key again, not \"Press…\"")
+	var confirm_after: Array = []
+	for ev in InputMap.action_get_events("confirm"):
+		confirm_after.append(InputMapConfig.serialize_event(ev))
+	assert_eq(confirm_after, confirm_before, "nothing was bound")
+
+	# Waiting for a CONTROLLER button, B is just another button to bind.
+	screen._view = "controller"
+	screen._build()
+	screen._start_listening("cursor_click", false)
+	screen._input(press)
+	assert_false(screen._listening, "on the Controller page B binds")
+	var bound_b := false
+	for ev in InputMap.action_get_events("cursor_click"):
+		if ev is InputEventJoypadButton and (ev as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+			bound_b = true
+	assert_true(bound_b, "Cursor Click is now on B")
+
+	_close(screen)
+	InputMap.action_erase_events("cursor_click")
+	for ev in kept_click:
+		InputMap.action_add_event("cursor_click", ev)
+	InputMap.action_erase_events("ui_cancel")
+	for ev in kept_cancel:
+		InputMap.action_add_event("ui_cancel", ev)
+	GameManager.input_profiles.sync_from_input_map()   # the profile took the B binding too
+	GameManager.raw_input_passthrough = was_passthrough
+	_restore()

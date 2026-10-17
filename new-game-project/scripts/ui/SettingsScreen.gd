@@ -165,6 +165,9 @@ func _build() -> void:
 		var scroll := BattleUITheme.make_scroll()
 		scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		scroll.custom_minimum_size = Vector2(0, clampf(screen_size.y - 240.0, 200.0, 520.0))
+		# The Keyboard and Controller pages run past the bottom; keep the keyboard /
+		# controller highlight in view as it moves down them.
+		scroll.follow_focus = true
 		# A negative right margin lets the scroll area (and its scrollbar) run
 		# into the panel's right padding, keeping the scrollbar near the border
 		# without shifting the centred title, lines and Back button.
@@ -629,6 +632,12 @@ func _capture_rebind(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if _listen_keyboard:
+		# A pad player who opened a key row has no key to press: their Cancel backs
+		# out, as Esc does (the right stick's cursor is off while the page waits).
+		if event is InputEventJoypadButton and event.is_action_pressed("ui_cancel"):
+			_stop_listening()
+			get_viewport().set_input_as_handled()
+			return
 		if event is InputEventKey and event.pressed and not event.echo:
 			var ek := InputEventKey.new()
 			ek.physical_keycode = event.physical_keycode if event.physical_keycode != 0 else event.keycode
