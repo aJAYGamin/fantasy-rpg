@@ -34,6 +34,7 @@ any of the three. The new cursor must not take anything away from any of them.
 | Windowed | Pushing the cursor past the window's edge lets it **slip out to the desktop**; **clicking back in** picks it up again. |
 | All inputs | Every screen must be fully usable by controller, by keyboard, and by mouse. |
 | Controller cursor | The controller's **right stick moves the cursor**, and **pressing the right stick clicks** with it — that single press is all a click takes. The Controller settings page is updated to match (below). |
+| Dropdowns | **Max FPS** (Performance page) becomes a `◀ ▶` row like the Mouse page. **Window Mode and Resolution** (Display page) keep their dropdowns, with the cursor drawn above an open list. |
 
 ### The ten shapes
 
@@ -117,9 +118,14 @@ Their exact shades are the palettes in the art reference.
   rim colours instead (values in the art reference). Hover any cursor in the
   art reference to see it. The Stats screen's one "pointing hand" hover cursor
   is replaced by this glow (no per-control cursor shapes any more).
-- The cursor stays visible above **open dropdown lists** too (Window Mode,
-  Resolution and Max FPS in Settings). *My call:* the dropdowns stay as they
-  are; it's the cursor that must draw above them.
+- The cursor stays visible above **open dropdown lists** too — Window Mode and
+  Resolution on the Display page keep their dropdowns, and the cursor must draw
+  above an open list.
+- **Max FPS** on the Performance page (user's decision) changes from a dropdown
+  to a `◀ value ▶` row like the Mouse page's rows, stepping through Uncapped,
+  30, 60, 120 and 144. *My call:* it wraps round like the Mouse page's rows,
+  shows the same labels the dropdown did, and saves and applies at once just as
+  the dropdown does today.
 - *My call:* the game draws its cursor once per frame, so with Max FPS capped
   very low (30) it moves a little less smoothly than the desktop pointer. That
   is accepted, not worked around.
