@@ -49,7 +49,7 @@ order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~4173 tests, 49 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~4183 tests, 49 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -697,7 +697,9 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
 - **Turn-start flow (`_next_turn`)** — steps marked **(C)** are Spec C's:
   1. boss phase check (awaits the refill) → skip the downed → boss field effect →
      clear defend;
-  2. tick damage / regen (poison/scorched/frostbite; a death here ends the turn);
+  2. tick damage / regen (poison/scorched/frostbite; a death here ends the turn, and
+     **checks for the battle's end** — before that fix a party whose last hero fell to
+     a tick never lost: the next enemy turn found nobody to hit and stalled);
   3. **(C) timed buffs/debuffs count down** — `tick_stat_timers`; a quiet
      `STATS_EXPIRED` event if any wore off;
   4. `emit turn_started` (UI hides action menu);
@@ -1267,7 +1269,7 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~4173 tests / 49 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~4183 tests / 49 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,

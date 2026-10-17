@@ -630,3 +630,33 @@ func test_landing_banner_text() -> void:
 	assert_eq(StatusSystem.multi_turn_phrase("Aria", {"type": StatusSystem.STRIKE_LANDING, "move": "Deluge"}),
 			"Deluge strikes!", "names the move")
 	assert_eq(StatusSystem.multi_turn_phrase("Aria", {"type": StatusSystem.STRIKE_SCHEDULED}), "", "casting is quiet")
+
+# --------------------------------------------------- Status-tick deaths
+# A tick (poison / scorched / frostbite) that downed the acting character moved
+# on to the next turn WITHOUT checking whether the battle was over — so a party
+# whose last hero fell to poison never lost: the next enemy turn found nobody to
+# hit and stalled (a softlock). A pre-existing bug, found by Spec C's review.
+
+func test_a_poison_tick_that_downs_the_last_hero_ends_the_battle() -> void:
+	var hero := _unit("Last", true, 50)
+	hero.current_hp = 1
+	hero.add_status(StatusSystem.POISON)
+	var bm := BattleManager.new()
+	var ended := []
+	bm.battle_ended.connect(func(won, _r): ended.append(won))
+	bm.start_battle([hero] as Array[Character], [_foe()] as Array[Character])
+	assert_false(hero.is_alive(), "the tick downed the last hero")
+	assert_eq(ended, [false], "a defeat, reported once")
+	assert_eq(bm.state, BattleManager.BattleState.BATTLE_OVER, "the battle is over, not stalled")
+	bm.free()
+
+func test_a_tick_that_downs_one_hero_lets_the_battle_go_on() -> void:
+	var a := _unit("Poisoned", true, 50)
+	a.current_hp = 1
+	a.add_status(StatusSystem.POISON)
+	var b := _unit("Standing", true, 40)
+	var bm := _battle([a, b], [_foe()])
+	assert_false(a.is_alive(), "A fell to the tick")
+	assert_eq(bm.current_actor, b, "B is offered the turn")
+	assert_eq(bm.state, BattleManager.BattleState.CHOOSING_ACTION, "the battle goes on")
+	bm.free()

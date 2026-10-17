@@ -154,6 +154,10 @@ func _next_turn():
 		emit_signal("status_effect_triggered", current_actor, result)
 		if not current_actor.is_alive():
 			handle_defeat(current_actor)
+			# The tick may have downed the last character on a side. End the
+			# battle here, or the next enemy turn finds nobody to hit and stalls.
+			if check_battle_end():
+				return
 			current_turn_index += 1
 			_next_turn()
 			return
@@ -677,6 +681,9 @@ func _execute_enemy_turn():
 	var enemy = current_actor
 	var alive_party = party.filter(func(c): return c.is_alive())
 	if alive_party.is_empty():
+		# Nobody left to hit: end the turn (its battle-end check reports the
+		# defeat) rather than return and leave the battle hanging.
+		_end_turn()
 		return
 
 	# Use EnemyAI to decide action
