@@ -330,3 +330,30 @@ func test_the_keyboard_page_has_no_cursor_click_row_and_the_controller_page_does
 	GameManager.remove_child(screen)
 	screen.free()
 
+
+# ------------------------------------------------ rebinding sees the raw controller
+
+func test_waiting_for_a_button_hands_the_controller_to_the_game_raw() -> void:
+	# The cursor takes the right stick and its press for itself, unless a screen is
+	# waiting to bind them (VirtualCursor reads raw_input_passthrough).
+	var was := GameManager.raw_input_passthrough
+	var screen := SettingsScreen.new()
+	GameManager.add_child(screen)
+	screen._view = "controller"
+	screen._build()
+	assert_false(GameManager.raw_input_passthrough, "an open Controller page doesn't pass anything through")
+
+	screen._start_listening("cursor_click", false)
+	assert_true(GameManager.raw_input_passthrough, "waiting for a button does")
+	screen._stop_listening()
+	assert_false(GameManager.raw_input_passthrough, "and stops when the binding is done or cancelled")
+
+	screen._start_listening("cursor_click", false)
+	screen._build()   # Back, or a click elsewhere, rebuilds the page mid-wait
+	assert_false(GameManager.raw_input_passthrough, "a rebuilt page isn't waiting any more")
+
+	screen._start_listening("confirm", false)
+	GameManager.remove_child(screen)
+	screen.free()
+	assert_false(GameManager.raw_input_passthrough, "closing the screen mid-wait lets the right stick move the cursor again")
+	GameManager.raw_input_passthrough = was

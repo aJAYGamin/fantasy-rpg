@@ -1129,6 +1129,26 @@ the game has to take the mouse over and move and draw the cursor itself.
   pushed past 0.5 hide it — the same events `GameManager._input` takes as a switch to the
   focus highlight, so the cursor and the highlight are never both up. Moving the mouse brings
   it back where it was.
+- **The right stick.** `_process` feeds `step_stick(axis, delta)` the tilt of the connected
+  pad tilted furthest (`Input.get_joy_axis`); `CursorMotion.stick_velocity` gives base px/s at
+  `settings.stick_sensitivity_right`. A move shows the cursor, is clamped to the window (only
+  the mouse slips out), and is pushed as a mouse move carrying the stick's velocity and the
+  held buttons. `route_os_event` consumes right-stick motion (`JOY_AXIS_RIGHT_X/Y`) so it never
+  reaches the menus; the d-pad, left stick and face buttons pass through and hide the cursor.
+- **Cursor Click** (the `cursor_click` action, R3 by default, remappable on the Controller page).
+  A press while the cursor is hidden only shows it; otherwise press/release become a left
+  `InputEventMouseButton` at `pointer_pos` (holding drags: `_buttons` carries the bit). If the
+  binding is shared with another action, a press while the cursor is hidden goes through as
+  that action's and does not show the cursor. A release whose press the cursor clicked is
+  always sent, so a drag cannot stick; an axis bound to it counts as one press.
+  Synthetic clicks don't update `Input`'s own button state (dropdowns still work).
+- **Rebinding sees the raw pad.** `GameManager.raw_input_passthrough` is true while
+  `SettingsScreen` waits for a button (`_start_listening`; false again on `_stop_listening`, a
+  rebuild or closing): the cursor then forwards every controller event untouched and the stick
+  moves nothing, so R3 and the right stick can be bound.
+- **What the hook keeps of Godot's window.** Every routed event is announced on the root's
+  `window_input` signal before it is delivered (`_deliver`), and while the editor's debugger is
+  active F8 sends `request_quit` (the editor's Stop shortcut).
 - **Drawing.** A `Sprite2D` on its own `CanvasLayer` at `VirtualCursor.LAYER` (200, above
   the FPS overlay's 128), `centered = false`, `scale = 1 / CursorArt.RENDER_SCALE`, `offset
   = -hotspot × RENDER_SCALE` so the tip sits on `pointer_pos`. `refresh_style()` re-dresses it
@@ -1556,7 +1576,7 @@ own Testing Policy above — the policy (a suite per feature, registered in
     enemy combat stats via `Character.combat_stat_multiplier` (×0.5 / ×1.0 / ×2.0, applied to battle
     copies in `BattleScene.start_battle`), Hard gives +25% gold/XP and caps healing/battle item stacks
     at `Inventory.HARD_ITEM_CAP` (10 each; drops skip when capped), and reserves a `shop_price_mult`.
-  - **Controls:** stick sensitivity (left scales movement; right reserved), live device statuses
+  - **Controls:** stick sensitivity (left scales movement; right scales the cursor's speed), live device statuses
     (controller name / "No Controller Found"; keyboard+mouse are activity-based since Godot can't
     enumerate them), and full **keyboard + controller remapping** via `InputMapConfig` — named actions
     (`move_*`/`confirm`/`cancel`/`pause`) with per-device defaults, press-to-bind, per-device + global

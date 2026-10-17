@@ -80,6 +80,7 @@ const GAME_NOT_SAVED := {
 	"resuming_from_save": HAND_OFF,
 	"roamer_snapshot": "a live hook into the current map's roamers, not data",
 	"virtual_cursor": "the cursor node, rebuilt at launch; its style is kept in user://config.cfg",
+	"raw_input_passthrough": "a moment-to-moment UI flag: the Controller page is waiting for a button",
 	"active_slot": CONFIG_FILE,
 	"settings": CONFIG_FILE,
 	"input_profiles": CONFIG_FILE,

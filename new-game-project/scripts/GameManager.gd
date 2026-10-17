@@ -146,6 +146,10 @@ var _fps_label: Label = null
 # The game-drawn themed cursor, which takes over the window's mouse delivery (see
 # VirtualCursor). A child of this autoload, so it survives scene changes.
 var virtual_cursor: VirtualCursor = null
+# True while a screen is waiting to capture the next button or stick for a rebind: the
+# cursor then passes every controller event on untouched (the right stick and its press
+# included) and the right stick stops moving it. Set by SettingsScreen.
+var raw_input_passthrough := false
 
 # Global UI click SFX. Auto-wired to every Button in the tree (see _on_node_added)
 # so any button anywhere makes a sound, on the SFX bus.

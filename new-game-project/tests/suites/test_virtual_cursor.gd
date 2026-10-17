@@ -17,15 +17,21 @@ func suite_name() -> String:
 ## Reads input in _input, the way LevelUpScreen and DialogueBox read clicks.
 class InputReader extends Node:
 	var presses := 0
+	var releases := 0
 	var cancels := 0
 	var last: InputEvent = null
+	var last_motion: InputEventMouseMotion = null
 	var last_motion_mask := -1
 
 	func _input(ev: InputEvent) -> void:
 		last = ev
-		if ev is InputEventMouseButton and ev.pressed:
-			presses += 1
+		if ev is InputEventMouseButton:
+			if ev.pressed:
+				presses += 1
+			else:
+				releases += 1
 		elif ev is InputEventMouseMotion:
+			last_motion = ev
 			last_motion_mask = ev.button_mask
 		if ev.is_action_pressed("ui_cancel"):
 			cancels += 1
@@ -56,8 +62,14 @@ func _begin() -> CanvasLayer:
 		"keyboard": GameManager._keyboard_nav,
 		"kb_ms": GameManager._last_kb_ms,
 		"mouse_ms": GameManager._last_mouse_ms,
+		"stick": s.stick_sensitivity_right,
+		"passthrough": GameManager.raw_input_passthrough,
+		"cursor_click": InputMap.action_get_events("cursor_click"),
 	}
 	s.mouse_sensitivity = 1.0   # the moves below assume 1.00x
+	s.stick_sensitivity_right = 1.0   # and the stick's speeds assume 1.00x too
+	GameManager.raw_input_passthrough = false
+	_bind_cursor_click(JOY_BUTTON_RIGHT_STICK)   # the default, whatever the player has set
 	_layer = CanvasLayer.new()
 	_layer.layer = 150
 	GameManager.add_child(_layer)
@@ -70,6 +82,13 @@ func _end() -> void:
 	_layer.free()
 	var s := GameManager.settings
 	s.mouse_sensitivity = _saved["sensitivity"]
+	s.stick_sensitivity_right = _saved["stick"]
+	GameManager.raw_input_passthrough = _saved["passthrough"]
+	InputMap.action_erase_events("cursor_click")
+	for ev: InputEvent in _saved["cursor_click"]:
+		InputMap.action_add_event("cursor_click", ev)
+	_vc()._click_down = false
+	_vc()._buttons = 0
 	s.cursor_shape = _saved["shape"]
 	s.cursor_colour = _saved["colour"]
 	_vc().refresh_style()
@@ -122,6 +141,25 @@ func _pad_button(index: JoyButton, pressed: bool) -> InputEventJoypadButton:
 	ev.pressed = pressed
 	_vc().route_os_event(ev)
 	return ev
+
+func _pad_motion(axis: JoyAxis, value: float) -> InputEventJoypadMotion:
+	var ev := InputEventJoypadMotion.new()
+	ev.axis = axis
+	ev.axis_value = value
+	_vc().route_os_event(ev)
+	return ev
+
+## Makes `button` the whole of Cursor Click's binding.
+func _bind_cursor_click(button: JoyButton) -> void:
+	InputMap.action_erase_events("cursor_click")
+	var ev := InputEventJoypadButton.new()
+	ev.button_index = button
+	InputMap.action_add_event("cursor_click", ev)
+
+## Presses and lets go of the right stick, which is Cursor Click by default.
+func _stick_click() -> void:
+	_pad_button(JOY_BUTTON_RIGHT_STICK, true)
+	_pad_button(JOY_BUTTON_RIGHT_STICK, false)
 
 # --- Controls ------------------------------------------------------------------
 
@@ -461,4 +499,322 @@ func test_the_cursor_glows_over_an_open_dropdown_list_and_so_does_its_copy() -> 
 		assert_eq(mirror.material, _vc().sprite.material, "it shares the cursor's glow, colours and all")
 	_click()
 	assert_false(popup.visible, "choosing an item closes the list")
+	_end()
+
+# --- The right stick and Cursor Click ----------------------------------------------
+
+func test_the_right_stick_moves_the_cursor() -> void:
+	_begin()
+	_vc().pointer_pos = Vector2(500, 300)
+	_vc().shown = false
+	_vc().step_stick(Vector2(1, 0), 0.5)
+	assert_near(_vc().pointer_pos.x, 500.0 + 384.0, 0.01, "half a second at full tilt and 1.00x is 384 base pixels")
+	assert_eq(_vc().pointer_pos.y, 300.0, "straight right doesn't drift up or down")
+	assert_true(_vc().shown, "moving the stick shows the cursor")
+	_vc().step_stick(Vector2(0, -1), 0.25)
+	assert_near(_vc().pointer_pos.y, 300.0 - 192.0, 0.01, "up is up")
+	GameManager.settings.stick_sensitivity_right = 0.5
+	var before := _vc().pointer_pos
+	_vc().step_stick(Vector2(-1, 0), 0.5)
+	assert_near(before.x - _vc().pointer_pos.x, 192.0, 0.01, "Right Stick Sensitivity scales the speed")
+	_end()
+
+func test_a_resting_stick_leaves_the_cursor_alone() -> void:
+	var layer := _begin()
+	var reader := InputReader.new()
+	layer.add_child(reader)
+	_vc().pointer_pos = Vector2(500, 300)
+	_vc().shown = false
+	_vc().step_stick(Vector2(0.1, -0.15), 1.0)
+	assert_eq(_vc().pointer_pos, Vector2(500, 300), "jitter inside the dead zone doesn't creep")
+	assert_false(_vc().shown, "and doesn't bring a hidden cursor back")
+	assert_true(reader.last_motion == null, "and pushes no mouse move")
+	_end()
+
+func test_the_stick_never_leaves_the_window() -> void:
+	_begin()
+	var bounds := GameManager.get_tree().root.get_visible_rect().size
+	_vc().pointer_pos = bounds - Vector2(5, 5)
+	_vc().step_stick(Vector2(1, 1), 2.0)
+	assert_eq(_vc().pointer_pos, bounds - Vector2.ONE, "stopped at the bottom-right corner")
+	_vc().pointer_pos = Vector2(5, 5)
+	_vc().step_stick(Vector2(-1, -1), 2.0)
+	assert_eq(_vc().pointer_pos, Vector2.ZERO, "and at the top-left one")
+	_end()
+
+func test_stick_motion_is_a_mouse_move_with_a_speed() -> void:
+	# A dropdown list ignores a move with no speed when it lights up the row under it.
+	var layer := _begin()
+	var reader := InputReader.new()
+	layer.add_child(reader)
+	_vc().pointer_pos = Vector2(500, 300)
+	_vc().step_stick(Vector2(1, 0), 0.5)
+	var mm := reader.last_motion
+	assert_true(mm != null, "the stick pushes a mouse move into the scene")
+	if mm != null:
+		assert_eq(mm.position, _vc().pointer_pos, "at the cursor's tip")
+		assert_near(mm.relative.x, 384.0, 0.01, "carrying this frame's step")
+		assert_near(mm.velocity.x, CursorMotion.STICK_FULL_SPEED, 0.01, "and the stick's speed in base pixels a second")
+		assert_eq(mm.button_mask, 0, "with no button held")
+	_end()
+
+func test_the_stick_press_clicks_where_the_cursor_points() -> void:
+	var layer := _begin()
+	var b := _make_button(layer, Rect2(100, 100, 120, 40))
+	var presses := [0]
+	b.pressed.connect(func() -> void: presses[0] += 1)
+	_vc().pointer_pos = Vector2(160, 120)
+	_vc().shown = true
+	_pad_button(JOY_BUTTON_RIGHT_STICK, true)
+	assert_eq(presses[0], 0, "a button waits for the release, like a mouse click")
+	_pad_button(JOY_BUTTON_RIGHT_STICK, false)
+	assert_eq(presses[0], 1, "pressing and letting go of the right stick presses the button under the cursor")
+	_end()
+
+func test_a_stick_press_while_hidden_only_brings_the_cursor_back() -> void:
+	var layer := _begin()
+	var b := _make_button(layer, Rect2(100, 100, 120, 40))
+	var presses := [0]
+	b.pressed.connect(func() -> void: presses[0] += 1)
+	_vc().pointer_pos = Vector2(160, 120)
+	_vc().shown = false
+	_stick_click()
+	assert_true(_vc().shown, "the first press shows the cursor where it was")
+	assert_eq(_vc().pointer_pos, Vector2(160, 120), "at its last spot")
+	assert_eq(presses[0], 0, "and doesn't click somewhere the player couldn't see")
+	_stick_click()
+	assert_eq(presses[0], 1, "the next one clicks")
+	_end()
+
+func test_holding_the_stick_press_drags_a_slider() -> void:
+	var layer := _begin()
+	var slider := HSlider.new()
+	slider.position = Vector2(100, 300)
+	slider.size = Vector2(300, 24)
+	slider.max_value = 100.0
+	slider.value = 0.0
+	layer.add_child(slider)
+	var reader := InputReader.new()
+	layer.add_child(reader)
+	_vc().pointer_pos = Vector2(104, 312)
+	_vc().shown = true
+	_pad_button(JOY_BUTTON_RIGHT_STICK, true)
+	for i in 4:
+		_vc().step_stick(Vector2(1, 0), 0.1)
+	assert_eq(reader.last_motion_mask, int(MOUSE_BUTTON_MASK_LEFT), "moves while the stick is held say the button is held")
+	_pad_button(JOY_BUTTON_RIGHT_STICK, false)
+	assert_true(slider.value > 0.0, "holding the press and pushing the stick right dragged the slider (to %s)" % slider.value)
+	_vc().step_stick(Vector2(1, 0), 0.1)
+	assert_eq(reader.last_motion_mask, 0, "after the release, moves carry no held button")
+	_end()
+
+func test_the_right_stick_and_its_press_are_the_cursors_not_the_menus() -> void:
+	var layer := _begin()
+	var reader := InputReader.new()
+	layer.add_child(reader)
+	_pad_motion(JOY_AXIS_RIGHT_X, 0.9)
+	assert_true(reader.last == null, "the right stick is not passed on")
+	_pad_motion(JOY_AXIS_RIGHT_Y, -0.9)
+	assert_true(reader.last == null, "either axis of it")
+	_pad_button(JOY_BUTTON_RIGHT_STICK, true)
+	assert_false(reader.last is InputEventJoypadButton, "nor is its press")
+	_pad_button(JOY_BUTTON_RIGHT_STICK, false)
+	var left := _pad_motion(JOY_AXIS_LEFT_X, 0.9)
+	assert_true(reader.last == left, "the left stick still is")
+	_end()
+
+func test_rebinding_sees_the_stick_press_and_the_right_stick() -> void:
+	# Review focus 2: while the Controller page waits for a button, it must see
+	# everything raw, the right stick and R3 included, and the stick moves nothing.
+	var layer := _begin()
+	var reader := InputReader.new()
+	layer.add_child(reader)
+	_vc().pointer_pos = Vector2(500, 300)
+	_vc().shown = true
+	GameManager.raw_input_passthrough = true
+	var press := _pad_button(JOY_BUTTON_RIGHT_STICK, true)
+	assert_true(reader.last == press, "the press of the right stick reaches _input as the very event the OS sent")
+	_pad_button(JOY_BUTTON_RIGHT_STICK, false)
+	var tilt := _pad_motion(JOY_AXIS_RIGHT_X, 0.9)
+	assert_true(reader.last == tilt, "and so does the right stick, untouched")
+	assert_eq(reader.presses + reader.releases, 0, "neither became a mouse click")
+	_vc().step_stick(Vector2(1, 0), 0.5)
+	assert_eq(_vc().pointer_pos, Vector2(500, 300), "and the stick doesn't move the cursor meanwhile")
+	GameManager.raw_input_passthrough = false
+	_vc().step_stick(Vector2(1, 0), 0.5)
+	assert_near(_vc().pointer_pos.x, 884.0, 0.01, "it moves it again once rebinding is over")
+	_end()
+
+func test_the_dpad_hides_the_cursor_and_still_navigates() -> void:
+	var layer := _begin()
+	var reader := InputReader.new()
+	layer.add_child(reader)
+	_vc().shown = true
+	var pad := _pad_button(JOY_BUTTON_DPAD_DOWN, true)
+	assert_false(_vc().shown, "a d-pad press hides the cursor")
+	assert_true(reader.last == pad, "and reaches _input as the very event the OS sent")
+	_pad_button(JOY_BUTTON_DPAD_DOWN, false)
+	_vc().shown = true
+	var tilt := _pad_motion(JOY_AXIS_LEFT_Y, 0.9)
+	assert_false(_vc().shown, "so does the left stick")
+	assert_true(reader.last == tilt, "which also still reaches _input")
+	_end()
+
+func test_a_dropdown_works_from_the_stick() -> void:
+	# Stick clicks don't touch the Input singleton's own button state; the dropdown
+	# must open, light the row under the cursor, and choose it all the same.
+	var layer := _begin()
+	var opt := OptionButton.new()
+	for item in ["One", "Two", "Three", "Four"]:
+		opt.add_item(item)
+	opt.position = Vector2(700, 100)
+	opt.size = Vector2(160, 31)
+	layer.add_child(opt)
+	var popup := opt.get_popup()
+	_vc().pointer_pos = Vector2(780, 115)
+	_vc().shown = true
+	_stick_click()
+	assert_true(popup.visible, "pressing the stick on the dropdown opens its list")
+	# Just above the third row's middle, then a nudge of the stick onto it.
+	_vc().pointer_pos = Vector2(popup.position) + Vector2(popup.size.x * 0.5, popup.size.y * 2.5 / 4.0 - 3.0)
+	_vc().step_stick(Vector2(0, 1), 0.004)
+	assert_eq(popup.get_focused_item(), 2, "a nudge of the stick lights the row under the cursor")
+	_stick_click()
+	assert_eq(opt.selected, 2, "pressing the stick on a row chooses it")
+	assert_false(popup.visible, "and the list closes")
+	_end()
+
+# --- Cursor Click on a shared button, and letting go --------------------------------
+
+func test_a_shared_cursor_click_is_forwarded_while_the_cursor_is_hidden() -> void:
+	var layer := _begin()
+	var b := _make_button(layer, Rect2(100, 100, 120, 40))
+	var presses := [0]
+	b.pressed.connect(func() -> void: presses[0] += 1)
+	var reader := InputReader.new()
+	layer.add_child(reader)
+	_bind_cursor_click(JOY_BUTTON_A)   # Confirm is on A too
+	var a := InputEventJoypadButton.new()
+	a.button_index = JOY_BUTTON_A
+	assert_true(a.is_action("ui_accept"), "A is also bound to another action")
+	_vc().pointer_pos = Vector2(160, 120)
+	_vc().shown = false
+	var press := _pad_button(JOY_BUTTON_A, true)
+	assert_true(reader.last == press, "the press reaches _input unchanged, so Confirm still works")
+	assert_false(_vc().shown, "and doesn't bring the cursor back")
+	_pad_button(JOY_BUTTON_A, false)
+	assert_eq(presses[0], 0, "and doesn't click")
+	_end()
+
+func test_a_shared_cursor_click_clicks_while_the_cursor_is_shown() -> void:
+	var layer := _begin()
+	var b := _make_button(layer, Rect2(100, 100, 120, 40))
+	var presses := [0]
+	b.pressed.connect(func() -> void: presses[0] += 1)
+	var reader := InputReader.new()
+	layer.add_child(reader)
+	_bind_cursor_click(JOY_BUTTON_A)
+	_vc().pointer_pos = Vector2(160, 120)
+	_vc().shown = true
+	var press := _pad_button(JOY_BUTTON_A, true)
+	_pad_button(JOY_BUTTON_A, false)
+	assert_eq(presses[0], 1, "with the cursor showing, the shared button clicks")
+	assert_false(reader.last == press, "and the cursor keeps the press to itself")
+	assert_true(_vc().shown, "still showing")
+	_end()
+
+func test_a_press_the_cursor_clicked_is_always_let_go() -> void:
+	# However the pad's role changes mid-hold, a drag can never stick.
+	var layer := _begin()
+	var reader := InputReader.new()
+	layer.add_child(reader)
+	_vc().pointer_pos = Vector2(300, 300)
+	_vc().shown = true
+	_pad_button(JOY_BUTTON_RIGHT_STICK, true)
+	assert_eq(reader.presses, 1, "the stick press pressed the left button")
+	GameManager.raw_input_passthrough = true   # a rebind began while it was held
+	var release := _pad_button(JOY_BUTTON_RIGHT_STICK, false)
+	assert_eq(reader.releases, 1, "its release still let the left button go")
+	assert_true(reader.last == release, "and the raw release is forwarded, as everything is while rebinding")
+	assert_true(_vc()._buttons == 0, "so no button is left held")
+	GameManager.raw_input_passthrough = false
+	_vc().step_stick(Vector2(1, 0), 0.1)
+	assert_eq(reader.last_motion_mask, 0, "later moves carry no held button")
+	_end()
+
+func test_a_press_that_hid_the_cursor_is_still_let_go() -> void:
+	var layer := _begin()
+	var reader := InputReader.new()
+	layer.add_child(reader)
+	_vc().pointer_pos = Vector2(300, 300)
+	_vc().shown = true
+	_pad_button(JOY_BUTTON_RIGHT_STICK, true)
+	_pad_button(JOY_BUTTON_DPAD_DOWN, true)   # the d-pad takes over mid-hold
+	assert_false(_vc().shown, "the cursor is hidden")
+	_pad_button(JOY_BUTTON_RIGHT_STICK, false)
+	assert_eq(reader.releases, 1, "the release is still sent")
+	_pad_button(JOY_BUTTON_DPAD_DOWN, false)
+	_end()
+
+func test_a_release_with_no_press_of_ours_sends_no_release() -> void:
+	var layer := _begin()
+	var reader := InputReader.new()
+	layer.add_child(reader)
+	_vc().pointer_pos = Vector2(300, 300)
+	_vc().shown = false
+	_stick_click()   # the press only shows the cursor
+	assert_eq(reader.presses + reader.releases, 0, "a hidden cursor's press and release click nothing")
+	_vc().shown = true
+	GameManager.raw_input_passthrough = true
+	_pad_button(JOY_BUTTON_RIGHT_STICK, true)   # forwarded raw, not turned into a click
+	GameManager.raw_input_passthrough = false
+	_pad_button(JOY_BUTTON_RIGHT_STICK, false)
+	assert_eq(reader.presses + reader.releases, 0, "nor does a release whose press was never ours")
+	_end()
+
+func test_a_trigger_bound_to_cursor_click_presses_once_and_lets_go() -> void:
+	# Cursor Click can be rebound to an axis: its stream of motion events is one press.
+	var layer := _begin()
+	var reader := InputReader.new()
+	layer.add_child(reader)
+	InputMap.action_erase_events("cursor_click")
+	var trigger := InputEventJoypadMotion.new()
+	trigger.axis = JOY_AXIS_TRIGGER_RIGHT
+	trigger.axis_value = 1.0
+	InputMap.action_add_event("cursor_click", trigger)
+	_vc().pointer_pos = Vector2(300, 300)
+	_vc().shown = true
+	_pad_motion(JOY_AXIS_TRIGGER_RIGHT, 0.7)
+	_pad_motion(JOY_AXIS_TRIGGER_RIGHT, 0.9)
+	_pad_motion(JOY_AXIS_TRIGGER_RIGHT, 1.0)
+	assert_eq(reader.presses, 1, "three pushes of the trigger are one press")
+	_pad_motion(JOY_AXIS_TRIGGER_RIGHT, 0.0)
+	assert_eq(reader.releases, 1, "and letting it go is one release")
+	_end()
+
+# --- What Godot's own window did with every event --------------------------------------
+
+func test_every_routed_event_is_announced_on_the_windows_input_signal() -> void:
+	# Window::_window_input emits window_input before delivering; the hook replaces it.
+	_begin()
+	var root := GameManager.get_tree().root
+	var seen: Array[InputEvent] = []
+	var listener := func(ev: InputEvent) -> void: seen.append(ev)
+	root.window_input.connect(listener)
+	var key := _key(KEY_F11, true)
+	assert_eq(seen.size(), 1, "a key is announced once")
+	assert_true(seen.size() == 1 and seen[0] == key, "as the event the OS sent")
+	_key(KEY_F11, false)
+	seen.clear()
+	_button(MOUSE_BUTTON_LEFT, true)
+	assert_eq(seen.size(), 1, "a mouse button is announced once")
+	assert_true(seen.size() == 1 and seen[0] is InputEventMouseButton and seen[0].position == _vc().pointer_pos, "at the cursor's tip")
+	_button(MOUSE_BUTTON_LEFT, false)
+	seen.clear()
+	_motion_to(Vector2(300, 300))
+	assert_eq(seen.size(), 1, "a mouse move is announced once")
+	seen.clear()
+	_pad_button(JOY_BUTTON_DPAD_DOWN, true)
+	assert_eq(seen.size(), 1, "a controller button is announced once")
+	root.window_input.disconnect(listener)
 	_end()

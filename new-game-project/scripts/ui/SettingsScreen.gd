@@ -57,6 +57,7 @@ func setup(standalone: bool = false) -> void:
 
 func _exit_tree() -> void:
 	GameManager.unregister_focus_scope(self)
+	GameManager.raw_input_passthrough = false   # closed mid-rebind
 
 func _input(event: InputEvent) -> void:
 	if not visible:
@@ -107,6 +108,7 @@ func _build() -> void:
 	_pad_buttons.clear()
 	_listening = false
 	_listen_action = ""
+	GameManager.raw_input_passthrough = false   # a rebuild (Back, a click elsewhere) ends a rebind
 	_device_label = null
 	_kb_status_label = null
 	_mouse_status_label = null
@@ -562,6 +564,8 @@ func _start_listening(action: String, keyboard: bool) -> void:
 	# Suspend the focus guard so the next button press is captured as a binding
 	# rather than navigating focus.
 	GameManager.unregister_focus_scope(self)
+	# The cursor hands the right stick and its press over raw, to be bound like any button.
+	GameManager.raw_input_passthrough = true
 	var btn: Button = (_kb_buttons.get(action) if keyboard else _pad_buttons.get(action))
 	if btn != null:
 		btn.text = "Press…"
@@ -598,6 +602,7 @@ func _finish_rebind() -> void:
 func _stop_listening() -> void:
 	_listening = false
 	_listen_action = ""
+	GameManager.raw_input_passthrough = false
 	_refresh_controls_labels()
 	# Resume the focus guard.
 	GameManager.register_focus_scope(self)
