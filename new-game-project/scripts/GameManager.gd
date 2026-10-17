@@ -446,6 +446,15 @@ func _update_nav_repeat(delta: float) -> void:
 		var top := top_focus_scope()
 		if top == null or not top.is_ancestor_of(owner):
 			continue
+		# A control that changes its value with left / right keeps those two
+		# directions: a held one never slides focus off to the side (or wraps it round).
+		# A left / right row keeps stepping; a slider is left to its own handling.
+		if action == "ui_left" or action == "ui_right":
+			if owner is CyclerRow:
+				(owner as CyclerRow).step(-1 if action == "ui_left" else 1)
+				continue
+			if owner is Slider:
+				continue
 		var next := owner.find_valid_focus_neighbor(_NAV_SIDES[action])
 		if next != null and next != owner:
 			next.grab_focus()
@@ -536,7 +545,7 @@ func _wrap_target(items: Array, from: Control, side: int) -> Control:
 # Recursively set focus_mode on the interactive controls under `root`.
 func _set_scope_focusable(root: Node, focusable: bool) -> void:
 	for child in root.get_children():
-		if child is BaseButton or child is Slider or child is OptionButton:
+		if child is BaseButton or child is Slider or child is OptionButton or child is CyclerRow:
 			var ctl := child as Control
 			# A DISABLED button must be FOCUS_NONE, not merely un-grabbable:
 			# Godot's neighbor search only skips FOCUS_NONE controls, so a greyed

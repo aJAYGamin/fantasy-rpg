@@ -93,14 +93,18 @@ static func style_button(b: Button, font_size: int = 11) -> void:
 	disabled.border_color = Color(0.30, 0.25, 0.40, 0.5)
 	b.add_theme_stylebox_override("disabled", disabled)
 
-	# Keyboard/controller focus ring — a bright transparent-fill border drawn over
-	# the current state so focused buttons read clearly during pad navigation.
+	b.add_theme_stylebox_override("focus", focus_style())
+
+# Keyboard/controller focus ring — a bright transparent-fill border drawn over
+# the current state so focused buttons read clearly during pad navigation. Shared
+# so a control that draws its own focus (CyclerRow) matches the buttons.
+static func focus_style() -> StyleBoxFlat:
 	var focus := StyleBoxFlat.new()
 	focus.bg_color = Color(0.85, 0.7, 1.0, 0.12)
 	focus.border_color = Color(0.95, 0.85, 1.0)
 	focus.set_border_width_all(2)
 	focus.set_corner_radius_all(6)
-	b.add_theme_stylebox_override("focus", focus)
+	return focus
 
 # Builds a fresh themed Button.
 static func make_button(text: String, font_size: int = 11) -> Button:

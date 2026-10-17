@@ -4,7 +4,7 @@ extends Control
 ## Settings page shared by the main menu (standalone overlay) and the pause menu
 ## (replace-not-stack sub-view). A category hub: the root lists Game / Controls /
 ## Audio / Display / Performance; each opens its own view. Controls opens a
-## further Keyboard / Controller split. Fully keyboard- & controller-navigable.
+## further Keyboard / Controller / Mouse split. Fully keyboard- & controller-navigable.
 
 signal back_requested
 
@@ -22,7 +22,10 @@ const PANEL_MARGIN_X := 24
 # How far a detail view's scroll area reaches into the right padding, so its
 # scrollbar sits 8px from the border (24 - 16) like it always has.
 const SCROLL_REACH := 16
-# Current view: root / game / controls / keyboard / controller / audio / display / performance.
+# The Mouse page's name column: the same width as the sensitivity row's, so the
+# steppers line up with its slider.
+const MOUSE_NAME_WIDTH := 190
+# Current view: root / game / controls / keyboard / controller / mouse / audio / display / performance.
 var _view: String = "root"
 # The category we just backed out of. The list views use it to hand focus back to
 # the entry the player came from instead of the top of the list — the buttons are
@@ -92,7 +95,7 @@ func _process(_dt: float) -> void:
 # Parent view for back navigation ("" means exit the Settings screen).
 func _parent_of(view: String) -> String:
 	match view:
-		"keyboard", "controller": return "controls"
+		"keyboard", "controller", "mouse": return "controls"
 		"root": return ""
 	return "root"
 
@@ -187,6 +190,7 @@ func _build() -> void:
 			"game": _build_game(v)
 			"keyboard": _build_keyboard(v)
 			"controller": _build_controller(v)
+			"mouse": _build_mouse(v)
 			"audio": _build_audio(v)
 			"display": _build_display(v)
 			"performance": _build_performance(v)
@@ -205,6 +209,7 @@ func _view_title() -> String:
 		"controls": return "Controls"
 		"keyboard": return "Keyboard"
 		"controller": return "Controller"
+		"mouse": return "Mouse"
 		"audio": return "Audio"
 		"display": return "Display"
 		"performance": return "Performance"
@@ -240,12 +245,12 @@ func _build_root(outer: VBoxContainer) -> void:
 		_claim_return_focus(key, b)
 	_returning_from = ""
 
-# Controls hub: Keyboard / Controller buttons.
+# Controls hub: Keyboard / Controller / Mouse buttons.
 func _build_controls_menu(outer: VBoxContainer) -> void:
 	var list := VBoxContainer.new()
 	list.add_theme_constant_override("separation", 10)
 	outer.add_child(list)
-	for cat in [["keyboard", "Keyboard"], ["controller", "Controller"]]:
+	for cat in [["keyboard", "Keyboard"], ["controller", "Controller"], ["mouse", "Mouse"]]:
 		var key: String = cat[0]
 		var b := BattleUITheme.make_button(cat[1], 15)
 		b.custom_minimum_size = Vector2(0, 44)
@@ -291,11 +296,12 @@ func _build_display(v: VBoxContainer) -> void:
 
 func _build_performance(v: VBoxContainer) -> void:
 	var s: SettingsModel = GameManager.settings
-	var fps_opt := _make_option(_fps_labels(), _fps_index(s.fps_cap),
-		func(i: int):
-			s.fps_cap = SettingsModel.FPS_OPTIONS[i]
-			GameManager.apply_performance_and_save())
-	v.add_child(_labeled_row("Max FPS", fps_opt))
+	var fps_row := CyclerRow.new()
+	fps_row.setup("Max FPS", _fps_labels(), _fps_index(s.fps_cap))
+	fps_row.changed.connect(func(i: int):
+		s.fps_cap = SettingsModel.FPS_OPTIONS[i]
+		GameManager.apply_performance_and_save())
+	v.add_child(fps_row)
 	v.add_child(_toggle_row("V-Sync", s.vsync_enabled, func(on): s.vsync_enabled = on, GameManager.apply_performance_and_save))
 	v.add_child(_toggle_row("Show FPS Counter", s.show_fps, func(on): s.show_fps = on, GameManager.apply_fps_overlay_and_save))
 
@@ -354,6 +360,52 @@ func _build_controller(v: VBoxContainer) -> void:
 	reset_all.custom_minimum_size = Vector2(0, 34)
 	reset_all.pressed.connect(_on_reset_controller)
 	v.add_child(reset_all)
+
+# Mouse page: the cursor's shape and colour (the real cursor changes as you step, so
+# there is no preview) and the mouse's speed. Sensitivity here is the mouse only; the
+# right stick's speed is on the Controller page.
+func _build_mouse(v: VBoxContainer) -> void:
+	var s: SettingsModel = GameManager.settings
+	var shape_names := PackedStringArray()
+	for id in CursorArt.SHAPES:
+		shape_names.append(CursorArt.shape_name(id))
+	var colour_names := PackedStringArray()
+	for id in CursorArt.COLOURS:
+		colour_names.append(CursorArt.colour_name(id))
+
+	var shape_row := CyclerRow.new()
+	shape_row.setup("Cursor Shape", shape_names, maxi(0, CursorArt.SHAPES.find(s.cursor_shape)), MOUSE_NAME_WIDTH)
+	shape_row.set_icon(_shape_icon(s.cursor_shape, s.cursor_colour))
+	var colour_row := CyclerRow.new()
+	colour_row.setup("Cursor Colour", colour_names, maxi(0, CursorArt.COLOURS.find(s.cursor_colour)), MOUSE_NAME_WIDTH)
+	colour_row.set_swatch(CursorArt.swatch(s.cursor_colour), CursorArt.swatch_ring(s.cursor_colour))
+
+	shape_row.changed.connect(func(i: int):
+		s.cursor_shape = CursorArt.SHAPES[i]
+		shape_row.set_icon(_shape_icon(s.cursor_shape, s.cursor_colour))
+		GameManager.apply_cursor_and_save())
+	colour_row.changed.connect(func(i: int):
+		s.cursor_colour = CursorArt.COLOURS[i]
+		colour_row.set_swatch(CursorArt.swatch(s.cursor_colour), CursorArt.swatch_ring(s.cursor_colour))
+		shape_row.set_icon(_shape_icon(s.cursor_shape, s.cursor_colour))   # the icon wears the colour
+		GameManager.apply_cursor_and_save())
+	v.add_child(shape_row)
+	v.add_child(colour_row)
+	v.add_child(_sens_row("Mouse Sensitivity", s.mouse_sensitivity, func(val): s.mouse_sensitivity = val,
+		SettingsModel.MOUSE_SENS_MIN, SettingsModel.MOUSE_SENS_MAX, SettingsModel.MOUSE_SENS_STEP))
+
+## The shape as the cursor draws it (the same texture, so it looks exactly like the
+## cursor), without the transparent margin the hover glow needs.
+func _shape_icon(shape: String, colour: String) -> Texture2D:
+	var tex := CursorArt.texture(shape, colour)
+	if tex == null:
+		return null
+	var view: Rect2 = CursorArt.SHAPE_DATA[shape]["view"]
+	var icon := AtlasTexture.new()
+	icon.atlas = tex
+	var k := CursorArt.RENDER_SCALE
+	icon.region = Rect2(Vector2.ONE * CursorArt.GLOW_MARGIN * k, view.size * k)
+	return icon
 
 # --- Keybind profiles ---------------------------------------------------------
 # Three profiles per device, switched independently. Switching captures the
@@ -493,7 +545,8 @@ func _status_row(name_text: String, value_label: Label) -> HBoxContainer:
 	row.add_child(value_label)
 	return row
 
-func _sens_row(label_text: String, initial: float, on_set: Callable) -> HBoxContainer:
+func _sens_row(label_text: String, initial: float, on_set: Callable,
+		min_v := SettingsModel.SENS_MIN, max_v := SettingsModel.SENS_MAX, step_v := 0.05) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 14)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -501,9 +554,9 @@ func _sens_row(label_text: String, initial: float, on_set: Callable) -> HBoxCont
 	name_label.custom_minimum_size = Vector2(190, 0)
 	row.add_child(name_label)
 	var slider := HSlider.new()
-	slider.min_value = SettingsModel.SENS_MIN
-	slider.max_value = SettingsModel.SENS_MAX
-	slider.step = 0.05
+	slider.min_value = min_v
+	slider.max_value = max_v
+	slider.step = step_v
 	slider.value = initial
 	slider.custom_minimum_size = Vector2(170, 24)
 	_style_slider(slider)

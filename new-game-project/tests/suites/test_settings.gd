@@ -251,12 +251,12 @@ func test_cursor_shape_and_colour_validate_independently() -> void:
 # --------------------------------------------------- settings panel layout
 
 ## Every settings view — the category lists AND the detail sub-menus (Game,
-## Audio, Display, Performance, Keyboard, Controller) — keeps its title,
+## Audio, Display, Performance, Keyboard, Controller, Mouse) — keeps its title,
 ## divider lines and Back button centred in the panel. The detail views used to
 ## shrink the panel's RIGHT margin to 8px (vs 24px on the left) to tuck the
 ## scrollbar against the border, which pushed everything else 16px right.
 ## Only the scroll area may reach into the right padding now.
-const _SETTINGS_VIEWS := ["root", "controls", "game", "audio", "display", "performance", "keyboard", "controller"]
+const _SETTINGS_VIEWS := ["root", "controls", "game", "audio", "display", "performance", "keyboard", "controller", "mouse"]
 
 func _settings_panel(screen: SettingsScreen) -> PanelContainer:
 	for c in screen.get_children():
@@ -286,7 +286,7 @@ func test_scrolling_settings_content_shares_the_centred_column() -> void:
 	# PANEL_MARGIN_X from the border in every view, scrolling or not.
 	var screen := SettingsScreen.new()
 	GameManager.add_child(screen)
-	for view in ["game", "audio", "display", "performance", "keyboard", "controller"]:
+	for view in ["game", "audio", "display", "performance", "keyboard", "controller", "mouse"]:
 		screen._view = view
 		screen._build()
 		var scroll := screen.find_children("*", "ScrollContainer", true, false)[0] as ScrollContainer
@@ -383,3 +383,282 @@ func test_the_right_stick_cannot_be_bound_to_an_action() -> void:
 	screen._stop_listening()
 	GameManager.remove_child(screen)
 	screen.free()
+
+
+# ------------------------------------------- the Mouse page and the Max FPS row
+
+const _CONFIG := "user://config.cfg"
+
+## What these tests change, put back by _restore(): the live settings (without going
+## through an apply_*_and_save helper, which would write the player's config.cfg), the
+## engine's frame cap, the input mode, and the config file itself, which the rows'
+## apply_*_and_save calls DO write.
+var _kept := {}
+
+func _protect() -> void:
+	var s := GameManager.settings
+	var had := FileAccess.file_exists(_CONFIG)
+	_kept = {
+		"shape": s.cursor_shape,
+		"colour": s.cursor_colour,
+		"sensitivity": s.mouse_sensitivity,
+		"fps": s.fps_cap,
+		"controller": GameManager._controller_mode,
+		"keyboard": GameManager._keyboard_nav,
+		"had_config": had,
+		"config": FileAccess.get_file_as_bytes(_CONFIG) if had else PackedByteArray(),
+	}
+	# Known starting values, whatever the player has set.
+	s.cursor_shape = "A"
+	s.cursor_colour = "amethyst"
+	s.mouse_sensitivity = 1.0
+	s.fps_cap = 0
+
+func _restore() -> void:
+	var s := GameManager.settings
+	s.cursor_shape = _kept["shape"]
+	s.cursor_colour = _kept["colour"]
+	s.mouse_sensitivity = _kept["sensitivity"]
+	s.fps_cap = _kept["fps"]
+	GameManager.virtual_cursor.refresh_style()
+	s.apply_performance()
+	GameManager._apply_input_mode(_kept["controller"], _kept["keyboard"])
+	if _kept["had_config"]:
+		var f := FileAccess.open(_CONFIG, FileAccess.WRITE)
+		f.store_buffer(_kept["config"])
+		f.close()
+	elif FileAccess.file_exists(_CONFIG):
+		DirAccess.remove_absolute(_CONFIG)
+
+func _open(view: String) -> SettingsScreen:
+	var screen := SettingsScreen.new()
+	GameManager.add_child(screen)
+	screen._view = view
+	screen._build()
+	return screen
+
+func _close(screen: SettingsScreen) -> void:
+	GameManager.remove_child(screen)
+	screen.free()
+
+func _cycler(screen: SettingsScreen, label_text: String) -> CyclerRow:
+	for r in screen.find_children("*", "CyclerRow", true, false):
+		if (r as CyclerRow)._name_label.text == label_text:
+			return r
+	return null
+
+func _nodes_named_or_labelled(screen: SettingsScreen, word: String) -> int:
+	var hits := 0
+	for n in screen.find_children("*", "", true, false):
+		if word in String(n.name).to_lower():
+			hits += 1
+		if (n is Label or n is Button) and word in String(n.text).to_lower():
+			hits += 1
+	return hits
+
+func test_the_controls_page_lists_keyboard_controller_and_mouse() -> void:
+	var screen := _open("controls")
+	var entries := PackedStringArray()
+	for b in screen.find_children("*", "Button", true, false):
+		if not (b as Button).text.begins_with("←"):
+			entries.append((b as Button).text)
+	assert_eq(entries, PackedStringArray(["Keyboard", "Controller", "Mouse"]), "Mouse sits beside the other two")
+	assert_eq(screen._parent_of("mouse"), "controls", "the Mouse page backs out to Controls")
+	screen._view = "mouse"
+	assert_eq(screen._view_title(), "Mouse", "and is titled Mouse")
+	_close(screen)
+
+func test_the_mouse_page_offers_shape_colour_and_sensitivity() -> void:
+	_protect()
+	var s := GameManager.settings
+	var screen := _open("mouse")
+	var shape := _cycler(screen, "Cursor Shape")
+	var colour := _cycler(screen, "Cursor Colour")
+	assert_true(shape != null and colour != null, "a Cursor Shape row and a Cursor Colour row")
+	assert_true("Mouse Sensitivity" in _texts_of_labels(screen), "a Mouse Sensitivity row")
+	var sliders := screen.find_children("*", "HSlider", true, false)
+	assert_eq(sliders.size(), 1, "with its slider")
+
+	if shape != null and colour != null and sliders.size() == 1:
+		var slider := sliders[0] as HSlider
+		var column := shape.get_parent()
+		assert_true(colour.get_parent() == column and slider.get_parent().get_parent() == column,
+				"the three rows share one column")
+		assert_true(shape.get_index() < colour.get_index() and colour.get_index() < slider.get_parent().get_index(),
+				"in order: shape, colour, sensitivity")
+
+		var shape_names := PackedStringArray()
+		for id in CursorArt.SHAPES:
+			shape_names.append(CursorArt.shape_name(id))
+		var colour_names := PackedStringArray()
+		for id in CursorArt.COLOURS:
+			colour_names.append(CursorArt.colour_name(id))
+		assert_eq(shape.labels, shape_names, "the shape row steps through the ten shapes by name")
+		assert_eq(colour.labels, colour_names, "the colour row steps through the twenty colours by name")
+		assert_eq(shape.index, 0, "starting on the saved shape")
+		assert_eq(colour.index, 0, "and the saved colour")
+
+		shape.step(1)
+		assert_eq(s.cursor_shape, "B", "stepping the shape forward picks Crystal Shard")
+		assert_eq(GameManager.virtual_cursor.sprite.texture, CursorArt.texture("B", "amethyst"),
+				"and the live cursor follows at once")
+		shape.step(-1)
+		shape.step(-1)
+		assert_eq(s.cursor_shape, "AV", "it wraps round to the last shape")
+		assert_eq(GameManager.virtual_cursor.sprite.texture, CursorArt.texture("AV", "amethyst"), "live cursor again")
+
+		colour.step(1)
+		assert_eq(s.cursor_colour, "arcane", "stepping the colour forward picks Arcane")
+		assert_eq(GameManager.virtual_cursor.sprite.texture, CursorArt.texture("AV", "arcane"),
+				"the live cursor takes the new colour")
+	assert_eq(_nodes_named_or_labelled(screen, "preview"), 0, "no preview section: the real cursor is the preview")
+	_close(screen)
+	_restore()
+
+func test_the_shape_row_wears_the_current_colour_and_the_colour_row_a_dot() -> void:
+	_protect()
+	var s := GameManager.settings
+	s.cursor_shape = "K"
+	s.cursor_colour = "garnet"
+	var screen := _open("mouse")
+	var shape := _cycler(screen, "Cursor Shape")
+	var colour := _cycler(screen, "Cursor Colour")
+	assert_eq(shape.index, CursorArt.SHAPES.find("K"), "the shape row opens on the saved shape")
+	assert_eq(colour.index, CursorArt.COLOURS.find("garnet"), "the colour row on the saved colour")
+
+	assert_true(shape._icon.visible, "the shape row shows an icon")
+	var icon := shape._icon.texture as AtlasTexture
+	assert_true(icon != null and icon.atlas == CursorArt.texture("K", "garnet"),
+			"of the saved shape in the saved colour")
+	var dot := colour._dot.get_theme_stylebox("panel") as StyleBoxFlat
+	assert_true(colour._dot.visible, "the colour row shows a dot")
+	assert_eq(dot.bg_color, CursorArt.swatch("garnet"), "in the saved colour")
+
+	colour.step(1)
+	assert_eq(dot.bg_color, CursorArt.swatch("ember"), "stepping the colour recolours the dot")
+	assert_true((shape._icon.texture as AtlasTexture).atlas == CursorArt.texture("K", "ember"),
+			"and re-tints the shape row's icon")
+	shape.step(1)
+	assert_true((shape._icon.texture as AtlasTexture).atlas == CursorArt.texture("L", "ember"),
+			"stepping the shape swaps the icon, in the same colour")
+	_close(screen)
+	_restore()
+
+func test_dark_swatches_get_their_ring() -> void:
+	_protect()
+	var s := GameManager.settings
+	s.cursor_colour = "void"
+	var screen := _open("mouse")
+	var colour := _cycler(screen, "Cursor Colour")
+	var dot := colour._dot.get_theme_stylebox("panel") as StyleBoxFlat
+	assert_eq(dot.border_width_left, 1, "Void's dot shows against the dark panel")
+	colour.step(1)
+	assert_eq(s.cursor_colour, "obsidian", "the next colour is Obsidian")
+	assert_eq(dot.border_width_left, 1, "whose dot is ringed too")
+	colour.step(1)
+	assert_eq(dot.border_width_left, 0, "Steel is light enough without one")
+	_close(screen)
+	_restore()
+
+func test_the_mouse_sensitivity_slider() -> void:
+	_protect()
+	var s := GameManager.settings
+	var screen := _open("mouse")
+	var slider := screen.find_children("*", "HSlider", true, false)[0] as HSlider
+	assert_near(slider.min_value, SettingsModel.MOUSE_SENS_MIN, 0.0001, "from 0.25×")
+	assert_near(slider.max_value, SettingsModel.MOUSE_SENS_MAX, 0.0001, "to 3.00×")
+	assert_near(slider.step, SettingsModel.MOUSE_SENS_STEP, 0.0001, "in 0.05 steps")
+	assert_near(slider.value, 1.0, 0.0001, "starting at the saved sensitivity")
+	assert_true("1.00×" in _texts_of_labels(screen), "shown as 1.00×")
+
+	slider.value = 2.5
+	assert_near(s.mouse_sensitivity, 2.5, 0.0001, "moving the slider sets the mouse's speed")
+	assert_true("2.50×" in _texts_of_labels(screen), "and the readout follows")
+	slider.value = 99.0
+	assert_near(s.mouse_sensitivity, 3.0, 0.0001, "never past the top")
+	_close(screen)
+
+	# The stick sliders keep their own range.
+	var pad_page := _open("controller")
+	for sl in pad_page.find_children("*", "HSlider", true, false):
+		assert_near((sl as HSlider).max_value, SettingsModel.SENS_MAX, 0.0001, "stick sliders still top out at 2.00×")
+		assert_near((sl as HSlider).min_value, SettingsModel.SENS_MIN, 0.0001, "and start at 0.25×")
+	_close(pad_page)
+	_restore()
+
+func test_max_fps_is_a_left_right_row() -> void:
+	_protect()
+	var s := GameManager.settings
+	s.fps_cap = 144
+	var screen := _open("performance")
+	assert_eq(screen.find_children("*", "OptionButton", true, false).size(), 0, "no dropdown left on the Performance page")
+	var row := _cycler(screen, "Max FPS")
+	assert_true(row != null, "Max FPS is a left/right row")
+	if row != null:
+		assert_eq(row.labels, PackedStringArray(["Uncapped", "30", "60", "120", "144"]), "the same choices the dropdown had")
+		assert_eq(row.index, 4, "opening on the saved cap")
+		row.step(1)
+		assert_eq(row.index, 0, "stepping on from 144 wraps to Uncapped")
+		assert_eq(s.fps_cap, 0, "and sets the cap")
+		assert_eq(Engine.max_fps, 0, "which applies at once")
+		row.step(1)
+		assert_eq(s.fps_cap, 30, "next is 30")
+		assert_eq(Engine.max_fps, 30, "applied")
+	assert_eq(screen.find_children("*", "CheckButton", true, false).size(), 2, "V-Sync and the FPS counter keep their toggles")
+	_close(screen)
+	_restore()
+
+func test_window_mode_and_resolution_keep_their_dropdowns() -> void:
+	var screen := _open("display")
+	assert_eq(screen.find_children("*", "OptionButton", true, false).size(), 2, "Window Mode and Resolution are still dropdowns")
+	assert_eq(screen.find_children("*", "CyclerRow", true, false).size(), 0, "and the Display page has no left/right rows")
+	_close(screen)
+
+func test_backing_out_of_the_mouse_page_returns_to_the_mouse_entry() -> void:
+	_protect()
+	var screen := _open("controls")
+	GameManager.register_focus_scope(screen)
+	screen._open_category("mouse")
+	assert_eq(screen._view, "mouse", "the Mouse entry opens the page")
+	screen._on_back()
+	assert_eq(screen._view, "controls", "Back returns to Controls")
+	GameManager.set_controller_mode_for_test(true)
+	GameManager.update_focus_guard_for_test()
+	var owner := screen.get_viewport().gui_get_focus_owner()
+	assert_true(owner is Button and (owner as Button).text == "Mouse", "with focus back on the Mouse entry, not the top of the list")
+
+	# Esc / controller B does the same.
+	screen._open_category("mouse")
+	var cancel := InputEventAction.new()
+	cancel.action = "ui_cancel"
+	cancel.pressed = true
+	screen._input(cancel)
+	assert_eq(screen._view, "controls", "Esc backs out of the Mouse page too")
+	_close(screen)
+	_restore()
+
+func test_the_mouse_page_is_reachable_by_focus_navigation() -> void:
+	# d-pad / left stick / keyboard: the two rows and the slider are the stops (the
+	# arrows are click-only), then Back.
+	_protect()
+	var screen := _open("mouse")
+	GameManager.register_focus_scope(screen)
+	GameManager.set_controller_mode_for_test(true)
+	GameManager.update_focus_guard_for_test()
+	var stops: Array = []
+	GameManager._collect_focusable(screen, stops)
+	assert_eq(stops.size(), 4, "shape row, colour row, slider, Back")
+	if stops.size() == 4:
+		assert_eq(stops[0], _cycler(screen, "Cursor Shape"), "the shape row first")
+		assert_eq(stops[1], _cycler(screen, "Cursor Colour"), "then the colour row")
+		assert_true(stops[2] is HSlider, "then the sensitivity slider")
+		assert_true(stops[3] is Button and (stops[3] as Button).text.begins_with("←"), "then Back")
+	assert_eq(screen.get_viewport().gui_get_focus_owner(), _cycler(screen, "Cursor Shape"), "focus opens on the first row")
+
+	GameManager.set_controller_mode_for_test(false)
+	GameManager.update_focus_guard_for_test()
+	assert_eq(_cycler(screen, "Cursor Shape").focus_mode, Control.FOCUS_NONE, "mouse play leaves the rows click-only")
+	for b in _cycler(screen, "Cursor Shape").find_children("*", "Button", true, false):
+		assert_eq((b as Button).focus_mode, Control.FOCUS_NONE, "and the arrows stay clickable but unfocusable")
+	_close(screen)
+	_restore()

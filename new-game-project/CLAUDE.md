@@ -49,7 +49,7 @@ order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~5660 tests, 55 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~5990 tests, 56 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -68,6 +68,7 @@ scripts/
     ItemsScreen.gd            # class_name ItemsScreen — pause-menu Items page, 4 tabs + field-use (P2)
     EquipmentScreen.gd        # class_name EquipmentScreen — pause-menu per-hero equip page, 5 slots (P3)
     SettingsScreen.gd         # class_name SettingsScreen — settings hub (Game/Controls/Audio/Display/Performance) (P4)
+    CyclerRow.gd              # class_name CyclerRow — a "name ◀ value ▶" settings row (Max FPS; the Mouse page's shape + colour)
     FocusUtil.gd              # class_name FocusUtil — L1/R1 category-cycle detection + held-state queries (P4)
     HoldRepeat.gd             # class_name HoldRepeat — auto-repeat timing for held nav / category cycling
     SaveIndicator.gd          # class_name SaveIndicator — bottom-right auto-save status badge (P5)
@@ -134,7 +135,7 @@ tools/                        # one-shot / offline scripts, run as scenes (not -
 tests/
   TestRunner.tscn/.gd         # run this scene (F6) to execute all suites; register suites in SUITE_PATHS
   TestSuite.gd                # base class with assert_* helpers
-  suites/                     # one test_<feature>.gd per system (55 suites)
+  suites/                     # one test_<feature>.gd per system (56 suites)
   fixtures/                   # move_library_baseline.json — pre-migration snapshot for the MoveLibrary suite
 assets/  backgrounds/ characters/ enemies/ icons/ ui/
 fonts/   music/
@@ -1188,6 +1189,8 @@ the game has to take the mouse over and move and draw the cursor itself.
   = -hotspot × RENDER_SCALE` so the tip sits on `pointer_pos`. `refresh_style()` re-dresses it
   from settings (`GameManager.apply_cursor_and_save()` calls it). It lives under GameManager,
   `PROCESS_MODE_ALWAYS`: every scene, paused or not.
+- **Choosing it.** Settings → Controls → Mouse (see **Mouse page** under P4) — shape, colour and mouse
+  sensitivity; changes apply to the live cursor at once.
 - **The popup mirror.** Embedded popups (an OptionButton's list) draw above every
   CanvasLayer of the root, so an open list would cover the cursor. `update_mirrors()` (every
   frame) gives each open window in `get_embedded_subwindows()` its own internal CanvasLayer +
@@ -1443,11 +1446,11 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~5660 tests / 55 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~5990 tests / 56 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,
-  auto_save, level_up_screen, defeat_flow, roaming_enemy, move_library, skill_resolver, status_chips, battle_menu_gating, enemy_cards, meter_bars, skill_options, scrollbars, multi_turn.
+  auto_save, level_up_screen, defeat_flow, roaming_enemy, move_library, skill_resolver, status_chips, battle_menu_gating, enemy_cards, meter_bars, skill_options, scrollbars, multi_turn, cursor_art, cursor_motion, cursor_hold, virtual_cursor, cycler_row.
 - ⚠️ **`TOTAL … 0 failed` can hide a runtime script error.** A `SCRIPT ERROR` inside
   a test aborts that test method WITHOUT recording a failure, so a broken test
   just stops counting. After a full run also grep the output for `SCRIPT ERROR`
@@ -1578,7 +1581,7 @@ own Testing Policy above — the policy (a suite per feature, registered in
   `scripts/ui/FocusUtil.gd` `class_name FocusUtil`). Persisted in `user://config.cfg` `[settings]`
   (alongside `[save] last_slot`); `GameManager.settings` is the live model, loaded/applied at launch.
   `SettingsScreen` is a category hub (Game / Controls / Audio / Display / Performance, in that order);
-  Controls splits into Keyboard / Controller sub-views. Same screen serves the main menu (standalone
+  Controls splits into Keyboard / Controller / Mouse sub-views. Same screen serves the main menu (standalone
   overlay, owns Esc) and the pause menu (replace-not-stack sub-view). Targeted apply helpers
   (`apply_audio_and_save` / `apply_display_and_save` / `apply_performance_and_save` /
   `apply_fps_overlay_and_save` / `save_settings`) so changing one group never triggers unrelated side
@@ -1608,7 +1611,9 @@ own Testing Policy above — the policy (a suite per feature, registered in
     applies the saved mode deferred, so the saved mode sticks across restarts. NOTE: window ops are
     no-ops while the game runs **embedded in the editor's Game tab** (Godot 4.6) — that's an editor
     toggle, not a code issue.
-  - **Performance:** framerate cap / V-Sync / on-screen FPS counter (global CanvasLayer overlay).
+  - **Performance:** framerate cap / V-Sync / on-screen FPS counter (global CanvasLayer overlay). Max FPS
+    is a `CyclerRow` (`◀ value ▶`, stepping Uncapped / 30 / 60 / 120 / 144, wrapping, applied and saved at
+    once); Window Mode and Resolution on the Display page stay dropdowns.
   - **Game:** Difficulty (Easy/Normal/Hard) + Auto-Save toggle (consumed by P5). Difficulty scales
     enemy combat stats via `Character.combat_stat_multiplier` (×0.5 / ×1.0 / ×2.0, applied to battle
     copies in `BattleScene.start_battle`), Hard gives +25% gold/XP and caps healing/battle item stacks
@@ -1618,6 +1623,19 @@ own Testing Policy above — the policy (a suite per feature, registered in
     enumerate them), and full **keyboard + controller remapping** via `InputMapConfig` — named actions
     (`move_*`/`confirm`/`cancel`/`pause`) with per-device defaults, press-to-bind, per-device + global
     reset, persisted to `[input]`; `confirm`/`cancel` mirror onto `ui_accept`/`ui_cancel`.
+  - **Mouse page (Settings → Controls → Mouse):** three rows — **Cursor Shape** and **Cursor Colour** (`CyclerRow`s;
+    the shape row shows an icon of the shape in the CURRENT colour, the colour row a dot, ringed for Void and
+    Obsidian) and **Mouse Sensitivity** (`_sens_row` with the mouse's own 0.25–3.00 range and
+    `SettingsModel.MOUSE_SENS_STEP`). A shape or colour change sets the setting and calls
+    `apply_cursor_and_save()` (the live cursor follows at once, so there is no preview section); the colour row
+    also re-tints the shape row's icon. The right stick's speed stays on the Controller page.
+  - **`CyclerRow`** (`scripts/ui/CyclerRow.gd`): name · `◀` · `[icon or dot] value` · `▶`, same width for every row so
+    steppers line up. ONE focus stop: the arrows are click-only (`BattleUITheme.mark_no_focus`, so the focus guard
+    never makes them focusable), and the row consumes `ui_left`/`ui_right` while focused (`_gui_input`, stepping
+    ±1 and wrapping; a key's own echo is swallowed) so the guard's neighbour search and wrap-around never slide
+    focus sideways. `GameManager._set_scope_focusable` treats it as a focusable control, and its focus ring is
+    `BattleUITheme.focus_style()` — the same one `style_button` gives buttons. It emits `changed(index)`; the
+    screen decides what that means.
   - **Controller menu navigation (centralized focus guard):** `GameManager` tracks input mode
     (`is_controller_mode()`, `input_mode_changed`) and runs a per-frame **focus guard** (PROCESS_MODE_ALWAYS,
     works while paused). Menus call `register_focus_scope(ctrl)` / `unregister_focus_scope(ctrl)`; the
@@ -1661,6 +1679,10 @@ own Testing Policy above — the policy (a suite per feature, registered in
       because each step swaps the whole page. With the list timings a ~0.5s press advanced two tabs and
       a ~0.9s press lapped all four and landed back where it started, which reads exactly like the tab
       wrap being broken. Any press up to ~1s must move exactly one category.
+    - **Left / right belong to the control that uses them.** A held `ui_left`/`ui_right` on a `CyclerRow` keeps
+      stepping it (the repeat calls `step`), and on a `Slider` leaves focus alone. Before this, a held d-pad
+      right on any slider (the Controller page's stick sliders too) slid focus off it after the initial delay
+      (wrapping, since a slider has no neighbour on its right).
   - Suites: `settings`, `input_map`, `focus_guard`, `hold_repeat`.
 - **Phase P5 — Auto-save** (`scripts/save/AutoSaveSystem.gd` `class_name AutoSaveSystem`;
   `scripts/ui/SaveIndicator.gd` `class_name SaveIndicator`): auto-saves to the active slot on
