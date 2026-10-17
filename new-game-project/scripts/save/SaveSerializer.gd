@@ -388,6 +388,61 @@ static func deserialize_character(d: Dictionary) -> Character:
 		c.set_meta("bio", d["bio"])
 	return c
 
+# --- Roamers ---
+# One overworld enemy of the map a save was made on, as GameManager keeps it:
+# {id, group_index, position: Vector2, home: Rect2, home_poly: PackedVector2Array}.
+# JSON has no vectors, so they travel as plain number lists.
+static func serialize_roamer_state(s: Dictionary) -> Dictionary:
+	var pos: Vector2 = s.get("position", Vector2.ZERO)
+	var home: Rect2 = s.get("home", Rect2())
+	var poly: Array = []
+	for p in s.get("home_poly", PackedVector2Array()):
+		poly.append([p.x, p.y])
+	return {
+		"id": int(s.get("id", -1)),
+		"group_index": int(s.get("group_index", -1)),
+		"position": [pos.x, pos.y],
+		"home": [home.position.x, home.position.y, home.size.x, home.size.y],
+		"home_poly": poly,
+	}
+
+## A save is untrusted input: an entry whose position or area doesn't read back
+## gets group_index -1, which the overworld's restore skips, rather than being
+## placed somewhere made up.
+static func deserialize_roamer_state(d: Dictionary) -> Dictionary:
+	var pos = _numbers(d.get("position"), 2)
+	var home = _numbers(d.get("home"), 4)
+	var poly := PackedVector2Array()
+	var raw_poly = d.get("home_poly", [])
+	if raw_poly is Array:
+		for p in raw_poly:
+			var xy = _numbers(p, 2)
+			if xy != null:
+				poly.append(Vector2(xy[0], xy[1]))
+	var valid: bool = pos != null and home != null
+	return {
+		"id": _whole(d.get("id"), -1),
+		"group_index": _whole(d.get("group_index"), -1) if valid else -1,
+		"position": Vector2(pos[0], pos[1]) if pos != null else Vector2.ZERO,
+		"home": Rect2(home[0], home[1], home[2], home[3]) if home != null else Rect2(),
+		"home_poly": poly,
+	}
+
+## `v` as a whole number, or `fallback` when it isn't a number.
+static func _whole(v, fallback: int) -> int:
+	return int(v) if (v is float or v is int) else fallback
+
+## `v` as `count` floats, or null when it isn't a list of that many numbers.
+static func _numbers(v, count: int):
+	if not (v is Array) or v.size() != count:
+		return null
+	var out: Array[float] = []
+	for n in v:
+		if not (n is float or n is int):
+			return null
+		out.append(float(n))
+	return out
+
 # --- Party convenience ---
 static func serialize_party(party_arr) -> Array:
 	var arr: Array = []

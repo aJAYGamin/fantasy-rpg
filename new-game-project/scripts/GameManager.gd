@@ -85,6 +85,10 @@ var transition_origin_pos: Vector2 = Vector2.ZERO
 var roamer_region: String = ""
 var roamers_initialized: bool = false
 var roamer_states: Array = []
+## Set by the overworld scene while its roamers are live; a save calls it first,
+## so the save records where they stand now rather than where the last battle
+## left them. Invalid (unset, or its scene is gone) = use roamer_states as is.
+var roamer_snapshot: Callable = Callable()
 
 # True if we have live roamer state for `region` to restore (same region, already
 # populated). A different/empty region means "spawn fresh".
@@ -1215,7 +1219,20 @@ func _build_save_dict() -> Dictionary:
 			"x": save_overworld_position.x,
 			"y": save_overworld_position.y,
 		},
+		"roamers": _roamers_for_save(),
 	}
+
+## The roamers of the map being saved on: which are left, where each stands and
+## the area it patrols. Loading restores them only for the map the save puts the
+## player back on (see _apply_save_dict).
+func _roamers_for_save() -> Dictionary:
+	if roamer_snapshot.is_valid():
+		roamer_snapshot.call()
+	var states: Array = []
+	if roamers_initialized:
+		for s in roamer_states:
+			states.append(SaveSerializer.serialize_roamer_state(s))
+	return {"region": roamer_region if roamers_initialized else "", "states": states}
 
 func save_to_slot(slot: int) -> bool:
 	if not _is_valid_slot(slot):
@@ -1281,6 +1298,19 @@ func _apply_save_dict(data: Dictionary) -> void:
 	# A save keeps each hero's pool exactly as it was written; moves added to
 	# the game since then are appended here (Spec B, Part 7).
 	PartyFactory.top_up_party(party)
+	# The roamers come back only for the map the player resumes on — a cleared
+	# map stays cleared. Any other map, or a save from before roamers were
+	# saved, starts fresh, the same as walking into it.
+	var roamers = data.get("roamers", {})
+	var region: String = String(roamers.get("region", "")) if roamers is Dictionary else ""
+	if region != "" and region == save_overworld_scene_path:
+		var states: Array = []
+		for s in roamers.get("states", []):
+			if s is Dictionary:
+				states.append(SaveSerializer.deserialize_roamer_state(s))
+		set_roamer_state(region, states)
+	else:
+		clear_roamer_state()
 
 func load_from_slot(slot: int) -> bool:
 	if not slot_exists(slot):
@@ -1296,11 +1326,11 @@ func load_from_slot(slot: int) -> bool:
 		return false
 	_apply_save_dict(json.data)
 	active_slot = slot
-	# Loading a save enters its region fresh — drop any in-memory roamer state so
-	# the loaded area repopulates instead of restoring a different session's roamers.
+	# _apply_save_dict has put back the saved map's roamers (or cleared them).
+	# One may have been on the player's heels when the save was made, so the
+	# player arrives with the same short grace as after fleeing a battle.
 	pending_roamer_id = -1
-	pending_flee_iframes = false
-	clear_roamer_state()
+	pending_flee_iframes = true
 	emit_signal("party_updated")
 	emit_signal("gold_changed", gold)
 	print("Game loaded from slot %d." % slot)

@@ -137,6 +137,9 @@ func _ready() -> void:
 	else:
 		_spawn_initial_roamers(MAX_ROAMERS)
 		_persist_roamers()
+	# From here on, any save records where the roamers stand at that moment. Not
+	# earlier: an arrival auto-save above runs before this map has its roamers.
+	GameManager.roamer_snapshot = _persist_roamers
 
 	# Flee i-frames: if the player ran from the last battle, grant a short grace
 	# period where no roamer can pull them into another fight, and fade the player.
@@ -251,6 +254,9 @@ func _on_pause_quit() -> void:
 func _exit_tree() -> void:
 	# Leaving the overworld (to battle / main menu) stops the clock + hides its overlay.
 	GameManager.set_time_overworld(false)
+	# This map's roamers are no longer live, so a save must not ask it for them.
+	if GameManager.roamer_snapshot.get_object() == self:
+		GameManager.roamer_snapshot = Callable()
 
 func _process(delta: float) -> void:
 	# Keep the world tint current every frame (even mid-transition for a smooth fade).
