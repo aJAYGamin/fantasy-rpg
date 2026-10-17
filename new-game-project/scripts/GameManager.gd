@@ -110,7 +110,6 @@ func clear_roamer_state() -> void:
 	roamer_states = []
 
 # ─── Save/Load ───────────────────────────────────────────
-const SAVE_PATH = "user://savegame.json"  # legacy single-file save (still used by old Continue path)
 
 # Phase S1: 3-slot save system.
 # Slot files live at user://save_slot_{0,1,2}.json with full party serialization.
@@ -1162,66 +1161,6 @@ func _apply_rest_heal() -> Dictionary:
 		}
 	return healed
 
-# ─── Save System ─────────────────────────────────────────
-func save_game():
-	var save_data = {
-		"gold": gold,
-		"current_map": current_map,
-		"quests": quest_log.to_save(),
-		"time_minutes": clock.minutes,
-		"rest_swaps_remaining": rest_swaps_remaining,
-		"battles_since_rest_refresh": battles_since_rest_refresh,
-		"rest_available": rest_available,
-		"story_flags": story_flags,
-		"play_time": play_time_seconds,
-		"species_memory": species_memory,
-		"party": []
-	}
-	for c in party:
-		save_data["party"].append({
-			"name": c.character_name,
-			"level": c.level,
-			"exp": c.experience,
-			"current_hp": c.current_hp,
-			"current_mp": c.current_mp
-		})
-
-	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
-	file.store_string(JSON.stringify(save_data, "\t"))
-	file.close()
-	print("Game saved!")
-
-func load_game() -> bool:
-	if not FileAccess.file_exists(SAVE_PATH):
-		return false
-
-	var file = FileAccess.open(SAVE_PATH, FileAccess.READ)
-	var json = JSON.new()
-	var err = json.parse(file.get_as_text())
-	file.close()
-
-	if err != OK:
-		push_error("Failed to parse save file.")
-		return false
-
-	var data = json.data
-	gold = data.get("gold", 100)
-	current_map = data.get("current_map", "world_map")
-	_load_quests(data)
-	clock.set_minutes(float(data.get("time_minutes", TimeOfDay.START_MINUTES)))
-	rest_swaps_remaining = clampi(int(data.get("rest_swaps_remaining", REST_SWAP_ALLOWANCE)), 0, REST_SWAP_ALLOWANCE)
-	battles_since_rest_refresh = maxi(0, int(data.get("battles_since_rest_refresh", 0)))
-	rest_available = bool(data.get("rest_available", true))
-	story_flags = data.get("story_flags", {})
-	species_memory = data.get("species_memory", {})
-	play_time_seconds = data.get("play_time", 0.0)
-	print("Game loaded!")
-	return true
-
-func delete_save():
-	if FileAccess.file_exists(SAVE_PATH):
-		DirAccess.remove_absolute(SAVE_PATH)
-
 # ─── Slot Save System (Phase S1) ─────────────────────────
 func _slot_path(slot: int) -> String:
 	return SAVE_PATH_FORMAT % slot
@@ -1268,6 +1207,7 @@ func _build_save_dict() -> Dictionary:
 		"rest_swaps_remaining": rest_swaps_remaining,
 		"battles_since_rest_refresh": battles_since_rest_refresh,
 		"rest_available": rest_available,
+		"inn_cost_tier": inn_cost_tier,
 		"story_flags": story_flags,
 		"current_map": current_map,
 		"overworld_scene_path": save_overworld_scene_path,
@@ -1313,6 +1253,35 @@ func autosave(scene_path: String, position: Vector2) -> bool:
 	autosave_finished.emit(ok)
 	return ok
 
+## The other half of _build_save_dict: puts a save's contents back into the
+## game. Data only — what entering a loaded game also does (the slot, roamers,
+## signals) stays in load_from_slot. Every field missing from an older save
+## falls back to its new-game value.
+func _apply_save_dict(data: Dictionary) -> void:
+	gold = int(data.get("gold", 100))
+	# JSON has one number type, so counts come back as decimals; keep them whole.
+	species_memory = {}
+	var memory = data.get("species_memory", {})
+	if memory is Dictionary:
+		for species in memory:
+			species_memory[String(species)] = int(memory[species])
+	_load_quests(data)
+	clock.set_minutes(float(data.get("time_minutes", TimeOfDay.START_MINUTES)))
+	rest_swaps_remaining = clampi(int(data.get("rest_swaps_remaining", REST_SWAP_ALLOWANCE)), 0, REST_SWAP_ALLOWANCE)
+	battles_since_rest_refresh = maxi(0, int(data.get("battles_since_rest_refresh", 0)))
+	rest_available = bool(data.get("rest_available", true))
+	inn_cost_tier = maxi(0, int(data.get("inn_cost_tier", 0)))
+	story_flags = data.get("story_flags", {})
+	current_map = data.get("current_map", "world_map")
+	play_time_seconds = float(data.get("metadata", {}).get("playtime_seconds", 0.0))
+	save_overworld_scene_path = data.get("overworld_scene_path", "")
+	var pos_data = data.get("overworld_position", {"x": 0, "y": 0})
+	save_overworld_position = Vector2(float(pos_data.get("x", 0)), float(pos_data.get("y", 0)))
+	party = SaveSerializer.deserialize_party(data.get("party", []))
+	# A save keeps each hero's pool exactly as it was written; moves added to
+	# the game since then are appended here (Spec B, Part 7).
+	PartyFactory.top_up_party(party)
+
 func load_from_slot(slot: int) -> bool:
 	if not slot_exists(slot):
 		return false
@@ -1325,24 +1294,7 @@ func load_from_slot(slot: int) -> bool:
 	if err != OK:
 		push_error("Failed to parse save slot %d" % slot)
 		return false
-	var data = json.data
-	gold = int(data.get("gold", 100))
-	species_memory = data.get("species_memory", {})
-	_load_quests(data)
-	clock.set_minutes(float(data.get("time_minutes", TimeOfDay.START_MINUTES)))
-	rest_swaps_remaining = clampi(int(data.get("rest_swaps_remaining", REST_SWAP_ALLOWANCE)), 0, REST_SWAP_ALLOWANCE)
-	battles_since_rest_refresh = maxi(0, int(data.get("battles_since_rest_refresh", 0)))
-	rest_available = bool(data.get("rest_available", true))
-	story_flags = data.get("story_flags", {})
-	current_map = data.get("current_map", "world_map")
-	play_time_seconds = float(data.get("metadata", {}).get("playtime_seconds", 0.0))
-	save_overworld_scene_path = data.get("overworld_scene_path", "")
-	var pos_data = data.get("overworld_position", {"x": 0, "y": 0})
-	save_overworld_position = Vector2(float(pos_data.get("x", 0)), float(pos_data.get("y", 0)))
-	party = SaveSerializer.deserialize_party(data.get("party", []))
-	# A save keeps each hero's pool exactly as it was written; moves added to
-	# the game since then are appended here (Spec B, Part 7).
-	PartyFactory.top_up_party(party)
+	_apply_save_dict(json.data)
 	active_slot = slot
 	# Loading a save enters its region fresh — drop any in-memory roamer state so
 	# the loaded area repopulates instead of restoring a different session's roamers.
