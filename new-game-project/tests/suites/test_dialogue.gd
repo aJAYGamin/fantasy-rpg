@@ -5,6 +5,8 @@ extends TestSuite
 ## DialogueBox is a passive signal listener and isn't exercised here. Every test
 ## fully ends its conversation so no state leaks into the next.
 
+const OverworldScene := preload("res://scripts/overworld/OverworldScene.gd")
+
 func suite_name() -> String:
 	return "Dialogue"
 
@@ -73,3 +75,18 @@ func test_out_of_range_choice_is_noop() -> void:
 	assert_true(DialogueManager.is_active(), "out-of-range choice is ignored")
 	DialogueManager.choose(0)
 	assert_false(DialogueManager.is_active(), "a valid choice then resolves it")
+
+# --- the pause key during a conversation --------------------------------------
+
+func test_the_pause_key_waits_for_a_conversation_to_end() -> void:
+	# The dialogue box (layer 50) draws above the pause menu (layer 10): opened
+	# mid-conversation, the box covered the menu's lower buttons, and a click on it
+	# advanced the talk underneath. A conversation is modal (the player can't walk,
+	# the clock stops), so the pause key now waits for it to end.
+	DialogueManager.play_lines("Bob", ["one"])
+	assert_false(OverworldScene.pause_menu_allowed(false, false, DialogueManager.is_active()),
+		"no pause menu while someone is talking")
+	DialogueManager.advance()
+	assert_false(DialogueManager.is_active(), "the conversation is over")
+	assert_true(OverworldScene.pause_menu_allowed(false, false, DialogueManager.is_active()),
+		"and then the pause key opens the menu")
