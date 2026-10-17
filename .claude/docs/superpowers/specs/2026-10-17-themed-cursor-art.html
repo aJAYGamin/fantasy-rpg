@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Themed cursor — art reference</title>
+<style>
+  body { background:#17131F; color:#EBDBFF; font-family:system-ui, sans-serif; margin:24px; }
+  h2 { font-weight:600; } .subtitle { color:#C7A6F2; max-width:900px; line-height:1.5; }
+</style>
+</head>
+<body>
+<style>
+  .wrap { overflow-x:auto; padding-bottom:6px; }
+  .sheet { border-collapse:separate; border-spacing:3px; margin:0 auto; }
+  .sheet th { color:#C7A6F2; font-size:10px; font-weight:600; letter-spacing:.02em; padding:2px 0 4px; white-space:nowrap; vertical-align:bottom; }
+  .sheet th .sw { display:block; width:13px; height:13px; border-radius:50%; margin:0 auto 3px; }
+  .sheet th em { display:block; font-style:normal; color:#FFD27A; font-size:9px; font-weight:700; letter-spacing:.06em; }
+  .sheet th.row { text-align:right; padding-right:8px; font-size:12px; color:#EBDBFF; vertical-align:middle; }
+  .sheet th.row small { display:block; color:#9C8BB8; font-weight:400; font-size:10px; }
+  td.cell { cursor:pointer; border-radius:7px; padding:1px; }
+  td.cell:hover { background:#2A1F3D; }
+  td.cell.selected { outline:2px solid #FF6B6B; outline-offset:-1px; background:#3A1F2A; }
+  td.cell .t { display:flex; align-items:center; justify-content:center; width:32px; height:34px; margin:2px auto; border-radius:5px; background:#120D1F; }
+  td.cell .t.lt { background:linear-gradient(135deg,#7DB84A 0%,#A9D16B 50%,#D9C77F 100%); }
+  td.cell svg { width:24px; height:28px; display:block; transition:transform .12s, filter .12s; }
+  /* The hover glow, exactly as in-game: 20% brighter, two soft glows in the colour. */
+  td.cell:hover svg { transform:scale(1.6); position:relative; z-index:3; filter:brightness(1.2) drop-shadow(0 0 4px var(--glow1)) drop-shadow(0 0 8px var(--glow2)); }
+  .legend { color:#C7A6F2; font-size:12px; text-align:center; margin:10px 0 0; }
+  .cell { --edge: rgba(8,5,16,.85); --glow1: var(--s2); --glow2: var(--s4); }
+  td.cell.chg { box-shadow: inset 0 0 0 1.5px #FFD27A; }
+
+  .c-amethyst{--s0:#E2D0FF;--s1:#C9A8FF;--s2:#B48CFF;--s3:#9C6BF5;--s4:#7E4FE0;--s5:#6A3BC9;--s6:#4B2A99;--s7:#3A2860;--rim:#EBDBFF;--flat:#A87BFF;--border:#1A1030;--grad:url(#ga-amethyst);--night:url(#gn-amethyst)}
+  .c-arcane{--s0:#FBE0FF;--s1:#F2BFFF;--s2:#E394FA;--s3:#D06BF0;--s4:#B84FDB;--s5:#9A36BF;--s6:#6A1F8A;--s7:#48145E;--rim:#FBE6FF;--flat:#D06BF0;--border:#22082D;--grad:url(#ga-arcane);--night:url(#gn-arcane)}
+  .c-rose{--s0:#FFF0F8;--s1:#FFE0F2;--s2:#FFC2E8;--s3:#FF9AD2;--s4:#F078B8;--s5:#E0559E;--s6:#A3295F;--s7:#6E1C40;--rim:#FFE8F5;--flat:#FF8FCB;--border:#2A0A1A;--grad:url(#ga-rose);--night:url(#gn-rose)}
+  .c-garnet{--s0:#FFD6DE;--s1:#F5A3B4;--s2:#E36A84;--s3:#C93A5A;--s4:#A8213F;--s5:#87132E;--s6:#5C0A1E;--s7:#3D0613;--rim:#FFDCE3;--flat:#B82C4B;--border:#1F030A;--grad:url(#ga-garnet);--night:url(#gn-garnet)}
+  .c-ember{--s0:#FFE6E6;--s1:#FFD0D0;--s2:#FFA8A8;--s3:#FF7A7A;--s4:#EB5555;--s5:#D93A3A;--s6:#9E1F1F;--s7:#6E1515;--rim:#FFE6E6;--flat:#FF7070;--border:#2A0B0B;--grad:url(#ga-ember);--night:url(#gn-ember)}
+  .c-blaze{--s0:#FFF0E3;--s1:#FFD9B8;--s2:#FFBC85;--s3:#FF9A4D;--s4:#F57F26;--s5:#E0650F;--s6:#A84400;--s7:#702E00;--rim:#FFEFE0;--flat:#FF8C3A;--border:#2A1405;--grad:url(#ga-blaze);--night:url(#gn-blaze)}
+  .c-gilded{--s0:#FFF6D6;--s1:#FFE7A3;--s2:#F9D36B;--s3:#EDB938;--s4:#D49A1C;--s5:#B07A0E;--s6:#74500A;--s7:#4D3506;--rim:#FFF3CC;--flat:#EDB938;--border:#261A03;--grad:url(#ga-gilded);--night:url(#gn-gilded)}
+  .c-storm{--s0:#FFFDE6;--s1:#FFF8C8;--s2:#FFEE8A;--s3:#FFE45C;--s4:#F2CC2A;--s5:#E6B800;--s6:#A37A00;--s7:#6E5300;--rim:#FFFBE0;--flat:#FFDF4D;--border:#2A2000;--grad:url(#ga-storm);--night:url(#gn-storm)}
+  .c-terra{--s0:#FFF4E6;--s1:#F7DDB5;--s2:#EEC48E;--s3:#E0A868;--s4:#CC8F50;--s5:#B9783A;--s6:#7A4A1E;--s7:#55331A;--rim:#FFF1DC;--flat:#E6A862;--border:#241405;--grad:url(#ga-terra);--night:url(#gn-terra)}
+  .c-venom{--s0:#F6FFDB;--s1:#E6FFA8;--s2:#D2FA6E;--s3:#BDF23A;--s4:#A2DB1F;--s5:#84BF0F;--s6:#557F05;--s7:#385503;--rim:#F4FFD6;--flat:#B6F23A;--border:#172303;--grad:url(#ga-venom);--night:url(#gn-venom)}
+  .c-gale{--s0:#EFFFEA;--s1:#DFFFD6;--s2:#C2F7B0;--s3:#A6F28F;--s4:#80DE6A;--s5:#5FCC48;--s6:#34912A;--s7:#23631C;--rim:#EFFFEA;--flat:#8CE870;--border:#0E240A;--grad:url(#ga-gale);--night:url(#gn-gale)}
+  .c-grove{--s0:#D9FFE8;--s1:#A8F0C6;--s2:#6FDB9E;--s3:#3CC27A;--s4:#22A35E;--s5:#158448;--s6:#0B5C30;--s7:#063D20;--rim:#DFFFEC;--flat:#2FB56C;--border:#031A0D;--grad:url(#ga-grove);--night:url(#gn-grove)}
+  .c-spirit{--s0:#ECFFF9;--s1:#D6FFF2;--s2:#B0F8E2;--s3:#8FF2D3;--s4:#66DDBA;--s5:#3FC9A3;--s6:#1F8F75;--s7:#156250;--rim:#E6FFF8;--flat:#70E6C4;--border:#08241D;--grad:url(#ga-spirit);--night:url(#gn-spirit)}
+  .c-frost{--s0:#F7FEFF;--s1:#E0FBFF;--s2:#C2F4FF;--s3:#A8EEFF;--s4:#7FDDF2;--s5:#5CCFEA;--s6:#2A8FB0;--s7:#1E6A82;--rim:#F0FDFF;--flat:#8FE6F7;--border:#0A2028;--grad:url(#ga-frost);--night:url(#gn-frost)}
+  .c-tidal{--s0:#E3F1FF;--s1:#CDE6FF;--s2:#A6D2FF;--s3:#7DBBFF;--s4:#4DA0F0;--s5:#3C8AE6;--s6:#1F5BB0;--s7:#15406F;--rim:#E6F2FF;--flat:#6FB4FF;--border:#0B1A30;--grad:url(#ga-tidal);--night:url(#gn-tidal)}
+  .c-abyss{--s0:#C9D3FF;--s1:#9DABF5;--s2:#7184E6;--s3:#4E62CF;--s4:#3747AD;--s5:#26338A;--s6:#172160;--s7:#0E1540;--rim:#C9D3FF;--flat:#3A4CC2;--border:#070A1C;--grad:url(#ga-abyss);--night:url(#gn-abyss)}
+  .c-void{--s0:#6B55A0;--s1:#5B4385;--s2:#4A3570;--s3:#3A2860;--s4:#2E2050;--s5:#24183F;--s6:#120D1F;--s7:#0B0814;--rim:#B48CFF;--flat:#2E2050;--border:#B48CFF;--grad:url(#ga-void);--night:url(#gn-void)}
+  .c-obsidian{--s0:#8C8C99;--s1:#6E6E7A;--s2:#55555F;--s3:#3E3E47;--s4:#2E2E36;--s5:#222228;--s6:#141418;--s7:#0A0A0D;--rim:#D9D9E6;--flat:#2A2A31;--border:#D9D9E6;--grad:url(#ga-obsidian);--night:url(#gn-obsidian)}
+  .c-steel{--s0:#E3E8EF;--s1:#C9D2DE;--s2:#AEB9C8;--s3:#93A1B3;--s4:#788799;--s5:#5F6E80;--s6:#3F4A57;--s7:#2B333D;--rim:#EEF2F7;--flat:#8D9BAD;--border:#161B21;--grad:url(#ga-steel);--night:url(#gn-steel)}
+  .c-lunar{--s0:#FFFFFF;--s1:#F7F8FC;--s2:#E6E9F2;--s3:#D3D8E6;--s4:#B9C0D4;--s5:#9CA5BF;--s6:#6E7894;--s7:#4D556B;--rim:#FFFFFF;--flat:#EEF1F8;--border:#2B3247;--grad:url(#ga-lunar);--night:url(#gn-lunar)}
+
+  /* AK Brilliant Diamond: the centre is a clear tint of the colour, not near-white,
+     with every bevel a step darker. Void, Obsidian and Lunar keep their original cut. */
+  .cell { --akt:var(--s2); --ak1:var(--s3); --ak2:var(--s4); --ak3:var(--s5); --ak4:var(--s6); }
+  .c-void, .c-obsidian, .c-lunar { --akt:var(--s0); --ak1:var(--s1); --ak2:var(--s3); --ak3:var(--s5); --ak4:var(--s6); }
+
+  /* AR Trilliant: two shades darker with a heavier edge so it stands off the plains.
+     Void, Obsidian and Lunar keep their original cut. */
+  .cell { --ar0:var(--s2); --ar1:var(--s3); --ar2:var(--s4); --ar3:var(--s5); --ar4:var(--s5); --ar5:var(--s6); --ar6:var(--s7); --arew:3.8; }
+  .c-void, .c-obsidian, .c-lunar { --ar0:var(--s0); --ar1:var(--s1); --ar2:var(--s2); --ar3:var(--s3); --ar4:var(--s4); --ar5:var(--s5); --ar6:var(--s6); --arew:3; }
+
+  /* Hover glow colours: a light and a mid tone of the colour (s2, s4). The dark and
+     white colours glow in their rim colour instead, as Void did on the mockups. */
+  .c-void { --glow1:#B48CFF; --glow2:#8C59F2; }
+  .c-obsidian { --glow1:#D9D9E6; --glow2:#8C8C99; }
+  .c-lunar { --glow1:#FFFFFF; --glow2:#B9C0D4; }
+</style>
+
+<h2>Themed cursor — final art (10 shapes × 20 colours)</h2>
+<p class="subtitle">Source of truth for the cursor art in <code>2026-10-17-themed-cursor-design.md</code>. Each shape is an SVG <code>symbol</code> whose paints come from the colour's palette (CSS custom properties <code>--s0</code>…<code>--s7</code> light→dark, <code>--rim</code>, <code>--flat</code>, <code>--border</code>, gradients <code>--grad</code>/<code>--night</code>, and the shared dark <code>--edge</code>). AK and AR read their own slot maps (<code>--ak*</code>, <code>--ar*</code>), with Void, Obsidian and Lunar keeping the original cut. Top tile: over a dark menu; bottom tile: over the bright plains. The hotspot of every shape is its tip at (1.5, 1.5) — (2.5, 2.5) for AB — in symbol units.</p>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="ga-amethyst" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B48CFF"/><stop offset="1" stop-color="#4B2A99"/></linearGradient>
+    <linearGradient id="ga-arcane" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E394FA"/><stop offset="1" stop-color="#6A1F8A"/></linearGradient>
+    <linearGradient id="ga-rose" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFC2E8"/><stop offset="1" stop-color="#A3295F"/></linearGradient>
+    <linearGradient id="ga-garnet" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E36A84"/><stop offset="1" stop-color="#5C0A1E"/></linearGradient>
+    <linearGradient id="ga-ember" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFA8A8"/><stop offset="1" stop-color="#9E1F1F"/></linearGradient>
+    <linearGradient id="ga-blaze" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFBC85"/><stop offset="1" stop-color="#A84400"/></linearGradient>
+    <linearGradient id="ga-gilded" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F9D36B"/><stop offset="1" stop-color="#74500A"/></linearGradient>
+    <linearGradient id="ga-storm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFEE8A"/><stop offset="1" stop-color="#A37A00"/></linearGradient>
+    <linearGradient id="ga-terra" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#EEC48E"/><stop offset="1" stop-color="#7A4A1E"/></linearGradient>
+    <linearGradient id="ga-venom" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D2FA6E"/><stop offset="1" stop-color="#557F05"/></linearGradient>
+    <linearGradient id="ga-gale" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#C2F7B0"/><stop offset="1" stop-color="#34912A"/></linearGradient>
+    <linearGradient id="ga-grove" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6FDB9E"/><stop offset="1" stop-color="#0B5C30"/></linearGradient>
+    <linearGradient id="ga-spirit" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B0F8E2"/><stop offset="1" stop-color="#1F8F75"/></linearGradient>
+    <linearGradient id="ga-frost" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#C2F4FF"/><stop offset="1" stop-color="#2A8FB0"/></linearGradient>
+    <linearGradient id="ga-tidal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A6D2FF"/><stop offset="1" stop-color="#1F5BB0"/></linearGradient>
+    <linearGradient id="ga-abyss" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7184E6"/><stop offset="1" stop-color="#172160"/></linearGradient>
+    <linearGradient id="ga-void" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4A3570"/><stop offset="1" stop-color="#120D1F"/></linearGradient>
+    <linearGradient id="ga-obsidian" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#55555F"/><stop offset="1" stop-color="#0A0A0D"/></linearGradient>
+    <linearGradient id="ga-steel" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#C9D2DE"/><stop offset="1" stop-color="#3F4A57"/></linearGradient>
+    <linearGradient id="ga-lunar" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#9CA5BF"/></linearGradient>
+
+    <linearGradient id="gn-amethyst" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6A3BC9"/><stop offset=".55" stop-color="#3A2860"/><stop offset="1" stop-color="#140C24"/></linearGradient>
+    <linearGradient id="gn-arcane" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9A36BF"/><stop offset=".55" stop-color="#48145E"/><stop offset="1" stop-color="#18061F"/></linearGradient>
+    <linearGradient id="gn-rose" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E0559E"/><stop offset=".55" stop-color="#6E1C40"/><stop offset="1" stop-color="#220816"/></linearGradient>
+    <linearGradient id="gn-garnet" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#87132E"/><stop offset=".55" stop-color="#3D0613"/><stop offset="1" stop-color="#14020A"/></linearGradient>
+    <linearGradient id="gn-ember" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D93A3A"/><stop offset=".55" stop-color="#6E1515"/><stop offset="1" stop-color="#220707"/></linearGradient>
+    <linearGradient id="gn-blaze" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E0650F"/><stop offset=".55" stop-color="#702E00"/><stop offset="1" stop-color="#241000"/></linearGradient>
+    <linearGradient id="gn-gilded" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B07A0E"/><stop offset=".55" stop-color="#4D3506"/><stop offset="1" stop-color="#1A1203"/></linearGradient>
+    <linearGradient id="gn-storm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E6B800"/><stop offset=".55" stop-color="#6E5300"/><stop offset="1" stop-color="#1F1800"/></linearGradient>
+    <linearGradient id="gn-terra" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B9783A"/><stop offset=".55" stop-color="#55331A"/><stop offset="1" stop-color="#1E1005"/></linearGradient>
+    <linearGradient id="gn-venom" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#84BF0F"/><stop offset=".55" stop-color="#385503"/><stop offset="1" stop-color="#121C02"/></linearGradient>
+    <linearGradient id="gn-gale" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5FCC48"/><stop offset=".55" stop-color="#23631C"/><stop offset="1" stop-color="#0A1C08"/></linearGradient>
+    <linearGradient id="gn-grove" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#158448"/><stop offset=".55" stop-color="#063D20"/><stop offset="1" stop-color="#021209"/></linearGradient>
+    <linearGradient id="gn-spirit" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3FC9A3"/><stop offset=".55" stop-color="#156250"/><stop offset="1" stop-color="#061E18"/></linearGradient>
+    <linearGradient id="gn-frost" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5CCFEA"/><stop offset=".55" stop-color="#1E6A82"/><stop offset="1" stop-color="#081C24"/></linearGradient>
+    <linearGradient id="gn-tidal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3C8AE6"/><stop offset=".55" stop-color="#15406F"/><stop offset="1" stop-color="#07142A"/></linearGradient>
+    <linearGradient id="gn-abyss" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#26338A"/><stop offset=".55" stop-color="#0E1540"/><stop offset="1" stop-color="#04061A"/></linearGradient>
+    <linearGradient id="gn-void" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4A3570"/><stop offset=".55" stop-color="#24183F"/><stop offset="1" stop-color="#0B0814"/></linearGradient>
+    <linearGradient id="gn-obsidian" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3E3E47"/><stop offset=".55" stop-color="#1A1A1F"/><stop offset="1" stop-color="#050506"/></linearGradient>
+    <linearGradient id="gn-steel" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5F6E80"/><stop offset=".55" stop-color="#2B333D"/><stop offset="1" stop-color="#0E1115"/></linearGradient>
+    <linearGradient id="gn-lunar" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9CA5BF"/><stop offset=".55" stop-color="#4D556B"/><stop offset="1" stop-color="#1A1E2A"/></linearGradient>
+
+    <clipPath id="aclip"><path d="M1.5,1.5 L1.5,22 L6.8,16.8 L10.6,25.8 L14,24.3 L10.3,15.4 L17.6,15.4 Z"/></clipPath>
+
+    <symbol id="A" viewBox="-1 -1 21 29">
+      <path d="M1.5,1.5 L1.5,22 L6.8,16.8 L10.6,25.8 L14,24.3 L10.3,15.4 L17.6,15.4 Z" style="fill:none;stroke:var(--edge)" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M1.5,1.5 L1.5,22 L6.8,16.8 L10.6,25.8 L14,24.3 L10.3,15.4 L17.6,15.4 Z" style="fill:var(--grad);stroke:var(--rim)" stroke-width="1.4" stroke-linejoin="round"/>
+    </symbol>
+
+    <symbol id="B" viewBox="-1 -1 25 25">
+      <polygon points="1.5,1.5 14,5 21.5,21.5 5,14" style="fill:none;stroke:var(--edge)" stroke-width="3" stroke-linejoin="round"/>
+      <polygon points="1.5,1.5 14,5 11,11" style="fill:var(--s1)"/><polygon points="1.5,1.5 11,11 5,14" style="fill:var(--s3)"/>
+      <polygon points="14,5 21.5,21.5 11,11" style="fill:var(--s5)"/><polygon points="5,14 11,11 21.5,21.5" style="fill:var(--s6)"/>
+      <polygon points="1.5,1.5 14,5 21.5,21.5 5,14" style="fill:none;stroke:var(--rim)" stroke-width="1.3" stroke-linejoin="round"/>
+    </symbol>
+
+    <symbol id="K" viewBox="-1 -1 21 29">
+      <path d="M1.5,1.5 L1.5,22 L6.8,16.8 L10.6,25.8 L14,24.3 L10.3,15.4 L17.6,15.4 Z" style="fill:none;stroke:var(--edge)" stroke-width="3" stroke-linejoin="round"/>
+      <polygon points="1.5,1.5 1.5,22 6.5,13" style="fill:var(--s1)"/><polygon points="1.5,1.5 6.5,13 17.6,15.4" style="fill:var(--s3)"/>
+      <polygon points="1.5,22 6.8,16.8 10.3,15.4 6.5,13" style="fill:var(--s5)"/><polygon points="6.5,13 10.3,15.4 17.6,15.4" style="fill:var(--s4)"/>
+      <polygon points="6.8,16.8 10.6,25.8 14,24.3 10.3,15.4" style="fill:var(--s6)"/>
+      <path d="M1.5,1.5 L1.5,22 L6.8,16.8 L10.6,25.8 L14,24.3 L10.3,15.4 L17.6,15.4 Z" style="fill:none;stroke:var(--rim)" stroke-width="1.3" stroke-linejoin="round"/>
+    </symbol>
+
+    <symbol id="L" viewBox="-1 -1 25 25">
+      <polygon points="1.5,1.5 21,9 11.5,11.5 9,21" style="fill:none;stroke:var(--edge)" stroke-width="3" stroke-linejoin="round"/>
+      <polygon points="1.5,1.5 21,9 11.5,11.5" style="fill:var(--s1)"/><polygon points="1.5,1.5 11.5,11.5 9,21" style="fill:var(--s5)"/>
+      <polygon points="1.5,1.5 21,9 11.5,11.5 9,21" style="fill:none;stroke:var(--rim)" stroke-width="1.3" stroke-linejoin="round"/>
+    </symbol>
+
+    <symbol id="S" viewBox="-1 -1 23 23">
+      <polygon points="1.5,1.5 19,8 8,19" style="fill:none;stroke:var(--edge)" stroke-width="3" stroke-linejoin="round"/>
+      <polygon points="1.5,1.5 19,8 14.725,8.675 5.1,5.1" style="fill:var(--s1)"/>
+      <polygon points="1.5,1.5 5.1,5.1 8.675,14.725 8,19" style="fill:var(--s3)"/>
+      <polygon points="19,8 8,19 8.675,14.725 14.725,8.675" style="fill:var(--s6)"/>
+      <polygon points="5.1,5.1 14.725,8.675 8.675,14.725" style="fill:var(--s4)"/>
+      <polygon points="1.5,1.5 19,8 8,19" style="fill:none;stroke:var(--rim)" stroke-width="1.3" stroke-linejoin="round"/>
+    </symbol>
+
+    <symbol id="AB" viewBox="-1 -1 23 31">
+      <path d="M2.5,2.5 L2.5,23 L7.8,17.8 L11.6,26.8 L15,25.3 L11.3,16.4 L18.6,16.4 Z" style="fill:none;stroke:var(--edge)" stroke-width="5.2" stroke-linejoin="round"/>
+      <path d="M2.5,2.5 L2.5,23 L7.8,17.8 L11.6,26.8 L15,25.3 L11.3,16.4 L18.6,16.4 Z" style="fill:none;stroke:var(--border)" stroke-width="3.6" stroke-linejoin="round"/>
+      <path d="M2.5,2.5 L2.5,23 L7.8,17.8 L11.6,26.8 L15,25.3 L11.3,16.4 L18.6,16.4 Z" style="fill:var(--flat)"/>
+      <path d="M4.4,7 L4.4,16.5" style="stroke:var(--s0)" stroke-width="1.4" stroke-linecap="round"/>
+    </symbol>
+
+    <symbol id="AK" viewBox="-1 -1 22 22">
+      <polygon points="1.5,1.5 13.93,6.57 19,19 6.57,13.93" style="fill:none;stroke:var(--edge)" stroke-width="3" stroke-linejoin="round"/>
+      <polygon points="1.5,1.5 13.93,6.57 11.91,8.59 6.31,6.31" style="fill:var(--ak1)"/>
+      <polygon points="1.5,1.5 6.31,6.31 8.59,11.91 6.57,13.93" style="fill:var(--ak2)"/>
+      <polygon points="13.93,6.57 19,19 14.19,14.19 11.91,8.59" style="fill:var(--ak3)"/>
+      <polygon points="6.57,13.93 8.59,11.91 14.19,14.19 19,19" style="fill:var(--ak4)"/>
+      <polygon points="6.31,6.31 11.91,8.59 14.19,14.19 8.59,11.91" style="fill:var(--akt)"/>
+      <polygon points="1.5,1.5 13.93,6.57 19,19 6.57,13.93" style="fill:none;stroke:var(--rim)" stroke-width="1.3" stroke-linejoin="round"/>
+    </symbol>
+
+    <symbol id="AR" viewBox="-1 -1 22 22">
+      <path d="M1.5,1.5 Q10.69,1.98 19,8 Q15.48,15.48 8,19 Q1.98,10.69 1.5,1.5 Z" style="fill:none;stroke:var(--edge);stroke-width:var(--arew)" stroke-linejoin="round"/>
+      <path d="M1.5,1.5 Q10.69,1.98 19,8 Q15.48,15.48 8,19 Q1.98,10.69 1.5,1.5 Z" style="fill:var(--ar3)"/>
+      <polygon points="1.5,1.5 10.47,3.37 5.1,5.1" style="fill:var(--ar1)"/>
+      <polygon points="1.5,1.5 5.1,5.1 3.37,10.47" style="fill:var(--ar2)"/>
+      <polygon points="10.47,3.37 14.725,8.675 5.1,5.1" style="fill:var(--ar2)"/>
+      <polygon points="10.47,3.37 19,8 14.725,8.675" style="fill:var(--ar3)"/>
+      <polygon points="19,8 14.49,14.49 14.725,8.675" style="fill:var(--ar5)"/>
+      <polygon points="14.49,14.49 8.675,14.725 14.725,8.675" style="fill:var(--ar4)"/>
+      <polygon points="14.49,14.49 8,19 8.675,14.725" style="fill:var(--ar6)"/>
+      <polygon points="8,19 3.37,10.47 8.675,14.725" style="fill:var(--ar5)"/>
+      <polygon points="3.37,10.47 5.1,5.1 8.675,14.725" style="fill:var(--ar3)"/>
+      <polygon points="5.1,5.1 14.725,8.675 8.675,14.725" style="fill:var(--ar0)"/>
+      <path d="M5.1,5.1 L14.725,8.675 L8.675,14.725 Z M1.5,1.5 L5.1,5.1 M19,8 L14.725,8.675 M8,19 L8.675,14.725" fill="none" stroke="#FFFFFF" stroke-width=".3" opacity=".5"/>
+      <path d="M1.5,1.5 Q10.69,1.98 19,8 Q15.48,15.48 8,19 Q1.98,10.69 1.5,1.5 Z" style="fill:none;stroke:var(--rim)" stroke-width="1.3" stroke-linejoin="round"/>
+    </symbol>
+
+    <symbol id="AS" viewBox="-1 -1 21 29">
+      <path d="M1.5,1.5 L1.5,22 L6.8,16.8 L10.6,25.8 L14,24.3 L10.3,15.4 L17.6,15.4 Z" style="fill:none;stroke:var(--edge)" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M1.5,1.5 L1.5,22 L6.8,16.8 L10.6,25.8 L14,24.3 L10.3,15.4 L17.6,15.4 Z" style="fill:var(--night)"/>
+      <g clip-path="url(#aclip)">
+        <ellipse cx="7" cy="13" rx="9" ry="2.2" transform="rotate(48 7 13)" style="fill:var(--s3)" opacity=".35"/>
+        <g fill="#FFFFFF">
+          <circle cx="3.2" cy="5.2" r=".5"/><circle cx="6.6" cy="7" r=".3"/><circle cx="3.6" cy="12.6" r=".55"/>
+          <circle cx="8.6" cy="12.4" r=".35"/><circle cx="12" cy="13.8" r=".3"/><circle cx="4.4" cy="18.2" r=".4"/>
+          <circle cx="9.3" cy="19.8" r=".3"/><circle cx="11.6" cy="22.8" r=".4"/><circle cx="5.6" cy="10" r=".25"/>
+        </g>
+        <path d="M5,9 l.35,.8 .8,.35 -.8,.35 -.35,.8 -.35,-.8 -.8,-.35 .8,-.35z" fill="#FFF3B0"/>
+      </g>
+      <path d="M1.5,1.5 L1.5,22 L6.8,16.8 L10.6,25.8 L14,24.3 L10.3,15.4 L17.6,15.4 Z" style="fill:none;stroke:var(--rim)" stroke-width="1.3" stroke-linejoin="round"/>
+    </symbol>
+
+    <symbol id="AV" viewBox="-1 -1 21 29">
+      <path d="M1.5,1.5 L1.5,22 L6.8,16.8 L10.6,25.8 L14,24.3 L10.3,15.4 L17.6,15.4 Z" style="fill:none;stroke:var(--edge)" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M1.5,1.5 L1.5,22 L6.8,16.8 L10.6,25.8 L14,24.3 L10.3,15.4 L17.6,15.4 Z" style="fill:var(--s5)"/>
+      <polygon points="1.5,1.5 6.33,5.67 4,8" style="fill:var(--s0)"/>
+      <polygon points="1.5,1.5 4,8 1.5,10" style="fill:var(--s1)"/>
+      <polygon points="6.33,5.67 8.5,9.5 4,8" style="fill:var(--s2)"/>
+      <polygon points="6.33,5.67 11.48,10.12 8.5,9.5" style="fill:var(--s3)"/>
+      <polygon points="4,8 8.5,9.5 7.5,13.8" style="fill:var(--s3)"/>
+      <polygon points="4,8 7.5,13.8 1.5,10" style="fill:var(--s2)"/>
+      <polygon points="1.5,10 7.5,13.8 3.6,15" style="fill:var(--s4)"/>
+      <polygon points="1.5,10 3.6,15 1.5,16.5" style="fill:var(--s3)"/>
+      <polygon points="8.5,9.5 11.48,10.12 12.5,13" style="fill:var(--s4)"/>
+      <polygon points="11.48,10.12 17.6,15.4 12.5,13" style="fill:var(--s5)"/>
+      <polygon points="12.5,13 17.6,15.4 10.3,15.4" style="fill:var(--s6)"/>
+      <polygon points="8.5,9.5 12.5,13 7.5,13.8" style="fill:var(--s4)"/>
+      <polygon points="7.5,13.8 12.5,13 10.3,15.4" style="fill:var(--s5)"/>
+      <polygon points="7.5,13.8 10.3,15.4 6.8,16.8" style="fill:var(--s6)"/>
+      <polygon points="3.6,15 7.5,13.8 6.8,16.8" style="fill:var(--s5)"/>
+      <polygon points="1.5,16.5 3.6,15 6.8,16.8" style="fill:var(--s4)"/>
+      <polygon points="1.5,16.5 6.8,16.8 1.5,22" style="fill:var(--s6)"/>
+      <polygon points="6.8,16.8 9,19.5 10.3,15.4" style="fill:var(--s5)"/>
+      <polygon points="10.3,15.4 9,19.5 11.4,20.5" style="fill:var(--s6)"/>
+      <polygon points="10.3,15.4 11.4,20.5 14,24.3" style="fill:var(--s5)"/>
+      <polygon points="9,19.5 10.6,25.8 11.4,20.5" style="fill:var(--s6)"/>
+      <polygon points="11.4,20.5 10.6,25.8 14,24.3" style="fill:var(--s7)"/>
+      <polygon points="6.8,16.8 10.6,25.8 9,19.5" style="fill:var(--s4)"/>
+      <path d="M1.5,1.5 L1.5,22 L6.8,16.8 L10.6,25.8 L14,24.3 L10.3,15.4 L17.6,15.4 Z" style="fill:none;stroke:var(--rim)" stroke-width="1.25" stroke-linejoin="round"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="wrap"><div class="cards" data-multiselect><table class="sheet" id="sheet"></table></div></div>
+<p class="legend">Top tile: over a dark menu · bottom tile: over the bright plains · hover a cursor to see it enlarged with its hover glow.</p>
+
+<script>
+(function () {
+  var colours = [
+    ["amethyst","Amethyst","#8C59F2",0],["arcane","Arcane","#C45AE6",1],["rose","Rose","#E0559E",0],
+    ["garnet","Garnet","#A8213F",1],["ember","Ember","#F24D4D",0],["blaze","Blaze","#FF8C3A",1],
+    ["gilded","Gilded","#D4A12A",1],["storm","Storm","#E6B800",0],["terra","Terra","#B9783A",0],
+    ["venom","Venom","#B6F23A",1],["gale","Gale","#8CF273",0],["grove","Grove","#22A35E",1],
+    ["spirit","Spirit","#3FC9A3",0],["frost","Frost","#5CCFEA",0],["tidal","Tidal","#4DA6FF",0],
+    ["abyss","Abyss","#3747AD",1],["void","Void","#24183F",0],["obsidian","Obsidian","#1A1A1F",1],
+    ["steel","Steel","#788799",1],["lunar","Lunar","#E6E9F2",1]
+  ];
+  var shapes = [
+    ["A","Amethyst Arrow"],["B","Crystal Shard"],["K","Gem-cut Arrow"],["L","Dart"],["S","Prism"],
+    ["AB","Sticker Arrow"],["AK","Brilliant Diamond"],["AR","Trilliant"],["AS","Starlit Arrow"],["AV","Low-Poly Arrow"]
+  ];
+  var ring = {void:1, obsidian:1};
+  var h = '<tr><th></th>';
+  colours.forEach(function (c) {
+    h += '<th><span class="sw" style="background:' + c[2] + (ring[c[0]] ? ';box-shadow:0 0 0 1px #D9D9E6' : '') + '"></span>' + c[1] + (c[3] ? '<em>NEW</em>' : '') + '</th>';
+  });
+  h += '</tr>';
+  shapes.forEach(function (s) {
+    h += '<tr><th class="row">' + s[0] + '<small>' + s[1] + '</small></th>';
+    colours.forEach(function (c) {
+      var chg = false;
+      h += '<td class="cell c-' + c[0] + (chg ? ' chg' : '') + '" data-choice="' + s[0] + '-' + c[0] + '">'
+         + '<span class="t"><svg><use href="#' + s[0] + '"/></svg></span><span class="t lt"><svg><use href="#' + s[0] + '"/></svg></span></td>';
+    });
+    h += '</tr>';
+  });
+  document.getElementById('sheet').innerHTML = h;
+})();
+</script>
+
+</body>
+</html>
