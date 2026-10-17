@@ -587,7 +587,10 @@ func _capture_rebind(event: InputEvent) -> void:
 			eb.button_index = event.button_index
 			InputMapConfig.rebind_controller(_listen_action, eb)
 			_finish_rebind()
-		elif event is InputEventJoypadMotion and absf(event.axis_value) > 0.6:
+		elif event is InputEventJoypadMotion and absf(event.axis_value) > 0.6 \
+				and event.axis != JOY_AXIS_RIGHT_X and event.axis != JOY_AXIS_RIGHT_Y:
+			# Not the right stick: it moves the cursor, which consumes it, so a binding
+			# on it would be dead (the R3 button is still bindable).
 			var em := InputEventJoypadMotion.new()
 			em.axis = event.axis
 			em.axis_value = 1.0 if event.axis_value >= 0.0 else -1.0

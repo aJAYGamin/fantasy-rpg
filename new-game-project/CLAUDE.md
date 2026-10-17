@@ -1140,12 +1140,14 @@ the game has to take the mouse over and move and draw the cursor itself.
   `InputEventMouseButton` at `pointer_pos` (holding drags: `_buttons` carries the bit). If the
   binding is shared with another action, a press while the cursor is hidden goes through as
   that action's and does not show the cursor. A release whose press the cursor clicked is
-  always sent, so a drag cannot stick; an axis bound to it counts as one press.
+  always sent, so a drag cannot stick; an axis bound to it counts as one press (only the
+  not-held to held edge acts, so the rest of a trigger pull at a hidden cursor clicks nothing).
   Synthetic clicks don't update `Input`'s own button state (dropdowns still work).
 - **Rebinding sees the raw pad.** `GameManager.raw_input_passthrough` is true while
   `SettingsScreen` waits for a button (`_start_listening`; false again on `_stop_listening`, a
   rebuild or closing): the cursor then forwards every controller event untouched and the stick
-  moves nothing, so R3 and the right stick can be bound.
+  moves nothing, so R3 can be bound. The right stick's axes are forwarded too but
+  `_capture_rebind` ignores them: the stick belongs to the cursor, so a binding on it would be dead.
 - **What the hook keeps of Godot's window.** Every routed event is announced on the root's
   `window_input` signal before it is delivered (`_deliver`), and while the editor's debugger is
   active F8 sends `request_quit` (the editor's Stop shortcut).

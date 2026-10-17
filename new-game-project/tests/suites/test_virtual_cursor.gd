@@ -88,6 +88,7 @@ func _end() -> void:
 	for ev: InputEvent in _saved["cursor_click"]:
 		InputMap.action_add_event("cursor_click", ev)
 	_vc()._click_down = false
+	_vc()._click_held = false
 	_vc()._buttons = 0
 	s.cursor_shape = _saved["shape"]
 	s.cursor_colour = _saved["colour"]
@@ -154,6 +155,14 @@ func _bind_cursor_click(button: JoyButton) -> void:
 	InputMap.action_erase_events("cursor_click")
 	var ev := InputEventJoypadButton.new()
 	ev.button_index = button
+	InputMap.action_add_event("cursor_click", ev)
+
+## Makes a pull of `axis` the whole of Cursor Click's binding.
+func _bind_cursor_click_axis(axis: JoyAxis) -> void:
+	InputMap.action_erase_events("cursor_click")
+	var ev := InputEventJoypadMotion.new()
+	ev.axis = axis
+	ev.axis_value = 1.0
 	InputMap.action_add_event("cursor_click", ev)
 
 ## Presses and lets go of the right stick, which is Cursor Click by default.
@@ -777,11 +786,7 @@ func test_a_trigger_bound_to_cursor_click_presses_once_and_lets_go() -> void:
 	var layer := _begin()
 	var reader := InputReader.new()
 	layer.add_child(reader)
-	InputMap.action_erase_events("cursor_click")
-	var trigger := InputEventJoypadMotion.new()
-	trigger.axis = JOY_AXIS_TRIGGER_RIGHT
-	trigger.axis_value = 1.0
-	InputMap.action_add_event("cursor_click", trigger)
+	_bind_cursor_click_axis(JOY_AXIS_TRIGGER_RIGHT)
 	_vc().pointer_pos = Vector2(300, 300)
 	_vc().shown = true
 	_pad_motion(JOY_AXIS_TRIGGER_RIGHT, 0.7)
@@ -790,6 +795,45 @@ func test_a_trigger_bound_to_cursor_click_presses_once_and_lets_go() -> void:
 	assert_eq(reader.presses, 1, "three pushes of the trigger are one press")
 	_pad_motion(JOY_AXIS_TRIGGER_RIGHT, 0.0)
 	assert_eq(reader.releases, 1, "and letting it go is one release")
+	_end()
+
+func test_a_trigger_pull_while_the_cursor_is_hidden_only_brings_it_back() -> void:
+	# The rest of the same pull must not turn into the click the first sample held back.
+	var layer := _begin()
+	var reader := InputReader.new()
+	layer.add_child(reader)
+	_bind_cursor_click_axis(JOY_AXIS_TRIGGER_RIGHT)
+	_vc().pointer_pos = Vector2(300, 300)
+	_vc().shown = false
+	_pad_motion(JOY_AXIS_TRIGGER_RIGHT, 0.7)
+	assert_true(_vc().shown, "the first sample over the dead zone shows the cursor")
+	_pad_motion(JOY_AXIS_TRIGGER_RIGHT, 0.9)
+	_pad_motion(JOY_AXIS_TRIGGER_RIGHT, 1.0)
+	assert_eq(reader.presses, 0, "and the rest of that pull clicks nothing")
+	_pad_motion(JOY_AXIS_TRIGGER_RIGHT, 0.0)
+	assert_eq(reader.presses + reader.releases, 0, "nor does letting go")
+	_pad_motion(JOY_AXIS_TRIGGER_RIGHT, 0.8)
+	_pad_motion(JOY_AXIS_TRIGGER_RIGHT, 1.0)
+	_pad_motion(JOY_AXIS_TRIGGER_RIGHT, 0.0)
+	assert_eq(reader.presses, 1, "the next pull, with the cursor showing, is one click")
+	assert_eq(reader.releases, 1, "let go once")
+	_end()
+
+func test_a_trigger_pull_that_began_while_rebinding_is_not_a_click_afterwards() -> void:
+	var layer := _begin()
+	var reader := InputReader.new()
+	layer.add_child(reader)
+	_bind_cursor_click_axis(JOY_AXIS_TRIGGER_RIGHT)
+	_vc().pointer_pos = Vector2(300, 300)
+	_vc().shown = true
+	GameManager.raw_input_passthrough = true
+	_pad_motion(JOY_AXIS_TRIGGER_RIGHT, 0.7)   # forwarded raw: not ours (and it hid the cursor)
+	GameManager.raw_input_passthrough = false
+	_vc().shown = true
+	_pad_motion(JOY_AXIS_TRIGGER_RIGHT, 0.9)
+	assert_eq(reader.presses, 0, "the rest of a pull the cursor never saw begin isn't a click")
+	_pad_motion(JOY_AXIS_TRIGGER_RIGHT, 0.0)
+	assert_eq(reader.releases, 0, "and has nothing to let go of")
 	_end()
 
 # --- What Godot's own window did with every event --------------------------------------

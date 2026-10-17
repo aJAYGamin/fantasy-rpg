@@ -357,3 +357,29 @@ func test_waiting_for_a_button_hands_the_controller_to_the_game_raw() -> void:
 	screen.free()
 	assert_false(GameManager.raw_input_passthrough, "closing the screen mid-wait lets the right stick move the cursor again")
 	GameManager.raw_input_passthrough = was
+
+func test_the_right_stick_cannot_be_bound_to_an_action() -> void:
+	# It moves the cursor, which consumes it, so a binding on it would be dead in the menus.
+	var screen := SettingsScreen.new()
+	GameManager.add_child(screen)
+	screen._view = "controller"
+	screen._build()
+	var confirm_before: Array = []
+	for ev in InputMap.action_get_events("confirm"):
+		confirm_before.append(InputMapConfig.serialize_event(ev))
+	screen._start_listening("confirm", false)
+	for axis in [JOY_AXIS_RIGHT_X, JOY_AXIS_RIGHT_Y]:
+		for value in [0.9, -0.9]:
+			var ev := InputEventJoypadMotion.new()
+			ev.axis = axis
+			ev.axis_value = value
+			screen._capture_rebind(ev)
+	assert_true(screen._listening, "pushing the right stick neither binds nor ends the wait")
+	assert_true(GameManager.raw_input_passthrough, "so the page is still taking the pad raw")
+	var confirm_after: Array = []
+	for ev in InputMap.action_get_events("confirm"):
+		confirm_after.append(InputMapConfig.serialize_event(ev))
+	assert_eq(confirm_after, confirm_before, "Confirm is exactly as it was")
+	screen._stop_listening()
+	GameManager.remove_child(screen)
+	screen.free()

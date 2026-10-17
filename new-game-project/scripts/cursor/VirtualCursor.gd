@@ -48,6 +48,8 @@ var glowing := false
 var _buttons := 0
 ## Cursor Click has been turned into a left press that has not been let go yet.
 var _click_down := false
+## The Cursor Click control is held down (an edge, so one pull of a trigger is one press).
+var _click_held := false
 ## Each open popup's copy of the cursor, by the popup's instance id.
 var _mirrors := {}
 ## The glow shader's settings, shared by the cursor and every copy of it, so one
@@ -155,6 +157,11 @@ func route_os_event(ev: InputEvent) -> void:
 func _route_other(ev: InputEvent) -> void:
 	var is_click := ev.is_action("cursor_click")
 	var down := is_click and ev.is_action_pressed("cursor_click")
+	# Only the moment the control goes down counts as a press: a trigger sends a stream
+	# of samples while it is held, and every one after the first is the same press.
+	var pressed_now := down and not _click_held
+	if is_click:
+		_click_held = down
 	# A click the cursor pressed is always let go, whatever has changed since (a rebind
 	# began, the d-pad hid the cursor): a drag must never stick.
 	if is_click and not down and _click_down:
@@ -164,7 +171,7 @@ func _route_other(ev: InputEvent) -> void:
 		if ev is InputEventJoypadMotion and (ev.axis == JOY_AXIS_RIGHT_X or ev.axis == JOY_AXIS_RIGHT_Y):
 			return
 		if is_click and (shown or not _shares_binding(ev)):
-			if down and not _click_down:
+			if pressed_now:
 				if shown:
 					_click_down = true
 					_push_click(true)
