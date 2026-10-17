@@ -972,7 +972,9 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   what kind of skill it is.** Any skill aimed at the user's opponents —
   damage OR status (a debuff, say) — can be dodged, by heroes and enemies
   alike. Any skill aimed at the user or its allies (heals, buffs, SELF moves)
-  always lands. `resolve_skill` rolls `EnemyAI.try_dodge` (after the move's own
+  always lands. **One exception: a resonance ultimate (`Skill.is_resonance`)
+  always lands on opponents too — never missed, never dodged.**
+  `resolve_skill` rolls `EnemyAI.try_dodge` (after the move's own
   `miss_chance`) once per target per beat, only when
   `_opponents_of(user).has(target)`. A dodged damage skill's status
   rider does not land either. The enemy turn's old outer dodge (rolled before
@@ -1003,8 +1005,10 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   should keep using every turn must stay worth re-casting (`test_multi_turn`'s
   `_tap()` is a 1-turn buff for that reason).
 - Memory Echo dodge tiers (must match `Enemy.MEMORY_THRESHOLD_*`): Tier1=3 enc→5%,
-  Tier2=7→10%, Tier3=15→15%. `try_dodge` checked for both directions; resonance/
-  can't-miss always hit.
+  Tier2=7→10%, Tier3=15→15%. `try_dodge` checked for both directions. A resonance
+  ultimate (`Skill.is_resonance`, set by `BattleScene.ultimate_skill`) skips the
+  miss and dodge rolls in `_strike` entirely; a can't-miss `try_dodge` call always
+  hits.
 
 ### GameManager (Autoload)
 - `party: Array[Character]` (max 4), source of truth, persists across battles.

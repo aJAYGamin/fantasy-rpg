@@ -396,8 +396,9 @@ func _strike(user: Character, skill: Skill, targets: Array[Character], m: Dictio
 					"is_first_target": false, "is_first_hit": false}
 			# Dodge depends on WHO the skill lands on, not what kind of skill it
 			# is: anything aimed at the user's opponents can miss (the move's own
-			# chance) or be dodged; the user's own side never rolls either.
-			if _opponents_of(user).has(target):
+			# chance) or be dodged; the user's own side never rolls either. A
+			# resonance ultimate always lands.
+			if _opponents_of(user).has(target) and not skill.is_resonance:
 				if skill.miss_chance > 0.0 and randf() < skill.miss_chance:
 					results.append(_unlanded(result, "miss", target))
 					continue

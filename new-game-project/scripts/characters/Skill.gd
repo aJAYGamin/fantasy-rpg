@@ -53,6 +53,8 @@ enum StatusType {
 # Resonance override — -1.0 means "use default 10% per damage skill"
 # Set positive like 20.0 for +20%, or negative like -10.0 for -10%
 @export var resonance_gain_override: float = -1.0
+## A resonance ultimate: it always lands — never misses, never dodged.
+@export var is_resonance: bool = false
 
 # P8: the character level at which this skill becomes usable. 1 means "known
 # from the start", which is the default — so enemy skills and every existing
