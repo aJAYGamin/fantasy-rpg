@@ -79,6 +79,7 @@ const GAME_NOT_SAVED := {
 	"transition_origin_pos": HAND_OFF,
 	"resuming_from_save": HAND_OFF,
 	"roamer_snapshot": "a live hook into the current map's roamers, not data",
+	"virtual_cursor": "the cursor node, rebuilt at launch; its style is kept in user://config.cfg",
 	"active_slot": CONFIG_FILE,
 	"settings": CONFIG_FILE,
 	"input_profiles": CONFIG_FILE,

@@ -49,7 +49,7 @@ order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~4585 tests, 51 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~5660 tests, 55 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -74,6 +74,11 @@ scripts/
   settings/
     SettingsModel.gd          # class_name SettingsModel — audio/display/perf/difficulty/sticks data + config + apply (P4)
     InputMapConfig.gd         # class_name InputMapConfig — named actions, defaults, remap, per-device reset, persistence (P4)
+  cursor/                     # the themed cursor — see Themed cursor
+    CursorArt.gd              # class_name CursorArt — 10 shapes x 20 colours: palettes, SVG templates -> textures, hotspots
+    CursorMotion.gd           # class_name CursorMotion — pure maths: mouse step at the sensitivity, stick speed, edge push
+    CursorHold.gd             # class_name CursorHold — pure state: the game holds the mouse, or has let it go
+    VirtualCursor.gd          # class_name VirtualCursor — the window's input hook + the drawn cursor (child of GameManager)
   overworld/
     OverworldScene.gd         # Free-roam controller; roaming-enemy spawner/manager; auto-save; pause host
     Player.gd                 # CharacterBody2D, 8-dir keyboard/controller movement (stick sensitivity)
@@ -128,7 +133,7 @@ tools/                        # one-shot / offline scripts, run as scenes (not -
 tests/
   TestRunner.tscn/.gd         # run this scene (F6) to execute all suites; register suites in SUITE_PATHS
   TestSuite.gd                # base class with assert_* helpers
-  suites/                     # one test_<feature>.gd per system (51 suites)
+  suites/                     # one test_<feature>.gd per system (55 suites)
   fixtures/                   # move_library_baseline.json — pre-migration snapshot for the MoveLibrary suite
 assets/  backgrounds/ characters/ enemies/ icons/ ui/
 fonts/   music/
@@ -1033,8 +1038,10 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
 - **Settings (P4):** `settings: SettingsModel` (live), loaded/applied at launch; persisted in
   `config.cfg [settings]`. Targeted apply helpers: `apply_audio_and_save`,
   `apply_display_and_save`, `apply_performance_and_save`, `apply_fps_overlay_and_save`,
-  `save_settings`. Audio buses via `SettingsModel.ensure_buses()`; global UI button SFX
-  auto-wired in `_on_node_added`.
+  `apply_cursor_and_save` (cursor shape/colour), `save_settings`. Audio buses via
+  `SettingsModel.ensure_buses()`; global UI button SFX auto-wired in `_on_node_added`.
+- **Themed cursor:** `virtual_cursor: VirtualCursor`, made in `_ready` as this autoload's
+  child and hooked at once; hooked again after every display change. See **Themed cursor**.
 - **Input mode + focus guard (P4):** `is_controller_mode()` / `input_mode_changed`;
   per-frame focus guard (PROCESS_MODE_ALWAYS) with `register_focus_scope` /
   `unregister_focus_scope` — see Controller Navigation below.
@@ -1097,6 +1104,50 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
 - `EncounterGroup`: `weight`, `min_party_level`, `enemy_pool`, `min_enemies`/`max_enemies`,
   `enemy_level_override`. `MapArea`: `area_name`, `battle_background_id`, `default_spawn`,
   `encounter_groups`, `safe_zones: Array[Rect2]`.
+
+### Themed cursor — `scripts/cursor/` (Track C, in progress)
+Spec: `.claude/docs/superpowers/specs/2026-10-17-themed-cursor-design.md`; art source of
+truth: `2026-10-17-themed-cursor-art.html` beside it. The game draws its own cursor in the
+player's chosen shape and colour, and the mouse moves it at an in-game sensitivity. The
+sensitivity is why this is more than a skin: the computer sets its own pointer's speed, so
+the game has to take the mouse over and move and draw the cursor itself.
+- **The hook.** `VirtualCursor.install()` replaces the main window's input callback
+  (`DisplayServer.window_set_input_event_callback`) with `route_os_event`. The OS → `Input`
+  step still runs first, so `Input.is_action_pressed`, joypad axes and Input's button mask
+  stay right for game code; only the window's delivery into the scene tree changes. A mouse
+  move steps `pointer_pos` (root-viewport, base pixels) by `CursorMotion.mouse_step` at
+  `settings.mouse_sensitivity`; every mouse event — and a trackpad pan/pinch gesture — is
+  pushed into the root again at `pointer_pos` (`push_input(ev, true)`); everything else goes
+  in untouched. Pushed moves carry the buttons the cursor holds (`_buttons`, tracked from the
+  button events it routes), so drags work. `install()` also captures the mouse
+  (`_apply_mouse_mode`) and does nothing headless. Checked in a real (non-headless) macOS
+  run with events fed through `Input.parse_input_event`, which takes the OS path through the
+  hook: hover, click, slider drag, wheel, trackpad pan, dropdown open + pick with the cursor
+  drawn over the list, and one click reaching `_input` once.
+- **Shown / hidden.** Mouse events show the cursor; keys, controller buttons and a stick
+  pushed past 0.5 hide it — the same events `GameManager._input` takes as a switch to the
+  focus highlight, so the cursor and the highlight are never both up. Moving the mouse brings
+  it back where it was.
+- **Drawing.** A `Sprite2D` on its own `CanvasLayer` at `VirtualCursor.LAYER` (200, above
+  the FPS overlay's 128), `centered = false`, `scale = 1 / CursorArt.RENDER_SCALE`, `offset
+  = -hotspot × RENDER_SCALE` so the tip sits on `pointer_pos`. `refresh_style()` re-dresses it
+  from settings (`GameManager.apply_cursor_and_save()` calls it). It lives under GameManager,
+  `PROCESS_MODE_ALWAYS`: every scene, paused or not.
+- **The popup mirror.** Embedded popups (an OptionButton's list) draw above every
+  CanvasLayer of the root, so an open list would cover the cursor. `update_mirrors()` (every
+  frame) gives each open window in `get_embedded_subwindows()` its own internal CanvasLayer +
+  Sprite2D copy at `(pointer_pos - window.position) / content_scale_factor`.
+- ⚠️ **Never read the OS mouse position** (`get_mouse_position()` / `get_global_mouse_position()`
+  on the root, `DisplayServer.mouse_get_position()`): with the mouse captured it is the
+  hidden OS pointer, not the cursor. Read `GameManager.virtual_cursor.pointer_pos`, or the
+  position on the event.
+- ⚠️ **A synthetic mouse move needs a `velocity`.** A PopupMenu ignores a move with zero
+  velocity when lighting up the row under it, so the hook converts the OS move's velocity to
+  base pixels like its `relative`. Anything that invents moves (the right stick) must set one.
+- Tests (`test_virtual_cursor`) call `route_os_event` directly, as the OS would. Their
+  controls go under GameManager (the root is busy while the test runner sets up), on a high
+  CanvasLayer over a full-screen backstop, because screens earlier suites `queue_free()`d
+  stay in the tree until the frame ends.
 
 ---
 
@@ -1323,7 +1374,7 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~4585 tests / 51 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~5660 tests / 55 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,

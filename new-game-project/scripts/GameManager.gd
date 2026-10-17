@@ -143,6 +143,9 @@ var settings := SettingsModel.new()
 # high CanvasLayer under the autoload so it survives scene changes.
 var _fps_layer: CanvasLayer = null
 var _fps_label: Label = null
+# The game-drawn themed cursor, which takes over the window's mouse delivery (see
+# VirtualCursor). A child of this autoload, so it survives scene changes.
+var virtual_cursor: VirtualCursor = null
 
 # Global UI click SFX. Auto-wired to every Button in the tree (see _on_node_added)
 # so any button anywhere makes a sound, on the SFX bus.
@@ -167,6 +170,9 @@ func _ready():
 	Input.joy_connection_changed.connect(_on_joy_connection_changed)
 	# Start in controller mode if a pad is already connected at launch.
 	_controller_mode = not Input.get_connected_joypads().is_empty()
+	virtual_cursor = VirtualCursor.new()
+	add_child(virtual_cursor)
+	virtual_cursor.install()
 	_create_clock_overlay.call_deferred()
 
 func _create_clock_overlay() -> void:
@@ -607,6 +613,7 @@ func _apply_display_deferred() -> void:
 	await get_tree().process_frame
 	await get_tree().create_timer(0.1).timeout
 	settings.apply_display()
+	virtual_cursor.install()   # a window change can drop the cursor's input hook
 
 # Persists the [settings] section, merge-preserving the [save] section.
 func _write_settings_config() -> void:
@@ -627,10 +634,20 @@ func apply_display_and_save() -> void:
 	settings.clamp_all()
 	settings.apply_display()
 	_write_settings_config()
+	# A window change can drop the cursor's input hook: hook it again once the
+	# change has gone through.
+	virtual_cursor.install.call_deferred()
 
 func apply_performance_and_save() -> void:
 	settings.clamp_all()
 	settings.apply_performance()
+	_write_settings_config()
+
+# Cursor shape and colour; the mouse sensitivity needs no apply (the cursor reads it
+# on every move).
+func apply_cursor_and_save() -> void:
+	settings.clamp_all()
+	virtual_cursor.refresh_style()
 	_write_settings_config()
 
 func apply_fps_overlay_and_save() -> void:
