@@ -492,39 +492,40 @@ func test_choose_action_uses_phase_skills_even_when_base_skills_is_empty() -> vo
 	assert_eq(decision.get("skill").skill_name, "Desperate Cleave", "and it's the phase's skill")
 	bm.free()
 
-func test_a_boss_below_25_percent_hp_is_not_force_enraged() -> void:
-	# Guards the enrage removal itself: is_enraged must be false for bosses
-	# regardless of HP, or the phase moveset and the old hard-coded enrage
-	# would fight each other invisibly.
-	var b := _boss()
-	b.skills = [_skill("Base Swing")]
-	b.current_hp = 10  # 10% HP, well under the old 25% enrage threshold
+## How many of `draws` decisions pick `skill_name`, against one unhurt hero.
+func _times_picked(enemy: Enemy, skill_name: String, draws: int = 200) -> int:
 	var hero := Character.new()
 	hero.character_name = "Hero"
 	hero.base_hp = 100
 	hero.current_hp = 100
-	var decision := EnemyAI.choose_action(b, [hero] as Array[Character], [b] as Array[Character])
-	assert_false(decision.get("is_enraged"), "bosses no longer use the hard-coded HP enrage")
+	var n := 0
+	for i in draws:
+		var d := EnemyAI.choose_action(enemy, [hero] as Array[Character], [enemy] as Array[Character])
+		if d.get("skill") != null and d.get("skill").skill_name == skill_name:
+			n += 1
+	return n
 
-func test_a_non_boss_enemy_still_enrages_below_25_percent_hp() -> void:
-	# Pins the ordinary-enemy path precisely because the boss codepath now
-	# diverges from it: an enemy without phases must keep the hard-coded
-	# enrage exactly as before, always picking its highest-power damaging skill.
+func _weak_and_heavy() -> Array[Skill]:
+	var heavy := _skill("Heavy Blow")
+	heavy.power = 50.0
+	return [_skill("Weak Jab"), heavy] as Array[Skill]
+
+# Low HP never forces a move: echo memory alone steers how every enemy, boss
+# or not, picks one. (There used to be a hard-coded "enrage" below 25% HP that
+# always took the highest-power damaging move.)
+func test_a_boss_at_low_hp_does_not_lock_onto_its_strongest_move() -> void:
+	var b := _boss()
+	b.skills = _weak_and_heavy()
+	b.current_hp = 10  # 10% HP
+	assert_true(_times_picked(b, "Weak Jab") > 0, "a badly hurt boss still uses its weaker move")
+
+func test_an_ordinary_enemy_at_low_hp_does_not_lock_onto_its_strongest_move() -> void:
 	var e := Enemy.new()
 	e.base_hp = 100
 	e.level = 1
-	var weak := _skill("Weak Jab")
-	var heavy := _skill("Heavy Blow")
-	heavy.power = 50.0
-	e.skills = [weak, heavy]
-	e.current_hp = 10  # under 25%
-	var hero := Character.new()
-	hero.character_name = "Hero"
-	hero.base_hp = 100
-	hero.current_hp = 100
-	var decision := EnemyAI.choose_action(e, [hero] as Array[Character], [e] as Array[Character])
-	assert_true(decision.get("is_enraged"), "an ordinary enemy under 25% HP is still enraged")
-	assert_eq(decision.get("skill").skill_name, "Heavy Blow", "enraged still picks the highest-power damaging skill")
+	e.skills = _weak_and_heavy()
+	e.current_hp = 10  # 10% HP
+	assert_true(_times_picked(e, "Weak Jab") > 0, "a badly hurt enemy still uses its weaker move")
 
 # --------------------------------------------------- Power 3: summons
 

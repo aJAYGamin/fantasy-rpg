@@ -49,7 +49,7 @@ order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~4183 tests, 49 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~4193 tests, 50 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -128,7 +128,7 @@ tools/                        # one-shot / offline scripts, run as scenes (not -
 tests/
   TestRunner.tscn/.gd         # run this scene (F6) to execute all suites; register suites in SUITE_PATHS
   TestSuite.gd                # base class with assert_* helpers
-  suites/                     # one test_<feature>.gd per system (49 suites)
+  suites/                     # one test_<feature>.gd per system (50 suites)
   fixtures/                   # move_library_baseline.json — pre-migration snapshot for the MoveLibrary suite
 assets/  backgrounds/ characters/ enemies/ icons/ ui/
 fonts/   music/
@@ -624,10 +624,10 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   lands in half a dozen places (player attack, player skill, enemy skill,
   counter...), and hooking there also guarantees a boss never acts in a stale
   phase.
-- `EnemyAI`'s hard-coded low-HP enrage now applies to **non-boss enemies only**.
-  A boss expresses the same idea through phase data; running both would leave
-  two parallel mechanisms for "fights differently when hurt" interacting
-  invisibly.
+- `EnemyAI` has **no low-HP enrage** for any enemy (removed for bosses with
+  phases, then for everyone at the user's request, 2026-10-16): echo memory
+  alone steers move choice. A boss fights differently when hurt only through its
+  phase data.
 - Turn order is **NOT** re-sorted mid-round when a phase changes `speed` — it
   re-sorts only at `_start_new_round()`. Turn order locked for the round in
   progress is the genre convention, and re-sorting mid-round could give an
@@ -984,7 +984,13 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   action names, and the resonance hook skips non-heroes).
 
 ### EnemyAI (static)
-- `choose_action(enemy, party, enemies)` → `{skill, target, is_enraged, echo_tier}`.
+- `choose_action(enemy, party, enemies)` → `{skill, target, echo_tier}`.
+- **No wasted turns.** `would_waste_turn(skill, enemy, allies)` drops a move that
+  would change nothing: a heal with nobody it reaches hurt (`hurt_heal_targets`).
+  An ally heal goes to the hurt ally with the lowest HP share. Nothing worth
+  using → `skill` null → a basic attack. No move cures a status yet; one that
+  does belongs in `would_waste_turn` too (a choice only while someone it reaches
+  is afflicted).
 - Memory Echo dodge tiers (must match `Enemy.MEMORY_THRESHOLD_*`): Tier1=3 enc→5%,
   Tier2=7→10%, Tier3=15→15%. `try_dodge` checked for both directions; resonance/
   can't-miss always hit.
@@ -1269,7 +1275,7 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~4183 tests / 49 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~4193 tests / 50 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,

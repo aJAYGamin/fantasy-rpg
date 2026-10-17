@@ -49,15 +49,10 @@ static func choose_action(enemy: Character, party: Array[Character], enemies: Ar
 	var encounters = _get_encounters(enemy) if enemy is Enemy else 0
 	var echo_tier = _get_echo_tier(encounters)
 
-	# Low-HP enrage, for enemies WITHOUT phases. A boss expresses the same idea
-	# through its phase data instead; keeping both would leave two parallel,
-	# invisibly-interacting mechanisms for "fights differently when hurt".
-	var is_enraged := false
-	if not (enemy is Enemy and (enemy as Enemy).is_boss()):
-		is_enraged = float(enemy.current_hp) / float(enemy.max_hp()) < 0.25
-
-	# Choose skill
-	var chosen_skill = _choose_skill(enemy, alive_party, echo_tier, is_enraged)
+	# Echo memory steers every enemy's choice, boss or not. Low HP never forces
+	# a move (there is no "enrage"); a boss changes how it fights through its
+	# phase data instead.
+	var chosen_skill = _choose_skill(enemy, alive_party, enemies, echo_tier)
 
 	# Choose target
 	var target = _choose_target(enemy, alive_party, enemies, chosen_skill, echo_tier)
@@ -65,7 +60,6 @@ static func choose_action(enemy: Character, party: Array[Character], enemies: Ar
 	return {
 		"skill": chosen_skill,
 		"target": target,
-		"is_enraged": is_enraged,
 		"echo_tier": echo_tier
 	}
 
@@ -86,11 +80,27 @@ static func usable_skills(enemy: Character) -> Array:
 			return phase.skills
 	return enemy.skills
 
-static func _choose_skill(enemy: Character, alive_party: Array, echo_tier: int, is_enraged: bool) -> Skill:
+## True for a move that would change nothing if used now, so picking it would
+## waste the turn: a heal with nobody it can reach hurt.
+static func would_waste_turn(skill: Skill, enemy: Character, allies: Array) -> bool:
+	if skill.is_heal():
+		return hurt_heal_targets(skill, enemy, allies).is_empty()
+	return false
+
+## The hurt characters a heal could mend: the user alone for a self-heal,
+## otherwise every ally still standing who is below full HP.
+static func hurt_heal_targets(skill: Skill, enemy: Character, allies: Array) -> Array:
+	var reach: Array = [enemy] if skill.target_type == Skill.TargetType.SELF \
+			else allies.filter(func(a): return a.is_alive())
+	return reach.filter(func(c): return c.current_hp < c.max_hp())
+
+static func _choose_skill(enemy: Character, alive_party: Array, allies: Array, echo_tier: int) -> Skill:
 	if usable_skills(enemy).is_empty():
 		return null
 
-	var usable = usable_skills(enemy).filter(func(s): return s.can_use(enemy))
+	# With nothing worth using, no skill: the enemy makes a basic attack.
+	var usable = usable_skills(enemy).filter(func(s):
+		return s.can_use(enemy) and not would_waste_turn(s, enemy, allies))
 	if usable.is_empty():
 		return null
 
@@ -105,15 +115,6 @@ static func _choose_skill(enemy: Character, alive_party: Array, echo_tier: int, 
 		# Below 50% HP with Echo tier 1+ — 25% chance to heal
 		elif echo_tier >= 1 and hp_pct < 0.5 and randf() < 0.25:
 			return heal_skills[randi() % heal_skills.size()]
-
-	# Enraged — always pick highest power damaging skill
-	if is_enraged:
-		var dmg_skills = usable.filter(func(s):
-			return s.skill_type == Skill.SkillType.DAMAGE
-		)
-		if not dmg_skills.is_empty():
-			dmg_skills.sort_custom(func(a, b): return a.power > b.power)
-			return dmg_skills[0]
 
 	# Echo tier 2+ — prefer super effective skills
 	if echo_tier >= 2:
@@ -145,11 +146,13 @@ static func _choose_target(enemy: Character, alive_party: Array, enemies: Array,
 		if skill.is_heal():
 			if skill.target_type == Skill.TargetType.SELF:
 				return enemy
-			# Target most wounded ally
-			var alive_enemies = enemies.filter(func(e): return e.is_alive())
-			if not alive_enemies.is_empty():
-				alive_enemies.sort_custom(func(a, b): return a.current_hp < b.current_hp)
-				return alive_enemies[0]
+			# The most wounded hurt ally, by share of HP lost — never one at
+			# full HP, where the heal would do nothing.
+			var hurt := hurt_heal_targets(skill, enemy, enemies)
+			if not hurt.is_empty():
+				hurt.sort_custom(func(a, b):
+					return float(a.current_hp) / a.max_hp() < float(b.current_hp) / b.max_hp())
+				return hurt[0]
 		elif skill.is_buff():
 			if skill.target_type == Skill.TargetType.SELF:
 				return enemy

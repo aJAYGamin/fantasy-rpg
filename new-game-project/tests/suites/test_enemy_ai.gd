@@ -79,3 +79,76 @@ func test_choose_action_no_alive_party() -> void:
 	dead.current_hp = 0
 	var decision = EnemyAI.choose_action(e, [dead] as Array[Character], [e] as Array[Character])
 	assert_true(decision.is_empty(), "no alive party -> empty decision")
+
+# --- No wasted turns: a heal is a choice only when someone it reaches is hurt --
+
+func _heal(target_type: Skill.TargetType) -> Skill:
+	var s := Skill.new()
+	s.skill_name = "Mend"
+	s.skill_type = Skill.SkillType.STATUS
+	s.status_type = Skill.StatusType.HEAL
+	s.target_type = target_type
+	s.power = 1.0
+	return s
+
+func _bite() -> Skill:
+	var s := Skill.new()
+	s.skill_name = "Bite"
+	s.power = 1.0
+	return s
+
+func _hero() -> Character:
+	var h := Character.new()
+	h.character_name = "Hero"
+	h.base_hp = 100
+	h.current_hp = 100
+	return h
+
+## How many of `draws` decisions by `enemy` (fighting beside `allies`) pick
+## the move named `skill_name`.
+func _times_picked(enemy: Enemy, allies: Array[Character], skill_name: String, draws: int = 200) -> int:
+	var n := 0
+	for i in draws:
+		var d := EnemyAI.choose_action(enemy, [_hero()] as Array[Character], allies)
+		if d.get("skill") != null and d.get("skill").skill_name == skill_name:
+			n += 1
+	return n
+
+func test_an_unhurt_enemy_never_spends_a_turn_healing_itself() -> void:
+	var e := _enemy("HealTestA")
+	e.skills = [_bite(), _heal(Skill.TargetType.SELF)] as Array[Skill]
+	assert_eq(_times_picked(e, [e] as Array[Character], "Mend"), 0, "at full HP the self-heal is never picked")
+
+func test_a_hurt_enemy_may_still_heal_itself() -> void:
+	var e := _enemy("HealTestB")
+	e.skills = [_bite(), _heal(Skill.TargetType.SELF)] as Array[Skill]
+	e.current_hp = e.max_hp() / 2
+	assert_true(_times_picked(e, [e] as Array[Character], "Mend") > 0, "once hurt, the self-heal is back in play")
+
+func test_an_ally_heal_waits_until_someone_on_its_side_is_hurt() -> void:
+	var e := _enemy("HealTestC")
+	var ally := _enemy("HealTestC")
+	e.skills = [_bite(), _heal(Skill.TargetType.SINGLE_ALLY)] as Array[Skill]
+	assert_eq(_times_picked(e, [e, ally] as Array[Character], "Mend"), 0, "with every ally unhurt the heal is never picked")
+	ally.current_hp = ally.max_hp() / 2
+	assert_true(_times_picked(e, [e, ally] as Array[Character], "Mend") > 0, "a hurt ally brings it back")
+
+func test_an_ally_heal_goes_to_a_hurt_ally() -> void:
+	# The small ally has the least HP but is unhurt; healing it would be wasted.
+	var e := _enemy("HealTestD")
+	e.skills = [_heal(Skill.TargetType.SINGLE_ALLY)] as Array[Skill]
+	var small := _enemy("HealTestD")
+	small.base_hp = 10
+	small.current_hp = small.max_hp()
+	var big := _enemy("HealTestD")
+	big.base_hp = 200
+	big.current_hp = big.max_hp() - 1
+	var d := EnemyAI.choose_action(e, [_hero()] as Array[Character], [e, small, big] as Array[Character])
+	assert_eq(d.get("skill").skill_name, "Mend", "the heal is picked")
+	assert_eq(d.get("target"), big, "and it goes to the ally who is actually hurt")
+
+func test_an_enemy_with_only_a_heal_attacks_when_nobody_is_hurt() -> void:
+	var e := _enemy("HealTestE")
+	e.skills = [_heal(Skill.TargetType.SELF)] as Array[Skill]
+	var d := EnemyAI.choose_action(e, [_hero()] as Array[Character], [e] as Array[Character])
+	assert_eq(d.get("skill"), null, "no move worth using: a basic attack instead")
