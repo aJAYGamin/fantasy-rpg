@@ -470,6 +470,26 @@ func test_the_controls_page_lists_keyboard_controller_and_mouse() -> void:
 	assert_eq(screen._view_title(), "Mouse", "and is titled Mouse")
 	_close(screen)
 
+func test_the_mouse_page_says_where_the_right_sticks_speed_is() -> void:
+	# Mouse Sensitivity moves only the real mouse; the stick cursor's speed is the
+	# Controller page's Right Stick Sensitivity. A play-tester moved the Mouse page's
+	# slider, saw the stick unchanged and took it for a bug, so the page says so.
+	var screen := _open("mouse")
+	var note: Label = null
+	for l in screen.find_children("*", "Label", true, false):
+		if (l as Label).text == SettingsScreen.STICK_SPEED_NOTE:
+			note = l
+	assert_true(note != null, "the Mouse page shows the note")
+	assert_true("Controller" in SettingsScreen.STICK_SPEED_NOTE and "Right Stick Sensitivity" in SettingsScreen.STICK_SPEED_NOTE,
+			"naming the page and the setting")
+	var sliders := screen.find_children("*", "HSlider", true, false)
+	if note != null and sliders.size() == 1:
+		var row := (sliders[0] as HSlider).get_parent()
+		assert_eq(note.get_parent(), row.get_parent(), "in the page's column")
+		assert_eq(note.get_index(), row.get_index() + 1, "right under Mouse Sensitivity")
+		assert_eq(note.get_theme_color("font_color"), SettingsScreen.NOTE_COLOR, "in the note colour")
+	_close(screen)
+
 func test_the_mouse_page_offers_shape_colour_and_sensitivity() -> void:
 	_protect()
 	var s := GameManager.settings
@@ -764,3 +784,463 @@ func test_backing_out_mid_wait_hands_the_page_back_to_the_focus_guard() -> void:
 	assert_eq(GameManager.focus_scope_count(screen), 1, "registered once, not twice")
 	_close(screen)
 	GameManager.raw_input_passthrough = was_passthrough
+
+
+# ------------------------------------ the Controller page's on-screen keyboard
+# The Rename field on the Controller page opens the on-screen keyboard (OnScreenKeyboard)
+# when the pad's Confirm is pressed on it. These tests press the pad's buttons and keys
+# through the real pipeline (`push_input` on the root) and read what a node behind the
+# keyboard would have heard with an InputReader added to GameManager BEFORE the screen: the
+# engine calls `_input` in reverse tree order and stops at the first handler that marks the
+# event handled.
+
+## Records the pad buttons and keys that reach it, which is everything a node behind the
+## keyboard (a page, the pause menu, the overworld's pause handler) would have heard.
+class InputReader extends Node:
+	var heard: Array = []
+
+	func _input(ev: InputEvent) -> void:
+		if (ev is InputEventJoypadButton or ev is InputEventKey) and ev.pressed:
+			heard.append(ev)
+
+## The bindings these tests press, so they hold whatever the player has remapped.
+const _PAD_ACTIONS := ["confirm", "cancel", "pause", "cursor_click", "move_up", "move_down",
+	"move_left", "move_right", "ui_accept", "ui_cancel"]
+
+var _kept_pad := {}
+
+## _protect()s the config (a rename saves the bindings and the name to config.cfg), keeps the
+## active controller profile's name and the live bindings, puts the pad on its stock buttons
+## (A confirms, B cancels, Start pauses) and switches to the controller's highlight.
+func _pad_begin() -> void:
+	_protect()
+	var profiles := GameManager.input_profiles
+	_kept_pad = {"name": profiles.name_for(false, profiles.active_index(false)), "bindings": {}}
+	for action: String in _PAD_ACTIONS:
+		_kept_pad["bindings"][action] = InputMap.action_get_events(action)
+	InputMapConfig.reset_all_controller()
+	GameManager.set_controller_mode_for_test(true)
+
+func _pad_end() -> void:
+	var profiles := GameManager.input_profiles
+	profiles.set_name(false, profiles.active_index(false), _kept_pad["name"])
+	for action: String in _kept_pad["bindings"]:
+		InputMap.action_erase_events(action)
+		for ev: InputEvent in _kept_pad["bindings"][action]:
+			InputMap.action_add_event(action, ev)
+	profiles.sync_from_input_map()   # a save while the stock buttons were live captured them
+	_restore()
+
+## A pad button into the root, as the engine delivers it.
+func _pad(button: JoyButton, pressed := true) -> void:
+	var ev := InputEventJoypadButton.new()
+	ev.button_index = button
+	ev.pressed = pressed
+	GameManager.get_viewport().push_input(ev)
+
+## A key into the root.
+func _key(keycode: Key, pressed := true) -> void:
+	var ev := InputEventKey.new()
+	ev.keycode = keycode
+	ev.physical_keycode = keycode
+	ev.pressed = pressed
+	GameManager.get_viewport().push_input(ev)
+
+## The Controller page's Rename field holds the highlight and the pad's Confirm is pressed
+## on it. Returns the keyboard that opens (null when none does).
+func _press_confirm_on_the_field(screen: SettingsScreen) -> OnScreenKeyboard:
+	screen._pad_profile_name.grab_focus()
+	_pad(JOY_BUTTON_A)
+	return screen._keyboard_panel
+
+func _focus_owner() -> Control:
+	return GameManager.get_viewport().gui_get_focus_owner()
+
+func _keyboards_under(screen: SettingsScreen) -> Array:
+	return screen.find_children("*", "OnScreenKeyboard", true, false)
+
+func test_confirm_on_the_controller_rename_field_opens_the_keyboard() -> void:  # Review Focus 1
+	_pad_begin()
+	var profiles := GameManager.input_profiles
+	profiles.set_name(false, profiles.active_index(false), "Couch")
+	var screen := _open("controller")
+	assert_true(screen._keyboard_panel == null, "no keyboard until the field is pressed")
+	var panel := _press_confirm_on_the_field(screen)
+	assert_true(is_instance_valid(panel), "Confirm on the highlighted Rename field opens the keyboard")
+	assert_eq(panel.get_text(), "Couch", "it opens on the profile's current name, and the press that opened it typed nothing")
+	assert_eq(screen.get_child(screen.get_child_count() - 1), panel,
+		"it is the screen's last child, so it hears every press before the screen does")
+	GameManager.update_focus_guard_for_test()
+	assert_eq(_focus_owner(), panel.key_button("Q"), "the highlight lands on its Q key")
+	_pad(JOY_BUTTON_A, false)
+	assert_eq(panel.get_text(), "Couch", "the release of the press that opened it lands on Q and types nothing")
+	_close(screen)
+	_pad_end()
+
+func test_the_keyboard_page_field_never_opens_it() -> void:
+	_pad_begin()
+	var screen := _open("keyboard")
+	screen._kb_profile_name.grab_focus()
+	assert_true(screen._kb_profile_name.has_focus(), "the Keyboard page's Rename field holds the highlight")
+	_pad(JOY_BUTTON_A)
+	_pad(JOY_BUTTON_A, false)
+	assert_true(screen._keyboard_panel == null, "Confirm on it opens no keyboard")
+	assert_eq(_keyboards_under(screen).size(), 0, "and none is anywhere under the screen")
+	_close(screen)
+
+	# Having been on the Controller page first changes nothing: its field is gone with the
+	# page, and its name is no reason to open the keyboard from this one.
+	var visited := _open("controller")
+	visited._view = "keyboard"
+	visited._build()
+	visited._kb_profile_name.grab_focus()
+	_pad(JOY_BUTTON_A)
+	_pad(JOY_BUTTON_A, false)
+	assert_eq(_keyboards_under(visited).size(), 0, "after a visit to the Controller page, still none")
+	assert_true(visited._keyboard_panel == null, "and it is not open")
+	_close(visited)
+	_pad_end()
+
+func test_the_press_that_opens_it_is_the_pad_taking_over() -> void:
+	# The page takes the press, so GameManager's own _input never sees it: the page says so.
+	_pad_begin()
+	var screen := _open("controller")
+	GameManager.set_keyboard_nav_for_test(true)   # the field was reached with the arrow keys
+	assert_false(GameManager.is_controller_mode(), "starting on the keyboard's highlight")
+	var panel := _press_confirm_on_the_field(screen)
+	assert_true(is_instance_valid(panel), "Confirm opens the keyboard from there too")
+	assert_true(GameManager.is_controller_mode(), "and the game now follows the pad")
+	_close(screen)
+	_pad_end()
+
+func test_only_a_confirm_press_on_the_controller_field_opens_it() -> void:
+	# Enter on the field commits the name as it always did; other buttons, and a Confirm
+	# release with no press, open nothing.
+	_pad_begin()
+	var screen := _open("controller")
+	screen._pad_profile_name.grab_focus()
+	_key(KEY_ENTER)
+	_key(KEY_ENTER, false)
+	_pad(JOY_BUTTON_Y)
+	_pad(JOY_BUTTON_Y, false)
+	_pad(JOY_BUTTON_X)
+	_pad(JOY_BUTTON_X, false)
+	screen._pad_profile_name.grab_focus()
+	_pad(JOY_BUTTON_A, false)
+	assert_eq(_keyboards_under(screen).size(), 0, "no other press opens it")
+	assert_true(screen._keyboard_panel == null, "and it is not open")
+	_close(screen)
+	_pad_end()
+
+func test_done_saves_through_the_profile_rules_and_returns_the_highlight() -> void:
+	_pad_begin()
+	var screen := _open("controller")
+	GameManager.register_focus_scope(screen)   # as setup() does
+	var profiles := GameManager.input_profiles
+	var active := profiles.active_index(false)
+	var panel := _press_confirm_on_the_field(screen)
+	assert_true(is_instance_valid(panel), "the keyboard opens")
+	while not panel.get_text().is_empty():
+		panel.delete_last()
+	for c in "  Couch  ":
+		panel.type_char(c)
+	panel.finish()
+	assert_eq(screen._pad_profile_name.text, "Couch", "the field shows the name cleaned up, as a typed one is")
+	assert_eq(screen._pad_profile_pick.get_item_text(active), "Couch", "so does the Active Profile picker")
+	assert_eq(profiles.name_for(false, active), "Couch", "and the profile stores it")
+	assert_true(screen._keyboard_panel == null, "the keyboard is no longer open")
+	GameManager.update_focus_guard_for_test()
+	assert_eq(_focus_owner(), screen._pad_profile_name, "the highlight is back on the Rename field")
+
+	# A blank name falls back to the numbered default, as it does for a typed one.
+	var second := _press_confirm_on_the_field(screen)
+	assert_true(is_instance_valid(second), "it opens again")
+	while not second.get_text().is_empty():
+		second.delete_last()
+	second.finish()
+	assert_eq(profiles.name_for(false, active), InputProfiles.default_name(active), "an empty name becomes the default")
+	assert_eq(screen._pad_profile_name.text, InputProfiles.default_name(active), "which the field shows")
+	GameManager.update_focus_guard_for_test()
+	assert_eq(_focus_owner(), screen._pad_profile_name, "and the highlight is back on the field again")
+	GameManager.unregister_focus_scope(screen)
+	_close(screen)
+	_pad_end()
+
+func test_cancel_leaves_the_name() -> void:
+	_pad_begin()
+	var screen := _open("controller")
+	GameManager.register_focus_scope(screen)
+	var profiles := GameManager.input_profiles
+	var active := profiles.active_index(false)
+	profiles.set_name(false, active, "Couch")
+	screen._refresh_profile_name_field(false)
+	var panel := _press_confirm_on_the_field(screen)
+	assert_true(is_instance_valid(panel), "the keyboard opens")
+	for c in "zzz":
+		panel.type_char(c)
+	panel.cancel()
+	assert_eq(profiles.name_for(false, active), "Couch", "Cancel leaves the stored name")
+	assert_eq(screen._pad_profile_name.text, "Couch", "and the field")
+	assert_true(screen._keyboard_panel == null, "the keyboard is no longer open")
+	GameManager.update_focus_guard_for_test()
+	assert_eq(_focus_owner(), screen._pad_profile_name, "the highlight is back on the Rename field")
+	GameManager.unregister_focus_scope(screen)
+	_close(screen)
+	_pad_end()
+
+func test_nothing_behind_the_keyboard_hears_its_buttons() -> void:  # Review Focus 1
+	_pad_begin()
+	var reader := InputReader.new()
+	GameManager.add_child(reader)   # before the screen: it hears only what the keyboard and the screen let by
+	var screen := _open("controller")
+	var backed_out := [0]
+	screen.back_requested.connect(func() -> void: backed_out[0] += 1)
+	var profiles := GameManager.input_profiles
+	profiles.set_name(false, profiles.active_index(false), "Couch")
+	screen._refresh_profile_name_field(false)
+
+	var first := _press_confirm_on_the_field(screen)
+	assert_true(is_instance_valid(first), "the keyboard opens")
+	_pad(JOY_BUTTON_B)
+	assert_eq(first.get_text(), "Couc", "B deletes a letter")
+	assert_eq(screen._view, "controller", "and does not back the page out")
+	_pad(JOY_BUTTON_START)
+	assert_true(screen._keyboard_panel == null, "Start finishes it")
+	assert_eq(profiles.name_for(false, profiles.active_index(false)), "Couc", "saving the name")
+
+	var second := _press_confirm_on_the_field(screen)   # a fresh keyboard for each closing press
+	assert_true(is_instance_valid(second), "it opens again")
+	_pad(JOY_BUTTON_X)
+	assert_true(screen._keyboard_panel == null, "X closes it")
+
+	var third := _press_confirm_on_the_field(screen)
+	assert_true(is_instance_valid(third), "and again")
+	_key(KEY_ESCAPE)
+	assert_true(screen._keyboard_panel == null, "Esc closes it")
+
+	assert_eq(reader.heard.size(), 0, "nothing behind the keyboard heard Confirm, B, Start, X or Esc")
+	assert_eq(screen._view, "controller", "the page is still the Controller page")
+	assert_eq(backed_out[0], 0, "the screen never asked to close")
+	assert_true(screen.is_inside_tree() and screen.visible, "and it is still open")
+	_pad(JOY_BUTTON_RIGHT_SHOULDER)
+	assert_eq(reader.heard.size(), 1, "once the keyboard is closed a button the page does not use reaches whatever is behind it")
+	_close(screen)
+	GameManager.remove_child(reader)
+	reader.free()
+	_pad_end()
+
+func test_while_the_keyboard_is_open_the_page_takes_nothing_for_itself() -> void:
+	# What the keyboard lets by (Confirm, the d-pad) is its keys' to use. A caret left in the
+	# Rename field (a click with the stick cursor leaves one) must not make the page take a
+	# Confirm for a second keyboard.
+	_pad_begin()
+	var reader := InputReader.new()
+	GameManager.add_child(reader)
+	var screen := _open("controller")
+	var panel := _press_confirm_on_the_field(screen)
+	assert_true(is_instance_valid(panel), "the keyboard opens")
+	screen._pad_profile_name.grab_focus()
+	_pad(JOY_BUTTON_A)
+	assert_eq(reader.heard.size(), 1, "Confirm went by, for the highlighted key to press")
+	assert_eq(_keyboards_under(screen).size(), 1, "and there is still only the one keyboard")
+	assert_true(screen._keyboard_panel == panel, "the same one")
+	_close(screen)
+	GameManager.remove_child(reader)
+	reader.free()
+	_pad_end()
+
+func test_a_rebuild_while_open_closes_the_keyboard() -> void:  # Review Focus 5
+	_pad_begin()
+	var screen := _open("controller")
+	var panel := _press_confirm_on_the_field(screen)
+	assert_true(is_instance_valid(panel), "the keyboard opens")
+	var old: WeakRef = weakref(panel)
+	assert_true(GameManager.has_focus_scope(panel), "it is a focus scope while open")
+	screen._build()   # as Back or any change of view does (nothing rebuilds the page when a controller connects)
+	assert_true(screen._keyboard_panel == null, "a rebuild closes the keyboard")
+	assert_eq(_keyboards_under(screen).size(), 0, "and leaves none under the screen")
+	var dead: Object = old.get_ref()   # still there until the end of the frame
+	assert_false(dead != null and GameManager.has_focus_scope(dead as Control), "nor its focus scope")
+
+	var fresh := _press_confirm_on_the_field(screen)
+	assert_true(is_instance_valid(fresh), "the next Confirm on the field opens a new keyboard")
+	assert_true(fresh != dead, "a different one")
+	assert_eq(GameManager.focus_scope_count(fresh), 1, "with its own focus scope")
+	_close(screen)
+	_pad_end()
+
+# ------------------------- the Rename field stays out of the keyboard's way (final review I1)
+# The focus guard locks the page's buttons, sliders and dropdowns while the keyboard is the top
+# scope, but it never touches a LineEdit, and Godot's neighbour search starts from the top
+# Control and looks through the whole screen: with the Rename field above the keys, a d-pad
+# push up from the number row put the highlight on the field behind the dim. Leaving it
+# committed the field (a config.cfg write) and the guard then snapped the highlight back.
+
+## A frame lays containers out on a deferred call and none runs inside a test, so sort
+## them here, top-down, the way the engine would.
+func _lay_out(node: Node) -> void:
+	if node is Container:
+		node.notification(Container.NOTIFICATION_SORT_CHILDREN)
+	for child in node.get_children():
+		_lay_out(child)
+
+func _config_bytes() -> PackedByteArray:
+	return FileAccess.get_file_as_bytes(_CONFIG) if FileAccess.file_exists(_CONFIG) else PackedByteArray()
+
+## The Controller page with its Rename field scrolled to the top of the scroll area, as it is
+## when the player has come up to it from the bindings below (follow_focus puts the control
+## being reached at the edge it came from).
+func _controller_page_with_rename_on_top() -> SettingsScreen:
+	var screen := _open("controller")
+	GameManager.register_focus_scope(screen)   # as setup() does
+	var scroll := screen.find_children("*", "ScrollContainer", true, false)[0] as ScrollContainer
+	_lay_out(screen)
+	scroll.scroll_vertical = 100000   # all the way down, to the last binding
+	_lay_out(screen)
+	scroll.ensure_control_visible(screen._pad_profile_name)   # and back up to Rename
+	_lay_out(screen)
+	return screen
+
+func test_the_highlight_cannot_leave_the_keyboard_for_the_rename_field_behind_it() -> void:  # final review I1
+	_pad_begin()
+	var profiles := GameManager.input_profiles
+	var active := profiles.active_index(false)
+	var screen := _controller_page_with_rename_on_top()
+	var field := screen._pad_profile_name
+	var panel := _press_confirm_on_the_field(screen)
+	assert_true(is_instance_valid(panel), "the keyboard opens")
+	_lay_out(screen)
+	GameManager.update_focus_guard_for_test()
+	assert_eq(_focus_owner(), panel.key_button("Q"), "the highlight is on Q")
+	assert_true(field.get_global_rect().end.y < panel.key_button("1").get_global_rect().position.y,
+		"the Rename field sits above the number row, in the way of a push up")
+	assert_eq(field.focus_mode, Control.FOCUS_CLICK, "the field cannot take the highlight while the keyboard is open")
+
+	# Anything that did reach the field would commit what it holds when the highlight left it,
+	# so make that visible: a name that is not the stored one.
+	var stored := profiles.name_for(false, active)
+	field.text = "Leaked"
+	var landed := [0]
+	field.focus_entered.connect(func() -> void: landed[0] += 1)
+	var bytes := _config_bytes()
+	for id: String in ["5", "1", "0"]:
+		panel.key_button(id).grab_focus()
+		_pad(JOY_BUTTON_DPAD_UP)
+		_pad(JOY_BUTTON_DPAD_UP, false)
+		var held := _focus_owner()
+		assert_true(held != null and held != field and panel.is_ancestor_of(held),
+			"a d-pad push up from \"%s\" stays inside the keyboard" % id)
+		GameManager.update_focus_guard_for_test()   # the next frame
+		held = _focus_owner()
+		assert_true(held != null and held != field and panel.is_ancestor_of(held),
+			"and a frame later too")
+	panel.key_button("5").grab_focus()
+	_key(KEY_UP)
+	_key(KEY_UP, false)
+	assert_true(_focus_owner() != field and panel.is_ancestor_of(_focus_owner()), "so does the arrow key up")
+
+	assert_eq(landed[0], 0, "the highlight never touched the field")
+	assert_eq(profiles.name_for(false, active), stored, "so nothing committed to the profile")
+	assert_true(_config_bytes() == bytes, "and config.cfg was not written")
+	_close(screen)
+	_pad_end()
+
+# ----------------------- opening the keyboard saves nothing (triage item 13)
+# Taking the highlight off a text box commits what it holds. Opening the keyboard moves the
+# highlight off the Rename field, so a name typed into the field on a real keyboard and never
+# committed was saved by the very press that opened the keyboard, which opened on the stale
+# stored name; Cancel then left the typed text saved. The field is put back to the stored name
+# first, so that commit has nothing to change.
+
+func test_opening_the_keyboard_does_not_save_a_name_typed_into_the_field() -> void:  # triage item 13
+	_pad_begin()
+	var profiles := GameManager.input_profiles
+	var active := profiles.active_index(false)
+	profiles.set_name(false, active, "Couch")
+	# A config.cfg holding none of the bindings: any save adds them, so its bytes say whether
+	# anything saved.
+	var probe := ConfigFile.new()
+	probe.set_value("probe", "untouched", true)
+	probe.save(_CONFIG)
+	var bytes := _config_bytes()
+	var screen := _open("controller")
+	GameManager.register_focus_scope(screen)   # as setup() does
+	var field := screen._pad_profile_name
+	assert_eq(field.text, "Couch", "the field shows the stored name")
+	field.text = "half"   # typed on a real keyboard, never committed (no Enter, no click away)
+
+	var panel := _press_confirm_on_the_field(screen)
+	assert_true(is_instance_valid(panel), "Confirm opens the keyboard")
+	assert_eq(panel.get_text(), "Couch", "it opens on the stored name")
+	GameManager.update_focus_guard_for_test()   # the highlight leaves the field for Q
+	assert_eq(_focus_owner(), panel.key_button("Q"), "the highlight is on Q")
+	panel.cancel()
+	assert_eq(profiles.name_for(false, active), "Couch", "Cancel leaves the stored name as it was")
+	assert_eq(field.text, "Couch", "and the field shows it, not the half-typed text")
+	assert_true(_config_bytes() == bytes, "config.cfg was not written: opening and cancelling saves nothing")
+
+	# Done with the name as it stood is no change either.
+	var second := _press_confirm_on_the_field(screen)
+	assert_true(is_instance_valid(second), "it opens again")
+	GameManager.update_focus_guard_for_test()
+	second.finish()
+	assert_eq(profiles.name_for(false, active), "Couch", "Done on an unchanged name leaves it")
+	assert_true(_config_bytes() == bytes, "and writes nothing")
+
+	# A real change still saves.
+	var third := _press_confirm_on_the_field(screen)
+	assert_true(is_instance_valid(third), "and again")
+	third.type_char("!")
+	third.finish()
+	assert_eq(profiles.name_for(false, active), "Couch!", "a changed name is stored")
+	assert_true(_config_bytes() != bytes, "and saved")
+	GameManager.unregister_focus_scope(screen)
+	_close(screen)
+	_pad_end()
+
+# ------------------------- a trigger bound to Confirm opens the keyboard (final review M2)
+# The pull that opens the keyboard keeps sending samples after the one that opened it, and the
+# one that lets go. Reaching the highlighted key (a Button that acts on release), they typed
+# its letter: a player who pulled to open the keyboard got a "q" they never chose.
+
+## A stick or trigger sample into the root.
+func _motion(axis: JoyAxis, value: float) -> void:
+	var ev := InputEventJoypadMotion.new()
+	ev.axis = axis
+	ev.axis_value = value
+	GameManager.get_viewport().push_input(ev)
+
+func test_the_pull_of_a_trigger_bound_to_confirm_that_opens_the_keyboard_types_nothing() -> void:  # final review M2
+	_pad_begin()
+	var bound := InputEventJoypadMotion.new()
+	bound.axis = JOY_AXIS_TRIGGER_RIGHT
+	bound.axis_value = 1.0
+	InputMapConfig.rebind_controller("confirm", bound)   # the trigger alone is Confirm now, and ui_accept
+	var profiles := GameManager.input_profiles
+	profiles.set_name(false, profiles.active_index(false), "Couch")
+	var screen := _open("controller")
+	GameManager.register_focus_scope(screen)   # as setup() does
+	screen._pad_profile_name.grab_focus()
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.3)
+	assert_true(screen._keyboard_panel == null, "a light touch opens nothing")
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.6)
+	var panel := screen._keyboard_panel
+	assert_true(is_instance_valid(panel), "the pull past the threshold opens the keyboard")
+	GameManager.update_focus_guard_for_test()
+	assert_eq(_focus_owner(), panel.key_button("Q"), "the highlight is on Q")
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.9)
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 1.0)
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.0)
+	assert_eq(panel.get_text(), "Couch", "the rest of that pull, and its release, typed nothing")
+	assert_true(screen._keyboard_panel == panel, "and the keyboard is still the one open")
+
+	# The next pull is the player's: it presses the highlighted key.
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.3)
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.7)
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 1.0)
+	assert_eq(panel.get_text(), "Couch", "a key acts on release")
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.0)
+	assert_eq(panel.get_text(), "Couchq", "a later pull presses the highlighted key, Q")
+	GameManager.unregister_focus_scope(screen)
+	_close(screen)
+	_pad_end()

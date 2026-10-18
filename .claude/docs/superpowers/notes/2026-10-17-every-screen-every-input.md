@@ -3,6 +3,12 @@
 **Date:** 2026-10-17 · **Branch:** `themed-cursor` · **Spec:**
 `.claude/docs/superpowers/specs/2026-10-17-themed-cursor-design.md` ("Every screen, every input")
 
+**Addendum, branch `onscreen-keyboard` (play-tested and merged 2026-10-18):** the one gap this pass left open (renaming a
+controller keybind profile on a pad) is closed by the on-screen keyboard
+(`.claude/docs/superpowers/specs/2026-10-17-onscreen-keyboard-design.md`). The Settings —
+Keyboard and Controller rows below, "Open gaps" and the checklist's **On-screen keyboard**
+section are updated for it.
+
 ## What was checked, and how
 
 Every screen in the spec's list was checked with four ways of playing:
@@ -28,15 +34,15 @@ answers `ui_cancel`. The guard itself is pinned by `test_focus_guard`
 input path: `VirtualCursor` turns the stick into `InputEventMouseMotion` (with a
 speed) and Cursor Click into a left `InputEventMouseButton`, and pushes them into
 the root exactly as it pushes the real mouse (`VirtualCursor.step_stick`
-`VirtualCursor.gd:121`, `_push_click`, `_deliver` → `root.push_input`
-`VirtualCursor.gd:283`). So **anything that works with the mouse works with the
+`VirtualCursor.gd:127`, `_push_click`, `_deliver` → `root.push_input`
+`VirtualCursor.gd:291`). So **anything that works with the mouse works with the
 stick cursor**, unless a screen reads the mouse some other way. A search of
 `scripts/` and `scenes/` for `get_mouse_position`, `get_global_mouse_position`,
 `mouse_get_position`, `is_mouse_button_pressed`, `get_mouse_button_mask`,
 `input_pickable`, `physics_object_picking`, `_input_event(`, `warp_mouse` and
 `mouse_mode` finds **nothing outside `scripts/cursor/`**, and no script filters
 input by `device`. The only scripts that look at mouse events directly —
-`GameManager._input` (`GameManager.gd:752`, switches to mouse mode),
+`GameManager._input` → `note_input_device` (`GameManager.gd:762`, switches to mouse mode),
 `LevelUpScreen._input` (`LevelUpScreen.gd:51`, a press stops the spin) and
 `DialogueBox._is_advance` (`DialogueBox.gd:234`, a left press advances) — read the
 pushed event itself, so they see the stick's clicks too. Pinned by
@@ -59,10 +65,10 @@ or `open` (a gap left for a decision).
 | **Main menu** (New Game / Continue / Settings / Quit) | play-test — all four are Buttons; real-mouse click + hover sound to confirm | fine — scope `MainMenu.gd:43`; greyed Continue is skipped (`test_focus_never_lands_on_a_disabled_option`); top level, so no Back | fine — same scope; wraps (`test_last_entry_wraps_to_the_first`) | fine — shared path |
 | **Save-slot menu** (Load / Overwrite & Start / Copy / Delete / Start New Game, copy picker, confirms) | fine — every action is a Button; confirms are themed Buttons (`SaveSlotMenu.gd:465`) | fine — picker + each modal register scopes (`SaveSlotMenu.gd:64`, `:381`); Copy↔Delete neighbours wired by hand (`:208`); Esc closes the top modal, then the picker (`:46`) | fine — same; B closes the top modal, then the picker | fine — shared path |
 | **Pause menu** and its Quit confirm | play-test — Buttons; real-mouse click + hover to confirm | fine — scope `PauseMenu.gd:49`, confirm scope `:391`; Esc backs out one layer at a time (`:70`); focus returns to the entry you left (`:326`, `test_preferred_focus_is_honored`) | fine — same; B backs out one layer | fine — shared path |
-| **Settings — root and Controls hub** | fine — category Buttons + "← Back" | fine — scope `SettingsScreen.gd:59`; Esc steps up a level (`:65`); returns to the entry you came from (`test_backing_out_of_the_mouse_page_returns_to_the_mouse_entry`) | fine — same | fine — shared path |
+| **Settings — root and Controls hub** | fine — category Buttons + "← Back" | fine — scope `SettingsScreen.gd:63`; Esc steps up a level (`:69`); returns to the entry you came from (`test_backing_out_of_the_mouse_page_returns_to_the_mouse_entry`) | fine — same | fine — shared path |
 | **Settings — Game** (Difficulty dropdown, Auto-Save toggle) | fine — OptionButton + CheckButton | fine — Enter opens the list, arrows pick, Esc closes it; Enter toggles | fine — same with A / d-pad / B | fine — shared path (`test_a_dropdown_works_from_the_stick`) |
-| **Settings — Keyboard** (status, profile picker, profile name, 7 bindings, ↺, reset) | **fixed (03a5e4b)** — bindings and ↺ are Buttons; name field clicks/selects (Task 5). Clicking "← Back" (or anything that rebuilds the page) mid-wait ended the wait but left the page out of the focus guard, so the arrows / d-pad then found no highlight — or, over the main menu, one behind the panel; a rebuild now hands it back (`test_backing_out_mid_wait_hands_the_page_back_to_the_focus_guard`) | **fixed (558a0a5, 03a5e4b)** — the page is taller than its scroll area (552 of 408 px) and didn't follow the highlight; now it does (`test_the_long_settings_pages_scroll_to_the_highlighted_row`). Press-to-bind: Enter, then a key; Esc cancels (`SettingsScreen.gd:634`). Name field: typing starts on arrival; Up/Down first moves the caret, then leaves | **fixed (558a0a5, 03a5e4b)** — scroll follows; and A on a key binding left a pad player stuck waiting for a key — B now ends the wait (`SettingsScreen.gd:641`, `test_a_controller_backs_out_of_waiting_for_a_key`). Name field: **open** — needs a keyboard to type (see Open gaps) | fine — shared path, scrollbar drag for the lower rows; the stick is off while a binding waits, by design (`test_rebinding_sees_the_stick_press_and_the_right_stick`). Name field: **open** (as highlight) |
-| **Settings — Controller** (status, two stick sliders, note, profiles, 8 bindings incl. Cursor Click, reset) | **fixed (03a5e4b)** — as Keyboard page (a Back click mid-wait now hands the page back to the focus guard); sliders drag (`test_dragging_a_slider_follows_the_cursor`) | **fixed (558a0a5, 03a5e4b)** — 674 of 408 px, now follows the highlight; Enter on a binding then a pad button; Esc cancels | **fixed (558a0a5, 03a5e4b)** — follows the highlight; sliders keep left/right (`test_holding_left_or_right_on_a_slider_leaves_focus_on_it`); every pad button binds, B included, by design (R3 and B must be bindable). Name field **open**. Layout: play-test (note line + Cursor Click row fit) | fine — shared path; R3 is bindable (`test_the_right_stick_cannot_be_bound_to_an_action` keeps the stick itself unbindable) |
+| **Settings — Keyboard** (status, profile picker, profile name, 7 bindings, ↺, reset) | **fixed (03a5e4b)** — bindings and ↺ are Buttons; name field clicks/selects (Task 5). Clicking "← Back" (or anything that rebuilds the page) mid-wait ended the wait but left the page out of the focus guard, so the arrows / d-pad then found no highlight — or, over the main menu, one behind the panel; a rebuild now hands it back (`test_backing_out_mid_wait_hands_the_page_back_to_the_focus_guard`) | **fixed (558a0a5, 03a5e4b)** — the page is taller than its scroll area (552 of 408 px) and didn't follow the highlight; now it does (`test_the_long_settings_pages_scroll_to_the_highlighted_row`). Press-to-bind: Enter, then a key; Esc cancels (`SettingsScreen.gd:729`). Name field: typing starts on arrival; Up/Down first moves the caret, then leaves | **fixed (558a0a5, 03a5e4b)** — scroll follows; and A on a key binding left a pad player stuck waiting for a key — B now ends the wait (`SettingsScreen.gd:736`, `test_a_controller_backs_out_of_waiting_for_a_key`). Name field: **by design, keyboard only** — a pad player has no reason to rename keyboard profiles (user, 2026-10-17; see Open gaps) | fine — shared path, scrollbar drag for the lower rows; the stick is off while a binding waits, by design (`test_rebinding_sees_the_stick_press_and_the_right_stick`). Name field: **by design, keyboard only** (as highlight; `test_the_stick_cursor_opens_nothing_from_the_keyboard_pages_field`) |
+| **Settings — Controller** (status, two stick sliders, note, profiles, 8 bindings incl. Cursor Click, reset) | **fixed (03a5e4b)** — as Keyboard page (a Back click mid-wait now hands the page back to the focus guard); sliders drag (`test_dragging_a_slider_follows_the_cursor`). Name field: a real click still puts the caret in, no panel (`test_the_stick_cursor_opens_the_rename_keyboard_and_the_mouse_does_not`); play-test | **fixed (558a0a5, 03a5e4b)** — 674 of 408 px, now follows the highlight; Enter on a binding then a pad button; Esc cancels | **fixed (558a0a5, 03a5e4b)** — follows the highlight; sliders keep left/right (`test_holding_left_or_right_on_a_slider_leaves_focus_on_it`); every pad button binds, B included, by design (R3 and B must be bindable). Name field **fixed (022a2c9)** — A on the highlighted field opens the on-screen keyboard; Done saves through the profile rules and the highlight returns to the field (`test_confirm_on_the_controller_rename_field_opens_the_keyboard`, `test_done_saves_through_the_profile_rules_and_returns_the_highlight`, `test_cancel_leaves_the_name`, `test_nothing_behind_the_keyboard_hears_its_buttons`; the panel itself is the `onscreen_keyboard` suite); play-test. Layout: play-test (note line + Cursor Click row fit) | fine — shared path; R3 is bindable (`test_the_right_stick_cannot_be_bound_to_an_action` keeps the stick itself unbindable). Name field **fixed (022a2c9)** — a Cursor Click on the field opens the keyboard, a real mouse click does not (`test_a_stick_click_says_it_came_from_the_pad`, `test_the_stick_cursor_opens_the_rename_keyboard_and_the_mouse_does_not`); the keys, ✕ Cancel and ✓ Done are Buttons, so they click like any other; play-test |
 | **Settings — Mouse** (Cursor Shape, Cursor Colour, Mouse Sensitivity) | fine — ◀ ▶ are click-only Buttons (`test_the_arrow_buttons_click_and_are_not_focus_stops`); slider drags | fine — three stops + Back (`test_the_mouse_page_is_reachable_by_focus_navigation`); left/right step a row (`test_left_and_right_change_a_focused_row`) | play-test — one left-stick push = one step and held repeat are pinned (`test_a_stick_steps_once_per_push_not_once_per_motion_event`, `test_a_held_stick_repeats_at_the_nav_repeat_cadence_not_per_motion_event`) but want a real pad; icon crispness at 1× | fine — shared path |
 | **Settings — Audio** (three volume sliders) | fine — sliders drag | fine — left/right change, focus stays (`test_holding_left_or_right_on_a_slider_leaves_focus_on_it`) | fine — same | fine — hold Cursor Click to drag (`test_holding_the_stick_press_drags_a_slider`) |
 | **Settings — Display** (Window Mode, Resolution dropdowns) | play-test — list opens and picks with the cursor drawn over it (pinned: `test_a_dropdown_item_is_chosen_by_clicking_it_and_the_cursor_shows_over_the_list`); changing Window Mode keeps the cursor working | fine — Enter / arrows / Esc on the list | fine — A / d-pad / B | play-test — as mouse (`test_a_dropdown_works_from_the_stick`) |
@@ -88,12 +94,14 @@ or `open` (a gap left for a decision).
 
 ## Open gaps (left for a decision)
 
-1. **Renaming a keybind profile needs a keyboard.** On the Keyboard and Controller
-   pages the "Rename" field can be reached with the d-pad and clicked with the
-   stick cursor, but a controller has no way to type. The profiles still work on a
-   pad (they keep their "Profile 1–3" names, and switching uses the dropdown).
-   Making it typeable on a pad would need an on-screen keyboard — a new piece of UI
-   with its own design, so it was not built here.
+1. ~~**Renaming a keybind profile needs a keyboard.**~~ **Closed (branch
+   `onscreen-keyboard`, merged 2026-10-18).** On the Controller page, A on the "Rename" field (or a
+   stick-cursor click on it) opens an on-screen keyboard, so a pad-only player can
+   rename a controller profile; see the spec,
+   `.claude/docs/superpowers/specs/2026-10-17-onscreen-keyboard-design.md`. The
+   Keyboard page's field deliberately has no on-screen keyboard: a pad player has no
+   reason to rename keyboard profiles (user, 2026-10-17), and someone renaming those
+   has a keyboard.
 
 ## Notes (fine, but worth knowing)
 
@@ -130,6 +138,44 @@ Plain steps for a real play session. Each says what to do and what should happen
 - [ ] Settings → Controls → Keyboard: click a binding (it says "Press…"), then click **← Back** with the mouse. Now press an arrow key (and, separately, the d-pad): the highlight appears on the Controls page — not on the main menu behind it.
 - [ ] Talk to an NPC and press **Esc** (keyboard) and **Start** (pad) mid-conversation.
   No pause menu opens. Finish the conversation, press Esc again: the pause menu opens.
+
+**On-screen keyboard** (branch `onscreen-keyboard`; the panel's look is the mockup,
+`.claude/docs/superpowers/specs/2026-10-17-onscreen-keyboard-mockup.html`)
+- [ ] Pad only, Settings → Controls → Controller → **Rename**: press A. The panel opens over
+  the dimmed page with the profile's current name, its "n / 18" count and the highlight on Q.
+  Type "Couch" with the d-pad and A (hold a direction: it repeats and wraps at the edges); B
+  deletes the last letter (hold it: after a moment it keeps deleting), Y adds a space, LB
+  switches capitals, Start saves. The Active Profile dropdown and the Rename field show the new
+  name and the highlight is back on Rename. Quit the game and start it again: the name is
+  still there.
+- [ ] The same, but press X instead of Start (and, in another try, the ✕ Cancel key): the
+  panel closes and the old name stays; the highlight is back on Rename.
+- [ ] From the pause menu (Pause → Settings → Controls → Controller → Rename), and again from
+  the main menu's Settings: press Start and B inside the panel. Start saves and B deletes a
+  letter; neither closes or re-opens the pause menu, and B does not back Settings out a level.
+  With the panel closed, B backs out as usual.
+- [ ] Stick cursor: move the cursor onto the Rename field and click it (R3). The panel opens
+  and no caret blinks in the field behind it. Click letter keys, ⇧, ! ?, ⌫, ✕ Cancel and ✓ Done
+  with R3: each does its job, and the pad's buttons still work while the cursor is up.
+- [ ] Mouse: click the Controller page's Rename field. The caret goes in and there is no panel;
+  type and press Enter, as before. Reach the field with the arrow keys and press Enter: no
+  panel either.
+- [ ] Settings → Controls → **Keyboard** → Rename: A on the field, and a stick-cursor click on
+  it, open no panel (by design: a pad player has no reason to rename keyboard profiles).
+- [ ] With the panel open (opened from the pad), use the real keyboard: letters and digits type
+  (Shift gives capitals), Backspace deletes, Enter is Done, Esc is Cancel, and nothing reaches
+  the page or the pause menu behind.
+- [ ] Controller page: put Cancel / Back on a trigger (LT, say), then open the panel. One pull
+  deletes one letter and holding it keeps deleting; the page behind does not back out. Put it
+  back afterwards.
+- [ ] The panel matches the mockup. `⇧ ⌫ ✕ ✓` draw as symbols, not boxes (if one is a box,
+  report it: the fix is the words Caps / Del).
+- [ ] Capitals on and off: the letter keys change case. Cinzel draws lowercase as small
+  capitals, so the difference is subtle: note whether it is clear enough (if not, a colour on
+  the ⇧ key is the follow-up).
+- [ ] The legend's two lines (Type · Delete · Cancel, then Space · Caps · Done) fit inside the
+  panel and name your actual buttons. Remap Pause to another pad button on the Controller
+  page: the legend and Done follow it.
 
 **Real mouse, real game**
 - [ ] Main menu and pause menu: hover each entry (it lights, the cursor glows, the
