@@ -1115,7 +1115,7 @@ func test_the_highlight_cannot_leave_the_keyboard_for_the_rename_field_behind_it
 	assert_eq(_focus_owner(), panel.key_button("Q"), "the highlight is on Q")
 	assert_true(field.get_global_rect().end.y < panel.key_button("1").get_global_rect().position.y,
 		"the Rename field sits above the number row, in the way of a push up")
-	assert_eq(field.focus_mode, Control.FOCUS_CLICK, "the field cannot take the highlight while the keyboard is open")
+	assert_eq(field.focus_mode, Control.FOCUS_NONE, "the focus guard locks the field behind the open keyboard")
 
 	# Anything that did reach the field would commit what it holds when the highlight left it,
 	# so make that visible: a name that is not the stored one.
@@ -1179,6 +1179,7 @@ func test_opening_the_keyboard_does_not_save_a_name_typed_into_the_field() -> vo
 	assert_eq(profiles.name_for(false, active), "Couch", "Cancel leaves the stored name as it was")
 	assert_eq(field.text, "Couch", "and the field shows it, not the half-typed text")
 	assert_true(_config_bytes() == bytes, "config.cfg was not written: opening and cancelling saves nothing")
+	GameManager.update_focus_guard_for_test()   # the next frame: the guard hands the page, field included, back
 
 	# Done with the name as it stood is no change either.
 	var second := _press_confirm_on_the_field(screen)
@@ -1187,6 +1188,7 @@ func test_opening_the_keyboard_does_not_save_a_name_typed_into_the_field() -> vo
 	second.finish()
 	assert_eq(profiles.name_for(false, active), "Couch", "Done on an unchanged name leaves it")
 	assert_true(_config_bytes() == bytes, "and writes nothing")
+	GameManager.update_focus_guard_for_test()   # the next frame, as above
 
 	# A real change still saves.
 	var third := _press_confirm_on_the_field(screen)

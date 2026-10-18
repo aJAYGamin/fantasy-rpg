@@ -641,3 +641,119 @@ func test_a_greyed_out_button_makes_no_hover_sound() -> void:
 	b.disabled = false
 	assert_true(GameManager.hover_sfx_allowed(b), "and sounds again once enabled")
 	_cleanup([scope])
+
+# --- Text boxes and labels ------------------------------------------------------
+# Two blind spots the on-screen keyboard first worked around on its own. The guard
+# locked buttons, sliders, dropdowns and left/right rows in background menus but
+# never a text box, so a d-pad push from the keyboard could land on the Rename field
+# behind it. And it counted anything not FOCUS_NONE as a stop, so a label Godot
+# marks focusable for screen readers became a wrap target Godot then refused.
+
+## A scope holding one LineEdit, laid out by hand like _list_scope's buttons.
+func _text_scope() -> Dictionary:
+	var root := Control.new()
+	root.size = Vector2(200, 88)
+	var b := Button.new()
+	b.text = "Rename"
+	b.size = Vector2(200, 40)
+	root.add_child(b)
+	var field := LineEdit.new()
+	field.position = Vector2(0, 44)
+	field.size = Vector2(200, 40)
+	root.add_child(field)
+	GameManager.add_child(root)
+	return {"root": root, "field": field}
+
+func test_a_text_box_behind_the_top_menu_is_locked() -> void:
+	var under := _text_scope()
+	var over := _make_scope()
+	GameManager.register_focus_scope(under["root"])
+	GameManager.register_focus_scope(over)
+	GameManager.set_controller_mode_for_test(true)
+	GameManager.update_focus_guard_for_test()
+
+	var field: LineEdit = under["field"]
+	assert_eq(field.focus_mode, Control.FOCUS_NONE,
+		"a text box in a menu behind the current one can't take the highlight")
+	assert_ne(field.get_viewport().gui_get_focus_owner(), field, "and doesn't hold it")
+
+	over.hide()
+	GameManager.update_focus_guard_for_test()
+	assert_eq(field.focus_mode, Control.FOCUS_ALL, "once the menu on top closes, it can again")
+
+	GameManager.set_controller_mode_for_test(false)
+	_cleanup([under["root"], over])
+
+func test_a_text_box_in_the_top_menu_takes_the_highlight() -> void:
+	var s := _text_scope()
+	var field: LineEdit = s["field"]
+	field.focus_mode = Control.FOCUS_CLICK   # whatever it was built with
+	GameManager.register_focus_scope(s["root"])
+	GameManager.set_keyboard_nav_for_test(true)
+	GameManager.update_focus_guard_for_test()
+	assert_eq(field.focus_mode, Control.FOCUS_ALL, "a text box in the current menu is a normal stop")
+	GameManager.set_controller_mode_for_test(false)
+	_cleanup([s["root"]])
+
+func test_a_text_box_stays_clickable_in_mouse_mode() -> void:
+	# Mouse play turns every scope's controls click-only. A text box set to
+	# FOCUS_NONE could not be clicked into at all, so it goes click-focus instead:
+	# the mouse can still type in it, and it shows no highlight.
+	var s := _text_scope()
+	var field: LineEdit = s["field"]
+	GameManager.register_focus_scope(s["root"])
+	GameManager.set_controller_mode_for_test(true)
+	GameManager.update_focus_guard_for_test()
+	GameManager.set_controller_mode_for_test(false)
+	GameManager.update_focus_guard_for_test()
+	assert_eq(field.focus_mode, Control.FOCUS_CLICK, "mouse mode leaves a text box clickable")
+	_cleanup([s["root"]])
+
+func test_a_screen_reader_label_is_not_a_stop() -> void:
+	var s := _list_scope([["A", false], ["B", false], ["C", false]])
+	var root: Control = s["root"]
+	var btns: Array = s["buttons"]
+	# A label above the menu and one below it, both marked focusable for screen
+	# readers the way Godot 4.6 marks some labels. The highlight can never land on
+	# them, so they must not be first entries or wrap targets.
+	var above := Label.new()
+	above.text = "Title"
+	above.position = Vector2(0, -44)
+	above.size = Vector2(200, 40)
+	above.focus_mode = Control.FOCUS_ACCESSIBILITY
+	root.add_child(above)
+	root.move_child(above, 0)
+	var below := Label.new()
+	below.text = "Hint"
+	below.position = Vector2(0, 132)
+	below.size = Vector2(200, 40)
+	below.focus_mode = Control.FOCUS_ACCESSIBILITY
+	root.add_child(below)
+	GameManager.register_focus_scope(root)
+	GameManager.set_controller_mode_for_test(true)
+	GameManager.update_focus_guard_for_test()
+
+	assert_eq(root.get_viewport().gui_get_focus_owner(), btns[0], "the highlight starts on the first button, not the title")
+	assert_eq(btns[2].find_valid_focus_neighbor(SIDE_BOTTOM), btns[0], "down from the last button wraps to the first, past the hint")
+	assert_eq(btns[0].find_valid_focus_neighbor(SIDE_TOP), btns[2], "up from the first wraps to the last, past the title")
+
+	GameManager.set_controller_mode_for_test(false)
+	_cleanup([root])
+
+func test_a_click_only_control_is_not_a_wrap_target() -> void:
+	# Same rule for anything click-focus only (a text box in mouse terms, say):
+	# Godot's keyboard search never stops on it, so neither does the wrap.
+	var s := _list_scope([["A", false], ["B", false]])
+	var root: Control = s["root"]
+	var btns: Array = s["buttons"]
+	var c := Control.new()
+	c.position = Vector2(0, 88)
+	c.size = Vector2(200, 40)
+	c.focus_mode = Control.FOCUS_CLICK
+	root.add_child(c)
+	GameManager.register_focus_scope(root)
+	GameManager.set_controller_mode_for_test(true)
+	GameManager.update_focus_guard_for_test()
+	assert_eq(btns[1].find_valid_focus_neighbor(SIDE_BOTTOM), btns[0], "the wrap skips a click-only control")
+	GameManager.set_controller_mode_for_test(false)
+	_cleanup([root])

@@ -49,7 +49,7 @@ order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless — only headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~6493 tests, 59 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves). Never F6 / Run Current Scene: the runner refuses a windowed run (prints this command and quits), because it would install the cursor's window hook and the hold tests would capture and warp your real pointer.
+- **Run tests headless — only headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~6506 tests, 59 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves). Never F6 / Run Current Scene: the runner refuses a windowed run (prints this command and quits), because it would install the cursor's window hook and the hold tests would capture and warp your real pointer.
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -1522,7 +1522,7 @@ BattleScene (Node2D)
   tests capture and warp the developer's real pointer. The runner also keeps `user://config.cfg`
   (its bytes, or that it was absent) before the first suite and puts it back after the last, so
   a suite can't leave the developer's settings changed — a test that saves settings should still
-  `_protect()` / `_restore()` it, as `test_settings` does. **~6493 tests / 59 suites**
+  `_protect()` / `_restore()` it, as `test_settings` does. **~6506 tests / 59 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,
@@ -1723,11 +1723,10 @@ own Testing Policy above — the policy (a suite per feature, registered in
     `_on_profile_renamed` (the usual `InputProfiles.set_name` rules; it writes config.cfg only when the stored name
     changed); either signal returns the highlight to Rename with `set_preferred_focus` (the page's buttons are
     `FOCUS_NONE` under the panel's scope, so never `grab_focus`).
-    ⚠️ The focus guard never locks a `LineEdit`, and Godot's neighbour search runs from the top Control through the whole
-    screen, so with Rename above the keys a d-pad push up from the number row landed on the field behind the dim. So
-    `_open_name_keyboard` holds the field at `FOCUS_CLICK` while the panel is open (out of that search; the dim blocks
-    clicks anyway; it does not release a highlight already on it) and `_on_name_keyboard_closed` gives back `FOCUS_ALL`.
-    It also puts the field's text back to the stored name first: the highlight leaving a text box commits it, so text
+    Godot's neighbour search runs from the top Control through the whole screen, so with Rename above the keys a d-pad
+    push up from the number row could land on the field behind the dim; the focus guard locks a background `LineEdit`
+    like its buttons (see the focus-guard notes below), so the field is out of that search while the panel is open.
+    `_open_name_keyboard` puts the field's text back to the stored name first: the highlight leaving a text box commits it, so text
     typed there and never committed would otherwise be saved by the press that opens the panel, and Cancel would keep it.
     **Buttons:** Confirm (A) presses the key, Cancel/Back (B) deletes (held repeats), X cancels, Y adds a space, LB toggles
     capitals, Pause/Menu (Start) finishes. A/B/Start follow the player's remaps; X/Y/LB are fixed, and one the player has
@@ -1746,8 +1745,9 @@ own Testing Policy above — the policy (a suite per feature, registered in
     key, which acts on release, would type its letter; a panel closed mid-pull drains it the same way. A page rebuild
     while open frees the panel (`_exit_tree` drops its scope) and counts as Cancel. The legend
     (`RichTextLabel`) is set `FOCUS_NONE`: Godot 4.6 gives that class `FOCUS_ACCESSIBILITY`, which the guard's
-    `_collect_focusable` counts as a stop, so the number keys' wrap link went to a control Godot refuses and a push up
-    from the number row always ended on Space (any non-key control added to the panel needs the same). Cinzel draws
+    `_collect_focusable` used to count as a stop, so the number keys' wrap link went to a control Godot refuses and a
+    push up from the number row always ended on Space. The guard now counts only `FOCUS_ALL` (see below), so the line
+    is belt and braces. Cinzel draws
     lowercase as small capitals, so capitals on/off shows only as letter size (no indicator on ⇧). Suite
     `onscreen_keyboard` (+ the opening tests in `settings` and `virtual_cursor`).
   - **`CyclerRow`** (`scripts/ui/CyclerRow.gd`): name · `◀` · `[icon or dot] value` · `▶`, same width for every row so
@@ -1775,6 +1775,14 @@ own Testing Policy above — the policy (a suite per feature, registered in
     - **Disabled controls are FOCUS_NONE**, not merely un-grabbable. Godot's neighbor search only skips
       FOCUS_NONE, so a greyed button left focusable is a dead end that swallows the d-pad (the main
       menu's disabled Continue blocked every option under it).
+    - **Text boxes are governed too.** `_set_scope_focusable` treats a `LineEdit` like a button: `FOCUS_ALL`
+      in the top scope, `FOCUS_NONE` in a background one, and `FOCUS_CLICK` (not `FOCUS_NONE`) in pure-mouse
+      mode so the mouse can still click in and type. Before, a text box was never locked, so a push from the
+      on-screen keyboard could land on the Rename field behind it.
+    - **Only `FOCUS_ALL` is a stop.** `_collect_focusable` (first entry, wrap targets) counts only
+      `FOCUS_ALL` controls. Godot's keyboard search never lands on a `FOCUS_CLICK` control or on one Godot
+      4.6 marks `FOCUS_ACCESSIBILITY` for screen readers (some labels, `RichTextLabel`), so counting those
+      made wrap links and first entries Godot then refused.
     - **The top scope is re-walked every frame**, not only when the active scope changes. Menus rebuild
       their contents constantly (item tabs, the next hero's page, the skill grid) and fresh controls are
       born FOCUS_ALL; a change-only walk left them inconsistent — the Items "?" buttons were reachable in
