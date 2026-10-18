@@ -49,7 +49,7 @@ order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~6020 tests, 56 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless — only headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~6088 tests, 57 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves). Never F6 / Run Current Scene: the runner refuses a windowed run (prints this command and quits), because it would install the cursor's window hook and the hold tests would capture and warp your real pointer.
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -133,9 +133,9 @@ tools/                        # one-shot / offline scripts, run as scenes (not -
   extract_move_library.gd/.tscn   # built data/skills/ from live data + rewired enemy refs; idempotent
   capture_move_baseline.gd/.tscn  # wrote tests/fixtures/move_library_baseline.json — NEVER re-run
 tests/
-  TestRunner.tscn/.gd         # run this scene (F6) to execute all suites; register suites in SUITE_PATHS
+  TestRunner.tscn/.gd         # runs all suites, HEADLESS ONLY (refuses a windowed run; keeps config.cfg as it found it); register suites in SUITE_PATHS
   TestSuite.gd                # base class with assert_* helpers
-  suites/                     # one test_<feature>.gd per system (56 suites)
+  suites/                     # one test_<feature>.gd per system (57 suites)
   fixtures/                   # move_library_baseline.json — pre-migration snapshot for the MoveLibrary suite
 assets/  backgrounds/ characters/ enemies/ icons/ ui/
 fonts/   music/
@@ -1165,15 +1165,21 @@ the game has to take the mouse over and move and draw the cursor itself.
 - **Shown / hidden.** Mouse events show the cursor; keys, controller buttons and a stick
   pushed past 0.5 hide it — the same events `GameManager._input` takes as a switch to the
   focus highlight, so the cursor and the highlight are never both up. Moving the mouse brings
-  it back where it was.
+  it back where it was. The pad brings it back too (the right stick, or a Cursor Click on a hidden
+  cursor), and each does it with a mouse move pushed at the cursor's tip (a Cursor Click's is
+  `_push_still_move`), which `GameManager._input` takes as mouse use and so leaves the highlight.
+  `_input` counts a trackpad pan or pinch (`InputEventGesture`) as mouse use as well.
 - **The right stick.** `_process` feeds `step_stick(axis, delta)` the tilt of the connected
   pad tilted furthest (`Input.get_joy_axis`); `CursorMotion.stick_velocity` gives base px/s at
   `settings.stick_sensitivity_right`. A move shows the cursor, is clamped to the window (only
   the mouse slips out), and is pushed as a mouse move carrying the stick's velocity and the
-  held buttons. `route_os_event` consumes right-stick motion (`JOY_AXIS_RIGHT_X/Y`) so it never
-  reaches the menus; the d-pad, left stick and face buttons pass through and hide the cursor.
+  held buttons. A frame longer than `VirtualCursor.MAX_STICK_FRAME` (1/30 s) counts as that long,
+  so a hitch with the stick held can't throw the cursor across the screen. `route_os_event`
+  consumes right-stick motion (`JOY_AXIS_RIGHT_X/Y`) so it never reaches the menus; the d-pad,
+  left stick and face buttons pass through and hide the cursor.
 - **Cursor Click** (the `cursor_click` action, R3 by default, remappable on the Controller page).
-  A press while the cursor is hidden only shows it; otherwise press/release become a left
+  A press while the cursor is hidden only shows it (and, like the stick, leaves the focus
+  highlight for the mouse); otherwise press/release become a left
   `InputEventMouseButton` at `pointer_pos` (holding drags: `_buttons` carries the bit). If the
   binding is shared with another action, a press while the cursor is hidden goes through as
   that action's and does not show the cursor. A release whose press the cursor clicked is
@@ -1218,17 +1224,20 @@ the game has to take the mouse over and move and draw the cursor itself.
   `update_glow()` (every frame, after `update_mirrors`) sets `glowing` from the control under
   `pointer_pos` (`gui_get_hovered_control()` + `is_clickable(control, local_pos)`: an enabled
   `BaseButton`, a movable `Slider`/`ScrollBar`, an editable `LineEdit`, or anything whose
-  `get_cursor_shape` is the pointing hand — the Stats screen's hit areas) or from the cursor being
-  over an open `PopupMenu`'s rect, and never while the cursor is hidden. One `ShaderMaterial`
+  `get_cursor_shape` is the pointing hand — a rule for any control that asks; none does today,
+  since the game draws its own cursor and a control sets no cursor shape: the Stats screen's move
+  cards are Buttons) or from the cursor being over an open `PopupMenu`'s rect, and never while
+  the cursor is hidden. One `ShaderMaterial`
   (`VirtualCursor._glow`) is shared by the cursor and every popup copy, so a single write lights
   them all. The blur is 64 equal-weight taps on a Gaussian-importance-sampled spiral (both glows in one
   pass); the wide glow is raised to the 1.5th power to match the CSS chain, which casts it from the
   art plus the tight glow. Checked against a CPU rendering of the CSS chain (mean difference under
   0.005 on a 0-1 scale).
-- ⚠️ **Never read the OS mouse position** (`get_mouse_position()` / `get_global_mouse_position()`
-  on the root, `DisplayServer.mouse_get_position()`): with the mouse captured it is the
-  hidden OS pointer, not the cursor. Read `GameManager.virtual_cursor.pointer_pos`, or the
-  position on the event. The one exception is `VirtualCursor._hold_again`, which reads it while the
+- ⚠️ **Never read the OS mouse position** (`get_mouse_position()` on the root,
+  `get_local_mouse_position()` / `get_global_mouse_position()` on any CanvasItem in the root
+  viewport — a Node2D or a Control, not only the root — and `DisplayServer.mouse_get_position()`):
+  with the mouse captured it is the hidden OS pointer, not the cursor. Read
+  `GameManager.virtual_cursor.pointer_pos`, or the position on the event. The one exception is `VirtualCursor._hold_again`, which reads it while the
   system pointer is still visible, just before capturing, so the cursor carries on from it.
   Godot's own `Window.update_mouse_cursor_state()` does read it: it pushes a mouse move of its own
   at the hidden OS pointer, so hover jumps there. It runs when a hovered control already in the tree
@@ -1468,11 +1477,18 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~6020 tests / 56 suites**
+- Run: **headless only**, with the command above (**Run tests headless**). Never F6 / Run
+  Current Scene: `TestRunner._ready` refuses to run when `DisplayServer.get_name()` is not
+  `headless`, printing "Run the tests headless: <command>" and quitting, because a windowed run
+  installs the window hook (`test_the_hook_is_not_installed_headless` would fail) and the hold
+  tests capture and warp the developer's real pointer. The runner also keeps `user://config.cfg`
+  (its bytes, or that it was absent) before the first suite and puts it back after the last, so
+  a suite can't leave the developer's settings changed — a test that saves settings should still
+  `_protect()` / `_restore()` it, as `test_settings` does. **~6088 tests / 57 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,
-  auto_save, level_up_screen, defeat_flow, roaming_enemy, move_library, skill_resolver, status_chips, battle_menu_gating, enemy_cards, meter_bars, skill_options, scrollbars, multi_turn, cursor_art, cursor_motion, cursor_hold, virtual_cursor, cycler_row.
+  auto_save, level_up_screen, defeat_flow, roaming_enemy, move_library, skill_resolver, status_chips, battle_menu_gating, enemy_cards, meter_bars, skill_options, scrollbars, multi_turn, cursor_art, cursor_motion, cursor_hold, virtual_cursor, cycler_row, runner_guards.
 - ⚠️ **`TOTAL … 0 failed` can hide a runtime script error.** A `SCRIPT ERROR` inside
   a test aborts that test method WITHOUT recording a failure, so a broken test
   just stops counting. After a full run also grep the output for `SCRIPT ERROR`

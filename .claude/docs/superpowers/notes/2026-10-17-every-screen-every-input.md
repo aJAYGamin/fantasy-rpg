@@ -28,8 +28,8 @@ answers `ui_cancel`. The guard itself is pinned by `test_focus_guard`
 input path: `VirtualCursor` turns the stick into `InputEventMouseMotion` (with a
 speed) and Cursor Click into a left `InputEventMouseButton`, and pushes them into
 the root exactly as it pushes the real mouse (`VirtualCursor.step_stick`
-`VirtualCursor.gd:116`, `_push_click`, `_deliver` → `root.push_input`
-`VirtualCursor.gd:269`). So **anything that works with the mouse works with the
+`VirtualCursor.gd:121`, `_push_click`, `_deliver` → `root.push_input`
+`VirtualCursor.gd:283`). So **anything that works with the mouse works with the
 stick cursor**, unless a screen reads the mouse some other way. A search of
 `scripts/` and `scenes/` for `get_mouse_position`, `get_global_mouse_position`,
 `mouse_get_position`, `is_mouse_button_pressed`, `get_mouse_button_mask`,
@@ -61,7 +61,7 @@ or `open` (a gap left for a decision).
 | **Pause menu** and its Quit confirm | play-test — Buttons; real-mouse click + hover to confirm | fine — scope `PauseMenu.gd:49`, confirm scope `:391`; Esc backs out one layer at a time (`:70`); focus returns to the entry you left (`:326`, `test_preferred_focus_is_honored`) | fine — same; B backs out one layer | fine — shared path |
 | **Settings — root and Controls hub** | fine — category Buttons + "← Back" | fine — scope `SettingsScreen.gd:59`; Esc steps up a level (`:65`); returns to the entry you came from (`test_backing_out_of_the_mouse_page_returns_to_the_mouse_entry`) | fine — same | fine — shared path |
 | **Settings — Game** (Difficulty dropdown, Auto-Save toggle) | fine — OptionButton + CheckButton | fine — Enter opens the list, arrows pick, Esc closes it; Enter toggles | fine — same with A / d-pad / B | fine — shared path (`test_a_dropdown_works_from_the_stick`) |
-| **Settings — Keyboard** (status, profile picker, profile name, 7 bindings, ↺, reset) | **fixed (03a5e4b)** — bindings and ↺ are Buttons; name field clicks/selects (Task 5). Clicking "← Back" (or anything that rebuilds the page) mid-wait ended the wait but left the page out of the focus guard, so the arrows / d-pad then found no highlight — or, over the main menu, one behind the panel; a rebuild now hands it back (`test_backing_out_mid_wait_hands_the_page_back_to_the_focus_guard`) | **fixed (558a0a5, 03a5e4b)** — the page is taller than its scroll area (552 of 408 px) and didn't follow the highlight; now it does (`test_the_long_settings_pages_scroll_to_the_highlighted_row`). Press-to-bind: Enter, then a key; Esc cancels (`SettingsScreen.gd:630`). Name field: typing starts on arrival; Up/Down first moves the caret, then leaves | **fixed (558a0a5, 03a5e4b)** — scroll follows; and A on a key binding left a pad player stuck waiting for a key — B now ends the wait (`SettingsScreen.gd:637`, `test_a_controller_backs_out_of_waiting_for_a_key`). Name field: **open** — needs a keyboard to type (see Open gaps) | fine — shared path, scrollbar drag for the lower rows; the stick is off while a binding waits, by design (`test_rebinding_sees_the_stick_press_and_the_right_stick`). Name field: **open** (as highlight) |
+| **Settings — Keyboard** (status, profile picker, profile name, 7 bindings, ↺, reset) | **fixed (03a5e4b)** — bindings and ↺ are Buttons; name field clicks/selects (Task 5). Clicking "← Back" (or anything that rebuilds the page) mid-wait ended the wait but left the page out of the focus guard, so the arrows / d-pad then found no highlight — or, over the main menu, one behind the panel; a rebuild now hands it back (`test_backing_out_mid_wait_hands_the_page_back_to_the_focus_guard`) | **fixed (558a0a5, 03a5e4b)** — the page is taller than its scroll area (552 of 408 px) and didn't follow the highlight; now it does (`test_the_long_settings_pages_scroll_to_the_highlighted_row`). Press-to-bind: Enter, then a key; Esc cancels (`SettingsScreen.gd:634`). Name field: typing starts on arrival; Up/Down first moves the caret, then leaves | **fixed (558a0a5, 03a5e4b)** — scroll follows; and A on a key binding left a pad player stuck waiting for a key — B now ends the wait (`SettingsScreen.gd:641`, `test_a_controller_backs_out_of_waiting_for_a_key`). Name field: **open** — needs a keyboard to type (see Open gaps) | fine — shared path, scrollbar drag for the lower rows; the stick is off while a binding waits, by design (`test_rebinding_sees_the_stick_press_and_the_right_stick`). Name field: **open** (as highlight) |
 | **Settings — Controller** (status, two stick sliders, note, profiles, 8 bindings incl. Cursor Click, reset) | **fixed (03a5e4b)** — as Keyboard page (a Back click mid-wait now hands the page back to the focus guard); sliders drag (`test_dragging_a_slider_follows_the_cursor`) | **fixed (558a0a5, 03a5e4b)** — 674 of 408 px, now follows the highlight; Enter on a binding then a pad button; Esc cancels | **fixed (558a0a5, 03a5e4b)** — follows the highlight; sliders keep left/right (`test_holding_left_or_right_on_a_slider_leaves_focus_on_it`); every pad button binds, B included, by design (R3 and B must be bindable). Name field **open**. Layout: play-test (note line + Cursor Click row fit) | fine — shared path; R3 is bindable (`test_the_right_stick_cannot_be_bound_to_an_action` keeps the stick itself unbindable) |
 | **Settings — Mouse** (Cursor Shape, Cursor Colour, Mouse Sensitivity) | fine — ◀ ▶ are click-only Buttons (`test_the_arrow_buttons_click_and_are_not_focus_stops`); slider drags | fine — three stops + Back (`test_the_mouse_page_is_reachable_by_focus_navigation`); left/right step a row (`test_left_and_right_change_a_focused_row`) | play-test — one left-stick push = one step and held repeat are pinned (`test_a_stick_steps_once_per_push_not_once_per_motion_event`, `test_a_held_stick_repeats_at_the_nav_repeat_cadence_not_per_motion_event`) but want a real pad; icon crispness at 1× | fine — shared path |
 | **Settings — Audio** (three volume sliders) | fine — sliders drag | fine — left/right change, focus stays (`test_holding_left_or_right_on_a_slider_leaves_focus_on_it`) | fine — same | fine — hold Cursor Click to drag (`test_holding_the_stick_press_drags_a_slider`) |
@@ -135,7 +135,11 @@ Plain steps for a real play session. Each says what to do and what should happen
 - [ ] Main menu and pause menu: hover each entry (it lights, the cursor glows, the
   hover sound plays once) and click it (it opens).
 - [ ] Settings → Display: open **Window Mode** and **Resolution**. The cursor is drawn
-  over the open list, hovering lights rows, a click picks one.
+  over the open list, hovering lights rows, a click picks one. Then do it again with the
+  right stick and R3: the stick moves the cursor over the open list, rows light as it
+  passes them, and R3 picks one.
+- [ ] On a trackpad, press an arrow key in a menu (the highlight shows), then scroll with
+  two fingers: the highlight goes and the cursor shows.
 - [ ] Change Window Mode (Fullscreen → Windowed → Borderless → Fullscreen). After each,
   the cursor still moves, hovers and clicks.
 - [ ] In battle, pick a target: hovering an enemy card or a hero panel lights it; a
@@ -145,13 +149,41 @@ Plain steps for a real play session. Each says what to do and what should happen
 - [ ] Hover a status chip in battle and the Items screen's "?" with the mouse, then
   with the stick cursor: the tooltip shows for both.
 
+**The cursor itself (the feature's own success criteria)**
+- [ ] Settings → Controls → Mouse, **Mouse Sensitivity 1.00×**: sweep the mouse across the
+  game (or slip it out of the window and back, windowed) and compare with your normal
+  desktop pointer. The same hand movement takes the cursor about the same distance — it
+  feels like the pointer you always use. Now set **0.25×**: the same sweep moves the cursor
+  clearly less (about a quarter as far). Set **3.00×**: a small flick takes it across the
+  screen. The speed changes the moment you move the slider, with no restart.
+- [ ] Settings → Controls → Mouse, with the art sheet open beside the game
+  (`.claude/docs/superpowers/specs/2026-10-17-themed-cursor-art.html`): step **Cursor Shape**
+  through all ten shapes, then **Cursor Colour** through all twenty. Each looks like its tile
+  on the sheet: the same outline, the lighter rim, the dark edge round it. Hover a button
+  (any menu): the cursor turns a little brighter and gets the soft glow in its colour, like
+  the sheet's hover tile, and the glow goes when you move off. Look hardest at **Void** and
+  **Obsidian** (dark colours: the rim must still show) and **Lunar** (near-white).
+- [ ] Look at a few shape and colour pairs (include Obsidian and Lunar) over a dark menu
+  (main menu, pause menu) and over the bright overworld (walk out on Fallster Plains, move
+  the mouse). In both, the cursor reads clearly and you never lose it.
+- [ ] Settings → Controls → Mouse: pick a shape you don't normally use, a colour (say Rose)
+  and **1.50×**. Quit the game completely (Pause → Quit, or Cmd-Q) and start it again. The
+  cursor on the main menu is that shape and colour, Settings → Controls → Mouse shows the
+  same three values, and the cursor moves at the 1.50× speed. (Put your own choices back
+  afterwards.)
+- [ ] Settings → Controls → Keyboard, then Controller: in the profile-name field, click
+  inside it (the caret appears where you clicked), drag across the text with the mouse (the
+  part you cover is highlighted), type (it replaces the selection), then double-click a
+  word (the whole word is selected). Press Enter and the name saves.
+
 **Right stick (controller)**
 - [ ] The right stick moves the cursor at a comfortable speed at 1.00× (Right Stick
   Sensitivity); full tilt crosses the screen in about a second and a half.
 - [ ] R3 clicks wherever the cursor is. Holding R3 and moving the stick drags a volume
   slider, and drags the scrollbar on the Settings Keyboard page.
 - [ ] Use the d-pad (the cursor hides), then press R3: the first press only brings the
-  cursor back where it was; the second clicks.
+  cursor back where it was, and the menu highlight goes with it (never both on screen);
+  the second press clicks.
 - [ ] Settings → Controls → Controller: the line "Right stick moves the cursor — press
   it to click." and the **Cursor Click** row fit the column and read well.
 - [ ] Settings → Controls → Mouse and Performance → Max FPS: one left-stick push moves
