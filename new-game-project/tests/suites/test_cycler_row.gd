@@ -359,6 +359,8 @@ func test_an_icon_or_a_dot_shows_before_the_value() -> void:
 	r.set_icon(tex)
 	assert_true(r._icon.visible, "an icon shows")
 	assert_eq(r._icon.texture, tex, "the one given")
+	assert_eq(r._icon.texture_filter, CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS,
+			"drawn with mipmaps, so a large picture shrinks into the slot cleanly")
 	assert_false(r._dot.visible, "and no dot")
 
 	r.set_swatch(Color("E0559E"))

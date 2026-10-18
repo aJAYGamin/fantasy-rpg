@@ -629,6 +629,41 @@ func test_a_resting_stick_leaves_the_cursor_alone() -> void:
 	assert_true(reader.last_motion == null, "and pushes no mouse move")
 	_end()
 
+func test_a_drifting_stick_leaves_a_hidden_cursor_and_the_highlight_alone() -> void:
+	# A worn stick resting past the dead zone used to bring the cursor back every frame,
+	# and its mouse moves took the menus off the d-pad's highlight.
+	var layer := _begin()
+	var reader := InputReader.new()
+	layer.add_child(reader)
+	GameManager._apply_input_mode(true, false)   # on the d-pad: highlight up, cursor hidden
+	_vc().pointer_pos = Vector2(500, 300)
+	_vc().shown = false
+	_tilt(Vector2(0.4, 0.1), 1.0)
+	assert_eq(_vc().pointer_pos, Vector2(500, 300), "a second of drift at 0.41 doesn't move a hidden cursor")
+	assert_false(_vc().shown, "or show it")
+	assert_true(reader.last_motion == null, "and pushes no mouse move")
+	assert_true(GameManager.focus_nav_active(), "so the highlight stays up")
+	_end()
+
+func test_a_firm_push_brings_a_hidden_cursor_back() -> void:
+	_begin()
+	_vc().pointer_pos = Vector2(500, 300)
+	_vc().shown = false
+	_vc().step_stick(Vector2(0.6, 0), 1.0 / 60.0)
+	assert_true(_vc().shown, "past half tilt the stick brings the cursor back")
+	assert_true(_vc().pointer_pos.x > 500.0, "and moves it")
+	_end()
+
+func test_a_showing_cursor_moves_from_the_dead_zone_up() -> void:
+	_begin()
+	_vc().pointer_pos = Vector2(500, 300)
+	_vc().shown = true
+	_vc().step_stick(Vector2(0.35, 0), 1.0)
+	var expected := CursorMotion.stick_velocity(Vector2(0.35, 0), 1.0).x / 30.0
+	assert_true(expected > 0.0, "0.35 is past the dead zone")
+	assert_near(_vc().pointer_pos.x - 500.0, expected, 0.01, "a gentle tilt moves a cursor that is showing")
+	_end()
+
 func test_the_stick_never_leaves_the_window() -> void:
 	_begin()
 	var bounds := GameManager.get_tree().root.get_visible_rect().size
@@ -1171,6 +1206,15 @@ func test_the_right_stick_picks_a_let_go_mouse_up() -> void:
 	assert_true(_vc().shown, "which shows again")
 	_end()
 
+func test_a_drifting_stick_never_picks_a_let_go_mouse_up() -> void:
+	_begin()
+	_slip_out()
+	var spot := _vc().pointer_pos
+	_tilt(Vector2(0, 0.45), 1.0)
+	assert_false(_held(), "a stick drifting under half tilt leaves the mouse on the desktop")
+	assert_eq(_vc().pointer_pos, spot, "and the cursor where it let go")
+	_end()
+
 func test_a_stick_press_picks_a_let_go_mouse_up_without_clicking() -> void:
 	var layer := _begin()
 	var reader := InputReader.new()
@@ -1238,17 +1282,16 @@ func test_becoming_fullscreen_picks_a_let_go_mouse_up() -> void:
 	assert_true(_held(), "switching a let-go window to borderless picks the mouse up")
 	_end()
 
-func test_the_system_cursor_is_the_size_the_cursor_is_drawn() -> void:
-	# A window 2.625x the base size on a Retina screen: 2.625 window pixels a base pixel,
-	# 2 window pixels a point, and a Mac cursor image is measured in points.
-	assert_near(VirtualCursor.os_cursor_scale(2.625, 2.0, "A"), 1.3125, 0.0001, "a Retina Mac draws it in points")
-	assert_near(VirtualCursor.os_cursor_scale(1.5, 1.0, "A"), 1.5, 0.0001, "elsewhere in window pixels")
-	for shape: String in CursorArt.SHAPES:
-		var s := VirtualCursor.os_cursor_scale(12.0, 1.0, shape)
-		var tex := CursorArt.texture(shape, "amethyst", s)
-		var big := maxi(tex.get_width(), tex.get_height())
-		assert_true(big <= 256, "%s fits a system cursor's 256 px at any window size (%d px)" % [shape, big])
-		assert_true(big >= 250, "%s is capped only as far as it must be (%d px)" % [shape, big])
+func test_dressing_the_system_pointer_keeps_the_cursors_own_texture() -> void:
+	# The system pointer is drawn straight to an image: it used to go through the texture
+	# cache at every window scale, and the cache now holds only the cursor's own style.
+	_begin()
+	_vc().refresh_style()
+	var drawn := _vc().sprite.texture
+	_vc()._dress_system_pointer()
+	var style := _vc()._style()
+	assert_true(CursorArt.texture(style[0], style[1]) == drawn, "the drawn cursor's texture is still the cached one")
+	_end()
 
 func test_a_dropdown_taking_focus_inside_the_window_keeps_the_mouse() -> void:
 	# An embedded popup grabbing focus sends the root a window focus-out too; only the

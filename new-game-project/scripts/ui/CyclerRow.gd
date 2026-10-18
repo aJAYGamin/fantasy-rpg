@@ -179,6 +179,9 @@ func _value_box() -> PanelContainer:
 	_icon.custom_minimum_size = MARK_SIZE
 	_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	# An icon is usually drawn much smaller than its picture (the cursor shape's is 4x the
+	# art): mipmaps, where the texture has them, keep it clean instead of jagged.
+	_icon.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_icon.visible = false

@@ -69,7 +69,7 @@ func on_pointer_back() -> bool:
 	return true
 
 ## Captured (pointer hidden, deltas only) while held; visible while released.
-func mouse_mode() -> int:
+func mouse_mode() -> Input.MouseMode:
 	return Input.MOUSE_MODE_CAPTURED if state == State.HELD else Input.MOUSE_MODE_VISIBLE
 
 func _transition(next: State) -> void:

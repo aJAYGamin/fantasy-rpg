@@ -549,22 +549,23 @@ func test_the_shape_row_wears_the_current_colour_and_the_colour_row_a_dot() -> v
 	assert_eq(colour.index, CursorArt.COLOURS.find("garnet"), "the colour row on the saved colour")
 
 	assert_true(shape._icon.visible, "the shape row shows an icon")
-	var icon := shape._icon.texture as AtlasTexture
-	assert_true(icon != null and icon.atlas == CursorArt.texture("K", "garnet"),
-			"of the saved shape in the saved colour")
+	assert_true(_is_cursor_icon(shape._icon.texture, "K", "garnet"), "CursorArt's icon of the saved shape in the saved colour")
 	var dot := colour._dot.get_theme_stylebox("panel") as StyleBoxFlat
 	assert_true(colour._dot.visible, "the colour row shows a dot")
 	assert_eq(dot.bg_color, CursorArt.swatch("garnet"), "in the saved colour")
 
 	colour.step(1)
 	assert_eq(dot.bg_color, CursorArt.swatch("ember"), "stepping the colour recolours the dot")
-	assert_true((shape._icon.texture as AtlasTexture).atlas == CursorArt.texture("K", "ember"),
-			"and re-tints the shape row's icon")
+	assert_true(_is_cursor_icon(shape._icon.texture, "K", "ember"), "and re-tints the shape row's icon")
 	shape.step(1)
-	assert_true((shape._icon.texture as AtlasTexture).atlas == CursorArt.texture("L", "ember"),
-			"stepping the shape swaps the icon, in the same colour")
+	assert_true(_is_cursor_icon(shape._icon.texture, "L", "ember"), "stepping the shape swaps the icon, in the same colour")
 	_close(screen)
 	_restore()
+
+## True when `tex` is CursorArt.icon(shape, colour): the cursor's art, cropped, with mipmaps.
+func _is_cursor_icon(tex: Texture2D, shape: String, colour: String) -> bool:
+	var want := CursorArt.icon(shape, colour)
+	return tex is ImageTexture and want != null and tex.get_image().get_data() == want.get_image().get_data()
 
 func test_dark_swatches_get_their_ring() -> void:
 	_protect()

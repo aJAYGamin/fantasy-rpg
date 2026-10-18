@@ -9,7 +9,15 @@ extends RefCounted
 ## pixels (the 1152 x 648 design resolution); window pixels are converted by window_scale.
 
 ## Stick input inside this radius does nothing, so a resting stick doesn't creep the cursor.
-const STICK_DEADZONE := 0.2
+## 0.25 rather than a tighter 0.2: a worn pad's stick can rest past 0.2 (XInput's recommended
+## right-stick dead zone is about 0.27).
+const STICK_DEADZONE := 0.25
+## A hidden cursor comes back only for a stick pushed past this: the 0.5 GameManager._input
+## sets for a stick to count as controller use, measured here on the stick's magnitude (a
+## diagonal of 0.4 on each axis wakes it, though GameManager, reading each axis, wouldn't count it). A stick drifting past the dead zone would
+## otherwise bring the cursor back every frame, taking the menus off the highlight and, after a
+## windowed slip-out, the mouse back from the desktop.
+const STICK_WAKE := 0.5
 ## Speed at full tilt and 1.00x, in base px/s: 1152 px across the screen in about 1.5 s.
 const STICK_FULL_SPEED := 768.0
 ## How far a windowed mouse must push past an edge before it slips out to the desktop.
@@ -30,6 +38,11 @@ static func stick_velocity(axis: Vector2, sensitivity: float) -> Vector2:
 		return Vector2.ZERO
 	var t := (m - STICK_DEADZONE) / (1.0 - STICK_DEADZONE)
 	return axis.normalized() * (t * t * STICK_FULL_SPEED * sensitivity)
+
+## Whether a right-stick tilt is a deliberate push, enough to bring a hidden cursor back
+## (STICK_WAKE). Read on the stick's magnitude, like the dead zone.
+static func stick_wakes(axis: Vector2) -> bool:
+	return axis.length() > STICK_WAKE
 
 ## How far `rel` pushes past an edge the cursor is already on, summed over both axes, so a
 ## corner push counts twice. A push along an edge, or one that moves back in, counts nothing.
