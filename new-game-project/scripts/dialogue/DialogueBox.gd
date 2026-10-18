@@ -59,6 +59,10 @@ func _build() -> void:
 	# Grow UP from the bottom so choice buttons (which add height) are never pushed
 	# off the bottom of the screen — the box gets taller instead.
 	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	# A click on the box must reach _unhandled_input (it advances the line). The theme's
+	# panel stops clicks; PASS lets one through unhandled while still keeping it from
+	# whatever lies beneath the box. The choice Buttons still take their own clicks.
+	panel.mouse_filter = Control.MOUSE_FILTER_PASS
 	var pstyle := panel.get_theme_stylebox("panel") as StyleBoxFlat
 	if pstyle:
 		pstyle.content_margin_left = 22
@@ -77,6 +81,7 @@ func _build() -> void:
 	var line := ColorRect.new()
 	line.color = Color(0.40, 0.30, 0.55, 0.6)
 	line.custom_minimum_size = Vector2(0, 1)
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE   # a ColorRect stops clicks too
 	v.add_child(line)
 
 	_text_lbl = _label("", BattleUITheme.font_regular(), 16, BattleUITheme.TEXT_PRIMARY)

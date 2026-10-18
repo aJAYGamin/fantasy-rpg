@@ -3,6 +3,8 @@ extends TestSuite
 ## Item/Equipment pricing, ShopFactory inventories, and the GameManager buy/sell/inn
 ## flow. GameManager tests snapshot & restore party + gold per the testing policy.
 
+const OverworldScene := preload("res://scripts/overworld/OverworldScene.gd")
+
 func suite_name() -> String:
 	return "Shop"
 
@@ -103,3 +105,26 @@ func test_inn_cost_story_tier() -> void:
 	GameManager.inn_cost_tier = 3
 	assert_eq(GameManager.inn_rest_cost(), 80, "higher story tiers raise it further")
 	GameManager.inn_cost_tier = saved_tier
+
+# --- the pause key over an open shop -----------------------------------------
+
+func test_the_pause_key_leaves_an_open_shop_alone() -> void:
+	# Controller Start is the pause key but not Cancel, so the shop never saw it, and
+	# the map opened its pause menu BENEATH the shop (layer 10 under the shop's 80):
+	# hidden, yet holding the controller's highlight, and closing the shop then
+	# unpaused the world under the open pause menu. A screen that pauses the game —
+	# the shop, the campfire, a trainer's Moves page — now keeps the pause key out.
+	var tree := GameManager.get_tree()
+	var was_paused := tree.paused
+	var shop := ShopScreen.new()
+	GameManager.add_child(shop)
+	shop.setup("apothecary")
+	assert_true(tree.paused, "an open shop pauses the game")
+	assert_false(OverworldScene.pause_menu_allowed(tree.paused, false, false),
+		"so the pause key opens nothing beneath it")
+	GameManager.remove_child(shop)
+	shop.free()
+	tree.paused = was_paused
+	assert_true(OverworldScene.pause_menu_allowed(false, false, false), "out on the map the pause key opens the menu")
+	assert_true(OverworldScene.pause_menu_allowed(true, true, false),
+		"and over the pause menu itself it still brings it back to its first page, as before")

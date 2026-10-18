@@ -215,11 +215,24 @@ func _input(event: InputEvent) -> void:
 	# GUI pipeline can consume it. The remappable "pause" action (default Esc /
 	# controller Start) is honored here automatically.
 	if event.is_action_pressed("pause"):
-		_open_pause_menu()
-		get_viewport().set_input_as_handled()
+		var menu_open := _pause_menu != null and _pause_menu.visible
+		if pause_menu_allowed(get_tree().paused, menu_open, DialogueManager.is_active()):
+			_open_pause_menu()
+			get_viewport().set_input_as_handled()
 	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == DEBUG_TOGGLE_KEY:
 		_toggle_zone_debug()
 		get_viewport().set_input_as_handled()
+
+## Whether the pause key may open the pause menu now. Not during a conversation: the
+## dialogue box draws above the pause menu, covering its lower buttons, and a click
+## there would advance the talk underneath. Not while another screen has paused the
+## game (a shop, the campfire, a trainer's Moves page): the menu would open hidden
+## beneath it yet take the controller's highlight. Over the pause menu itself it
+## re-opens it, as before.
+static func pause_menu_allowed(tree_paused: bool, pause_menu_open: bool, dialogue_active: bool) -> bool:
+	if dialogue_active:
+		return false
+	return pause_menu_open or not tree_paused
 
 func _open_pause_menu() -> void:
 	if _pause_menu == null:

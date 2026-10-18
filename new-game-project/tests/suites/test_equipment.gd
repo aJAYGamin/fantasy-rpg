@@ -185,6 +185,28 @@ func test_pool_for_slot_filters_by_type() -> void:
 	assert_eq(EquipmentScreen.pool_for_slot(pool, Equipment.Slot.ACCESSORY).size(), 2, "two accessories")
 	assert_eq(EquipmentScreen.pool_for_slot(null, Equipment.Slot.WEAPON).size(), 0, "null pool safe")
 
+func test_the_gear_list_scrolls_to_the_highlighted_piece() -> void:
+	# A full set of spare accessories runs past the bottom of the page (measured: 754px
+	# of content in a 537px scroll area). Godot's ScrollContainer only scrolls to the
+	# focused control when follow_focus is on, so the d-pad / arrow keys took the
+	# highlight down to Equip buttons out of sight.
+	var party := PartyFactory.create_default_party()
+	for i in 9:
+		party[0].inventory.add_equipment(_mk("Ring %d" % i, Equipment.Slot.ACCESSORY, {"speed": 1}))
+	var screen := EquipmentScreen.new()
+	GameManager.add_child(screen)
+	screen.setup(party)
+	screen._select_slot(2)   # Accessory 1: the list shows every spare accessory
+	var scroll := screen.find_children("*", "ScrollContainer", true, false)[0] as ScrollContainer
+	var equips := 0
+	for b in screen.find_children("*", "Button", true, false):
+		if (b as Button).text == "Equip":
+			equips += 1
+	assert_true(equips >= 9, "every spare accessory has its Equip button")
+	assert_true(scroll.follow_focus, "the page scrolls to the highlighted piece")
+	GameManager.remove_child(screen)
+	screen.free()
+
 # --- SaveSerializer round-trip ------------------------------------------------
 
 func test_serialize_equipment_round_trip() -> void:

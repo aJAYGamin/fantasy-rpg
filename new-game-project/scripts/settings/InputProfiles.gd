@@ -164,11 +164,19 @@ func _migrate_legacy(cfg: ConfigFile) -> void:
 		return
 	var kb := {}
 	var cb := {}
+	var kb_defaults := InputMapConfig.device_defaults(true)
+	var cb_defaults := InputMapConfig.device_defaults(false)
 	for meta in InputMapConfig.ACTIONS:
 		var action: String = meta["action"]
+		# An old file never had actions added since: they take each device's
+		# default rather than an empty (unbound) list.
+		if not legacy.has(action):
+			kb[action] = kb_defaults[action]
+			cb[action] = cb_defaults[action]
+			continue
 		var k: Array = []
 		var c: Array = []
-		for d in legacy.get(action, []):
+		for d in legacy[action]:
 			if not (d is Dictionary):
 				continue
 			if String(d.get("type", "")) == "key":
@@ -182,13 +190,19 @@ func _migrate_legacy(cfg: ConfigFile) -> void:
 
 ## Drops anything that isn't a well-formed event dict for this device, and
 ## guarantees an entry per action, so a hand-edited or partial config can't
-## leave an action unbound in a way the UI can't explain.
+## leave an action unbound in a way the UI can't explain. An action ABSENT from
+## the stored data (a save from before it existed) gets the device's default; one
+## stored as [] stays [] — the player cleared it.
 func _sanitize(raw: Dictionary, keyboard: bool) -> Dictionary:
 	var out := {}
+	var defaults := InputMapConfig.device_defaults(keyboard)
 	for meta in InputMapConfig.ACTIONS:
 		var action: String = meta["action"]
+		if not raw.has(action):
+			out[action] = defaults[action]
+			continue
 		var arr: Array = []
-		for d in raw.get(action, []):
+		for d in raw[action]:
 			if not (d is Dictionary):
 				continue
 			if (String(d.get("type", "")) == "key") == keyboard:

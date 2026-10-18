@@ -22,7 +22,17 @@ const ACTIONS: Array = [
 	{"action": "confirm", "label": "Confirm"},
 	{"action": "cancel", "label": "Cancel / Back"},
 	{"action": "pause", "label": "Pause / Menu"},
+	# Clicks the themed cursor the right stick moves. Controller-only: the
+	# mouse already has its own button, so the Keyboard page shows no row.
+	{"action": "cursor_click", "label": "Cursor Click", "pad_only": true},
 ]
+
+## True for actions that exist only on the controller (no keyboard row/binding).
+static func is_pad_only(action: String) -> bool:
+	for meta in ACTIONS:
+		if meta["action"] == action:
+			return bool(meta.get("pad_only", false))
+	return false
 
 # Default bindings (keyboard + controller) per action.
 static func defaults() -> Dictionary:
@@ -63,6 +73,9 @@ static func defaults() -> Dictionary:
 		"pause": [
 			{"type": "key", "keycode": KEY_ESCAPE},
 			{"type": "joyb", "button": JOY_BUTTON_START},
+		],
+		"cursor_click": [
+			{"type": "joyb", "button": JOY_BUTTON_RIGHT_STICK},
 		],
 	}
 
@@ -229,8 +242,11 @@ static func capture_device(keyboard: bool) -> Dictionary:
 
 ## Writes one device's bindings into the live InputMap, leaving the other
 ## device's events untouched — so switching keyboard profiles never disturbs
-## the controller, and vice versa.
+## the controller, and vice versa. An action ABSENT from `bindings` (a profile
+## saved before that action existed) takes the device's default; one present
+## with [] stays unbound, because the player cleared it.
 static func apply_device(bindings: Dictionary, keyboard: bool) -> void:
+	var fallback := device_defaults(keyboard)
 	for meta in ACTIONS:
 		var action: String = meta["action"]
 		if not InputMap.has_action(action):
@@ -242,7 +258,7 @@ static func apply_device(bindings: Dictionary, keyboard: bool) -> void:
 		InputMap.action_erase_events(action)
 		for e in kept:
 			InputMap.action_add_event(action, e)
-		for d in bindings.get(action, []):
+		for d in bindings.get(action, fallback.get(action, [])):
 			var ev := build_event(d)
 			if ev != null:
 				InputMap.action_add_event(action, ev)

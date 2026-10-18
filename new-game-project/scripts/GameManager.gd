@@ -143,6 +143,13 @@ var settings := SettingsModel.new()
 # high CanvasLayer under the autoload so it survives scene changes.
 var _fps_layer: CanvasLayer = null
 var _fps_label: Label = null
+# The game-drawn themed cursor, which takes over the window's mouse delivery (see
+# VirtualCursor). A child of this autoload, so it survives scene changes.
+var virtual_cursor: VirtualCursor = null
+# True while a screen is waiting to capture the next button or stick for a rebind: the
+# cursor then passes every controller event on untouched (the right stick and its press
+# included) and the right stick stops moving it. Set by SettingsScreen.
+var raw_input_passthrough := false
 
 # Global UI click SFX. Auto-wired to every Button in the tree (see _on_node_added)
 # so any button anywhere makes a sound, on the SFX bus.
@@ -167,6 +174,9 @@ func _ready():
 	Input.joy_connection_changed.connect(_on_joy_connection_changed)
 	# Start in controller mode if a pad is already connected at launch.
 	_controller_mode = not Input.get_connected_joypads().is_empty()
+	virtual_cursor = VirtualCursor.new()
+	add_child(virtual_cursor)
+	virtual_cursor.install()
 	_create_clock_overlay.call_deferred()
 
 func _create_clock_overlay() -> void:
@@ -436,6 +446,15 @@ func _update_nav_repeat(delta: float) -> void:
 		var top := top_focus_scope()
 		if top == null or not top.is_ancestor_of(owner):
 			continue
+		# A control that changes its value with left / right keeps those two
+		# directions: a held one never slides focus off to the side (or wraps it round).
+		# A left / right row keeps stepping; a slider is left to its own handling.
+		if action == "ui_left" or action == "ui_right":
+			if owner is CyclerRow:
+				(owner as CyclerRow).step(-1 if action == "ui_left" else 1)
+				continue
+			if owner is Slider:
+				continue
 		var next := owner.find_valid_focus_neighbor(_NAV_SIDES[action])
 		if next != null and next != owner:
 			next.grab_focus()
@@ -526,7 +545,7 @@ func _wrap_target(items: Array, from: Control, side: int) -> Control:
 # Recursively set focus_mode on the interactive controls under `root`.
 func _set_scope_focusable(root: Node, focusable: bool) -> void:
 	for child in root.get_children():
-		if child is BaseButton or child is Slider or child is OptionButton:
+		if child is BaseButton or child is Slider or child is OptionButton or child is CyclerRow:
 			var ctl := child as Control
 			# A DISABLED button must be FOCUS_NONE, not merely un-grabbable:
 			# Godot's neighbor search only skips FOCUS_NONE controls, so a greyed
@@ -607,6 +626,7 @@ func _apply_display_deferred() -> void:
 	await get_tree().process_frame
 	await get_tree().create_timer(0.1).timeout
 	settings.apply_display()
+	virtual_cursor.on_display_changed()   # re-hook, and hold the mouse as the mode wants
 
 # Persists the [settings] section, merge-preserving the [save] section.
 func _write_settings_config() -> void:
@@ -627,10 +647,20 @@ func apply_display_and_save() -> void:
 	settings.clamp_all()
 	settings.apply_display()
 	_write_settings_config()
+	# Once the change has gone through, the cursor hooks the window again (a window
+	# change can drop the hook) and holds or lets go of the mouse as the new mode wants.
+	virtual_cursor.on_display_changed.call_deferred()
 
 func apply_performance_and_save() -> void:
 	settings.clamp_all()
 	settings.apply_performance()
+	_write_settings_config()
+
+# Cursor shape and colour; the mouse sensitivity needs no apply (the cursor reads it
+# on every move).
+func apply_cursor_and_save() -> void:
+	settings.clamp_all()
+	virtual_cursor.refresh_style()
 	_write_settings_config()
 
 func apply_fps_overlay_and_save() -> void:
@@ -723,9 +753,9 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventKey:
 		_last_kb_ms = Time.get_ticks_msec()
 		_apply_input_mode(false, true)    # keyboard → focus navigation
-	elif event is InputEventMouseButton or event is InputEventMouseMotion:
+	elif event is InputEventMouseButton or event is InputEventMouseMotion or event is InputEventGesture:
 		_last_mouse_ms = Time.get_ticks_msec()
-		_apply_input_mode(false, false)   # mouse → click-only, no focus ring
+		_apply_input_mode(false, false)   # mouse (or a trackpad's pan / pinch) → click-only, no focus ring
 	elif event is InputEventJoypadButton and event.pressed:
 		_apply_input_mode(true, false)    # controller → focus navigation
 	elif event is InputEventJoypadMotion and absf(event.axis_value) > 0.5:

@@ -436,6 +436,30 @@ func test_repeat_skips_disabled_rows() -> void:
 	GameManager.set_controller_mode_for_test(false)
 	_cleanup([root])
 
+func test_holding_left_or_right_on_a_slider_leaves_focus_on_it() -> void:
+	# A slider uses left / right to change its value, so a held one must not slide
+	# focus off to the side (or wrap it round) the way it would on a list of buttons.
+	# The neighbours below are what the wrap-around wires onto a control at an edge.
+	var root := Control.new()
+	var slider := HSlider.new()
+	var other := Button.new()
+	root.add_child(slider)
+	root.add_child(other)
+	GameManager.add_child(root)
+	slider.focus_neighbor_right = slider.get_path_to(other)
+	slider.focus_neighbor_left = slider.get_path_to(other)
+	GameManager.register_focus_scope(root)
+	GameManager.set_controller_mode_for_test(true)
+	GameManager.update_focus_guard_for_test()
+	slider.grab_focus()
+
+	assert_eq(_hold_direction(root, "ui_right", 1.0), 0, "a held right leaves focus on the slider")
+	assert_eq(_hold_direction(root, "ui_left", 1.0), 0, "and so does a held left")
+	assert_eq(root.get_viewport().gui_get_focus_owner(), slider, "it is still the focus owner")
+
+	GameManager.set_controller_mode_for_test(false)
+	_cleanup([root])
+
 func test_repeat_is_off_in_mouse_mode() -> void:
 	# Pure mouse play is click-only; a held key must not move a focus ring that
 	# isn't supposed to exist.
