@@ -109,6 +109,10 @@ func _build() -> void:
 		c.queue_free()
 	_kb_buttons.clear()
 	_pad_buttons.clear()
+	if _listening:
+		# A wait took the page out of the focus guard (_start_listening); a rebuild ends
+		# the wait, so hand the page back, or the arrows / d-pad would find nothing here.
+		GameManager.register_focus_scope(self)
 	_listening = false
 	_listen_action = ""
 	GameManager.raw_input_passthrough = false   # a rebuild (Back, a click elsewhere) ends a rebind

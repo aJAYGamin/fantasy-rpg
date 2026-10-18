@@ -737,3 +737,28 @@ func test_a_controller_backs_out_of_waiting_for_a_key() -> void:
 	GameManager.input_profiles.sync_from_input_map()   # the profile took the B binding too
 	GameManager.raw_input_passthrough = was_passthrough
 	_restore()
+
+func test_backing_out_mid_wait_hands_the_page_back_to_the_focus_guard() -> void:
+	# Waiting for a binding takes the page out of the focus guard. Clicking "← Back" (or
+	# anything else that rebuilds the page) ended the wait but left it out, so after the
+	# player went back to the arrows / d-pad nothing on the page could be highlighted —
+	# and over the main menu the highlight landed on a main-menu button behind the panel.
+	var was_passthrough := GameManager.raw_input_passthrough
+	var screen := _open("keyboard")
+	GameManager.register_focus_scope(screen)   # as setup() does
+	screen._start_listening("confirm", true)
+	assert_false(GameManager.has_focus_scope(screen), "waiting for a key takes the page out of the guard")
+	screen._on_back()
+	assert_eq(screen._view, "controls", "Back went up to Controls")
+	assert_false(screen._listening, "and ended the wait")
+	assert_true(GameManager.has_focus_scope(screen), "and handed the page back to the focus guard")
+	assert_false(GameManager.raw_input_passthrough, "with the right stick back on the cursor")
+
+	# Any other rebuild mid-wait does the same.
+	screen._open_category("controller")
+	screen._start_listening("cursor_click", false)
+	screen._build()
+	assert_true(GameManager.has_focus_scope(screen), "a rebuild mid-wait hands it back too")
+	assert_eq(GameManager.focus_scope_count(screen), 1, "registered once, not twice")
+	_close(screen)
+	GameManager.raw_input_passthrough = was_passthrough
