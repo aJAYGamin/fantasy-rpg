@@ -16,12 +16,15 @@ func suite_name() -> String:
 
 ## Records the pad buttons, keys and mouse buttons that reach it, which is everything a
 ## node behind the panel (a page, a menu) would have heard: presses in `heard`, releases
-## of pad buttons and keys in `released`.
+## of pad buttons and keys in `released`, every stick or trigger sample in `motion`.
 class InputReader extends Node:
 	var heard: Array = []
 	var released: Array = []
+	var motion: Array = []
 
 	func _input(ev: InputEvent) -> void:
+		if ev is InputEventJoypadMotion:
+			motion.append(ev)
 		if ev is InputEventJoypadButton or ev is InputEventKey or ev is InputEventMouseButton:
 			if ev.pressed:
 				heard.append(ev)
@@ -307,6 +310,13 @@ func _key(keycode: Key, unicode := 0, pressed := true, echo := false, ctrl := fa
 	ev.pressed = pressed
 	ev.echo = echo
 	ev.ctrl_pressed = ctrl
+	GameManager.get_viewport().push_input(ev)
+
+## A stick or trigger sample into the root.
+func _motion(axis: JoyAxis, value: float) -> void:
+	var ev := InputEventJoypadMotion.new()
+	ev.axis = axis
+	ev.axis_value = value
 	GameManager.get_viewport().push_input(ev)
 
 func _focus_owner() -> Control:
@@ -701,3 +711,79 @@ func test_game_manager_input_runs_the_same_switch() -> void:
 	_key(KEY_F1)
 	assert_true(GameManager.focus_nav_active() and not GameManager.is_controller_mode(), "and so does a key")
 	_end()
+
+# --- A trigger bound to Cancel / Back or Pause / Menu ---------------------------------
+
+## Makes `axis` (pulled fully, +1) the whole of `action`'s pad binding, mirrored onto
+## ui_accept / ui_cancel by InputMapConfig.
+func _bind_axis(action: String, axis: JoyAxis) -> void:
+	var ev := InputEventJoypadMotion.new()
+	ev.axis = axis
+	ev.axis_value = 1.0
+	InputMapConfig.rebind_controller(action, ev)
+
+func test_a_trigger_bound_to_cancel_deletes_once_per_pull_and_is_swallowed() -> void:
+	_begin()
+	_bind_axis("cancel", JOY_AXIS_TRIGGER_LEFT)
+	var panel := _open("abcdef")
+	var outcome := _watch(panel)
+	_motion(JOY_AXIS_TRIGGER_LEFT, 0.6)
+	_motion(JOY_AXIS_TRIGGER_LEFT, 0.9)
+	_motion(JOY_AXIS_TRIGGER_LEFT, 1.0)
+	assert_eq(panel.get_text(), "abcde", "a pull of three samples deletes one letter, on the first")
+	assert_eq(_reader.motion.size(), 0, "and nothing behind the panel heard any of the samples")
+	assert_true(panel._cancel_held(), "the hold counts the trigger as Cancel held")
+	_motion(JOY_AXIS_TRIGGER_LEFT, 0.0)
+	assert_eq(_reader.motion.size(), 0, "nor the sample that lets it go")
+	assert_eq(panel.get_text(), "abcde", "which deletes nothing")
+	assert_false(panel._cancel_held(), "and ends the hold")
+	_motion(JOY_AXIS_TRIGGER_LEFT, 0.8)
+	assert_eq(panel.get_text(), "abcd", "the next pull deletes again")
+	_motion(JOY_AXIS_TRIGGER_LEFT, 0.0)
+	assert_eq(_reader.motion.size(), 0, "still nothing behind the panel heard it")
+	# A light touch is not a press, and takes nothing (nor is it any press for what is behind).
+	_motion(JOY_AXIS_TRIGGER_LEFT, 0.3)
+	assert_eq(panel.get_text(), "abcd", "a pull under the threshold deletes nothing")
+	assert_eq(outcome.finished.size() + outcome.cancels, 0, "none of it closed the panel")
+	# The left stick's directions still walk the highlight.
+	var heard_before := _reader.motion.size()
+	_motion(JOY_AXIS_LEFT_X, 0.8)
+	assert_eq(_reader.motion.size(), heard_before + 1, "a left-stick sample passes through")
+	assert_eq(panel.get_text(), "abcd", "and changes nothing")
+	_end()
+	GameManager.input_profiles.sync_from_input_map()
+
+func test_a_trigger_bound_to_pause_finishes_once_and_the_hold_goes_no_further() -> void:
+	_begin()
+	_bind_axis("pause", JOY_AXIS_TRIGGER_RIGHT)
+	var panel := _open("abc")
+	var outcome := _watch(panel)
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.6)
+	assert_eq(outcome.finished, ["abc"], "the first sample past the threshold finishes")
+	assert_false(panel.is_queued_for_deletion(), "the panel stays until the trigger is let go, to take the rest of the hold")
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.9)
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 1.0)
+	assert_eq(outcome.finished, ["abc"], "it finished once")
+	assert_eq(outcome.cancels, 0, "and did not cancel")
+	assert_eq(_reader.motion.size(), 0, "no node behind the panel (the pause handler, say) heard the rest of the hold")
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.0)
+	assert_eq(_reader.motion.size(), 0, "nor the sample that lets it go")
+	assert_true(panel.is_queued_for_deletion(), "which frees the panel")
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.9)
+	assert_eq(_reader.motion.size(), 1, "and a pull after that is for whoever is behind")
+	assert_eq(outcome.finished, ["abc"], "the finished panel reports nothing more")
+	_end()
+	GameManager.input_profiles.sync_from_input_map()
+
+func test_a_trigger_bound_to_confirm_passes_through() -> void:
+	_begin()
+	_bind_axis("confirm", JOY_AXIS_TRIGGER_RIGHT)
+	var panel := _open("ab")
+	var outcome := _watch(panel)
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.9)
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.0)
+	assert_eq(_reader.motion.size(), 2, "Confirm on a trigger is left to the highlighted key, as the button is")
+	assert_eq(outcome.finished.size() + outcome.cancels, 0, "it closes nothing")
+	assert_true(GameManager.has_focus_scope(panel), "the panel is still open")
+	_end()
+	GameManager.input_profiles.sync_from_input_map()

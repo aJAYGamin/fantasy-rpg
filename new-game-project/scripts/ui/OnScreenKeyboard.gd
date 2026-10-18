@@ -39,6 +39,8 @@ const LEGEND_FONT_SIZE := 11
 const PLAYERS_ACTIONS := ["pause", "ui_cancel", "ui_accept"]
 ## The pad's directions, which move the highlight and so are left to the focus system.
 const DIRECTION_ACTIONS := ["ui_up", "ui_down", "ui_left", "ui_right"]
+## The actions the panel takes when the player has put them on a stick or trigger.
+const AXIS_ACTIONS := ["pause", "ui_cancel"]
 
 var caps := false
 var symbols := false
@@ -47,6 +49,8 @@ var _draft := ""
 var _max_length := 0
 var _closed := false
 var _hold := HoldRepeat.new()   # holding Cancel / Back keeps deleting
+var _axis_held := {}   # action -> true while a stick or trigger bound to it is held past its threshold
+var _draining := false   # closed, but a held trigger is still sending samples that are ours to swallow
 var _keys: Dictionary = {}   # key id -> Button
 var _name_label: Label = null
 var _count_label: Label = null
@@ -128,11 +132,16 @@ func key_button(id: String) -> Button:
 ## taken here: the panel tells it, first, so the highlight still comes back for a player
 ## who pressed a button the panel only swallowed.
 func _input(event: InputEvent) -> void:
+	if _draining:
+		_drain(event)
+		return
 	if not _is_live():
 		return
 	var response := Callable()
 	if event is InputEventJoypadButton and event.pressed:
 		response = _pad_response(event)
+	elif event is InputEventJoypadMotion:
+		response = _axis_response(event)
 	elif event is InputEventKey and event.pressed:
 		response = _key_response(event)
 	if response.is_null():
@@ -163,6 +172,31 @@ func _pad_response(event: InputEventJoypadButton) -> Callable:
 		JOY_BUTTON_LEFT_SHOULDER:
 			return toggle_caps
 	return _swallow
+
+## What a stick or trigger sample does here, or a null Callable to let it through. The
+## player can put Pause / Menu or Cancel / Back on an axis ("LT / L2"). A held trigger
+## sends a stream of samples that all match its action, so only the one that takes it from
+## not held to held acts; every sample of the hold, and the one that lets it go, is taken
+## too, so nothing behind hears any of it. Confirm on an axis and the sticks' directions
+## pass through, as their buttons do.
+func _axis_response(event: InputEventJoypadMotion) -> Callable:
+	var edge := ""
+	var taken := false
+	for action: String in AXIS_ACTIONS:
+		if not event.is_action(action):
+			continue
+		var held := event.is_action_pressed(action)
+		var was: bool = _axis_held.get(action, false)
+		_axis_held[action] = held
+		if held and not was and edge.is_empty():
+			edge = action
+		taken = taken or held or was
+	match edge:
+		"pause":
+			return finish
+		"ui_cancel":
+			return delete_last
+	return _swallow if taken else Callable()
 
 ## What a pressed key does here, or a null Callable to let it through. Space and Enter are
 ## the keyboard's Confirm, but here a typed Space is a space and Enter is Done, so the
@@ -204,8 +238,23 @@ func step_hold(cancel_held: bool, delta: float) -> void:
 	if _hold.poll(cancel_held, delta):
 		delete_last()
 
-## Whether any connected pad holds a button that is the player's Cancel / Back.
+## Closed while a trigger bound to Pause or Cancel / Back is still held (it finished the
+## panel): the rest of that hold is still ours, or the pause menu behind would take it as
+## a fresh press. The panel stays, hidden, until the trigger is let go.
+func _drain(event: InputEvent) -> void:
+	if not event is InputEventJoypadMotion or _axis_response(event).is_null():
+		return
+	GameManager.note_input_device(event)
+	get_viewport().set_input_as_handled()
+	if not _axis_held.values().has(true):
+		_draining = false
+		queue_free()
+
+## Whether the player's Cancel / Back is held: a trigger or stick bound to it that the
+## samples say is held, or a bound button any connected pad holds.
 func _cancel_held() -> bool:
+	if _axis_held.get("ui_cancel", false):
+		return true
 	for pad in Input.get_connected_joypads():
 		for ev in InputMap.action_get_events("ui_cancel"):
 			if ev is InputEventJoypadButton and Input.is_joy_button_pressed(pad, (ev as InputEventJoypadButton).button_index):
@@ -281,7 +330,9 @@ func _close() -> void:
 		if holder != null and is_ancestor_of(holder):
 			holder.release_focus()
 	hide()
-	queue_free()
+	_draining = _axis_held.values().has(true)
+	if not _draining:
+		queue_free()
 
 # --- The draft -----------------------------------------------------------------------
 
