@@ -56,7 +56,7 @@ func test_the_hotspot_is_the_tip() -> void:
 	assert_eq(CursorArt.hotspot("A"), Vector2(12.5, 12.5), "A's tip, inside the glow margin")
 	assert_eq(CursorArt.hotspot("AB"), Vector2(13.5, 13.5), "AB's tip")
 	# The tip pixel is opaque and the pixel up-left of it is clear.
-	var img := CursorArt.texture("A", "amethyst", 1.0).get_image()
+	var img := CursorArt.image("A", "amethyst", 1.0)
 	assert_true(img.get_pixelv(Vector2i(CursorArt.hotspot("A")) + Vector2i(1, 1)).a > 0.5, "drawn at the tip")
 	assert_true(img.get_pixelv(Vector2i(CursorArt.hotspot("A")) - Vector2i(4, 4)).a < 0.1, "clear beyond it")
 
@@ -100,19 +100,32 @@ func test_glow_colours() -> void:
 	assert_eq(CursorArt.glow_colours("lunar"), [Color("#FFFFFF"), Color("#B9C0D4")], "Lunar glow")
 
 func test_textures_are_cached_and_unknown_ids_are_refused() -> void:
-	assert_true(CursorArt.texture("B", "tidal") == CursorArt.texture("B", "tidal"), "one texture per style")
+	assert_true(CursorArt.texture("B", "tidal") == CursorArt.texture("B", "tidal"), "asking again for the same style gives the same texture")
 	assert_false(CursorArt.texture("B", "tidal") == CursorArt.texture("B", "frost"), "a different colour is a different texture")
-	assert_false(CursorArt.texture("B", "tidal", 1.0) == CursorArt.texture("B", "tidal", 2.0), "a different scale is a different texture")
 	assert_false(CursorArt.is_known("Z", "tidal"), "unknown shape")
 	assert_false(CursorArt.is_known("A", "teal"), "unknown colour")
 	assert_true(CursorArt.is_known("AV", "lunar"), "a real pair")
 	assert_eq(CursorArt.svg("Z", "tidal"), "", "no document for an unknown shape")
 	assert_eq(CursorArt.svg("A", "teal"), "", "no document for an unknown colour")
 	assert_true(CursorArt.texture("Z", "tidal") == null, "no texture for an unknown shape")
+	assert_true(CursorArt.image("Z", "tidal") == null, "and no image")
+
+## A weak reference to a style's cursor texture, so nothing in the test keeps it alive.
+func _weak_texture(shape: String, colour: String) -> WeakRef:
+	return weakref(CursorArt.texture(shape, colour))
+
+func test_only_the_style_in_use_stays_cached() -> void:
+	# Stepping through the Mouse page's styles used to leave every one cached at 4x. A shape
+	# other than the player's, so the live cursor isn't holding these textures itself.
+	var shape := "L" if GameManager.settings.cursor_shape != "L" else "S"
+	var first := _weak_texture(shape, "grove")
+	assert_true(first.get_ref() != null, "the style asked for last is kept")
+	_weak_texture(shape, "frost")
+	assert_true(first.get_ref() == null, "and let go once another style is asked for")
 
 func test_textures_are_rendered_at_the_art_size_times_scale() -> void:
-	var one := CursorArt.texture("A", "amethyst", 1.0)
-	assert_eq(Vector2i(one.get_width(), one.get_height()), Vector2i(41, 49), "1x is the grown viewBox size")
+	var one := CursorArt.image("A", "amethyst", 1.0)
+	assert_eq(one.get_size(), Vector2i(41, 49), "1x is the grown viewBox size")
 	var big := CursorArt.texture("A", "amethyst")
 	assert_eq(Vector2i(big.get_width(), big.get_height()), Vector2i(164, 196), "default is RENDER_SCALE (4x)")
 	assert_eq(CursorArt.RENDER_SCALE, 4.0, "rasterised at 4x")

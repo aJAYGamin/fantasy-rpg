@@ -1289,10 +1289,21 @@ func test_the_system_cursor_is_the_size_the_cursor_is_drawn() -> void:
 	assert_near(VirtualCursor.os_cursor_scale(1.5, 1.0, "A"), 1.5, 0.0001, "elsewhere in window pixels")
 	for shape: String in CursorArt.SHAPES:
 		var s := VirtualCursor.os_cursor_scale(12.0, 1.0, shape)
-		var tex := CursorArt.texture(shape, "amethyst", s)
-		var big := maxi(tex.get_width(), tex.get_height())
+		var img := CursorArt.image(shape, "amethyst", s)
+		var big := maxi(img.get_width(), img.get_height())
 		assert_true(big <= 256, "%s fits a system cursor's 256 px at any window size (%d px)" % [shape, big])
 		assert_true(big >= 250, "%s is capped only as far as it must be (%d px)" % [shape, big])
+
+func test_dressing_the_system_pointer_keeps_the_cursors_own_texture() -> void:
+	# The system pointer is drawn straight to an image: it used to go through the texture
+	# cache at every window scale, and the cache now holds only the cursor's own style.
+	_begin()
+	_vc().refresh_style()
+	var drawn := _vc().sprite.texture
+	_vc()._dress_system_pointer()
+	var style := _vc()._style()
+	assert_true(CursorArt.texture(style[0], style[1]) == drawn, "the drawn cursor's texture is still the cached one")
+	_end()
 
 func test_a_dropdown_taking_focus_inside_the_window_keeps_the_mouse() -> void:
 	# An embedded popup grabbing focus sends the root a window focus-out too; only the

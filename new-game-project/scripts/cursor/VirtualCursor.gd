@@ -471,9 +471,10 @@ func _dress_system_pointer() -> void:
 	var s := os_cursor_scale(minf(window_scale.x, window_scale.y), DisplayServer.screen_get_max_scale(), style[0])
 	if not (s > 0.0 and is_finite(s)):
 		return   # a minimised window
-	# An Image, not the texture: the system keeps what it is given until after the renderer
-	# has shut down, and a texture freed then is an error at every quit.
-	var image := CursorArt.texture(style[0], style[1], s).get_image()
+	# An Image, not a texture: the system keeps what it is given until after the renderer
+	# has shut down, and a texture freed then is an error at every quit. Drawn straight to
+	# one, so the cursor's own cached texture stays put.
+	var image := CursorArt.image(style[0], style[1], s)
 	var tip := CursorArt.hotspot(style[0]) * s
 	Input.set_custom_mouse_cursor(image, Input.CURSOR_ARROW, tip)
 	Input.set_custom_mouse_cursor(image, Input.CURSOR_POINTING_HAND, tip)

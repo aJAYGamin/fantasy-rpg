@@ -8,7 +8,8 @@ extends RefCounted
 ## rasteriser has no CSS variables, so each shape here is a body template whose paints
 ## are {token} placeholders, and svg() fills them from the colour's palette and returns
 ## one complete, literal SVG document. Nothing here draws to the screen: texture()
-## rasterises that document, and the cursor nodes (later tasks) draw the texture.
+## rasterises that document for the cursor nodes to draw, and image() rasterises it at
+## any scale for a one-off use (the system pointer).
 ##
 ## Textures are rasterised at RENDER_SCALE (4x) and drawn at a quarter size so the
 ## cursor stays crisp, and each carries GLOW_MARGIN symbol units of transparent padding
@@ -328,8 +329,9 @@ const BODY_AV := """<path d="{arrow}" fill="none" {edge} stroke-width="3" stroke
 <path d="{arrow}" fill="none" stroke="{rim}" stroke-width="1.25" stroke-linejoin="round"/>
 """
 
-## Cached textures, keyed "shape|colour|scale".
-static var _textures: Dictionary = {}
+## The texture texture() rasterised last, and its "shape|colour" key. Only one is kept.
+static var _texture: ImageTexture = null
+static var _texture_key := ""
 
 static func shape_name(id: String) -> String:
 	return SHAPE_DATA.get(id, {}).get("name", "")
@@ -386,12 +388,9 @@ static func svg(shape: String, colour: String) -> String:
 			String.num(grown.position.x), String.num(grown.position.y),
 			String.num(grown.size.x), String.num(grown.size.y), body]
 
-## The shape rasterised at `scale` (default RENDER_SCALE), or null if the ids are
-## unknown. Cached per shape|colour|scale, so each style is rasterised once.
-static func texture(shape: String, colour: String, scale := RENDER_SCALE) -> ImageTexture:
-	var key := "%s|%s|%s" % [shape, colour, scale]
-	if _textures.has(key):
-		return _textures[key]
+## The shape rasterised at `scale` (default RENDER_SCALE) as an Image, or null if the ids
+## are unknown. Not cached: for a one-off use such as dressing the system pointer.
+static func image(shape: String, colour: String, scale := RENDER_SCALE) -> Image:
 	if not is_known(shape, colour):
 		return null
 	var img := Image.new()
@@ -399,9 +398,22 @@ static func texture(shape: String, colour: String, scale := RENDER_SCALE) -> Ima
 	if err != OK:
 		push_error("CursorArt: could not rasterise %s in %s (error %d)" % [shape, colour, err])
 		return null
-	var tex := ImageTexture.create_from_image(img)
-	_textures[key] = tex
-	return tex
+	return img
+
+## The cursor's texture: the shape rasterised at RENDER_SCALE, or null if the ids are
+## unknown. Only the style asked for last is cached, so stepping through the Mouse page's
+## styles doesn't leave them all in memory; asking again for it gives the same texture,
+## which the cursor and its popup copies share.
+static func texture(shape: String, colour: String) -> ImageTexture:
+	var key := "%s|%s" % [shape, colour]
+	if key == _texture_key:
+		return _texture
+	var img := image(shape, colour)
+	if img == null:
+		return null
+	_texture = ImageTexture.create_from_image(img)
+	_texture_key = key
+	return _texture
 
 ## Every {token} a body template can use, resolved for one colour.
 static func _tokens(colour: String) -> Dictionary:

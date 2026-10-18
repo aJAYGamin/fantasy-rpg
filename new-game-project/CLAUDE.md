@@ -1140,7 +1140,7 @@ the game has to take the mouse over and move and draw the cursor itself.
   Click (so no drag sticks), hides the drawn cursor, switches to VISIBLE, *then* warps the system
   pointer to `pointer_pos` (a captured pointer can't be warped) and sets the arrow shape. While let
   go the system pointer wears the cursor (`_dress_system_pointer`: `Input.set_custom_mouse_cursor`
-  for ARROW and POINTING_HAND, re-dressed by `refresh_style` and `on_display_changed`), and **no mouse
+  for ARROW and POINTING_HAND, an `Image` from `CursorArt.image` at the window's scale, re-dressed by `refresh_style` and `on_display_changed`), and **no mouse
   event reaches the game** (`_route_released`) except a left press inside the window, which picks
   the mouse up with `pointer_pos` at the press and swallows that press and its release (the click
   presses nothing), then pushes a still move there so hover and the glow are right at once. The
@@ -1215,7 +1215,12 @@ the game has to take the mouse over and move and draw the cursor itself.
 - **Drawing.** A `Sprite2D` on its own `CanvasLayer` at `VirtualCursor.LAYER` (200, above
   the FPS overlay's 128), `centered = false`, `scale = 1 / CursorArt.RENDER_SCALE`, `offset
   = -hotspot × RENDER_SCALE` so the tip sits on `pointer_pos`. `refresh_style()` re-dresses it
-  from settings (`GameManager.apply_cursor_and_save()` calls it). It lives under GameManager,
+  from settings (`GameManager.apply_cursor_and_save()` calls it). `CursorArt.texture(shape, colour)`
+  caches **only the style asked for last** (asking again gives the same texture, which the
+  cursor and its popup copies share), so stepping through the Mouse page's 200 styles doesn't
+  leave them all in memory at 4×. Anything that needs the art once, at another scale, takes
+  `CursorArt.image(shape, colour, scale)` — an uncached `Image` — never a texture: a second
+  style through `texture()` would throw out the cursor's own. It lives under GameManager,
   `PROCESS_MODE_ALWAYS`: every scene, paused or not.
 - **Choosing it.** Settings → Controls → Mouse (see **Mouse page** under P4) — shape, colour and mouse
   sensitivity; changes apply to the live cursor at once. Saved in `config.cfg [settings]` as
