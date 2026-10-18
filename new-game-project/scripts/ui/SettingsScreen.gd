@@ -475,6 +475,7 @@ func _on_profile_selected(keyboard: bool, index: int) -> void:
 func _on_profile_renamed(keyboard: bool, text: String) -> void:
 	var profiles: InputProfiles = GameManager.input_profiles
 	var idx := profiles.active_index(keyboard)
+	var before := profiles.name_for(keyboard, idx)
 	# set_name returns what was actually stored (trimmed, capped, or the numbered
 	# default when blank), so echo that back rather than the raw input.
 	var stored := profiles.set_name(keyboard, idx, text)
@@ -484,7 +485,10 @@ func _on_profile_renamed(keyboard: bool, text: String) -> void:
 	var field: LineEdit = _kb_profile_name if keyboard else _pad_profile_name
 	if is_instance_valid(field) and field.text != stored:
 		field.text = stored
-	GameManager.save_input_config()
+	# The field commits whenever the highlight leaves it, changed or not; a name that came
+	# out as it went in is nothing to write.
+	if stored != before:
+		GameManager.save_input_config()
 
 func _refresh_profile_name_field(keyboard: bool) -> void:
 	var profiles: InputProfiles = GameManager.input_profiles
@@ -523,12 +527,25 @@ func _open_name_keyboard() -> void:
 	if _keyboard_open():
 		return
 	var profiles: InputProfiles = GameManager.input_profiles
+	var stored := profiles.name_for(false, profiles.active_index(false))
+	if is_instance_valid(_pad_profile_name):
+		# The highlight is about to leave the Rename field, and a text box commits what it
+		# holds when that happens. The keyboard opens on the stored name, so put the field back
+		# to it first: text typed there and never committed is not saved by this press, and
+		# Cancel leaves the config as it was.
+		_pad_profile_name.text = stored
+		# The focus guard locks the page's buttons, sliders and dropdowns while the keyboard is
+		# the top scope but never a text box, and Godot's neighbour search runs from the top
+		# Control through the whole screen: a push up from the number row could land on this
+		# field behind the dim. Click-only takes it out of that search without taking the
+		# highlight off it.
+		_pad_profile_name.focus_mode = Control.FOCUS_CLICK
 	var panel := OnScreenKeyboard.new()
 	add_child(panel)
 	_keyboard_panel = panel
 	panel.finished.connect(_on_name_keyboard_finished)
 	panel.cancelled.connect(_on_name_keyboard_cancelled)
-	panel.open(profiles.name_for(false, profiles.active_index(false)), InputProfiles.MAX_NAME_LENGTH)
+	panel.open(stored, InputProfiles.MAX_NAME_LENGTH)
 
 ## Done: the typed name goes through the same rules as one typed into the field.
 func _on_name_keyboard_finished(text: String) -> void:
@@ -544,6 +561,7 @@ func _on_name_keyboard_cancelled() -> void:
 func _on_name_keyboard_closed() -> void:
 	_keyboard_panel = null
 	if is_instance_valid(_pad_profile_name):
+		_pad_profile_name.focus_mode = Control.FOCUS_ALL   # the page's again (see _open_name_keyboard)
 		GameManager.set_preferred_focus(self, _pad_profile_name)
 
 ## A themed single-line text box. Commits on Enter or when focus leaves, so the

@@ -1694,8 +1694,15 @@ own Testing Policy above — the policy (a suite per feature, registered in
     stick-cursor click (`_on_pad_name_gui_input` reads `VirtualCursor.pad_click`, true only while `_push_click` delivers
     Cursor Click, so a real mouse click still puts the caret in). `_open_name_keyboard` adds it as the screen's LAST
     child (its `_input` runs first); it is its own focus scope, highlight on Q. `finished(text)` goes through
-    `_on_profile_renamed` (the usual `InputProfiles.set_name` rules); either signal returns the highlight to Rename with
-    `set_preferred_focus` (the page is `FOCUS_NONE` under the panel's scope, so never `grab_focus`).
+    `_on_profile_renamed` (the usual `InputProfiles.set_name` rules; it writes config.cfg only when the stored name
+    changed); either signal returns the highlight to Rename with `set_preferred_focus` (the page's buttons are
+    `FOCUS_NONE` under the panel's scope, so never `grab_focus`).
+    ⚠️ The focus guard never locks a `LineEdit`, and Godot's neighbour search runs from the top Control through the whole
+    screen, so with Rename above the keys a d-pad push up from the number row landed on the field behind the dim. So
+    `_open_name_keyboard` holds the field at `FOCUS_CLICK` while the panel is open (out of that search; the dim blocks
+    clicks anyway; it does not release a highlight already on it) and `_on_name_keyboard_closed` gives back `FOCUS_ALL`.
+    It also puts the field's text back to the stored name first: the highlight leaving a text box commits it, so text
+    typed there and never committed would otherwise be saved by the press that opens the panel, and Cancel would keep it.
     **Buttons:** Confirm (A) presses the key, Cancel/Back (B) deletes (held repeats), X cancels, Y adds a space, LB toggles
     capitals, Pause/Menu (Start) finishes. A/B/Start follow the player's remaps; X/Y/LB are fixed, and one the player has
     bound to Confirm/Cancel/Pause acts as that binding (`legend_entries()` names their real buttons). A real keyboard

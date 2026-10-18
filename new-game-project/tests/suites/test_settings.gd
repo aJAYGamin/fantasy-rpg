@@ -1048,3 +1048,132 @@ func test_a_rebuild_while_open_closes_the_keyboard() -> void:  # Review Focus 5
 	assert_eq(GameManager.focus_scope_count(fresh), 1, "with its own focus scope")
 	_close(screen)
 	_pad_end()
+
+# ------------------------- the Rename field stays out of the keyboard's way (final review I1)
+# The focus guard locks the page's buttons, sliders and dropdowns while the keyboard is the top
+# scope, but it never touches a LineEdit, and Godot's neighbour search starts from the top
+# Control and looks through the whole screen: with the Rename field above the keys, a d-pad
+# push up from the number row put the highlight on the field behind the dim. Leaving it
+# committed the field (a config.cfg write) and the guard then snapped the highlight back.
+
+## A frame lays containers out on a deferred call and none runs inside a test, so sort
+## them here, top-down, the way the engine would.
+func _lay_out(node: Node) -> void:
+	if node is Container:
+		node.notification(Container.NOTIFICATION_SORT_CHILDREN)
+	for child in node.get_children():
+		_lay_out(child)
+
+func _config_bytes() -> PackedByteArray:
+	return FileAccess.get_file_as_bytes(_CONFIG) if FileAccess.file_exists(_CONFIG) else PackedByteArray()
+
+## The Controller page with its Rename field scrolled to the top of the scroll area, as it is
+## when the player has come up to it from the bindings below (follow_focus puts the control
+## being reached at the edge it came from).
+func _controller_page_with_rename_on_top() -> SettingsScreen:
+	var screen := _open("controller")
+	GameManager.register_focus_scope(screen)   # as setup() does
+	var scroll := screen.find_children("*", "ScrollContainer", true, false)[0] as ScrollContainer
+	_lay_out(screen)
+	scroll.scroll_vertical = 100000   # all the way down, to the last binding
+	_lay_out(screen)
+	scroll.ensure_control_visible(screen._pad_profile_name)   # and back up to Rename
+	_lay_out(screen)
+	return screen
+
+func test_the_highlight_cannot_leave_the_keyboard_for_the_rename_field_behind_it() -> void:  # final review I1
+	_pad_begin()
+	var profiles := GameManager.input_profiles
+	var active := profiles.active_index(false)
+	var screen := _controller_page_with_rename_on_top()
+	var field := screen._pad_profile_name
+	var panel := _press_confirm_on_the_field(screen)
+	assert_true(is_instance_valid(panel), "the keyboard opens")
+	_lay_out(screen)
+	GameManager.update_focus_guard_for_test()
+	assert_eq(_focus_owner(), panel.key_button("Q"), "the highlight is on Q")
+	assert_true(field.get_global_rect().end.y < panel.key_button("1").get_global_rect().position.y,
+		"the Rename field sits above the number row, in the way of a push up")
+	assert_eq(field.focus_mode, Control.FOCUS_CLICK, "the field cannot take the highlight while the keyboard is open")
+
+	# Anything that did reach the field would commit what it holds when the highlight left it,
+	# so make that visible: a name that is not the stored one.
+	var stored := profiles.name_for(false, active)
+	field.text = "Leaked"
+	var landed := [0]
+	field.focus_entered.connect(func() -> void: landed[0] += 1)
+	var bytes := _config_bytes()
+	for id: String in ["5", "1", "0"]:
+		panel.key_button(id).grab_focus()
+		_pad(JOY_BUTTON_DPAD_UP)
+		_pad(JOY_BUTTON_DPAD_UP, false)
+		var held := _focus_owner()
+		assert_true(held != null and held != field and panel.is_ancestor_of(held),
+			"a d-pad push up from \"%s\" stays inside the keyboard" % id)
+		GameManager.update_focus_guard_for_test()   # the next frame
+		held = _focus_owner()
+		assert_true(held != null and held != field and panel.is_ancestor_of(held),
+			"and a frame later too")
+	panel.key_button("5").grab_focus()
+	_key(KEY_UP)
+	_key(KEY_UP, false)
+	assert_true(_focus_owner() != field and panel.is_ancestor_of(_focus_owner()), "so does the arrow key up")
+
+	assert_eq(landed[0], 0, "the highlight never touched the field")
+	assert_eq(profiles.name_for(false, active), stored, "so nothing committed to the profile")
+	assert_true(_config_bytes() == bytes, "and config.cfg was not written")
+	_close(screen)
+	_pad_end()
+
+# ----------------------- opening the keyboard saves nothing (triage item 13)
+# Taking the highlight off a text box commits what it holds. Opening the keyboard moves the
+# highlight off the Rename field, so a name typed into the field on a real keyboard and never
+# committed was saved by the very press that opened the keyboard, which opened on the stale
+# stored name; Cancel then left the typed text saved. The field is put back to the stored name
+# first, so that commit has nothing to change.
+
+func test_opening_the_keyboard_does_not_save_a_name_typed_into_the_field() -> void:  # triage item 13
+	_pad_begin()
+	var profiles := GameManager.input_profiles
+	var active := profiles.active_index(false)
+	profiles.set_name(false, active, "Couch")
+	# A config.cfg holding none of the bindings: any save adds them, so its bytes say whether
+	# anything saved.
+	var probe := ConfigFile.new()
+	probe.set_value("probe", "untouched", true)
+	probe.save(_CONFIG)
+	var bytes := _config_bytes()
+	var screen := _open("controller")
+	GameManager.register_focus_scope(screen)   # as setup() does
+	var field := screen._pad_profile_name
+	assert_eq(field.text, "Couch", "the field shows the stored name")
+	field.text = "half"   # typed on a real keyboard, never committed (no Enter, no click away)
+
+	var panel := _press_confirm_on_the_field(screen)
+	assert_true(is_instance_valid(panel), "Confirm opens the keyboard")
+	assert_eq(panel.get_text(), "Couch", "it opens on the stored name")
+	GameManager.update_focus_guard_for_test()   # the highlight leaves the field for Q
+	assert_eq(_focus_owner(), panel.key_button("Q"), "the highlight is on Q")
+	panel.cancel()
+	assert_eq(profiles.name_for(false, active), "Couch", "Cancel leaves the stored name as it was")
+	assert_eq(field.text, "Couch", "and the field shows it, not the half-typed text")
+	assert_true(_config_bytes() == bytes, "config.cfg was not written: opening and cancelling saves nothing")
+
+	# Done with the name as it stood is no change either.
+	var second := _press_confirm_on_the_field(screen)
+	assert_true(is_instance_valid(second), "it opens again")
+	GameManager.update_focus_guard_for_test()
+	second.finish()
+	assert_eq(profiles.name_for(false, active), "Couch", "Done on an unchanged name leaves it")
+	assert_true(_config_bytes() == bytes, "and writes nothing")
+
+	# A real change still saves.
+	var third := _press_confirm_on_the_field(screen)
+	assert_true(is_instance_valid(third), "and again")
+	third.type_char("!")
+	third.finish()
+	assert_eq(profiles.name_for(false, active), "Couch!", "a changed name is stored")
+	assert_true(_config_bytes() != bytes, "and saved")
+	GameManager.unregister_focus_scope(screen)
+	_close(screen)
+	_pad_end()
