@@ -49,7 +49,7 @@ order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~5990 tests, 56 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
+- **Run tests headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~6020 tests, 56 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves)
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -1060,6 +1060,10 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
 ### Overworld & Encounters (P7 — visible roaming enemies)
 - `OverworldScene.gd` reads `@export var area: MapArea` (+ `@export field_rect`); hosts the
   `PauseMenu` (in a CanvasLayer above the camera, Esc opens it) and the `SaveIndicator`.
+  The pause key waits (`OverworldScene.pause_menu_allowed`) while a conversation runs (the
+  dialogue box, layer 50, would cover the menu, layer 10) or another screen has paused the game
+  (a shop, the campfire, a trainer's Moves page, all layer 80): a controller's Start isn't Cancel,
+  so those screens never saw it, and the menu opened hidden beneath them holding the highlight.
   Movement uses the remappable `move_*` actions (keyboard + controller, left-stick scaled).
 - **No more random step-based encounters.** The scene spawns up to `MAX_ROAMERS` (4)
   **`RoamingEnemy`** nodes, each given a weighted-picked `EncounterGroup` and a random
@@ -1107,7 +1111,7 @@ it to `add_status` vs `apply_buff`/`apply_debuff`. A mutex status landing emits 
   `enemy_level_override`. `MapArea`: `area_name`, `battle_background_id`, `default_spawn`,
   `encounter_groups`, `safe_zones: Array[Rect2]`.
 
-### Themed cursor — `scripts/cursor/` (Track C, in progress)
+### Themed cursor — `scripts/cursor/` (Track C — done)
 Spec: `.claude/docs/superpowers/specs/2026-10-17-themed-cursor-design.md`; art source of
 truth: `2026-10-17-themed-cursor-art.html` beside it. The game draws its own cursor in the
 player's chosen shape and colour, and the mouse moves it at an in-game sensitivity. The
@@ -1190,7 +1194,20 @@ the game has to take the mouse over and move and draw the cursor itself.
   from settings (`GameManager.apply_cursor_and_save()` calls it). It lives under GameManager,
   `PROCESS_MODE_ALWAYS`: every scene, paused or not.
 - **Choosing it.** Settings → Controls → Mouse (see **Mouse page** under P4) — shape, colour and mouse
-  sensitivity; changes apply to the live cursor at once.
+  sensitivity; changes apply to the live cursor at once. Saved in `config.cfg [settings]` as
+  `cursor_shape` (default `A`), `cursor_colour` (default `amethyst`) and `mouse_sensitivity`
+  (0.25–3.00, default 1.00), not per save slot. On a controller, Settings → Controls → Controller
+  holds the stick's side: **Right Stick Sensitivity** sets the cursor's stick speed, and the
+  **Cursor Click** row rebinds the press like any other row (controller-only, so the Keyboard
+  page has no row for it).
+- **Every screen, every input.** The pass over every screen with the mouse, the keyboard, the
+  controller highlight and the stick cursor is recorded in
+  `.claude/docs/superpowers/notes/2026-10-17-every-screen-every-input.md` (repo root), with the
+  manual play-test checklist. The stick cursor needs no per-screen work: it reaches the UI through
+  the same pushed mouse events as the mouse, so a screen that works with the mouse works with it
+  (nothing outside `scripts/cursor/` reads the mouse any other way — keep it so). The stick has no
+  wheel: a long list is scrolled by dragging its scrollbar, so every scroll list keeps the themed,
+  draggable bar. Open: renaming a keybind profile still needs a keyboard (no on-screen keyboard).
 - **The popup mirror.** Embedded popups (an OptionButton's list) draw above every
   CanvasLayer of the root, so an open list would cover the cursor. `update_mirrors()` (every
   frame) gives each open window in `get_embedded_subwindows()` its own internal CanvasLayer +
@@ -1213,6 +1230,11 @@ the game has to take the mouse over and move and draw the cursor itself.
   hidden OS pointer, not the cursor. Read `GameManager.virtual_cursor.pointer_pos`, or the
   position on the event. The one exception is `VirtualCursor._hold_again`, which reads it while the
   system pointer is still visible, just before capturing, so the cursor carries on from it.
+  Godot's own `Window.update_mouse_cursor_state()` does read it: it pushes a mouse move of its own
+  at the hidden OS pointer, so hover jumps there. It runs when a hovered control already in the tree
+  changes `mouse_default_cursor_shape`, and at the end of a drag-and-drop. Nothing triggers it
+  today: set a control's cursor shape before `add_child`, and don't add drag-and-drop without
+  routing it through the cursor.
 - ⚠️ **A synthetic mouse move needs a `velocity`.** A PopupMenu ignores a move with zero
   velocity when lighting up the row under it, so the hook converts the OS move's velocity to
   base pixels like its `relative`. Anything that invents moves (the right stick) must set one.
@@ -1446,7 +1468,7 @@ BattleScene (Node2D)
 - **Every new feature ships with a unit test.** Suites: `tests/suites/test_<feature>.gd`,
   `extends TestSuite`, methods prefixed `test_`, `assert_*` helpers. Register in
   `TestRunner.gd` `SUITE_PATHS`.
-- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~5990 tests / 56 suites**
+- Run: `tests/TestRunner.tscn` → F6, or headless (command above). **~6020 tests / 56 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,
@@ -1621,8 +1643,12 @@ own Testing Policy above — the policy (a suite per feature, registered in
   - **Controls:** stick sensitivity (left scales movement; right scales the cursor's speed), live device statuses
     (controller name / "No Controller Found"; keyboard+mouse are activity-based since Godot can't
     enumerate them), and full **keyboard + controller remapping** via `InputMapConfig` — named actions
-    (`move_*`/`confirm`/`cancel`/`pause`) with per-device defaults, press-to-bind, per-device + global
-    reset, persisted to `[input]`; `confirm`/`cancel` mirror onto `ui_accept`/`ui_cancel`.
+    (`move_*`/`confirm`/`cancel`/`pause`, plus the controller-only `cursor_click`) with per-device
+    defaults, press-to-bind, per-device + global reset, persisted to `[input]`; `confirm`/`cancel`
+    mirror onto `ui_accept`/`ui_cancel`. A binding waits for its device's input: Esc cancels either
+    wait, and waiting for a KEY the pad's Cancel backs out too (a pad player has no key to press);
+    waiting for a PAD button every button binds, B included. The Keyboard and Controller pages run
+    past their scroll area, so every detail view's scroll has `follow_focus` on.
   - **Mouse page (Settings → Controls → Mouse):** three rows — **Cursor Shape** and **Cursor Colour** (`CyclerRow`s;
     the shape row shows an icon of the shape in the CURRENT colour, the colour row a dot, ringed for Void and
     Obsidian) and **Mouse Sensitivity** (`_sens_row` with the mouse's own 0.25–3.00 range and
@@ -1647,6 +1673,10 @@ own Testing Policy above — the policy (a suite per feature, registered in
     focused). `FocusUtil` holds the L1/R1 detection. Screens detach old children immediately on rebuild
     (not deferred queue_free) so stale full-rect overlays can't swallow clicks. Back = controller B /
     Esc (`ui_cancel`) everywhere; battle sub-menus + target select honor it too.
+    - **A scroll list the highlight can move down sets `follow_focus = true`.** Godot's
+      `ScrollContainer` only scrolls to the focused control with it on (it defaults off), so without
+      it the d-pad walks the highlight out of sight. Items, Shop, Quests, Moves, Equipment, the
+      battle Items menu and Settings' detail views all set it.
     - **Disabled controls are FOCUS_NONE**, not merely un-grabbable. Godot's neighbor search only skips
       FOCUS_NONE, so a greyed button left focusable is a dead end that swallows the d-pad (the main
       menu's disabled Continue blocked every option under it).
@@ -1829,8 +1859,11 @@ profiles, movesets/loadouts, rest areas, and the controller-navigation pass.
 #### Track C — Hardening  ← **current**
 - **Roamer state in saves — DONE** (branch `roamers-in-saves`, 2026-10-16): a save holds the
   current map's roamers; loading restores them (with the flee grace). See **Roamers in saves**.
-- **Virtual cursor + mouse sensitivity** (the deferred "Chunk D" of P4) — needs a
-  virtual cursor that reworks menu click routing.
+- **Virtual cursor + mouse sensitivity — DONE** (branch `themed-cursor`, 2026-10-17; the deferred
+  "Chunk D" of P4): a game-drawn themed cursor (10 shapes × 20 colours, hover glow) that every
+  mouse event is routed through, an in-game mouse sensitivity, the right stick moving it with a
+  remappable Cursor Click, the mouse held / let go per window mode, the Settings → Controls →
+  Mouse page, and an every-screen, every-input pass. See **Themed cursor**.
 - **Stats screen format tweaks** — minor visual/format work the user deferred.
 - **Save/load edge cases — DONE** (branch `save-check`, 2026-10-16): the
   `SaveCoverage` safety net (see **Save System**); item and gear prices, the inn
@@ -1852,7 +1885,7 @@ profiles, movesets/loadouts, rest areas, and the controller-navigation pass.
 #### Track D — Real art (last)
 - Place the existing 70-prop library; animate the remaining fire props.
 - Player sprite, hero/enemy portraits and battle sprites (placeholders are
-  coloured squares / letter tiles today), custom cursor.
+  coloured squares / letter tiles today). (The custom cursor is done — see **Themed cursor**.)
 - Map art is already done.
 
 ### Art pipeline (parked — built, committed, deliberately NOT applied)
@@ -1911,9 +1944,11 @@ save".
 
 ### Deferred / known follow-ups
 These are **scheduled as Track C** in the Roadmap above; the detail lives here.
-- **Virtual cursor + mouse sensitivity (was "Chunk D" of P4):** a themed in-game cursor
-  plus a working mouse-sensitivity slider. Needs a virtual cursor that reworks menu click
-  routing, which is why it keeps being pushed back. Not started.
+- **Virtual cursor + mouse sensitivity (was "Chunk D" of P4): DONE** (2026-10-17) — see
+  **Themed cursor** in Core Systems. Left open by its every-screen pass: renaming a keybind
+  profile needs a keyboard (a controller can reach the field but not type; an on-screen keyboard
+  would be new UI). The manual play-test checklist is in
+  `.claude/docs/superpowers/notes/2026-10-17-every-screen-every-input.md`.
 - **Stats screen format tweaks:** minor visual/format work on the P1 Stats screen that the
   user deferred "to some point later" — expect them.
 - **Roamer state is in-memory only** (per session), not written into the save JSON. After a
