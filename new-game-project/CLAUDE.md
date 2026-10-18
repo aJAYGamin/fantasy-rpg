@@ -1190,7 +1190,8 @@ the game has to take the mouse over and move and draw the cursor itself.
   the mouse slips out), and is pushed as a mouse move carrying the stick's velocity and the
   held buttons. **A hidden cursor needs a firm push:** while `shown` is false (the d-pad or keys
   in use, or the mouse let go) the stick does nothing until it is past `CursorMotion.STICK_WAKE`
-  (0.5, `stick_wakes`, the bar `GameManager._input` sets for a stick to count as controller use);
+  (0.5, `stick_wakes` — the figure `GameManager._input` uses for a stick to count as controller use,
+  though measured on the stick's magnitude where `_input` reads each axis);
   once the cursor shows, it moves from the dead zone up. A stick drifting past the dead zone used
   to bring the cursor back every frame, so its mouse moves took the menus off the highlight and,
   after a windowed slip-out, took the mouse back from the desktop. Full tilt is unchanged

@@ -454,7 +454,7 @@ func _apply_hold() -> void:
 
 ## Captured while held (hidden, deltas only), but never while the game isn't in front: that
 ## would take the mouse from the app that is. Visible while let go.
-func _wanted_mouse_mode() -> int:
+func _wanted_mouse_mode() -> Input.MouseMode:
 	return hold.mouse_mode() if _in_front() else Input.MOUSE_MODE_VISIBLE
 
 ## Dresses the system pointer as the cursor in the chosen style, at the size the cursor is

@@ -7,14 +7,14 @@ extends RefCounted
 ## Every call here reaches the operating system's pointer, and nothing else in the game
 ## makes one (test_system_pointer checks): the drawn cursor stands in for it everywhere, and
 ## with the mouse held the hidden pointer's position means nothing. VirtualCursor calls these
-## only once install() has hooked a real window, never headless, and it and CursorHold decide
-## when; this file only does it.
+## only once install() has hooked a real window (headless, only tests call them, where they do
+## nothing), and it and CursorHold decide when; this file only does it.
 
 ## The most pixels across a system cursor image may be (Godot refuses a bigger one).
 const OS_CURSOR_MAX := 256.0
 
 ## Puts the system mouse in `mode`, an Input.MOUSE_MODE_*.
-static func set_mode(mode: int) -> void:
+static func set_mode(mode: Input.MouseMode) -> void:
 	Input.mouse_mode = mode
 
 ## Shows the let-go pointer at `root_pos` (root-viewport coordinates), where the cursor was,

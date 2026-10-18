@@ -7,12 +7,16 @@ extends TestSuite
 func suite_name() -> String:
 	return "SystemPointer"
 
-## Calls that reach the OS pointer: its mode, where it is, its look and its shape.
+## Calls that reach the OS pointer: its mode, where it is, its look and its shape. Setting
+## Input.mouse_mode is matched by SETS_MOUSE_MODE instead.
 const OS_POINTER_CALLS: Array[String] = [
 	"get_mouse_position(", "get_local_mouse_position(", "get_global_mouse_position(",
-	"mouse_get_position(", "warp_mouse(", "set_custom_mouse_cursor(", "mouse_mode =",
+	"mouse_get_position(", "warp_mouse(", "set_mouse_mode(", "mouse_set_mode(",
+	"set_custom_mouse_cursor(", "cursor_set_custom_image(", "set_default_cursor_shape(",
 	"cursor_set_shape(",
 ]
+## An assignment to mouse_mode, spaced or not; a comparison (==) is not one.
+const SETS_MOUSE_MODE := "mouse_mode\\s*=(?!=)"
 const HOME := "res://scripts/cursor/SystemPointer.gd"
 
 func test_the_system_cursor_is_the_size_the_cursor_is_drawn() -> void:
@@ -31,6 +35,7 @@ func test_every_call_to_the_system_pointer_is_in_system_pointer() -> void:
 	# The drawn cursor stands in for the OS pointer everywhere, and with the mouse held the
 	# OS pointer is hidden and where it sits means nothing. One small file making every call
 	# to it keeps that rule easy to see and to keep.
+	var sets_mode := RegEx.create_from_string(SETS_MOUSE_MODE)
 	var offenders: Array[String] = []
 	for path in _scripts("res://scripts"):
 		if path == HOME:
@@ -39,10 +44,20 @@ func test_every_call_to_the_system_pointer_is_in_system_pointer() -> void:
 		for call in OS_POINTER_CALLS:
 			if code.contains(call):
 				offenders.append("%s: %s" % [path.get_file(), call])
+		if sets_mode.search(code) != null:
+			offenders.append("%s: mouse_mode =" % path.get_file())
 	assert_true(offenders.is_empty(), "no script but SystemPointer calls the OS pointer (%s)" % ", ".join(offenders))
 	var own := _code(HOME)
-	for call in ["get_mouse_position(", "warp_mouse(", "set_custom_mouse_cursor(", "mouse_mode =", "cursor_set_shape("]:
+	for call in ["get_mouse_position(", "warp_mouse(", "set_custom_mouse_cursor(", "cursor_set_shape("]:
 		assert_true(own.contains(call), "SystemPointer makes the %s call" % call)
+	assert_true(sets_mode.search(own) != null, "and sets the mouse mode")
+
+func test_the_scan_tells_setting_the_mouse_mode_from_reading_it() -> void:
+	var sets_mode := RegEx.create_from_string(SETS_MOUSE_MODE)
+	assert_true(sets_mode.search("Input.mouse_mode = Input.MOUSE_MODE_VISIBLE") != null, "an assignment")
+	assert_true(sets_mode.search("Input.mouse_mode=Input.MOUSE_MODE_VISIBLE") != null, "one written without spaces")
+	assert_true(sets_mode.search("if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:") == null, "but not a comparison")
+	assert_true(sets_mode.search("return hold.mouse_mode()") == null, "or a call")
 
 ## Every .gd file under `dir`, at any depth.
 func _scripts(dir: String) -> Array[String]:

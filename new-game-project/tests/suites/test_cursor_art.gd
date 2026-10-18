@@ -122,6 +122,7 @@ func test_only_the_style_in_use_stays_cached() -> void:
 	assert_true(first.get_ref() != null, "the style asked for last is kept")
 	_weak_texture(shape, "frost")
 	assert_true(first.get_ref() == null, "and let go once another style is asked for")
+	GameManager.virtual_cursor.refresh_style()   # leave the player's own style cached
 
 func test_textures_are_rendered_at_the_art_size_times_scale() -> void:
 	var one := CursorArt.image("A", "amethyst", 1.0)

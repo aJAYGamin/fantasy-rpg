@@ -339,8 +339,8 @@ static func shape_name(id: String) -> String:
 static func colour_name(id: String) -> String:
 	return PALETTES.get(id, {}).get("name", "")
 
-## True when this is a shape and a colour the catalogue has. svg() and texture()
-## refuse anything else, so check this first on an id that came from a save file.
+## True when this is a shape and a colour the catalogue has. svg(), image(), texture() and
+## icon() refuse anything else, so check this first on an id that came from a save file.
 static func is_known(shape: String, colour: String) -> bool:
 	return SHAPE_DATA.has(shape) and PALETTES.has(colour)
 

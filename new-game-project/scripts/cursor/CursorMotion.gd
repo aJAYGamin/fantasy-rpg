@@ -12,8 +12,9 @@ extends RefCounted
 ## 0.25 rather than a tighter 0.2: a worn pad's stick can rest past 0.2 (XInput's recommended
 ## right-stick dead zone is about 0.27).
 const STICK_DEADZONE := 0.25
-## A hidden cursor comes back only for a stick pushed past this: the same bar GameManager._input
-## sets for a stick to count as controller use. A stick drifting past the dead zone would
+## A hidden cursor comes back only for a stick pushed past this: the 0.5 GameManager._input
+## sets for a stick to count as controller use, measured here on the stick's magnitude (a
+## diagonal of 0.4 on each axis wakes it, though GameManager, reading each axis, wouldn't count it). A stick drifting past the dead zone would
 ## otherwise bring the cursor back every frame, taking the menus off the highlight and, after a
 ## windowed slip-out, the mouse back from the desktop.
 const STICK_WAKE := 0.5
