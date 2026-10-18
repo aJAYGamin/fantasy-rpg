@@ -629,6 +629,41 @@ func test_a_resting_stick_leaves_the_cursor_alone() -> void:
 	assert_true(reader.last_motion == null, "and pushes no mouse move")
 	_end()
 
+func test_a_drifting_stick_leaves_a_hidden_cursor_and_the_highlight_alone() -> void:
+	# A worn stick resting past the dead zone used to bring the cursor back every frame,
+	# and its mouse moves took the menus off the d-pad's highlight.
+	var layer := _begin()
+	var reader := InputReader.new()
+	layer.add_child(reader)
+	GameManager._apply_input_mode(true, false)   # on the d-pad: highlight up, cursor hidden
+	_vc().pointer_pos = Vector2(500, 300)
+	_vc().shown = false
+	_tilt(Vector2(0.4, 0.1), 1.0)
+	assert_eq(_vc().pointer_pos, Vector2(500, 300), "a second of drift at 0.41 doesn't move a hidden cursor")
+	assert_false(_vc().shown, "or show it")
+	assert_true(reader.last_motion == null, "and pushes no mouse move")
+	assert_true(GameManager.focus_nav_active(), "so the highlight stays up")
+	_end()
+
+func test_a_firm_push_brings_a_hidden_cursor_back() -> void:
+	_begin()
+	_vc().pointer_pos = Vector2(500, 300)
+	_vc().shown = false
+	_vc().step_stick(Vector2(0.6, 0), 1.0 / 60.0)
+	assert_true(_vc().shown, "past half tilt the stick brings the cursor back")
+	assert_true(_vc().pointer_pos.x > 500.0, "and moves it")
+	_end()
+
+func test_a_showing_cursor_moves_from_the_dead_zone_up() -> void:
+	_begin()
+	_vc().pointer_pos = Vector2(500, 300)
+	_vc().shown = true
+	_vc().step_stick(Vector2(0.35, 0), 1.0)
+	var expected := CursorMotion.stick_velocity(Vector2(0.35, 0), 1.0).x / 30.0
+	assert_true(expected > 0.0, "0.35 is past the dead zone")
+	assert_near(_vc().pointer_pos.x - 500.0, expected, 0.01, "a gentle tilt moves a cursor that is showing")
+	_end()
+
 func test_the_stick_never_leaves_the_window() -> void:
 	_begin()
 	var bounds := GameManager.get_tree().root.get_visible_rect().size
@@ -1169,6 +1204,15 @@ func test_the_right_stick_picks_a_let_go_mouse_up() -> void:
 	assert_true(_held(), "moving the right stick picks the mouse up")
 	assert_near(spot.x - _vc().pointer_pos.x, 384.0, 0.01, "and moves the cursor from where it let go")
 	assert_true(_vc().shown, "which shows again")
+	_end()
+
+func test_a_drifting_stick_never_picks_a_let_go_mouse_up() -> void:
+	_begin()
+	_slip_out()
+	var spot := _vc().pointer_pos
+	_tilt(Vector2(0, 0.45), 1.0)
+	assert_false(_held(), "a stick drifting under half tilt leaves the mouse on the desktop")
+	assert_eq(_vc().pointer_pos, spot, "and the cursor where it let go")
 	_end()
 
 func test_a_stick_press_picks_a_let_go_mouse_up_without_clicking() -> void:

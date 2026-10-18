@@ -235,8 +235,9 @@ Plain steps for a real play session. Each says what to do and what should happen
 - [ ] Settings → Controls → Mouse and Performance → Max FPS: one left-stick push moves
   exactly one choice; holding repeats at a steady pace. The shape icon looks crisp on
   a 1× (non-Retina) window.
-- [ ] Windowed: if the stick drifts, it may pick the mouse back up after it slipped out
-  of the window — note whether that happens on your pad.
+- [ ] A drifting right stick (resting off-centre, under half tilt) neither brings a hidden
+  cursor back while you use the d-pad nor picks up a mouse that slipped out of the window;
+  a firm push (past half tilt) does both.
 
 **Windowed mode and the mouse leaving the window**
 - [ ] Windowed: push the mouse out past each edge. It leaves at the same spot where the

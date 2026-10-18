@@ -1176,15 +1176,22 @@ the game has to take the mouse over and move and draw the cursor itself.
 - **Shown / hidden.** Mouse events show the cursor; keys, controller buttons and a stick
   pushed past 0.5 hide it — the same events `GameManager._input` takes as a switch to the
   focus highlight, so the cursor and the highlight are never both up. Moving the mouse brings
-  it back where it was. The pad brings it back too (the right stick, or a Cursor Click on a hidden
-  cursor), and each does it with a mouse move pushed at the cursor's tip (a Cursor Click's is
+  it back where it was. The pad brings it back too (the right stick pushed past half tilt, or a
+  Cursor Click on a hidden cursor), and each does it with a mouse move pushed at the cursor's tip (a Cursor Click's is
   `_push_still_move`), which `GameManager._input` takes as mouse use and so leaves the highlight.
   `_input` counts a trackpad pan or pinch (`InputEventGesture`) as mouse use as well.
 - **The right stick.** `_process` feeds `step_stick(axis, delta)` the tilt of the connected
   pad tilted furthest (`Input.get_joy_axis`); `CursorMotion.stick_velocity` gives base px/s at
-  `settings.stick_sensitivity_right`. A move shows the cursor, is clamped to the window (only
+  `settings.stick_sensitivity_right`, nothing inside `CursorMotion.STICK_DEADZONE` (0.25 — a worn
+  stick can rest past 0.2). A move shows the cursor, is clamped to the window (only
   the mouse slips out), and is pushed as a mouse move carrying the stick's velocity and the
-  held buttons. A frame longer than `VirtualCursor.MAX_STICK_FRAME` (1/30 s) counts as that long,
+  held buttons. **A hidden cursor needs a firm push:** while `shown` is false (the d-pad or keys
+  in use, or the mouse let go) the stick does nothing until it is past `CursorMotion.STICK_WAKE`
+  (0.5, `stick_wakes`, the bar `GameManager._input` sets for a stick to count as controller use);
+  once the cursor shows, it moves from the dead zone up. A stick drifting past the dead zone used
+  to bring the cursor back every frame, so its mouse moves took the menus off the highlight and,
+  after a windowed slip-out, took the mouse back from the desktop. Full tilt is unchanged
+  (768 base px/s, the screen in 1.5 s): the curve starts at the dead zone's edge. A frame longer than `VirtualCursor.MAX_STICK_FRAME` (1/30 s) counts as that long,
   so a hitch with the stick held can't throw the cursor across the screen. `route_os_event`
   consumes right-stick motion (`JOY_AXIS_RIGHT_X/Y`) so it never reaches the menus; the d-pad,
   left stick and face buttons pass through and hide the cursor.

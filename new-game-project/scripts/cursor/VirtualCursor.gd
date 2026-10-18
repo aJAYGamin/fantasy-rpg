@@ -118,7 +118,9 @@ func _right_stick() -> Vector2:
 
 ## Moves the cursor with the right stick: `axis` is the tilt, `delta` the seconds since
 ## the last call. A tilt inside the dead zone does nothing, and so does any tilt while the
-## Controller page is waiting for a button (raw_input_passthrough). The move is clamped
+## Controller page is waiting for a button (raw_input_passthrough). A hidden cursor (the
+## d-pad or keys in use, or the mouse let go) comes back only for a push past half tilt
+## (CursorMotion.stick_wakes), so a drifting stick can't. The move is clamped
 ## to the window (only the mouse slips out of it) and pushed as a mouse move at the new
 ## spot, with the stick's speed as its velocity, which a dropdown list needs to light a
 ## row, and the buttons held, so Cursor Click held drags. A mouse that was let go is
@@ -126,6 +128,8 @@ func _right_stick() -> Vector2:
 ## counts as that long.
 func step_stick(axis: Vector2, delta: float) -> void:
 	if GameManager.raw_input_passthrough:
+		return
+	if not shown and not CursorMotion.stick_wakes(axis):
 		return
 	var velocity := CursorMotion.stick_velocity(axis, GameManager.settings.stick_sensitivity_right)
 	if velocity == Vector2.ZERO:

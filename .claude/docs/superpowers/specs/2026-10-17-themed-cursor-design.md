@@ -149,7 +149,10 @@ Their exact shades are the palettes in the art reference.
 - *My call:* pushing the stick further moves the cursor faster: a small dead
   zone, fine control near the centre, and at full tilt it crosses the screen in
   about a second and a half at 1.00×. The **Right Stick Sensitivity** slider
-  scales that speed.
+  scales that speed. *(Added 2026-10-18 after review: the dead zone is 0.25, and
+  a hidden cursor comes back only for a push past half tilt, so a worn, drifting
+  stick can neither take the menus off the highlight nor take back a mouse that
+  slipped out of the window.)*
 - *My call:* if the cursor is hidden (the player was using the d-pad), pressing
   R3 first brings it back at its last spot without clicking, so a click never
   lands somewhere the player can't see.
