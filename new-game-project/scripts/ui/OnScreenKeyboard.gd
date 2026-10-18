@@ -301,6 +301,10 @@ func _legend() -> RichTextLabel:
 	# width it does not have yet, and a container can lay it out a screen tall.
 	legend.autowrap_mode = TextServer.AUTOWRAP_OFF
 	legend.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Not a stop for the highlight. Godot 4.6 gives a RichTextLabel the accessibility focus
+	# mode, which the focus guard counts as a stop: the number keys' wrap link then went to the
+	# legend, Godot refused it, and a push up from the number row always ended on Space.
+	legend.focus_mode = Control.FOCUS_NONE
 	legend.add_theme_font_override("normal_font", BattleUITheme.font_regular())
 	legend.add_theme_font_override("bold_font", BattleUITheme.font_bold())
 	legend.add_theme_font_size_override("normal_font_size", LEGEND_FONT_SIZE)

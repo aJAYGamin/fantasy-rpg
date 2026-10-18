@@ -1712,7 +1712,10 @@ own Testing Policy above — the policy (a suite per feature, registered in
     first (the old `_input` body: input-mode switch + activity stamps) and a swallowed pad press still brings the highlight
     back. ⚠️ A trigger bound to Cancel/Pause acts once per pull and the whole pull is swallowed; a panel closed mid-pull
     stays hidden (`_draining`) until the release sample, else the rest of the pull reaches the pause handler as fresh
-    presses. A page rebuild while open frees the panel (`_exit_tree` drops its scope) and counts as Cancel. Cinzel draws
+    presses. A page rebuild while open frees the panel (`_exit_tree` drops its scope) and counts as Cancel. The legend
+    (`RichTextLabel`) is set `FOCUS_NONE`: Godot 4.6 gives that class `FOCUS_ACCESSIBILITY`, which the guard's
+    `_collect_focusable` counts as a stop, so the number keys' wrap link went to a control Godot refuses and a push up
+    from the number row always ended on Space (any non-key control added to the panel needs the same). Cinzel draws
     lowercase as small capitals, so capitals on/off shows only as letter size (no indicator on ⇧). Suite
     `onscreen_keyboard` (+ the opening tests in `settings` and `virtual_cursor`).
   - **`CyclerRow`** (`scripts/ui/CyclerRow.gd`): name · `◀` · `[icon or dot] value` · `▶`, same width for every row so

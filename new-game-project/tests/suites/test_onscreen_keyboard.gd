@@ -801,3 +801,31 @@ func test_a_trigger_bound_to_confirm_passes_through() -> void:
 	assert_true(GameManager.has_focus_scope(panel), "the panel is still open")
 	_end()
 	GameManager.input_profiles.sync_from_input_map()
+
+# --- Wrapping round the grid (final review M1) --------------------------------------------
+
+func test_wrapping_up_from_the_number_row_lands_on_the_bottom_row_key_below_it() -> void:
+	# Godot 4.6 gives a RichTextLabel the "accessibility" focus mode, and the focus guard
+	# counts anything but FOCUS_NONE as a stop, so the number keys' wrap link went to the
+	# legend, Godot refused it, and every push up from the number row ended on Space.
+	_begin()
+	GameManager.set_controller_mode_for_test(true)
+	var panel := _open("")
+	_lay_out(panel)
+	GameManager.update_focus_guard_for_test()   # wires the wrap-around links, as a frame does
+	var stops: Array = []
+	GameManager._collect_focusable(panel, stops)   # what the guard counts as a stop in a scope
+	var stray: Array = []
+	for stop: Control in stops:
+		if not stop is Button:
+			stray.append(stop.name)
+	assert_eq(stray, [], "nothing in the panel but the keys is a stop for the highlight (the legend, the labels)")
+	for pair: Array in [["1", "symbols"], ["0", "done"], ["5", "space"]]:
+		panel.key_button(pair[0]).grab_focus()
+		_pad(JOY_BUTTON_DPAD_UP)
+		_pad(JOY_BUTTON_DPAD_UP, false)
+		var landed := _focus_owner()
+		assert_true(landed == panel.key_button(pair[1]),
+			"up from \"%s\" wraps to the bottom-row key under it (%s; landed on \"%s\")" % [pair[0], pair[1],
+				(landed as Button).text if landed is Button else str(landed)])
+	_end()
