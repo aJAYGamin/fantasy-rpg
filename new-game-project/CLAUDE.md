@@ -49,7 +49,7 @@ order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless — only headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~6458 tests, 58 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves). Never F6 / Run Current Scene: the runner refuses a windowed run (prints this command and quits), because it would install the cursor's window hook and the hold tests would capture and warp your real pointer.
+- **Run tests headless — only headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~6463 tests, 58 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves). Never F6 / Run Current Scene: the runner refuses a windowed run (prints this command and quits), because it would install the cursor's window hook and the hold tests would capture and warp your real pointer.
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -1498,7 +1498,7 @@ BattleScene (Node2D)
   tests capture and warp the developer's real pointer. The runner also keeps `user://config.cfg`
   (its bytes, or that it was absent) before the first suite and puts it back after the last, so
   a suite can't leave the developer's settings changed — a test that saves settings should still
-  `_protect()` / `_restore()` it, as `test_settings` does. **~6458 tests / 58 suites**
+  `_protect()` / `_restore()` it, as `test_settings` does. **~6463 tests / 58 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,
@@ -1684,7 +1684,7 @@ own Testing Policy above — the policy (a suite per feature, registered in
     Obsidian) and **Mouse Sensitivity** (`_sens_row` with the mouse's own 0.25–3.00 range and
     `SettingsModel.MOUSE_SENS_STEP`). A shape or colour change sets the setting and calls
     `apply_cursor_and_save()` (the live cursor follows at once, so there is no preview section); the colour row
-    also re-tints the shape row's icon. The right stick's speed stays on the Controller page.
+    also re-tints the shape row's icon. The right stick's speed stays on the Controller page, and a note under the slider (`STICK_SPEED_NOTE`) says so — a play-tester moved Mouse Sensitivity, saw the stick cursor unchanged and took it for a bug.
   - **On-screen keyboard (Settings → Controls → Controller → Rename)** (`scripts/ui/OnScreenKeyboard.gd`,
     `class_name OnScreenKeyboard`; spec + mockup: `.claude/docs/superpowers/specs/2026-10-17-onscreen-keyboard-*`):
     a themed QWERTY panel (⇧, ⌫, a `! ?` symbols page, Space, ✕ Cancel, ✓ Done; names capped at

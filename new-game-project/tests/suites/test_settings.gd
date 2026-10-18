@@ -470,6 +470,26 @@ func test_the_controls_page_lists_keyboard_controller_and_mouse() -> void:
 	assert_eq(screen._view_title(), "Mouse", "and is titled Mouse")
 	_close(screen)
 
+func test_the_mouse_page_says_where_the_right_sticks_speed_is() -> void:
+	# Mouse Sensitivity moves only the real mouse; the stick cursor's speed is the
+	# Controller page's Right Stick Sensitivity. A play-tester moved the Mouse page's
+	# slider, saw the stick unchanged and took it for a bug, so the page says so.
+	var screen := _open("mouse")
+	var note: Label = null
+	for l in screen.find_children("*", "Label", true, false):
+		if (l as Label).text == SettingsScreen.STICK_SPEED_NOTE:
+			note = l
+	assert_true(note != null, "the Mouse page shows the note")
+	assert_true("Controller" in SettingsScreen.STICK_SPEED_NOTE and "Right Stick Sensitivity" in SettingsScreen.STICK_SPEED_NOTE,
+			"naming the page and the setting")
+	var sliders := screen.find_children("*", "HSlider", true, false)
+	if note != null and sliders.size() == 1:
+		var row := (sliders[0] as HSlider).get_parent()
+		assert_eq(note.get_parent(), row.get_parent(), "in the page's column")
+		assert_eq(note.get_index(), row.get_index() + 1, "right under Mouse Sensitivity")
+		assert_eq(note.get_theme_color("font_color"), SettingsScreen.NOTE_COLOR, "in the note colour")
+	_close(screen)
+
 func test_the_mouse_page_offers_shape_colour_and_sensitivity() -> void:
 	_protect()
 	var s := GameManager.settings

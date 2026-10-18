@@ -25,6 +25,9 @@ const SCROLL_REACH := 16
 # The Mouse page's name column: the same width as the sensitivity row's, so the
 # steppers line up with its slider.
 const MOUSE_NAME_WIDTH := 190
+# Under Mouse Sensitivity, which moves only the real mouse: where the stick cursor's
+# own speed is set. A play-tester took the stick ignoring this slider for a bug.
+const STICK_SPEED_NOTE := "The right stick's speed is under Controller → Right Stick Sensitivity."
 # Current view: root / game / controls / keyboard / controller / mouse / audio / display / performance.
 var _view: String = "root"
 # The category we just backed out of. The list views use it to hand focus back to
@@ -418,6 +421,7 @@ func _build_mouse(v: VBoxContainer) -> void:
 	v.add_child(colour_row)
 	v.add_child(_sens_row("Mouse Sensitivity", s.mouse_sensitivity, func(val): s.mouse_sensitivity = val,
 		SettingsModel.MOUSE_SENS_MIN, SettingsModel.MOUSE_SENS_MAX, SettingsModel.MOUSE_SENS_STEP))
+	v.add_child(_label(STICK_SPEED_NOTE, BattleUITheme.font_regular(), 11, NOTE_COLOR, HORIZONTAL_ALIGNMENT_CENTER))
 
 ## The shape as the cursor draws it (the same texture, so it looks exactly like the
 ## cursor), without the transparent margin the hover glow needs.
