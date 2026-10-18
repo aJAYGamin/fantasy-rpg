@@ -37,6 +37,10 @@ const GLOW_RADIUS_1 := 4.0
 const GLOW_RADIUS_2 := 8.0
 ## The most pixels across a system cursor image may be (Godot refuses a bigger one).
 const OS_CURSOR_MAX := 256.0
+## The longest frame, in seconds, the right stick moves the cursor for. A hitch with the
+## stick held (a load, dragging the window) hands _process a delta of a second or more, and
+## the cursor must not jump across the screen for it: it slows down for that frame instead.
+const MAX_STICK_FRAME := 1.0 / 30.0
 
 ## Where the cursor's tip is, in root-viewport (base pixel) coordinates.
 var pointer_pos := Vector2.ZERO
@@ -112,7 +116,8 @@ func _right_stick() -> Vector2:
 ## to the window (only the mouse slips out of it) and pushed as a mouse move at the new
 ## spot, with the stick's speed as its velocity, which a dropdown list needs to light a
 ## row, and the buttons held, so Cursor Click held drags. A mouse that was let go is
-## picked up first, unless another app is in front.
+## picked up first, unless another app is in front. A frame longer than MAX_STICK_FRAME
+## counts as that long.
 func step_stick(axis: Vector2, delta: float) -> void:
 	if GameManager.raw_input_passthrough:
 		return
@@ -123,7 +128,7 @@ func step_stick(axis: Vector2, delta: float) -> void:
 		return
 	var before := pointer_pos
 	# Already in base pixels, so no window scale and no mouse sensitivity.
-	pointer_pos = CursorMotion.mouse_step(pointer_pos, velocity * delta, Vector2.ONE, 1.0,
+	pointer_pos = CursorMotion.mouse_step(pointer_pos, velocity * minf(delta, MAX_STICK_FRAME), Vector2.ONE, 1.0,
 			get_tree().root.get_visible_rect().size)
 	var mm := InputEventMouseMotion.new()
 	mm.velocity = velocity
@@ -199,8 +204,11 @@ func _route_other(ev: InputEvent) -> void:
 				if shown:
 					_click_down = true
 					_push_click(true)
-				else:
-					_show_for_pad()   # the first press only shows it, so a click never lands unseen
+				elif _show_for_pad():
+					# The first press only shows the cursor, so a click never lands unseen. A
+					# still move lets the menus leave the focus highlight for it, as any mouse
+					# use does: the cursor and the highlight are never both up.
+					_push_still_move()
 			return
 	if _hides_cursor(ev):
 		shown = false
@@ -244,6 +252,12 @@ func _push_motion(mm: InputEventMouseMotion, rel: Vector2) -> void:
 	mm.relative = rel
 	mm.button_mask = _buttons
 	_deliver(mm, true)
+
+## A mouse move that goes nowhere, at pointer_pos: whatever is under the cursor lights up
+## (and glows), and GameManager takes it as mouse use, so the menus leave the focus
+## highlight for the mouse before it moves again. It presses nothing.
+func _push_still_move() -> void:
+	_push_motion(InputEventMouseMotion.new(), Vector2.ZERO)
 
 ## Notes a mouse button as held or let go, then pushes it into the root at
 ## pointer_pos.
@@ -346,9 +360,8 @@ func _route_released(ev: InputEvent, root: Window) -> void:
 	_swallow_release = true
 	shown = true
 	_apply_hold()
-	# A still move at the new spot, so whatever is under it lights up (and the menus
-	# switch to the mouse) before the mouse moves again. It presses nothing.
-	_push_motion(InputEventMouseMotion.new(), Vector2.ZERO)
+	# So whatever is under the new spot lights up before the mouse moves again.
+	_push_still_move()
 
 ## The pad brings the cursor back. A let-go mouse is picked up first, so the drawn
 ## cursor and the system pointer never both show, but never while another app is in

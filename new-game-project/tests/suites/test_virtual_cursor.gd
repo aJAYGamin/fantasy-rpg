@@ -203,6 +203,12 @@ func _stick_click() -> void:
 	_pad_button(JOY_BUTTON_RIGHT_STICK, true)
 	_pad_button(JOY_BUTTON_RIGHT_STICK, false)
 
+## Holds the right stick at `axis` for `seconds`, one 60 fps frame at a time (the cursor
+## counts no frame longer than 1/30 s, so a long delta in one call wouldn't be the whole time).
+func _tilt(axis: Vector2, seconds: float) -> void:
+	for i in roundi(seconds * 60.0):
+		_vc().step_stick(axis, 1.0 / 60.0)
+
 # --- Controls ------------------------------------------------------------------
 
 func _make_button(parent: Node, rect: Rect2) -> Button:
@@ -284,6 +290,24 @@ func test_a_trackpad_scroll_scrolls_what_the_cursor_is_over() -> void:
 	pan.position = Vector2(576, 324)
 	_vc().route_os_event(pan)
 	assert_true(scroll.scroll_vertical > 0, "a two-finger scroll under the cursor scrolls the list (at %d)" % scroll.scroll_vertical)
+	_end()
+
+func test_a_trackpad_gesture_counts_as_using_the_mouse() -> void:
+	# The menus switch from the focus highlight to the mouse on any mouse input, and a
+	# trackpad's pan or pinch is mouse input: the cursor shows with it, so the highlight
+	# must not stay up beside it.
+	_begin()
+	GameManager._last_mouse_ms = -100000
+	for gesture: InputEventGesture in [InputEventPanGesture.new(), InputEventMagnifyGesture.new()]:
+		for mode in [[false, true], [true, false]]:   # keyboard highlight, then controller highlight
+			GameManager._apply_input_mode(mode[0], mode[1])
+			_vc().shown = false
+			assert_true(GameManager.focus_nav_active(), "starting on the highlight (%s)" % gesture.get_class())
+			gesture.position = Vector2(576, 324)
+			_vc().route_os_event(gesture)
+			assert_true(_vc().shown, "the gesture shows the cursor (%s)" % gesture.get_class())
+			assert_false(GameManager.focus_nav_active(), "and the menus go to the mouse (%s)" % gesture.get_class())
+	assert_eq(GameManager.mouse_status_text(), "Mouse detected", "and Settings sees a mouse in use")
 	_end()
 
 func test_dragging_a_slider_follows_the_cursor() -> void:
@@ -459,7 +483,7 @@ func test_what_counts_as_clickable() -> void:
 	assert_false(VirtualCursor.is_clickable(panel, Vector2.ZERO), "not a plain panel")
 	var hand := Control.new()
 	hand.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	assert_true(VirtualCursor.is_clickable(hand, Vector2.ZERO), "Stats-screen style hit areas")
+	assert_true(VirtualCursor.is_clickable(hand, Vector2.ZERO), "a control that asks for the pointing hand (the glow keeps that rule for any that does)")
 	for c: Control in [b, check, slider, bar, line, panel, hand]:
 		c.free()
 
@@ -549,16 +573,35 @@ func test_the_right_stick_moves_the_cursor() -> void:
 	_begin()
 	_vc().pointer_pos = Vector2(500, 300)
 	_vc().shown = false
-	_vc().step_stick(Vector2(1, 0), 0.5)
+	_tilt(Vector2(1, 0), 0.5)
 	assert_near(_vc().pointer_pos.x, 500.0 + 384.0, 0.01, "half a second at full tilt and 1.00x is 384 base pixels")
 	assert_eq(_vc().pointer_pos.y, 300.0, "straight right doesn't drift up or down")
 	assert_true(_vc().shown, "moving the stick shows the cursor")
-	_vc().step_stick(Vector2(0, -1), 0.25)
+	_tilt(Vector2(0, -1), 0.25)
 	assert_near(_vc().pointer_pos.y, 300.0 - 192.0, 0.01, "up is up")
 	GameManager.settings.stick_sensitivity_right = 0.5
 	var before := _vc().pointer_pos
-	_vc().step_stick(Vector2(-1, 0), 0.5)
+	_tilt(Vector2(-1, 0), 0.5)
 	assert_near(before.x - _vc().pointer_pos.x, 192.0, 0.01, "Right Stick Sensitivity scales the speed")
+	_end()
+
+func test_a_long_frame_cannot_jump_the_cursor() -> void:
+	# A hitch with the stick held (a load, dragging the window) hands _process a delta of a
+	# second or more. The cursor must not cross the screen in that one step.
+	var layer := _begin()
+	var reader := InputReader.new()
+	layer.add_child(reader)
+	_vc().pointer_pos = Vector2(100, 300)
+	_vc().step_stick(Vector2(1, 0), 1.0)
+	var jump := _vc().pointer_pos.x - 100.0
+	assert_true(jump > 0.0, "the stick still moves it (by %s)" % jump)
+	assert_true(jump <= CursorMotion.STICK_FULL_SPEED / 30.0 + 0.01,
+			"a one-second frame moves it no further than a 30 fps frame would (%s px)" % jump)
+	assert_true(reader.last_motion != null and reader.last_motion.relative.x <= CursorMotion.STICK_FULL_SPEED / 30.0 + 0.01,
+			"and the mouse move it pushes carries that step, not the whole second")
+	_vc().pointer_pos = Vector2(100, 300)
+	_vc().step_stick(Vector2(1, 0), 1.0 / 60.0)
+	assert_near(_vc().pointer_pos.x - 100.0, CursorMotion.STICK_FULL_SPEED / 60.0, 0.01, "an ordinary frame is not shortened")
 	_end()
 
 func test_a_resting_stick_leaves_the_cursor_alone() -> void:
@@ -577,10 +620,10 @@ func test_the_stick_never_leaves_the_window() -> void:
 	_begin()
 	var bounds := GameManager.get_tree().root.get_visible_rect().size
 	_vc().pointer_pos = bounds - Vector2(5, 5)
-	_vc().step_stick(Vector2(1, 1), 2.0)
+	_tilt(Vector2(1, 1), 2.0)
 	assert_eq(_vc().pointer_pos, bounds - Vector2.ONE, "stopped at the bottom-right corner")
 	_vc().pointer_pos = Vector2(5, 5)
-	_vc().step_stick(Vector2(-1, -1), 2.0)
+	_tilt(Vector2(-1, -1), 2.0)
 	assert_eq(_vc().pointer_pos, Vector2.ZERO, "and at the top-left one")
 	_end()
 
@@ -590,12 +633,12 @@ func test_stick_motion_is_a_mouse_move_with_a_speed() -> void:
 	var reader := InputReader.new()
 	layer.add_child(reader)
 	_vc().pointer_pos = Vector2(500, 300)
-	_vc().step_stick(Vector2(1, 0), 0.5)
+	_vc().step_stick(Vector2(1, 0), 1.0 / 60.0)
 	var mm := reader.last_motion
 	assert_true(mm != null, "the stick pushes a mouse move into the scene")
 	if mm != null:
 		assert_eq(mm.position, _vc().pointer_pos, "at the cursor's tip")
-		assert_near(mm.relative.x, 384.0, 0.01, "carrying this frame's step")
+		assert_near(mm.relative.x, CursorMotion.STICK_FULL_SPEED / 60.0, 0.01, "carrying this frame's step")
 		assert_near(mm.velocity.x, CursorMotion.STICK_FULL_SPEED, 0.01, "and the stick's speed in base pixels a second")
 		assert_eq(mm.button_mask, 0, "with no button held")
 	_end()
@@ -628,6 +671,35 @@ func test_a_stick_press_while_hidden_only_brings_the_cursor_back() -> void:
 	assert_eq(presses[0], 1, "the next one clicks")
 	_end()
 
+func test_a_stick_press_that_brings_the_cursor_back_switches_the_menus_to_the_mouse() -> void:
+	# The cursor and the focus highlight are never both up. The first press shows a hidden
+	# cursor without clicking; the menus must leave the highlight for the mouse with it.
+	var layer := _begin()
+	var reader := InputReader.new()
+	layer.add_child(reader)
+	_vc().pointer_pos = Vector2(160, 120)
+	for mode in [[true, false], [false, true]]:   # a pad's highlight, then the keyboard's
+		GameManager._apply_input_mode(mode[0], mode[1])
+		_vc().shown = false
+		assert_true(GameManager.focus_nav_active(), "starting on the highlight")
+		_stick_click()
+		assert_true(_vc().shown, "the press shows the cursor")
+		assert_false(GameManager.focus_nav_active(), "and the menus switch to the mouse, so the highlight goes")
+		assert_eq(_vc().pointer_pos, Vector2(160, 120), "the cursor stays where it was")
+	assert_eq(reader.presses + reader.releases, 0, "neither press clicked anything")
+	_end()
+
+func test_a_stick_press_that_cannot_show_the_cursor_leaves_the_highlight() -> void:
+	# With another app in front the press does nothing at all, the menus included.
+	_begin()
+	_vc().notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	GameManager._apply_input_mode(true, false)
+	_vc().shown = false
+	_stick_click()
+	assert_false(_vc().shown, "the cursor stays hidden")
+	assert_true(GameManager.focus_nav_active(), "and the highlight stays")
+	_end()
+
 func test_holding_the_stick_press_drags_a_slider() -> void:
 	var layer := _begin()
 	var slider := HSlider.new()
@@ -641,12 +713,11 @@ func test_holding_the_stick_press_drags_a_slider() -> void:
 	_vc().pointer_pos = Vector2(104, 312)
 	_vc().shown = true
 	_pad_button(JOY_BUTTON_RIGHT_STICK, true)
-	for i in 4:
-		_vc().step_stick(Vector2(1, 0), 0.1)
+	_tilt(Vector2(1, 0), 0.4)
 	assert_eq(reader.last_motion_mask, int(MOUSE_BUTTON_MASK_LEFT), "moves while the stick is held say the button is held")
 	_pad_button(JOY_BUTTON_RIGHT_STICK, false)
 	assert_true(slider.value > 0.0, "holding the press and pushing the stick right dragged the slider (to %s)" % slider.value)
-	_vc().step_stick(Vector2(1, 0), 0.1)
+	_tilt(Vector2(1, 0), 0.1)
 	assert_eq(reader.last_motion_mask, 0, "after the release, moves carry no held button")
 	_end()
 
@@ -680,10 +751,10 @@ func test_rebinding_sees_the_stick_press_and_the_right_stick() -> void:
 	var tilt := _pad_motion(JOY_AXIS_RIGHT_X, 0.9)
 	assert_true(reader.last == tilt, "and so does the right stick, untouched")
 	assert_eq(reader.presses + reader.releases, 0, "neither became a mouse click")
-	_vc().step_stick(Vector2(1, 0), 0.5)
+	_tilt(Vector2(1, 0), 0.5)
 	assert_eq(_vc().pointer_pos, Vector2(500, 300), "and the stick doesn't move the cursor meanwhile")
 	GameManager.raw_input_passthrough = false
-	_vc().step_stick(Vector2(1, 0), 0.5)
+	_tilt(Vector2(1, 0), 0.5)
 	assert_near(_vc().pointer_pos.x, 884.0, 0.01, "it moves it again once rebinding is over")
 	_end()
 
@@ -780,7 +851,7 @@ func test_a_press_the_cursor_clicked_is_always_let_go() -> void:
 	assert_true(reader.last == release, "and the raw release is forwarded, as everything is while rebinding")
 	assert_true(_vc()._buttons == 0, "so no button is left held")
 	GameManager.raw_input_passthrough = false
-	_vc().step_stick(Vector2(1, 0), 0.1)
+	_tilt(Vector2(1, 0), 0.1)
 	assert_eq(reader.last_motion_mask, 0, "later moves carry no held button")
 	_end()
 
@@ -1048,7 +1119,7 @@ func test_the_right_stick_picks_a_let_go_mouse_up() -> void:
 	_begin()
 	_slip_out()
 	var spot := _vc().pointer_pos
-	_vc().step_stick(Vector2(-1, 0), 0.5)
+	_tilt(Vector2(-1, 0), 0.5)
 	assert_true(_held(), "moving the right stick picks the mouse up")
 	assert_near(spot.x - _vc().pointer_pos.x, 384.0, 0.01, "and moves the cursor from where it let go")
 	assert_true(_vc().shown, "which shows again")
@@ -1069,7 +1140,7 @@ func test_the_stick_never_takes_the_mouse_from_another_app() -> void:
 	_begin()
 	_vc().pointer_pos = Vector2(500, 300)
 	_vc().notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
-	_vc().step_stick(Vector2(1, 0), 0.5)
+	_tilt(Vector2(1, 0), 0.5)
 	assert_false(_held(), "with another app in front the stick leaves the mouse alone")
 	assert_eq(_vc().pointer_pos, Vector2(500, 300), "and doesn't move the cursor")
 	assert_false(_vc().shown, "or show it")
@@ -1081,8 +1152,7 @@ func test_the_stick_never_lets_go_at_the_edge() -> void:
 	_begin()
 	GameManager.settings.window_mode = SettingsModel.WindowMode.WINDOWED
 	_vc().pointer_pos = Vector2(_bounds().x - 1.0, 300)
-	for i in 5:
-		_vc().step_stick(Vector2(1, 0), 0.5)
+	_tilt(Vector2(1, 0), 2.5)
 	assert_true(_held(), "the stick pushing past a window's edge keeps the mouse: only the mouse slips out")
 	_end()
 
@@ -1103,7 +1173,7 @@ func test_switching_away_lets_go_of_everything_held() -> void:
 	_vc().notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
 	_pad_button(JOY_BUTTON_RIGHT_STICK, false)
 	assert_eq(reader.releases, 2, "the stick's late release lets go of nothing more")
-	_vc().step_stick(Vector2(1, 0), 0.1)
+	_tilt(Vector2(1, 0), 0.1)
 	assert_eq(reader.last_motion_mask, 0, "and later moves carry no held button")
 	_end()
 
@@ -1151,7 +1221,7 @@ func test_the_mouse_is_held_only_while_both_the_app_and_its_window_are_in_front(
 	_vc()._window_focused = false   # and its window minimised (headless can't say so itself)
 	_vc().notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
 	assert_false(_held(), "the app coming back doesn't pick the mouse up while its window is unfocused")
-	_vc().step_stick(Vector2(1, 0), 0.5)
+	_tilt(Vector2(1, 0), 0.5)
 	assert_false(_held(), "nor does the stick")
 	_vc().notification(Node.NOTIFICATION_WM_WINDOW_FOCUS_IN)   # the system now says it is focused
 	assert_true(_held(), "once the window has focus again too, a fullscreen game holds it")

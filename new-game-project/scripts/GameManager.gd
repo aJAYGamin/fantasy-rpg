@@ -753,9 +753,9 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventKey:
 		_last_kb_ms = Time.get_ticks_msec()
 		_apply_input_mode(false, true)    # keyboard → focus navigation
-	elif event is InputEventMouseButton or event is InputEventMouseMotion:
+	elif event is InputEventMouseButton or event is InputEventMouseMotion or event is InputEventGesture:
 		_last_mouse_ms = Time.get_ticks_msec()
-		_apply_input_mode(false, false)   # mouse → click-only, no focus ring
+		_apply_input_mode(false, false)   # mouse (or a trackpad's pan / pinch) → click-only, no focus ring
 	elif event is InputEventJoypadButton and event.pressed:
 		_apply_input_mode(true, false)    # controller → focus navigation
 	elif event is InputEventJoypadMotion and absf(event.axis_value) > 0.5:

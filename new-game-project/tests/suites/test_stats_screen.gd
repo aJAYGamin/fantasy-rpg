@@ -130,6 +130,19 @@ func test_every_equipped_card_has_a_click_target() -> void:
 		assert_true((b as Button).is_visible_in_tree(), "the card's click target is visible")
 	_close_screen(screen)
 
+func test_the_card_click_targets_ask_for_no_cursor_shape_and_still_glow() -> void:
+	# The game draws its own cursor, so a control no longer asks for a pointing hand: the
+	# cursor's glow keys off the Button itself.
+	var party := PartyFactory.create_default_party()
+	var screen := _open_screen(party)
+	var hits: Array = []
+	_collect_hit_buttons(screen, hits)
+	assert_true(hits.size() > 0, "the screen has card click targets")
+	for b in hits:
+		assert_eq((b as Button).mouse_default_cursor_shape, Control.CURSOR_ARROW, "a card asks for no cursor shape")
+		assert_true(VirtualCursor.is_clickable(b, Vector2.ZERO), "and the cursor still glows over it")
+	_close_screen(screen)
+
 func test_pressing_two_cards_swaps_them() -> void:
 	var party := PartyFactory.create_default_party()
 	var hero: Character = party[0]

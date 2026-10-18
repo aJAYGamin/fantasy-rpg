@@ -589,7 +589,6 @@ func _make_skill_card(s: Dictionary) -> Control:
 		var hit := Button.new()
 		hit.flat = true
 		hit.tooltip_text = "Click to pick this move, then click another to swap them"
-		hit.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		for state in ["normal", "pressed", "disabled"]:
 			hit.add_theme_stylebox_override(state, StyleBoxEmpty.new())
 		# Hover gets a faint wash so it reads as clickable, matching the item rows.
