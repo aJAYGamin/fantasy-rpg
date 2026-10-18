@@ -527,12 +527,8 @@ func _open_name_keyboard(opener: InputEvent = null) -> void:
 		# to it first: text typed there and never committed is not saved by this press, and
 		# Cancel leaves the config as it was.
 		_pad_profile_name.text = stored
-		# The focus guard locks the page's buttons, sliders and dropdowns while the keyboard is
-		# the top scope but never a text box, and Godot's neighbour search runs from the top
-		# Control through the whole screen: a push up from the number row could land on this
-		# field behind the dim. Click-only takes it out of that search without taking the
-		# highlight off it.
-		_pad_profile_name.focus_mode = Control.FOCUS_CLICK
+	# The focus guard locks this field with the rest of the page once the keyboard is the top
+	# scope, so a push up from the number row can't land on it behind the dim.
 	var panel := OnScreenKeyboard.new()
 	add_child(panel)
 	_keyboard_panel = panel
@@ -554,7 +550,6 @@ func _on_name_keyboard_cancelled() -> void:
 func _on_name_keyboard_closed() -> void:
 	_keyboard_panel = null
 	if is_instance_valid(_pad_profile_name):
-		_pad_profile_name.focus_mode = Control.FOCUS_ALL   # the page's again (see _open_name_keyboard)
 		GameManager.set_preferred_focus(self, _pad_profile_name)
 
 ## A themed single-line text box. Commits on Enter or when focus leaves, so the

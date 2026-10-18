@@ -337,7 +337,7 @@ func _update_focus_guard() -> void:
 			for s in _focus_scopes:
 				var c: Control = s["ctrl"]
 				if is_instance_valid(c):
-					_set_scope_focusable(c, false)
+					_set_scope_focusable(c, false, true)
 			_focus_top_last = null
 			var owner_mouse := vp.gui_get_focus_owner()
 			if owner_mouse != null:
@@ -543,9 +543,20 @@ func _wrap_target(items: Array, from: Control, side: int) -> Control:
 	return best
 
 # Recursively set focus_mode on the interactive controls under `root`.
-func _set_scope_focusable(root: Node, focusable: bool) -> void:
+# `mouse` is pure-mouse play: a text box then goes click-focus rather than
+# FOCUS_NONE, or the mouse could not click into it to type.
+func _set_scope_focusable(root: Node, focusable: bool, mouse := false) -> void:
 	for child in root.get_children():
-		if child is BaseButton or child is Slider or child is OptionButton or child is CyclerRow:
+		if child is LineEdit:
+			# A text box behind the current menu is locked like its buttons: Godot's
+			# neighbour search runs across the whole screen, so a push from the
+			# on-screen keyboard could otherwise land on the Rename field behind it.
+			var field := child as LineEdit
+			if focusable and not field.has_meta(BattleUITheme.NO_FOCUS_META):
+				field.focus_mode = Control.FOCUS_ALL
+			else:
+				field.focus_mode = Control.FOCUS_CLICK if mouse else Control.FOCUS_NONE
+		elif child is BaseButton or child is Slider or child is OptionButton or child is CyclerRow:
 			var ctl := child as Control
 			# A DISABLED button must be FOCUS_NONE, not merely un-grabbable:
 			# Godot's neighbor search only skips FOCUS_NONE controls, so a greyed
@@ -557,7 +568,7 @@ func _set_scope_focusable(root: Node, focusable: bool) -> void:
 				ctl.focus_mode = Control.FOCUS_NONE
 			else:
 				ctl.focus_mode = Control.FOCUS_ALL if focusable else Control.FOCUS_NONE
-		_set_scope_focusable(child, focusable)
+		_set_scope_focusable(child, focusable, mouse)
 
 # First focusable, enabled, visible control under `root`, preferring a non-Back
 # button so opening a menu doesn't land on Back.
@@ -578,7 +589,11 @@ func _collect_focusable(root: Node, out: Array) -> void:
 			# Use is_visible_in_tree(): a button inside a hidden container is itself
 			# still .visible==true, but must NOT be treated as focusable (else it
 			# would steal the controller's A press, e.g. during the level-up spin).
-			if ctl.is_visible_in_tree() and ctl.focus_mode != Control.FOCUS_NONE \
+			# Only FOCUS_ALL is a stop: Godot's keyboard search never lands on a
+			# click-only control, nor on one Godot 4.6 marks focusable for screen
+			# readers (FOCUS_ACCESSIBILITY, which some labels get), so counting those
+			# made wrap links and first entries Godot then refused.
+			if ctl.is_visible_in_tree() and ctl.focus_mode == Control.FOCUS_ALL \
 					and not (ctl is BaseButton and (ctl as BaseButton).disabled):
 				out.append(ctl)
 		_collect_focusable(child, out)
