@@ -1282,18 +1282,6 @@ func test_becoming_fullscreen_picks_a_let_go_mouse_up() -> void:
 	assert_true(_held(), "switching a let-go window to borderless picks the mouse up")
 	_end()
 
-func test_the_system_cursor_is_the_size_the_cursor_is_drawn() -> void:
-	# A window 2.625x the base size on a Retina screen: 2.625 window pixels a base pixel,
-	# 2 window pixels a point, and a Mac cursor image is measured in points.
-	assert_near(VirtualCursor.os_cursor_scale(2.625, 2.0, "A"), 1.3125, 0.0001, "a Retina Mac draws it in points")
-	assert_near(VirtualCursor.os_cursor_scale(1.5, 1.0, "A"), 1.5, 0.0001, "elsewhere in window pixels")
-	for shape: String in CursorArt.SHAPES:
-		var s := VirtualCursor.os_cursor_scale(12.0, 1.0, shape)
-		var img := CursorArt.image(shape, "amethyst", s)
-		var big := maxi(img.get_width(), img.get_height())
-		assert_true(big <= 256, "%s fits a system cursor's 256 px at any window size (%d px)" % [shape, big])
-		assert_true(big >= 250, "%s is capped only as far as it must be (%d px)" % [shape, big])
-
 func test_dressing_the_system_pointer_keeps_the_cursors_own_texture() -> void:
 	# The system pointer is drawn straight to an image: it used to go through the texture
 	# cache at every window scale, and the cache now holds only the cursor's own style.

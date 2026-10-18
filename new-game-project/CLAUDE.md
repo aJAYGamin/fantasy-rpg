@@ -49,7 +49,7 @@ order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless — only headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~6463 tests, 58 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves). Never F6 / Run Current Scene: the runner refuses a windowed run (prints this command and quits), because it would install the cursor's window hook and the hold tests would capture and warp your real pointer.
+- **Run tests headless — only headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~6493 tests, 59 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves). Never F6 / Run Current Scene: the runner refuses a windowed run (prints this command and quits), because it would install the cursor's window hook and the hold tests would capture and warp your real pointer.
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -81,6 +81,7 @@ scripts/
     CursorMotion.gd           # class_name CursorMotion — pure maths: mouse step at the sensitivity, stick speed, edge push
     CursorHold.gd             # class_name CursorHold — pure state: the game holds the mouse, or has let it go
     VirtualCursor.gd          # class_name VirtualCursor — the window's input hook + the drawn cursor (child of GameManager)
+    SystemPointer.gd          # class_name SystemPointer — every call to the OS pointer: mode, warp, the one read, its let-go look
     cursor_glow.gdshader      # the hover glow: 20% brighter + two soft glows in the colour (on VirtualCursor's sprites)
   overworld/
     OverworldScene.gd         # Free-roam controller; roaming-enemy spawner/manager; auto-save; pause host
@@ -1138,9 +1139,11 @@ the game has to take the mouse over and move and draw the cursor itself.
   pre-step spot; a zero step is skipped). Fullscreen and borderless never let go at an edge; the
   stick never slips out. **Letting go** (`_let_go`) releases every button the cursor holds and Cursor
   Click (so no drag sticks), hides the drawn cursor, switches to VISIBLE, *then* warps the system
-  pointer to `pointer_pos` (a captured pointer can't be warped) and sets the arrow shape. While let
-  go the system pointer wears the cursor (`_dress_system_pointer`: `Input.set_custom_mouse_cursor`
-  for ARROW and POINTING_HAND, an `Image` from `CursorArt.image` at the window's scale, re-dressed by `refresh_style` and `on_display_changed`), and **no mouse
+  pointer to `pointer_pos` (a captured pointer can't be warped) and sets the arrow shape
+  (`SystemPointer.appear_at`). While let go the system pointer wears the cursor
+  (`_dress_system_pointer` → `SystemPointer.dress`: `Input.set_custom_mouse_cursor` for ARROW and
+  POINTING_HAND, an `Image` from `CursorArt.image` at the window's scale, re-dressed by
+  `refresh_style` and `on_display_changed`), and **no mouse
   event reaches the game** (`_route_released`) except a left press inside the window, which picks
   the mouse up with `pointer_pos` at the press and swallows that press and its release (the click
   presses nothing), then pushes a still move there so hover and the glow are right at once. The
@@ -1164,7 +1167,7 @@ the game has to take the mouse over and move and draw the cursor itself.
   (`_wanted_mouse_mode`): a game that opens behind another app takes the mouse when it comes to the
   front. `on_display_changed()` (from `GameManager.apply_display_and_save`, deferred, and the
   launch display apply) re-hooks and picks a let-go mouse up if the game is now fullscreen or
-  borderless. The system cursor is sized to match the drawn one: `os_cursor_scale` = window px per
+  borderless. The system cursor is sized to match the drawn one: `SystemPointer.os_cursor_scale` = window px per
   base px ÷ `DisplayServer.screen_get_max_scale()` (Godot sizes a macOS cursor image in points),
   capped at 256 px. Checked in a real macOS run: slip-out, pick-up click, hover at once after it,
   focus out/in in both modes, minimise/restore, a dropdown opening (keeps the mouse), a windowed
@@ -1212,6 +1215,13 @@ the game has to take the mouse over and move and draw the cursor itself.
 - **What the hook keeps of Godot's window.** Every routed event is announced on the root's
   `window_input` signal before it is delivered (`_deliver`), and while the editor's debugger is
   active F8 sends `request_quit` (the editor's Stop shortcut).
+- **The system pointer** (`SystemPointer`, static). Every call that reaches the OS pointer — its
+  mode (`set_mode`), the warp and arrow at a let-go (`appear_at`), the one read of where it is
+  (`read_position`) and its dressing (`dress`, sized by `os_cursor_scale`, capped at
+  `OS_CURSOR_MAX`) — is made there and nowhere else; `test_system_pointer` scans `scripts/` and fails
+  any other file that calls one (`get_mouse_position(`, `warp_mouse(`, `mouse_mode =`, …). The
+  decisions stay in `VirtualCursor` and `CursorHold`, which call it only once `install()` has hooked
+  a real window.
 - **Drawing.** A `Sprite2D` on its own `CanvasLayer` at `VirtualCursor.LAYER` (200, above
   the FPS overlay's 128), `centered = false`, `scale = 1 / CursorArt.RENDER_SCALE`, `offset
   = -hotspot × RENDER_SCALE` so the tip sits on `pointer_pos`. `refresh_style()` re-dresses it
@@ -1262,7 +1272,8 @@ the game has to take the mouse over and move and draw the cursor itself.
   `get_local_mouse_position()` / `get_global_mouse_position()` on any CanvasItem in the root
   viewport — a Node2D or a Control, not only the root — and `DisplayServer.mouse_get_position()`):
   with the mouse captured it is the hidden OS pointer, not the cursor. Read
-  `GameManager.virtual_cursor.pointer_pos`, or the position on the event. The one exception is `VirtualCursor._hold_again`, which reads it while the
+  `GameManager.virtual_cursor.pointer_pos`, or the position on the event. The one exception is
+  `SystemPointer.read_position`, called only by `VirtualCursor._hold_again` while the
   system pointer is still visible, just before capturing, so the cursor carries on from it
   (focus coming back, a switch to fullscreen, the pointer coming back into the window).
   Godot's own `Window.update_mouse_cursor_state()` does read it: it pushes a mouse move of its own
@@ -1510,11 +1521,11 @@ BattleScene (Node2D)
   tests capture and warp the developer's real pointer. The runner also keeps `user://config.cfg`
   (its bytes, or that it was absent) before the first suite and puts it back after the last, so
   a suite can't leave the developer's settings changed — a test that saves settings should still
-  `_protect()` / `_restore()` it, as `test_settings` does. **~6463 tests / 58 suites**
+  `_protect()` / `_restore()` it, as `test_settings` does. **~6493 tests / 59 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,
-  auto_save, level_up_screen, defeat_flow, roaming_enemy, move_library, skill_resolver, status_chips, battle_menu_gating, enemy_cards, meter_bars, skill_options, scrollbars, multi_turn, cursor_art, cursor_motion, cursor_hold, virtual_cursor, cycler_row, onscreen_keyboard, runner_guards.
+  auto_save, level_up_screen, defeat_flow, roaming_enemy, move_library, skill_resolver, status_chips, battle_menu_gating, enemy_cards, meter_bars, skill_options, scrollbars, multi_turn, cursor_art, cursor_motion, cursor_hold, virtual_cursor, system_pointer, cycler_row, onscreen_keyboard, runner_guards.
 - ⚠️ **`TOTAL … 0 failed` can hide a runtime script error.** A `SCRIPT ERROR` inside
   a test aborts that test method WITHOUT recording a failure, so a broken test
   just stops counting. After a full run also grep the output for `SCRIPT ERROR`

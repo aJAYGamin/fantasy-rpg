@@ -19,9 +19,10 @@ extends Node
 ##
 ## The game holds the mouse (captured: the system pointer hidden) while it is in front.
 ## Windowed, a deliberate push past an edge lets it go (CursorHold decides); switching
-## away always does. While let go the system pointer wears the cursor's look, no mouse
-## event reaches the game, and a click inside the window (pressing nothing) or the right
-## stick picks it up again.
+## away always does. While let go the system pointer wears the cursor's look and no mouse
+## event reaches the game; the pointer coming back into the window, a click inside it
+## (pressing nothing) or the right stick picks it up again. Every call to the system
+## pointer itself is SystemPointer's.
 ##
 ## Embedded popups (an OptionButton's list) draw above every CanvasLayer of the
 ## root, so the cursor is also copied into each open one (update_mirrors).
@@ -35,8 +36,6 @@ const GLOW_SHADER := preload("res://scripts/cursor/cursor_glow.gdshader")
 ## The glow's two blur radii in base pixels: the tight one and the wide one.
 const GLOW_RADIUS_1 := 4.0
 const GLOW_RADIUS_2 := 8.0
-## The most pixels across a system cursor image may be (Godot refuses a bigger one).
-const OS_CURSOR_MAX := 256.0
 ## The longest frame, in seconds, the right stick moves the cursor for. A hitch with the
 ## stick held (a load, dragging the window) hands _process a delta of a second or more, and
 ## the cursor must not jump across the screen for it: it slows down for that frame instead.
@@ -416,11 +415,7 @@ func _let_go() -> void:
 	shown = false
 	_apply_hold()
 	if installed:
-		var root := get_tree().root
-		# Only a visible pointer can be warped, so this comes after the switch.
-		Input.warp_mouse(root.get_final_transform() * pointer_pos)
-		# The last control under the cursor may have asked for an I-beam or a hand.
-		DisplayServer.cursor_set_shape(DisplayServer.CURSOR_ARROW)
+		SystemPointer.appear_at(get_tree().root, pointer_pos)   # after the switch: it must be visible
 
 ## Lets go of every button the cursor holds down and of Cursor Click, so nothing stays
 ## pressed while the game isn't holding the mouse: a slider being dragged lets go.
@@ -443,7 +438,7 @@ func _hold_again() -> void:
 		var root := get_tree().root
 		# The one place the system pointer is read: it is still visible here, where the
 		# player last saw it, and capturing will hide it.
-		var spot := root.get_mouse_position()
+		var spot := SystemPointer.read_position(root)
 		if root.get_visible_rect().has_point(spot):
 			pointer_pos = spot
 	_apply_hold()
@@ -455,39 +450,19 @@ func _apply_hold() -> void:
 		return
 	if hold.state == CursorHold.State.RELEASED:
 		_dress_system_pointer()
-	Input.mouse_mode = _wanted_mouse_mode()
+	SystemPointer.set_mode(_wanted_mouse_mode())
 
 ## Captured while held (hidden, deltas only), but never while the game isn't in front: that
 ## would take the mouse from the app that is. Visible while let go.
 func _wanted_mouse_mode() -> int:
 	return hold.mouse_mode() if _in_front() else Input.MOUSE_MODE_VISIBLE
 
-## Dresses the system pointer as the cursor, at the size the cursor is drawn: while the
-## mouse is let go it is all the player sees of the cursor. The hand too, in case a
-## control under the pointer asks for it.
+## Dresses the system pointer as the cursor in the chosen style, at the size the cursor is
+## drawn in this window (SystemPointer.dress).
 func _dress_system_pointer() -> void:
 	var style := _style()
 	var window_scale := get_tree().root.get_final_transform().get_scale()
-	var s := os_cursor_scale(minf(window_scale.x, window_scale.y), DisplayServer.screen_get_max_scale(), style[0])
-	if not (s > 0.0 and is_finite(s)):
-		return   # a minimised window
-	# An Image, not a texture: the system keeps what it is given until after the renderer
-	# has shut down, and a texture freed then is an error at every quit. Drawn straight to
-	# one, so the cursor's own cached texture stays put.
-	var image := CursorArt.image(style[0], style[1], s)
-	var tip := CursorArt.hotspot(style[0]) * s
-	Input.set_custom_mouse_cursor(image, Input.CURSOR_ARROW, tip)
-	Input.set_custom_mouse_cursor(image, Input.CURSOR_POINTING_HAND, tip)
-
-## System-cursor pixels per symbol unit for the system pointer to look the size the cursor
-## is drawn. `window_scale` is window pixels per base pixel; `screen_scale` is window
-## pixels per screen point (DisplayServer.screen_get_max_scale: 2 on a Retina Mac, whose
-## cursor images Godot sizes in points, 1 elsewhere). Capped so the image, glow margin
-## and all, stays within a system cursor's OS_CURSOR_MAX pixels.
-static func os_cursor_scale(window_scale: float, screen_scale: float, shape: String) -> float:
-	var view: Rect2 = CursorArt.SHAPE_DATA[shape]["view"]
-	var art := maxf(view.size.x, view.size.y) + 2.0 * CursorArt.GLOW_MARGIN
-	return minf(window_scale / screen_scale, OS_CURSOR_MAX / art)
+	SystemPointer.dress(style[0], style[1], minf(window_scale.x, window_scale.y))
 
 func _windowed() -> bool:
 	return GameManager.settings.window_mode == SettingsModel.WindowMode.WINDOWED
