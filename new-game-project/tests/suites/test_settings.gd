@@ -360,6 +360,7 @@ func test_waiting_for_a_button_hands_the_controller_to_the_game_raw() -> void:
 
 func test_the_right_stick_cannot_be_bound_to_an_action() -> void:
 	# It moves the cursor, which consumes it, so a binding on it would be dead in the menus.
+	_protect()   # a binding that did land would save the bindings to the player's config.cfg
 	var screen := SettingsScreen.new()
 	GameManager.add_child(screen)
 	screen._view = "controller"
@@ -383,6 +384,7 @@ func test_the_right_stick_cannot_be_bound_to_an_action() -> void:
 	screen._stop_listening()
 	GameManager.remove_child(screen)
 	screen.free()
+	_restore()
 
 
 # ------------------------------------------- the Mouse page and the Max FPS row

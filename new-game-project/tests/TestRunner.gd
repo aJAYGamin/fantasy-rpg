@@ -2,9 +2,14 @@ extends Node
 
 ## Unit test runner.
 ##
-## HOW TO RUN:
-##   Open tests/TestRunner.tscn in Godot and press F6 (Run Current Scene),
-##   then read pass/fail results in the Output panel.
+## HOW TO RUN: headless, from the project folder (new-game-project/):
+##   /Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5
+## Not with F6 / Run Current Scene: a windowed run installs the cursor's window hook, and the
+## hold tests then capture and warp the developer's real pointer. A windowed run refuses
+## itself (refusal_for) and quits.
+##
+## The run also keeps user://config.cfg as it found it (keep_file / put_back): whatever
+## the suites save, the developer's own settings are back when it ends.
 ##
 ## GameManager (autoload) is available because this runs as a scene in the tree.
 ##
@@ -68,12 +73,53 @@ const SUITE_PATHS := [
 	"res://tests/suites/test_cursor_hold.gd",
 	"res://tests/suites/test_virtual_cursor.gd",
 	"res://tests/suites/test_cycler_row.gd",
+	"res://tests/suites/test_runner_guards.gd",
 ]
 
+## The one supported way to run the suites.
+const HEADLESS_COMMAND := "/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5"
+## The file the game saves its settings, bindings and active slot to.
+const CONFIG_PATH := "user://config.cfg"
+
+## "" when the suites may run on this display driver, otherwise the one line to print
+## in place of running them. Only the headless driver has no real window and pointer.
+static func refusal_for(display_name: String) -> String:
+	if display_name == "headless":
+		return ""
+	return "Run the tests headless: " + HEADLESS_COMMAND
+
+## Notes a file as it is now (its bytes, or that it is absent) for put_back.
+static func keep_file(path: String) -> Dictionary:
+	var had := FileAccess.file_exists(path)
+	return {
+		"path": path,
+		"had": had,
+		"bytes": FileAccess.get_file_as_bytes(path) if had else PackedByteArray(),
+	}
+
+## Puts a file back as keep_file found it: the same bytes, or gone again if it was absent.
+static func put_back(kept: Dictionary) -> void:
+	var path: String = kept["path"]
+	if kept["had"]:
+		var f := FileAccess.open(path, FileAccess.WRITE)
+		if f != null:
+			f.store_buffer(kept["bytes"])
+			f.close()
+	elif FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)
+
 func _ready() -> void:
+	var refusal := refusal_for(DisplayServer.get_name())
+	if refusal != "":
+		print(refusal)
+		get_tree().quit(1)
+		return
+
 	print("\n========================================")
 	print("  THE AMETHYST REQUIEM — UNIT TESTS")
 	print("========================================")
+
+	var kept_config := keep_file(CONFIG_PATH)
 
 	var grand_pass := 0
 	var grand_fail := 0
@@ -103,6 +149,8 @@ func _ready() -> void:
 				print(line)
 		if f > 0:
 			failed_suites.append(result["name"])
+
+	put_back(kept_config)
 
 	print("\n========================================")
 	print("  TOTAL: %d passed, %d failed" % [grand_pass, grand_fail])
