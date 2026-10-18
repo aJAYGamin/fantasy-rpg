@@ -73,6 +73,7 @@ const SUITE_PATHS := [
 	"res://tests/suites/test_cursor_hold.gd",
 	"res://tests/suites/test_virtual_cursor.gd",
 	"res://tests/suites/test_cycler_row.gd",
+	"res://tests/suites/test_onscreen_keyboard.gd",
 	"res://tests/suites/test_runner_guards.gd",
 ]
 
