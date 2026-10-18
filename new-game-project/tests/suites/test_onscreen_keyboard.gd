@@ -884,3 +884,32 @@ func test_a_panel_closed_mid_pull_of_the_confirm_trigger_keeps_the_rest_of_the_p
 	assert_eq(_reader.motion.size(), 1, "a pull after that is for whoever is behind")
 	_end()
 	GameManager.input_profiles.sync_from_input_map()
+
+# --- Cursor Click on a fixed button (final review M3) ------------------------------------
+
+func test_a_fixed_button_the_player_gave_to_cursor_click_is_left_out_of_the_legend_and_does_nothing() -> void:
+	# The cursor takes a Cursor Click press for itself (VirtualCursor._route_other), so the
+	# panel never hears it, and a legend promising "X Cancel" would be false. A press that
+	# does arrive (a binding the cursor shares) is not the fixed button's either.
+	_begin()
+	for fixed: Array in [[JOY_BUTTON_X, "Cancel"], [JOY_BUTTON_Y, "Space"], [JOY_BUTTON_LEFT_SHOULDER, "Caps"]]:
+		var click := InputEventJoypadButton.new()
+		click.button_index = fixed[0]
+		InputMapConfig.rebind_controller("cursor_click", click)
+		var verbs: Array = []
+		for entry: Array in OnScreenKeyboard.legend_entries():
+			verbs.append(entry[1])
+		assert_false(verbs.has(fixed[1]), "with Cursor Click on %s the legend leaves out \"%s\"" % [InputMapConfig.joy_button_name(fixed[0]), fixed[1]])
+		assert_eq(verbs.size(), 5, "and keeps the other five entries")
+
+		var panel := _open("ab")
+		var outcome := _watch(panel)
+		var caps_before := panel.caps
+		_pad(fixed[0])
+		assert_eq(outcome.cancels + outcome.finished.size(), 0, "%s no longer closes the panel" % InputMapConfig.joy_button_name(fixed[0]))
+		assert_eq(panel.get_text(), "ab", "or types a space")
+		assert_eq(panel.caps, caps_before, "or toggles capitals")
+		assert_eq(_reader.heard.size(), 0, "and nothing behind the panel heard it")
+		panel.free()
+	_end()
+	GameManager.input_profiles.sync_from_input_map()

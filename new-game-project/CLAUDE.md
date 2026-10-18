@@ -1705,8 +1705,10 @@ own Testing Policy above — the policy (a suite per feature, registered in
     typed there and never committed would otherwise be saved by the press that opens the panel, and Cancel would keep it.
     **Buttons:** Confirm (A) presses the key, Cancel/Back (B) deletes (held repeats), X cancels, Y adds a space, LB toggles
     capitals, Pause/Menu (Start) finishes. A/B/Start follow the player's remaps; X/Y/LB are fixed, and one the player has
-    bound to Confirm/Cancel/Pause acts as that binding (`legend_entries()` names their real buttons). A real keyboard
-    types, Backspace deletes, Enter = Done, Esc = Cancel.
+    bound to Confirm/Cancel/Pause acts as that binding, while one given to Cursor Click is the cursor's (it takes that
+    press before the panel hears it). `legend_entries()` names the real buttons of Type/Delete/Done and leaves out a
+    fixed button the player has given to another action (`PLAYERS_ACTIONS`), so it never promises "X Cancel" for a button
+    that does something else. A real keyboard types, Backspace deletes, Enter = Done, Esc = Cancel.
     ⚠️ Whatever the panel acts on it swallows, so the page's B, the pause menu and the overworld's pause handler never
     hear it. `GameManager._input` then never sees that press either, so the panel calls `GameManager.note_input_device(event)`
     first (the old `_input` body: input-mode switch + activity stamps) and a swallowed pad press still brings the highlight

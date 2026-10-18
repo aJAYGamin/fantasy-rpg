@@ -34,9 +34,10 @@ const ACTION_FONT_SIZE := 12
 const CARET := "|"
 const LEGEND_FONT_SIZE := 11
 ## The actions a pad button can already be, and so cannot also be one of the fixed buttons
-## (X, Y, LB): the player's Pause, Cancel / Back and Confirm. ui_cancel and ui_accept are
-## Cancel and Confirm as the Controller page mirrors them.
-const PLAYERS_ACTIONS := ["pause", "ui_cancel", "ui_accept"]
+## (X, Y, LB): the player's Pause, Cancel / Back and Confirm, and Cursor Click, which the
+## cursor takes for itself before the panel hears it. ui_cancel and ui_accept are Cancel and
+## Confirm as the Controller page mirrors them.
+const PLAYERS_ACTIONS := ["pause", "ui_cancel", "ui_accept", "cursor_click"]
 ## The pad's directions, which move the highlight and so are left to the focus system.
 const DIRECTION_ACTIONS := ["ui_up", "ui_down", "ui_left", "ui_right"]
 ## The actions the panel takes when the player has put them on a stick or trigger.
@@ -168,6 +169,9 @@ func _pad_response(event: InputEventJoypadButton) -> Callable:
 	for action: String in DIRECTION_ACTIONS:
 		if event.is_action(action):
 			return Callable()
+	# What is left of the player's own buttons is Cursor Click: not a fixed button's, either.
+	if _is_players_button(event.button_index):
+		return _swallow
 	match event.button_index:
 		JOY_BUTTON_X:
 			return cancel
@@ -279,7 +283,8 @@ func _cancel_held() -> bool:
 ## Cancel, Space, Caps, Done. Type, Delete and Done are the player's Confirm, Cancel / Back
 ## and Pause / Menu as they have them now; Cancel, Space and Caps are the fixed X, Y and LB,
 ## left out when the player has put one of their own bindings on that button (it then acts
-## as that binding, see _pad_response, and promising it here would be false).
+## as that binding, or for Cursor Click is the cursor's; see _pad_response; promising it
+## here would be false).
 static func legend_entries() -> Array:
 	var entries: Array = [
 		[InputMapConfig.describe_controller("confirm"), "Type"],
@@ -291,13 +296,13 @@ static func legend_entries() -> Array:
 	entries.append([InputMapConfig.describe_controller("pause"), "Done"])
 	return entries
 
-## True when `button` is the player's Pause, Cancel / Back or Confirm.
+## True when `button` is the player's Pause, Cancel / Back, Confirm or Cursor Click.
 static func _is_players_button(button: JoyButton) -> bool:
 	var probe := InputEventJoypadButton.new()
 	probe.button_index = button
 	probe.pressed = true
 	for action: String in PLAYERS_ACTIONS:
-		if probe.is_action(action):
+		if InputMap.has_action(action) and probe.is_action(action):
 			return true
 	return false
 
