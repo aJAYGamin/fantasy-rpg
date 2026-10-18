@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>On-screen keyboard — approved layout</title>
+<!-- The approved look for the controller on-screen keyboard (layout B, QWERTY).
+     Spec: 2026-10-17-onscreen-keyboard-design.md beside this file. Colours are
+     BattleUITheme's constants; the font is the game's own Cinzel. -->
+<style>
+  @font-face { font-family: "Cinzel"; font-weight: 400;
+    src: url("/files/Cinzel-Regular.ttf"), url("../../../../new-game-project/fonts/Cinzel-Regular.ttf"); }
+  @font-face { font-family: "Cinzel"; font-weight: 700;
+    src: url("/files/Cinzel-Bold.ttf"), url("../../../../new-game-project/fonts/Cinzel-Bold.ttf"); }
+  :root {
+    --panel-bg: rgba(18,13,31,.97);        /* PANEL_BG */
+    --panel-border: rgb(140,89,242);        /* PANEL_BORDER */
+    --button-bg: rgba(36,26,51,.95);        /* BUTTON_BG */
+    --button-hover: rgb(56,41,82);          /* BUTTON_HOVER_BG */
+    --button-border: rgba(128,89,204,.85);  /* BUTTON_BORDER */
+    --text: rgb(235,219,255);               /* TEXT_PRIMARY */
+    --subtitle: rgb(199,166,242);           /* TEXT_SUBTITLE */
+    --accent: rgb(217,179,255);             /* SettingsScreen.ACCENT */
+    --note: rgb(158,143,184);               /* SettingsScreen.NOTE_COLOR */
+  }
+  body { margin: 0; background: #1a1424; font-family: Cinzel, serif; color: var(--text); }
+  .stage { position: relative; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: #0b0812; overflow: hidden; }
+  .behind { position: absolute; width: 540px; max-width: 90%; top: 40px; bottom: 40px; left: 50%; transform: translateX(-50%);
+    border: 1px solid rgba(140,89,242,.25); border-radius: 10px; background: rgba(18,13,31,.5);
+    color: rgba(199,166,242,.25); font-size: 14px; text-align: center; padding-top: 14px; box-sizing: border-box; }
+  .kb { position: relative; width: 470px; max-width: calc(100% - 32px); box-sizing: border-box;
+    background: var(--panel-bg); border: 2px solid var(--panel-border); border-radius: 12px;
+    box-shadow: 0 6px 22px rgba(0,0,0,.6); padding: 16px 18px 12px; }
+  h4 { margin: 0 0 8px; text-align: center; font-weight: 700; font-size: 16px; color: var(--accent); letter-spacing: .5px; }
+  .name { display: flex; justify-content: center; margin-bottom: 4px; }
+  .namebox { min-width: 230px; text-align: center; font-size: 17px; padding: 6px 10px; border-radius: 6px;
+    background: var(--button-hover); border: 2px solid var(--panel-border); }
+  .caret { display: inline-block; width: 1px; height: 17px; background: var(--text); vertical-align: -3px; margin-left: 1px; }
+  .count { text-align: center; font-size: 11px; color: var(--note); margin-bottom: 10px; }
+  .grid { display: grid; gap: 5px; grid-template-columns: repeat(10, 1fr); }
+  .key { height: 32px; display: flex; align-items: center; justify-content: center; font-size: 14px;
+    background: var(--button-bg); border: 1px solid var(--button-border); border-radius: 6px; }
+  .key.focus { background: var(--button-hover); border: 2px solid var(--panel-border);
+    box-shadow: 0 0 8px rgba(140,89,242,.7); color: #fff; }
+  .key.act { font-size: 12px; color: var(--subtitle); }
+  .w2 { grid-column: span 2; } .w4 { grid-column: span 4; }
+  .gap { height: 6px; }
+  .legend { margin-top: 10px; text-align: center; font-size: 10.5px; line-height: 1.6; color: var(--note); }
+  .legend b { color: var(--subtitle); font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="behind">Settings · Controls · Controller (dimmed)</div>
+  <div class="kb">
+    <h4>✦ Rename Profile ✦</h4>
+    <div class="name"><div class="namebox">Couch<span class="caret"></span></div></div>
+    <div class="count">5 / 18</div>
+    <div class="grid">
+      <div class="key">1</div><div class="key">2</div><div class="key">3</div><div class="key">4</div><div class="key">5</div>
+      <div class="key">6</div><div class="key">7</div><div class="key">8</div><div class="key">9</div><div class="key">0</div>
+      <div class="key focus">Q</div><div class="key">W</div><div class="key">E</div><div class="key">R</div><div class="key">T</div>
+      <div class="key">Y</div><div class="key">U</div><div class="key">I</div><div class="key">O</div><div class="key">P</div>
+      <div class="key">A</div><div class="key">S</div><div class="key">D</div><div class="key">F</div><div class="key">G</div>
+      <div class="key">H</div><div class="key">J</div><div class="key">K</div><div class="key">L</div><div class="key">'</div>
+      <div class="key act">⇧</div><div class="key">Z</div><div class="key">X</div><div class="key">C</div><div class="key">V</div>
+      <div class="key">B</div><div class="key">N</div><div class="key">M</div><div class="key">-</div><div class="key act">⌫</div>
+    </div>
+    <div class="gap"></div>
+    <div class="grid">
+      <div class="key act w2">! ?</div><div class="key act w4">Space</div><div class="key act w2">✕ Cancel</div><div class="key act w2">✓ Done</div>
+    </div>
+    <div class="legend">
+      <b>A / Cross</b> Type · <b>B / Circle</b> Delete · <b>X / Square</b> Cancel<br>
+      <b>Y / Triangle</b> Space · <b>LB / L1</b> Caps · <b>Start / Options</b> Done
+    </div>
+  </div>
+</div>
+</body>
+</html>
