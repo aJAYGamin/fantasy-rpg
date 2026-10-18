@@ -1177,3 +1177,50 @@ func test_opening_the_keyboard_does_not_save_a_name_typed_into_the_field() -> vo
 	GameManager.unregister_focus_scope(screen)
 	_close(screen)
 	_pad_end()
+
+# ------------------------- a trigger bound to Confirm opens the keyboard (final review M2)
+# The pull that opens the keyboard keeps sending samples after the one that opened it, and the
+# one that lets go. Reaching the highlighted key (a Button that acts on release), they typed
+# its letter: a player who pulled to open the keyboard got a "q" they never chose.
+
+## A stick or trigger sample into the root.
+func _motion(axis: JoyAxis, value: float) -> void:
+	var ev := InputEventJoypadMotion.new()
+	ev.axis = axis
+	ev.axis_value = value
+	GameManager.get_viewport().push_input(ev)
+
+func test_the_pull_of_a_trigger_bound_to_confirm_that_opens_the_keyboard_types_nothing() -> void:  # final review M2
+	_pad_begin()
+	var bound := InputEventJoypadMotion.new()
+	bound.axis = JOY_AXIS_TRIGGER_RIGHT
+	bound.axis_value = 1.0
+	InputMapConfig.rebind_controller("confirm", bound)   # the trigger alone is Confirm now, and ui_accept
+	var profiles := GameManager.input_profiles
+	profiles.set_name(false, profiles.active_index(false), "Couch")
+	var screen := _open("controller")
+	GameManager.register_focus_scope(screen)   # as setup() does
+	screen._pad_profile_name.grab_focus()
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.3)
+	assert_true(screen._keyboard_panel == null, "a light touch opens nothing")
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.6)
+	var panel := screen._keyboard_panel
+	assert_true(is_instance_valid(panel), "the pull past the threshold opens the keyboard")
+	GameManager.update_focus_guard_for_test()
+	assert_eq(_focus_owner(), panel.key_button("Q"), "the highlight is on Q")
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.9)
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 1.0)
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.0)
+	assert_eq(panel.get_text(), "Couch", "the rest of that pull, and its release, typed nothing")
+	assert_true(screen._keyboard_panel == panel, "and the keyboard is still the one open")
+
+	# The next pull is the player's: it presses the highlighted key.
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.3)
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.7)
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 1.0)
+	assert_eq(panel.get_text(), "Couch", "a key acts on release")
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.0)
+	assert_eq(panel.get_text(), "Couchq", "a later pull presses the highlighted key, Q")
+	GameManager.unregister_focus_scope(screen)
+	_close(screen)
+	_pad_end()

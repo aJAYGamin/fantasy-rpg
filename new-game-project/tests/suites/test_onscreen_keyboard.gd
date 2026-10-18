@@ -68,10 +68,10 @@ func _put_bindings_back(bindings: Dictionary) -> void:
 		for ev: InputEvent in bindings[action]:
 			InputMap.action_add_event(action, ev)
 
-func _open(initial: String, max_length: int = 18) -> OnScreenKeyboard:
+func _open(initial: String, max_length: int = 18, confirm_held := false) -> OnScreenKeyboard:
 	var panel := OnScreenKeyboard.new()
 	_layer.add_child(panel)
-	panel.open(initial, max_length)
+	panel.open(initial, max_length, confirm_held)
 	return panel
 
 ## Presses a key the way a click or the highlight's Confirm does.
@@ -829,3 +829,58 @@ func test_wrapping_up_from_the_number_row_lands_on_the_bottom_row_key_below_it()
 			"up from \"%s\" wraps to the bottom-row key under it (%s; landed on \"%s\")" % [pair[0], pair[1],
 				(landed as Button).text if landed is Button else str(landed)])
 	_end()
+
+# --- The pull of a Confirm trigger that opened the panel (final review M2) --------------
+
+func test_the_pull_of_a_confirm_trigger_that_opened_the_panel_is_swallowed_to_the_end() -> void:
+	_begin()
+	GameManager.set_controller_mode_for_test(true)
+	_bind_axis("confirm", JOY_AXIS_TRIGGER_RIGHT)
+	var panel := _open("ab", 18, true)   # opened by a pull of the trigger, still held
+	GameManager.update_focus_guard_for_test()
+	assert_eq(_focus_owner(), panel.key_button("Q"), "the highlight is on Q")
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.9)
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 1.0)
+	assert_eq(_reader.motion.size(), 0, "the rest of that pull reaches neither the keys nor anything behind")
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.0)
+	assert_eq(_reader.motion.size(), 0, "nor does the sample that lets it go")
+	assert_eq(panel.get_text(), "ab", "so the highlighted key typed nothing")
+	# A pull after that is the player's.
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.3)
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.9)
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.0)
+	assert_eq(_reader.motion.size(), 3, "Confirm on a trigger passes through again, as it always does")
+	assert_eq(panel.get_text(), "abq", "and presses the highlighted key")
+
+	# The first sample under the threshold is the one that lets go, however the trigger
+	# comes back: the rest of its travel is the player's.
+	var second := _open("", 18, true)
+	GameManager.update_focus_guard_for_test()
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.8)
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.3)
+	var heard := _reader.motion.size()
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.0)
+	assert_eq(_reader.motion.size(), heard + 1, "a sample under the threshold ends it; the next one passes")
+	assert_eq(second.get_text(), "", "and a release with no press types nothing")
+	_end()
+	GameManager.input_profiles.sync_from_input_map()
+
+func test_a_panel_closed_mid_pull_of_the_confirm_trigger_keeps_the_rest_of_the_pull() -> void:
+	# Closed by another button while the pull that opened it goes on, the rest of that pull
+	# must not reach the page behind as a fresh Confirm (which would open the keyboard again).
+	_begin()
+	_bind_axis("confirm", JOY_AXIS_TRIGGER_RIGHT)
+	var panel := _open("ab", 18, true)
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.9)
+	_pad(JOY_BUTTON_START)
+	assert_false(GameManager.has_focus_scope(panel), "Start closed it")
+	assert_false(panel.is_queued_for_deletion(), "it waits, hidden, for the pull to end")
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 1.0)
+	assert_eq(_reader.motion.size(), 0, "the rest of the pull is still its own")
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.0)
+	assert_eq(_reader.motion.size(), 0, "and so is the sample that lets go")
+	assert_true(panel.is_queued_for_deletion(), "which frees it")
+	_motion(JOY_AXIS_TRIGGER_RIGHT, 0.9)
+	assert_eq(_reader.motion.size(), 1, "a pull after that is for whoever is behind")
+	_end()
+	GameManager.input_profiles.sync_from_input_map()

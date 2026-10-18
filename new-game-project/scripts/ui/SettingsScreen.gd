@@ -81,7 +81,7 @@ func _input(event: InputEvent) -> void:
 	# with, so it types on the screen. Enter on the field, or a click, stays a text box's.
 	if _is_pad_confirm(event) and _name_field_has_focus():
 		GameManager.note_input_device(event)   # this screen takes the press, so GameManager never sees it
-		_open_name_keyboard()
+		_open_name_keyboard(event)
 		get_viewport().set_input_as_handled()
 		return
 	if event.is_action_pressed("ui_cancel"):
@@ -523,7 +523,9 @@ func _on_pad_name_gui_input(event: InputEvent) -> void:
 ## It is added last so its `_input` runs before this screen's own (and before the pause
 ## menu's and the overworld's, which sit earlier in the tree). It registers its own focus
 ## scope and puts the highlight on its Q key; this page stays visible, dimmed, behind it.
-func _open_name_keyboard() -> void:
+## `opener` is the event that asked for it, when there was one: a pull of a trigger bound to
+## Confirm goes on after this call, and the keyboard is told so it can keep the rest of it.
+func _open_name_keyboard(opener: InputEvent = null) -> void:
 	if _keyboard_open():
 		return
 	var profiles: InputProfiles = GameManager.input_profiles
@@ -545,7 +547,7 @@ func _open_name_keyboard() -> void:
 	_keyboard_panel = panel
 	panel.finished.connect(_on_name_keyboard_finished)
 	panel.cancelled.connect(_on_name_keyboard_cancelled)
-	panel.open(stored, InputProfiles.MAX_NAME_LENGTH)
+	panel.open(stored, InputProfiles.MAX_NAME_LENGTH, opener is InputEventJoypadMotion)
 
 ## Done: the typed name goes through the same rules as one typed into the field.
 func _on_name_keyboard_finished(text: String) -> void:

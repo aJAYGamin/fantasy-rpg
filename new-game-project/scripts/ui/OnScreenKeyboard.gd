@@ -50,6 +50,7 @@ var _max_length := 0
 var _closed := false
 var _hold := HoldRepeat.new()   # holding Cancel / Back keeps deleting
 var _axis_held := {}   # action -> true while a stick or trigger bound to it is held past its threshold
+var _confirm_held := false   # opened on a pull of a stick or trigger bound to Confirm, and that pull is still going
 var _draining := false   # closed, but a held trigger is still sending samples that are ours to swallow
 var _keys: Dictionary = {}   # key id -> Button
 var _name_label: Label = null
@@ -63,8 +64,11 @@ func _exit_tree() -> void:
 	GameManager.unregister_focus_scope(self)
 
 ## Builds the panel and makes it the focus scope on top, with the highlight on Q.
-## Call once, after adding it to the tree.
-func open(initial: String, max_length: int) -> void:
+## Call once, after adding it to the tree. `confirm_held` says the panel is opening on a pull
+## of a stick or trigger the player has bound to Confirm: that pull is not for the keys, so
+## the rest of it (and the sample that lets go) is swallowed here, see _axis_response.
+func open(initial: String, max_length: int, confirm_held := false) -> void:
+	_confirm_held = confirm_held
 	_max_length = max_length
 	_draft = initial.left(max_length)
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -177,11 +181,18 @@ func _pad_response(event: InputEventJoypadButton) -> Callable:
 ## player can put Pause / Menu or Cancel / Back on an axis ("LT / L2"). A held trigger
 ## sends a stream of samples that all match its action, so only the one that takes it from
 ## not held to held acts; every sample of the hold, and the one that lets it go, is taken
-## too, so nothing behind hears any of it. Confirm on an axis and the sticks' directions
-## pass through, as their buttons do.
+## too, so nothing behind hears any of it. The sticks' directions pass through, as their
+## buttons do, and so does Confirm on an axis, a pull of it being the press of the
+## highlighted key, except for the pull that opened the panel (`_confirm_held`).
 func _axis_response(event: InputEventJoypadMotion) -> Callable:
 	var edge := ""
 	var taken := false
+	# That pull is still going: a key acts on release, so letting it reach the highlighted
+	# key would type its letter, one the player never chose. The first sample under the
+	# threshold is the one that lets go; a pull after it is the player's.
+	if _confirm_held and event.is_action("ui_accept"):
+		_confirm_held = event.is_action_pressed("ui_accept")
+		taken = true
 	for action: String in AXIS_ACTIONS:
 		if not event.is_action(action):
 			continue
@@ -239,14 +250,15 @@ func step_hold(cancel_held: bool, delta: float) -> void:
 		delete_last()
 
 ## Closed while a trigger bound to Pause or Cancel / Back is still held (it finished the
-## panel): the rest of that hold is still ours, or the pause menu behind would take it as
-## a fresh press. The panel stays, hidden, until the trigger is let go.
+## panel), or while the pull of a Confirm trigger that opened it is: the rest of that hold is
+## still ours, or whatever is behind would take it as a fresh press. The panel stays, hidden,
+## until the trigger is let go.
 func _drain(event: InputEvent) -> void:
 	if not event is InputEventJoypadMotion or _axis_response(event).is_null():
 		return
 	GameManager.note_input_device(event)
 	get_viewport().set_input_as_handled()
-	if not _axis_held.values().has(true):
+	if not _axis_held.values().has(true) and not _confirm_held:
 		_draining = false
 		queue_free()
 
@@ -334,7 +346,7 @@ func _close() -> void:
 		if holder != null and is_ancestor_of(holder):
 			holder.release_focus()
 	hide()
-	_draining = _axis_held.values().has(true)
+	_draining = _axis_held.values().has(true) or _confirm_held
 	if not _draining:
 		queue_free()
 

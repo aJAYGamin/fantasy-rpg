@@ -1712,7 +1712,11 @@ own Testing Policy above — the policy (a suite per feature, registered in
     first (the old `_input` body: input-mode switch + activity stamps) and a swallowed pad press still brings the highlight
     back. ⚠️ A trigger bound to Cancel/Pause acts once per pull and the whole pull is swallowed; a panel closed mid-pull
     stays hidden (`_draining`) until the release sample, else the rest of the pull reaches the pause handler as fresh
-    presses. A page rebuild while open frees the panel (`_exit_tree` drops its scope) and counts as Cancel. The legend
+    presses. A trigger bound to **Confirm** passes through (its pull presses the highlighted key) except the pull that
+    OPENED the panel: `SettingsScreen` tells it (`open(..., confirm_held)`, true when the opening event was a stick or
+    trigger sample) and it swallows that pull's remaining samples and the one that lets go (`_confirm_held`), else the
+    key, which acts on release, would type its letter; a panel closed mid-pull drains it the same way. A page rebuild
+    while open frees the panel (`_exit_tree` drops its scope) and counts as Cancel. The legend
     (`RichTextLabel`) is set `FOCUS_NONE`: Godot 4.6 gives that class `FOCUS_ACCESSIBILITY`, which the guard's
     `_collect_focusable` counts as a stop, so the number keys' wrap link went to a control Godot refuses and a push up
     from the number row always ended on Space (any non-key control added to the panel needs the same). Cinzel draws
