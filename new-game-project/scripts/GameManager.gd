@@ -750,6 +750,16 @@ var _last_kb_ms: int = -100000
 var _last_mouse_ms: int = -100000
 
 func _input(event: InputEvent) -> void:
+	note_input_device(event)
+
+## Takes note of which device an event came from: the input mode (key -> highlight, mouse
+## -> click-only, pad press or a stick pushed past half -> highlight with the pad) and
+## the activity stamps the device status lines read.
+##
+## This autoload's `_input` runs AFTER every scene node's (it sits earlier in the tree), so
+## a node that marks an event handled hides it from here. Such a node calls this itself
+## first (the on-screen keyboard does), so a press it takes still switches the mode.
+func note_input_device(event: InputEvent) -> void:
 	if event is InputEventKey:
 		_last_kb_ms = Time.get_ticks_msec()
 		_apply_input_mode(false, true)    # keyboard → focus navigation

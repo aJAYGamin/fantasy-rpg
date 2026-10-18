@@ -1,31 +1,69 @@
 extends TestSuite
 
-## The on-screen keyboard panel (OnScreenKeyboard): its keys, the draft they edit, and how
-## it opens and closes as a focus scope of its own.
+## The on-screen keyboard panel (OnScreenKeyboard): its keys, the draft they edit, how it
+## opens and closes as a focus scope of its own, and how it takes the pad's buttons and a
+## real keyboard's keys.
 ##
 ## Each test puts its panel on a high CanvasLayer under GameManager (the root is busy while
 ## the runner sets up), and frees that layer at the end together with whatever input mode
-## the test forced.
+## the test forced. Input goes in through the real pipeline (`push_input` on the root), and
+## an InputReader added to GameManager BEFORE the layer hears only what the panel lets
+## through: the engine calls `_input` in reverse tree order and stops at the first handler
+## that marks the event handled.
 
 func suite_name() -> String:
 	return "OnScreenKeyboard"
 
+## Records the pad buttons, keys and mouse buttons that reach it, which is everything a
+## node behind the panel (a page, a menu) would have heard: presses in `heard`, releases
+## of pad buttons and keys in `released`.
+class InputReader extends Node:
+	var heard: Array = []
+	var released: Array = []
+
+	func _input(ev: InputEvent) -> void:
+		if ev is InputEventJoypadButton or ev is InputEventKey or ev is InputEventMouseButton:
+			if ev.pressed:
+				heard.append(ev)
+			elif not ev is InputEventMouseButton:
+				released.append(ev)
+
 # --- Setup ---------------------------------------------------------------------
 
+## The bindings these tests read, so they hold whatever the player has remapped.
+const _BOUND_ACTIONS := ["confirm", "cancel", "pause", "cursor_click", "move_up", "move_down",
+	"move_left", "move_right", "ui_accept", "ui_cancel"]
+
 var _layer: CanvasLayer
+var _reader: InputReader
 var _saved_controller := false
 var _saved_keyboard := false
+var _saved_bindings := {}
 
 func _begin() -> void:
 	_saved_controller = GameManager._controller_mode
 	_saved_keyboard = GameManager._keyboard_nav
+	_saved_bindings = {}
+	for action: String in _BOUND_ACTIONS:
+		_saved_bindings[action] = InputMap.action_get_events(action)
+	InputMapConfig.reset_all_controller()   # the pad's stock buttons: A confirm, B cancel, Start pause
+	_reader = InputReader.new()
+	GameManager.add_child(_reader)
 	_layer = CanvasLayer.new()
 	_layer.layer = 150
 	GameManager.add_child(_layer)
 
 func _end() -> void:
 	_layer.free()
+	_reader.free()
+	_put_bindings_back(_saved_bindings)
 	GameManager._apply_input_mode(_saved_controller, _saved_keyboard)
+
+func _put_bindings_back(bindings: Dictionary) -> void:
+	for action: String in bindings:
+		InputMap.action_erase_events(action)
+		for ev: InputEvent in bindings[action]:
+			InputMap.action_add_event(action, ev)
 
 func _open(initial: String, max_length: int = 18) -> OnScreenKeyboard:
 	var panel := OnScreenKeyboard.new()
@@ -249,4 +287,417 @@ func test_every_key_is_a_themed_button_in_the_mockup_rows() -> void:
 		"the bottom row starts where the grid does")
 	assert_near(panel.key_button("done").get_global_rect().end.x, panel.key_button("0").get_global_rect().end.x, 1.0,
 		"and ends where it does")
+	_end()
+
+# --- Input helpers -------------------------------------------------------------
+
+## A pad button into the root, as the engine delivers it.
+func _pad(button: JoyButton, pressed := true) -> void:
+	var ev := InputEventJoypadButton.new()
+	ev.button_index = button
+	ev.pressed = pressed
+	GameManager.get_viewport().push_input(ev)
+
+## A key into the root. A printable key carries its `unicode`, as a real one does.
+func _key(keycode: Key, unicode := 0, pressed := true, echo := false, ctrl := false) -> void:
+	var ev := InputEventKey.new()
+	ev.keycode = keycode
+	ev.physical_keycode = keycode
+	ev.unicode = unicode
+	ev.pressed = pressed
+	ev.echo = echo
+	ev.ctrl_pressed = ctrl
+	GameManager.get_viewport().push_input(ev)
+
+func _focus_owner() -> Control:
+	return GameManager.get_viewport().gui_get_focus_owner()
+
+## Records what the panel reports.
+class Outcome extends RefCounted:
+	var finished: Array = []
+	var cancels := 0
+
+func _watch(panel: OnScreenKeyboard) -> Outcome:
+	var outcome := Outcome.new()
+	panel.finished.connect(func(text: String) -> void: outcome.finished.append(text))
+	panel.cancelled.connect(func() -> void: outcome.cancels += 1)
+	return outcome
+
+# --- The pad's buttons ---------------------------------------------------------
+
+func test_pad_buttons_edit_and_close() -> void:
+	_begin()
+	var panel := _open("Couch", 18)
+	var outcome := _watch(panel)
+	_pad(JOY_BUTTON_B)
+	assert_eq(panel.get_text(), "Couc", "the player's Cancel (B) deletes the last letter")
+	_pad(JOY_BUTTON_Y)
+	assert_eq(panel.get_text(), "Couc ", "Y adds a space")
+	assert_false(panel.caps, "capitals start off")
+	_pad(JOY_BUTTON_LEFT_SHOULDER)
+	assert_true(panel.caps, "LB toggles capitals on")
+	_pad(JOY_BUTTON_LEFT_SHOULDER)
+	assert_false(panel.caps, "and off again")
+	assert_eq(outcome.finished.size() + outcome.cancels, 0, "none of that closed the panel")
+	_pad(JOY_BUTTON_START)
+	assert_eq(outcome.finished, ["Couc "], "the player's Pause (Start) finishes, sending the draft as typed")
+	assert_eq(outcome.cancels, 0, "and does not cancel")
+	assert_false(GameManager.has_focus_scope(panel), "and closes it")
+
+	var second := _open("Couch", 18)
+	var second_outcome := _watch(second)
+	_pad(JOY_BUTTON_X)
+	assert_eq(second_outcome.cancels, 1, "X closes without saving")
+	assert_eq(second_outcome.finished.size(), 0, "and finishes nothing")
+	assert_eq(second.get_text(), "Couch", "the draft is untouched")
+	assert_eq(_reader.heard.size(), 0, "no node behind the panel heard any of those presses")
+	_end()
+
+func test_confirm_presses_the_highlighted_key_and_directions_move_it() -> void:
+	_begin()
+	GameManager.set_controller_mode_for_test(true)
+	var panel := _open("")
+	GameManager.update_focus_guard_for_test()
+	_lay_out(panel)
+	assert_eq(_focus_owner(), panel.key_button("Q"), "the highlight starts on Q")
+	_pad(JOY_BUTTON_A)
+	_pad(JOY_BUTTON_A, false)
+	assert_eq(panel.get_text(), "q", "the player's Confirm (A) presses the highlighted key, which types its letter")
+	assert_eq(_reader.heard.size(), 1, "the press was left for the key to hear")
+	_pad(JOY_BUTTON_DPAD_RIGHT)
+	assert_eq(_focus_owner(), panel.key_button("W"), "the d-pad moves the highlight")
+	assert_eq(panel.get_text(), "q", "and types nothing")
+	_pad(JOY_BUTTON_DPAD_RIGHT, false)
+	assert_eq(_reader.heard.size(), 2, "a direction passes through")
+	_end()
+
+func test_releases_pass_through_and_change_nothing() -> void:
+	_begin()
+	var panel := _open("Couch")
+	var outcome := _watch(panel)
+	var released: Array = [JOY_BUTTON_B, JOY_BUTTON_X, JOY_BUTTON_Y, JOY_BUTTON_START, JOY_BUTTON_LEFT_SHOULDER,
+		JOY_BUTTON_RIGHT_SHOULDER]
+	for button: JoyButton in released:
+		_pad(button, false)
+	assert_eq(_reader.released.size(), released.size(), "every one of the pad releases passed through")
+	assert_eq(panel.get_text(), "Couch", "a release does nothing")
+	assert_false(panel.caps, "not even LB's")
+	assert_eq(outcome.finished.size() + outcome.cancels, 0, "and closes nothing")
+	_key(KEY_ESCAPE, 0, false)
+	_key(KEY_BACKSPACE, 0, false)
+	assert_eq(_reader.released.size(), released.size() + 2, "and the keys' did too")
+	assert_eq(outcome.finished.size() + outcome.cancels, 0, "nor does a key's")
+	assert_true(GameManager.has_focus_scope(panel), "the panel is still open")
+	_end()
+
+func test_holding_the_pad_delete_keeps_deleting() -> void:
+	_begin()
+	var panel := _open("abcdef", 18)
+	panel.step_hold(true, 0.016)
+	assert_eq(panel.get_text(), "abcdef", "the first frame held only starts the clock")
+	panel.step_hold(true, 0.40)
+	assert_eq(panel.get_text(), "abcdef", "before the initial delay nothing repeats")
+	panel.step_hold(true, 0.05)
+	assert_eq(panel.get_text(), "abcde", "past the initial delay one letter goes")
+	panel.step_hold(true, 0.16)
+	assert_eq(panel.get_text(), "abcd", "and another at the repeat interval")
+	panel.step_hold(false, 0.016)
+	panel.step_hold(true, 0.016)
+	panel.step_hold(true, 0.40)
+	assert_eq(panel.get_text(), "abcd", "letting go starts the delay over")
+	for frame in 40:
+		panel._process(0.1)
+	assert_eq(panel.get_text(), "abcd", "frames with no pad holding Cancel / Back delete nothing")
+	_end()
+
+func test_other_pad_buttons_stop_at_the_panel() -> void:
+	_begin()
+	var panel := _open("Couch")
+	var outcome := _watch(panel)
+	_pad(JOY_BUTTON_RIGHT_SHOULDER)
+	_pad(JOY_BUTTON_BACK)
+	_pad(JOY_BUTTON_LEFT_STICK)
+	assert_eq(panel.get_text(), "Couch", "RB, Back and L3 change nothing")
+	assert_eq(_reader.heard.size(), 0, "and nothing behind the panel heard them")
+	assert_eq(outcome.finished.size() + outcome.cancels, 0, "nor did they close it")
+	assert_true(GameManager.has_focus_scope(panel), "the panel is still open")
+	_end()
+
+func test_a_closed_panel_lets_input_through() -> void:
+	# The panel frees itself at the end of the frame, so it lingers (hidden) after Done.
+	_begin()
+	var panel := _open("Couch")
+	var outcome := _watch(panel)
+	_pad(JOY_BUTTON_START)
+	assert_eq(outcome.finished, ["Couch"], "Start finished it")
+	assert_eq(_reader.heard.size(), 0, "and nothing behind it heard that press")
+	_pad(JOY_BUTTON_START)
+	_pad(JOY_BUTTON_B)
+	_key(KEY_C, 99)
+	assert_eq(_reader.heard.size(), 3, "afterwards the dying panel takes nothing: all three reached the reader")
+	assert_eq(outcome.finished, ["Couch"], "it reported once")
+	assert_eq(panel.get_text(), "Couch", "and its draft is untouched")
+	_end()
+
+# --- A real keyboard -----------------------------------------------------------
+
+func test_a_real_keyboard_types_into_the_panel() -> void:
+	_begin()
+	GameManager.set_controller_mode_for_test(true)
+	var panel := _open("ab")
+	GameManager.update_focus_guard_for_test()
+	_lay_out(panel)
+	var outcome := _watch(panel)
+	assert_eq(_focus_owner(), panel.key_button("Q"), "the highlight is on Q")
+	_key(KEY_C, 99)
+	assert_eq(panel.get_text(), "abc", "a printable key types its character")
+	_key(KEY_SPACE, 32)
+	assert_eq(panel.get_text(), "abc ", "Space types a space and does not press the highlighted Q")
+	_key(KEY_BACKSPACE)
+	assert_eq(panel.get_text(), "abc", "Backspace deletes")
+	_key(KEY_BACKSPACE, 0, true, true)
+	assert_eq(panel.get_text(), "ab", "and so does its echo, so holding it keeps deleting")
+	assert_eq(_reader.heard.size(), 0, "nothing behind the panel heard c, Space or Backspace")
+	_key(KEY_RIGHT)
+	assert_eq(_focus_owner(), panel.key_button("W"), "an arrow key moves the highlight")
+	assert_eq(_reader.heard.size(), 1, "the arrow passed through")
+	assert_eq(panel.get_text(), "ab", "and typed nothing")
+	_key(KEY_ENTER, 13)
+	assert_eq(outcome.finished, ["ab"], "Enter finishes (it does not press the highlighted key)")
+	assert_eq(outcome.cancels, 0, "and does not cancel")
+
+	var second := _open("ab")
+	var second_outcome := _watch(second)
+	_key(KEY_ESCAPE)
+	assert_eq(second_outcome.cancels, 1, "Esc cancels")
+	assert_eq(second_outcome.finished.size(), 0, "and finishes nothing")
+
+	var third := _open("ab")
+	var third_outcome := _watch(third)
+	_key(KEY_KP_ENTER, 13)
+	assert_eq(third_outcome.finished, ["ab"], "the keypad's Enter finishes too")
+	assert_eq(_reader.heard.size(), 1, "still only the arrow reached the reader: not Enter, Esc or the keypad's Enter")
+	_end()
+
+func test_capitals_and_symbols_type_as_the_keyboard_sends_them() -> void:
+	_begin()
+	var panel := _open("")
+	_key(KEY_A, 65)
+	_key(KEY_1, 33)
+	_key(KEY_APOSTROPHE, 39)
+	assert_eq(panel.get_text(), "A!'", "the keyboard's own case and symbols are typed, whatever the on-screen capitals say")
+	assert_false(panel.caps, "and the capitals lock is untouched")
+	_end()
+
+func test_keys_that_are_not_text_are_swallowed() -> void:
+	_begin()
+	var panel := _open("ab")
+	var outcome := _watch(panel)
+	_key(KEY_C, 99, true, false, true)   # Ctrl+C
+	var meta := InputEventKey.new()
+	meta.keycode = KEY_V
+	meta.physical_keycode = KEY_V
+	meta.unicode = 118
+	meta.pressed = true
+	meta.meta_pressed = true
+	GameManager.get_viewport().push_input(meta)
+	var alt := meta.duplicate() as InputEventKey
+	alt.meta_pressed = false
+	alt.alt_pressed = true
+	GameManager.get_viewport().push_input(alt)
+	_key(KEY_F1)
+	_key(KEY_TAB, 9)
+	_key(KEY_SHIFT)
+	_key(KEY_DELETE, 127)
+	assert_eq(panel.get_text(), "ab", "Ctrl, Cmd and Alt chords, function keys, Tab, Shift on its own and Delete type nothing")
+	assert_eq(_reader.heard.size(), 0, "and none of them reached what is behind the panel")
+	assert_eq(outcome.finished.size() + outcome.cancels, 0, "or closed the panel")
+	_end()
+
+func test_the_mouse_is_left_alone() -> void:
+	_begin()
+	var panel := _open("ab")
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_RIGHT
+	click.pressed = true
+	click.position = Vector2(5, 5)
+	GameManager.get_viewport().push_input(click)
+	assert_eq(_reader.heard.size(), 1, "a mouse press passes through the panel")
+	assert_eq(panel.get_text(), "ab", "and types nothing")
+	assert_true(GameManager.has_focus_scope(panel), "or closes the panel")
+	assert_false(GameManager.is_controller_mode(), "it is the mouse's mode, left to GameManager")
+	_end()
+
+# --- The player's own buttons --------------------------------------------------
+
+## Makes `button` the pad half of Confirm (A stops being Confirm), the way the Controller
+## page does, mirrored onto ui_accept.
+func _bind_confirm_to(button: JoyButton) -> void:
+	var ev := InputEventJoypadButton.new()
+	ev.button_index = button
+	InputMapConfig.rebind_controller("confirm", ev)
+
+func test_a_remapped_confirm_on_x_types_instead_of_cancelling() -> void:
+	_begin()
+	GameManager.set_controller_mode_for_test(true)
+	_bind_confirm_to(JOY_BUTTON_X)
+	var panel := _open("")
+	GameManager.update_focus_guard_for_test()
+	var outcome := _watch(panel)
+	assert_eq(_focus_owner(), panel.key_button("Q"), "the highlight is on Q")
+	_pad(JOY_BUTTON_X)
+	_pad(JOY_BUTTON_X, false)
+	assert_eq(panel.get_text(), "q", "X is the player's Confirm now, so it types the highlighted key")
+	assert_eq(outcome.cancels, 0, "and does not throw the name away")
+	assert_true(GameManager.has_focus_scope(panel), "the panel is still open")
+	var entries := OnScreenKeyboard.legend_entries()
+	assert_eq(entries[0], ["X / Square", "Type"], "the legend says X types")
+	var verbs: Array = []
+	for entry: Array in entries:
+		verbs.append(entry[1])
+	assert_false(verbs.has("Cancel"), "and does not promise \"X Cancel\"")
+	_pad(JOY_BUTTON_A)
+	assert_eq(panel.get_text(), "q", "A is no longer Confirm; as nothing else in the panel, it is swallowed")
+	_end()
+	GameManager.input_profiles.sync_from_input_map()   # as the stock bindings are back
+
+func test_a_remapped_cancel_or_pause_wins_over_the_fixed_buttons() -> void:
+	_begin()
+	var panel := _open("abc")
+	var outcome := _watch(panel)
+	var cancel_on_y := InputEventJoypadButton.new()
+	cancel_on_y.button_index = JOY_BUTTON_Y
+	InputMapConfig.rebind_controller("cancel", cancel_on_y)
+	_pad(JOY_BUTTON_Y)
+	assert_eq(panel.get_text(), "ab", "Y is the player's Cancel now, so it deletes rather than adding a space")
+	var pause_on_lb := InputEventJoypadButton.new()
+	pause_on_lb.button_index = JOY_BUTTON_LEFT_SHOULDER
+	InputMapConfig.rebind_controller("pause", pause_on_lb)
+	_pad(JOY_BUTTON_LEFT_SHOULDER)
+	assert_false(panel.caps, "LB is the player's Pause now, so it does not toggle capitals")
+	assert_eq(outcome.finished, ["ab"], "it finishes")
+	var entries := OnScreenKeyboard.legend_entries()
+	var verbs: Array = []
+	for entry: Array in entries:
+		verbs.append(entry[1])
+	assert_eq(verbs, ["Type", "Delete", "Cancel", "Done"], "the legend drops Space and Caps, whose buttons were taken")
+	_end()
+	GameManager.input_profiles.sync_from_input_map()
+
+func test_the_legend_names_the_players_buttons() -> void:
+	_begin()
+	assert_eq(OnScreenKeyboard.legend_entries(), [
+		["A / Cross", "Type"], ["B / Circle", "Delete"], ["X / Square", "Cancel"],
+		["Y / Triangle", "Space"], ["LB / L1", "Caps"], ["Start / Options", "Done"]],
+		"the stock buttons, in the order the legend reads")
+	var cancel_on_rb := InputEventJoypadButton.new()
+	cancel_on_rb.button_index = JOY_BUTTON_RIGHT_SHOULDER
+	InputMapConfig.rebind_controller("cancel", cancel_on_rb)
+	var entries := OnScreenKeyboard.legend_entries()
+	assert_eq(entries[1], ["RB / R1", "Delete"], "Delete follows the player's Cancel binding")
+	_end()
+	GameManager.input_profiles.sync_from_input_map()
+
+func test_the_legend_label_shows_the_entries_with_the_names_picked_out() -> void:
+	_begin()
+	var panel := _open("")
+	var legend := panel.find_child("LegendText", true, false) as RichTextLabel
+	assert_true(legend != null, "the panel has a legend")
+	if legend == null:
+		_end()
+		return
+	var text := legend.get_parsed_text()
+	for entry: Array in OnScreenKeyboard.legend_entries():
+		assert_true(text.contains(entry[0]) and text.contains(entry[1]), "the legend reads %s %s" % entry)
+	assert_true(text.contains("\n"), "the legend runs to two lines")
+	assert_false(text.strip_edges().contains("\n\n"), "and no more")
+	assert_true(legend.text.contains(BattleUITheme.TEXT_SUBTITLE.to_html(false)), "the button names are in the subtitle colour")
+	assert_eq(legend.get_theme_color("default_color"), SettingsScreen.NOTE_COLOR, "the rest is in the note colour")
+	assert_eq(legend.mouse_filter, Control.MOUSE_FILTER_IGNORE, "the legend takes no clicks")
+	_lay_out(panel)
+	assert_true(legend.size.y <= 2.0 * (OnScreenKeyboard.LEGEND_FONT_SIZE + 6), "laid out, it is two lines tall, not a screen tall (%s)" % legend.size.y)
+	assert_true(legend.get_combined_minimum_size().x <= OnScreenKeyboard.PANEL_WIDTH - 36, "and never wider than the panel's inside, so it cannot widen it")
+	assert_true(legend.get_parent().get_parent().size.y < GameManager.get_viewport().get_visible_rect().size.y, "the panel with its legend fits the screen")
+	_end()
+
+# --- Which mode a pad press brings back ----------------------------------------
+
+func test_buttons_the_panel_takes_still_switch_to_the_highlight() -> void:
+	_begin()
+	GameManager.set_controller_mode_for_test(false)
+	var panel := _open("Couch")
+	assert_false(GameManager.focus_nav_active(), "pure mouse mode: no highlight")
+	_pad(JOY_BUTTON_B)
+	assert_eq(panel.get_text(), "Couc", "the panel took B")
+	assert_true(GameManager.is_controller_mode(), "and B still brought the highlight back, as the pad's mode")
+	GameManager.set_controller_mode_for_test(false)
+	_key(KEY_C, 99)
+	assert_eq(panel.get_text(), "Coucc", "the panel took the key")
+	assert_true(GameManager.focus_nav_active(), "and the key still brought the highlight back")
+	assert_false(GameManager.is_controller_mode(), "as the keyboard's mode, not the pad's")
+	GameManager.set_controller_mode_for_test(false)
+	_pad(JOY_BUTTON_RIGHT_SHOULDER)
+	assert_true(GameManager.is_controller_mode(), "even a button that does nothing here does")
+	_end()
+
+func test_note_input_device_is_the_mode_switch_and_the_activity_stamps() -> void:
+	_begin()
+	var kept_kb := GameManager._last_kb_ms
+	var kept_mouse := GameManager._last_mouse_ms
+	GameManager._last_kb_ms = -100000
+	GameManager._last_mouse_ms = -100000
+
+	assert_eq(GameManager.keyboard_status_text(), "No external keyboard found", "no key yet")
+	assert_eq(GameManager.mouse_status_text(), "No external mouse found", "no mouse yet")
+	GameManager.set_controller_mode_for_test(true)
+	GameManager.note_input_device(InputEventKey.new())
+	assert_true(GameManager.focus_nav_active(), "a key leaves the highlight on")
+	assert_false(GameManager.is_controller_mode(), "as the keyboard's")
+	assert_eq(GameManager.keyboard_status_text(), "Keyboard detected", "and stamps the keyboard")
+
+	var click := InputEventMouseButton.new()
+	GameManager.note_input_device(click)
+	assert_false(GameManager.focus_nav_active(), "a mouse button is pure mouse mode")
+	assert_eq(GameManager.mouse_status_text(), "Mouse detected", "and stamps the mouse")
+
+	GameManager._last_mouse_ms = -100000
+	GameManager.note_input_device(InputEventMouseMotion.new())
+	assert_eq(GameManager.mouse_status_text(), "Mouse detected", "so does a mouse move")
+	GameManager.note_input_device(InputEventMagnifyGesture.new())
+	assert_false(GameManager.focus_nav_active(), "and a trackpad gesture")
+
+	var release := InputEventJoypadButton.new()
+	release.pressed = false
+	GameManager.note_input_device(release)
+	assert_false(GameManager.is_controller_mode(), "a pad release is not use")
+	var press := InputEventJoypadButton.new()
+	press.pressed = true
+	GameManager.note_input_device(press)
+	assert_true(GameManager.is_controller_mode(), "a pad press is")
+
+	GameManager.set_controller_mode_for_test(false)
+	var light := InputEventJoypadMotion.new()
+	light.axis_value = 0.4
+	GameManager.note_input_device(light)
+	assert_false(GameManager.is_controller_mode(), "a stick nudged to under half is not")
+	var hard := InputEventJoypadMotion.new()
+	hard.axis_value = -0.8
+	GameManager.note_input_device(hard)
+	assert_true(GameManager.is_controller_mode(), "a stick pushed past half is, either way")
+
+	GameManager._last_kb_ms = kept_kb
+	GameManager._last_mouse_ms = kept_mouse
+	_end()
+
+func test_game_manager_input_runs_the_same_switch() -> void:
+	# GameManager._input is now a call to note_input_device; an event nothing handles still switches.
+	_begin()
+	GameManager.set_controller_mode_for_test(false)
+	var press := InputEventJoypadButton.new()
+	press.button_index = JOY_BUTTON_START
+	press.pressed = true
+	GameManager.get_viewport().push_input(press)
+	assert_true(GameManager.is_controller_mode(), "a pad press nothing took reaches GameManager and switches the mode")
+	_key(KEY_F1)
+	assert_true(GameManager.focus_nav_active() and not GameManager.is_controller_mode(), "and so does a key")
 	_end()

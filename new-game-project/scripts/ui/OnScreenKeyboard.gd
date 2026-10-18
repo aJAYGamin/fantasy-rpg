@@ -8,6 +8,9 @@ extends Control
 ## Add it to the tree, then call open(). While open it is a focus scope of its own, so the
 ## d-pad walks the keys and the page behind is locked out. It reports through finished /
 ## cancelled, once, and then frees itself.
+##
+## While open it also takes the pad's buttons and a real keyboard's keys (see _input): what
+## it acts on or swallows stops here, so nothing behind it hears it.
 
 ## The player is done: the draft exactly as typed. Cleaning it up is the caller's job.
 signal finished(text: String)
@@ -29,6 +32,13 @@ const KEY_PADDING := 3
 const LETTER_FONT_SIZE := 14
 const ACTION_FONT_SIZE := 12
 const CARET := "|"
+const LEGEND_FONT_SIZE := 11
+## The actions a pad button can already be, and so cannot also be one of the fixed buttons
+## (X, Y, LB): the player's Pause, Cancel / Back and Confirm. ui_cancel and ui_accept are
+## Cancel and Confirm as the Controller page mirrors them.
+const PLAYERS_ACTIONS := ["pause", "ui_cancel", "ui_accept"]
+## The pad's directions, which move the highlight and so are left to the focus system.
+const DIRECTION_ACTIONS := ["ui_up", "ui_down", "ui_left", "ui_right"]
 
 var caps := false
 var symbols := false
@@ -36,6 +46,7 @@ var symbols := false
 var _draft := ""
 var _max_length := 0
 var _closed := false
+var _hold := HoldRepeat.new()   # holding Cancel / Back keeps deleting
 var _keys: Dictionary = {}   # key id -> Button
 var _name_label: Label = null
 var _count_label: Label = null
@@ -104,6 +115,159 @@ func cancel() -> void:
 ## "cancel" or "done". Null for anything else.
 func key_button(id: String) -> Button:
 	return _keys.get(id)
+
+# --- Input ---------------------------------------------------------------------------
+
+## The pad's buttons and a real keyboard's keys, while the panel is open. What the panel
+## acts on or swallows goes no further (the page, the pause menu and the overworld's pause
+## handler are all behind it, and they get their turn after this); what it lets by is the
+## pad's directions and Confirm, which walk and press the keys, the arrow keys, every
+## release and the mouse.
+##
+## GameManager's own `_input` runs after every scene node's, so it never sees a press
+## taken here: the panel tells it, first, so the highlight still comes back for a player
+## who pressed a button the panel only swallowed.
+func _input(event: InputEvent) -> void:
+	if not _is_live():
+		return
+	var response := Callable()
+	if event is InputEventJoypadButton and event.pressed:
+		response = _pad_response(event)
+	elif event is InputEventKey and event.pressed:
+		response = _key_response(event)
+	if response.is_null():
+		return
+	GameManager.note_input_device(event)
+	get_viewport().set_input_as_handled()
+	response.call()   # last: it can close the panel
+
+## What a pressed pad button does here, or a null Callable to let it through. The player's
+## own Pause, Cancel / Back and Confirm come first, so a fixed button they have moved onto
+## one of those acts as that binding.
+func _pad_response(event: InputEventJoypadButton) -> Callable:
+	if event.is_action_pressed("pause"):
+		return finish
+	if event.is_action_pressed("ui_cancel"):
+		return delete_last
+	# Confirm presses the highlighted key, which the key's own Button does on this very press.
+	if event.is_action("ui_accept"):
+		return Callable()
+	for action: String in DIRECTION_ACTIONS:
+		if event.is_action(action):
+			return Callable()
+	match event.button_index:
+		JOY_BUTTON_X:
+			return cancel
+		JOY_BUTTON_Y:
+			return type_char.bind(" ")
+		JOY_BUTTON_LEFT_SHOULDER:
+			return toggle_caps
+	return _swallow
+
+## What a pressed key does here, or a null Callable to let it through. Space and Enter are
+## the keyboard's Confirm, but here a typed Space is a space and Enter is Done, so the
+## highlighted key is never pressed by either.
+func _key_response(event: InputEventKey) -> Callable:
+	var code: Key = event.keycode if event.keycode != KEY_NONE else event.physical_keycode
+	match code:
+		KEY_ESCAPE:
+			return cancel
+		KEY_ENTER, KEY_KP_ENTER:
+			return finish
+		KEY_BACKSPACE:
+			return delete_last   # its echo too, so holding it keeps deleting
+		KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT:
+			return Callable()
+	if _is_printable(event.unicode) and not (event.ctrl_pressed or event.meta_pressed or event.alt_pressed):
+		return type_char.bind(char(event.unicode))
+	return _swallow
+
+func _swallow() -> void:
+	pass
+
+## A character the keyboard sends that belongs in a name: not a control code, DEL, or the
+## private-use range macOS puts its function keys in.
+static func _is_printable(unicode: int) -> bool:
+	return unicode >= 32 and unicode != 127 and not (unicode >= 0xE000 and unicode <= 0xF8FF)
+
+## Not closed, and showing: a closed panel lingers until the end of the frame, hidden.
+func _is_live() -> bool:
+	return not _closed and is_visible_in_tree()
+
+func _process(delta: float) -> void:
+	if _is_live():
+		step_hold(_cancel_held(), delta)
+
+## One frame of the held-Cancel / Back repeat: every repeat deletes a letter. The press
+## itself deleted one in _input, and the first frame held only starts the clock.
+func step_hold(cancel_held: bool, delta: float) -> void:
+	if _hold.poll(cancel_held, delta):
+		delete_last()
+
+## Whether any connected pad holds a button that is the player's Cancel / Back.
+func _cancel_held() -> bool:
+	for pad in Input.get_connected_joypads():
+		for ev in InputMap.action_get_events("ui_cancel"):
+			if ev is InputEventJoypadButton and Input.is_joy_button_pressed(pad, (ev as InputEventJoypadButton).button_index):
+				return true
+	return false
+
+# --- The legend ----------------------------------------------------------------------
+
+## The legend's [button name, what it does] pairs, in the order it reads: Type, Delete,
+## Cancel, Space, Caps, Done. Type, Delete and Done are the player's Confirm, Cancel / Back
+## and Pause / Menu as they have them now; Cancel, Space and Caps are the fixed X, Y and LB,
+## left out when the player has put one of their own bindings on that button (it then acts
+## as that binding, see _pad_response, and promising it here would be false).
+static func legend_entries() -> Array:
+	var entries: Array = [
+		[InputMapConfig.describe_controller("confirm"), "Type"],
+		[InputMapConfig.describe_controller("cancel"), "Delete"],
+	]
+	for fixed: Array in [[JOY_BUTTON_X, "Cancel"], [JOY_BUTTON_Y, "Space"], [JOY_BUTTON_LEFT_SHOULDER, "Caps"]]:
+		if not _is_players_button(fixed[0]):
+			entries.append([InputMapConfig.joy_button_name(fixed[0]), fixed[1]])
+	entries.append([InputMapConfig.describe_controller("pause"), "Done"])
+	return entries
+
+## True when `button` is the player's Pause, Cancel / Back or Confirm.
+static func _is_players_button(button: JoyButton) -> bool:
+	var probe := InputEventJoypadButton.new()
+	probe.button_index = button
+	probe.pressed = true
+	for action: String in PLAYERS_ACTIONS:
+		if probe.is_action(action):
+			return true
+	return false
+
+## The legend as a label: the entries split over two centred lines, each button name in
+## the subtitle colour and the rest in the note colour.
+func _legend() -> RichTextLabel:
+	var legend := RichTextLabel.new()
+	legend.name = "LegendText"
+	legend.bbcode_enabled = true
+	legend.fit_content = true
+	legend.scroll_active = false
+	# Two lines of our own: with wrapping on, a label's minimum height is worked out at a
+	# width it does not have yet, and a container can lay it out a screen tall.
+	legend.autowrap_mode = TextServer.AUTOWRAP_OFF
+	legend.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	legend.add_theme_font_override("normal_font", BattleUITheme.font_regular())
+	legend.add_theme_font_override("bold_font", BattleUITheme.font_bold())
+	legend.add_theme_font_size_override("normal_font_size", LEGEND_FONT_SIZE)
+	legend.add_theme_font_size_override("bold_font_size", LEGEND_FONT_SIZE)
+	legend.add_theme_color_override("default_color", SettingsScreen.NOTE_COLOR)
+	var entries := legend_entries()
+	var split := ceili(entries.size() / 2.0)
+	var lines: Array = []
+	for chunk: Array in [entries.slice(0, split), entries.slice(split)]:
+		var parts: Array = []
+		for entry: Array in chunk:
+			parts.append("[b][color=#%s]%s[/color][/b] %s" % [BattleUITheme.TEXT_SUBTITLE.to_html(false), entry[0], entry[1]])
+		if not parts.is_empty():
+			lines.append(" · ".join(parts))
+	legend.text = "[center]%s[/center]" % "\n".join(lines)
+	return legend
 
 # --- Closing -------------------------------------------------------------------------
 
@@ -184,6 +348,8 @@ func _build() -> void:
 	column.add_child(_key_grid())
 	column.add_child(_gap(6))
 	column.add_child(_bottom_row())
+	column.add_child(_gap(10))
+	column.add_child(_legend())
 
 func _label(text: String, font: Font, size: int, color: Color) -> Label:
 	var l := Label.new()
