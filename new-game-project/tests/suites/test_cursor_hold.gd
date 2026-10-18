@@ -62,3 +62,25 @@ func test_released_shows_the_system_pointer() -> void:
 	var h := CursorHold.new()
 	h.on_focus(false, false)
 	assert_eq(h.mouse_mode(), Input.MOUSE_MODE_VISIBLE, "released = visible")
+
+func test_the_pointer_coming_back_in_picks_the_mouse_up() -> void:
+	var h := CursorHold.new()
+	h.on_motion(30.0, true)
+	assert_false(h.on_pointer_back(), "coming in without having left is the let-go itself, just inside the edge")
+	assert_eq(h.state, CursorHold.State.RELEASED, "so it is still let go")
+	h.on_pointer_left()
+	assert_true(h.on_pointer_back(), "out of the window and back in picks the mouse up")
+	assert_eq(h.state, CursorHold.State.HELD, "held again")
+
+func test_only_a_leave_since_letting_go_counts() -> void:
+	var h := CursorHold.new()
+	h.on_pointer_left()   # while held: says nothing about a later let-go
+	h.on_motion(30.0, true)
+	assert_false(h.on_pointer_back(), "a leave from before the let-go doesn't count")
+	h.on_pointer_left()
+	h.on_click_while_released()
+	h.on_motion(30.0, true)
+	assert_false(h.on_pointer_back(), "nor one from before the last pick-up")
+	h.on_pointer_left()
+	assert_true(h.on_pointer_back(), "a fresh leave does")
+	assert_false(h.on_pointer_back(), "and once held, coming in again changes nothing")

@@ -194,11 +194,17 @@ Plain steps for a real play session. Each says what to do and what should happen
 
 **Windowed mode and the mouse leaving the window**
 - [ ] Windowed: push the mouse out past each edge. It leaves at the same spot where the
-  cursor was. Click back in: the cursor appears where you clicked, and that click
-  presses nothing.
+  cursor was. Move it back in without clicking: the game takes it at once, the cursor
+  appears where it came in, and it moves at your Mouse Sensitivity (set it well away
+  from 1.00 to tell). Slip out again and click back in instead: the cursor appears where
+  you clicked, and that click presses nothing.
+- [ ] Windowed: right after slipping out, the mouse is not grabbed back before you have
+  moved it out of the window, and with another app in front, passing over the game
+  window never takes the mouse.
 - [ ] Right after picking the mouse up (and right after launch), hover works on the
   very first move, and the pointer carries on smoothly after it slips out.
-- [ ] Cmd-Tab away and back: windowed waits for a click; fullscreen and borderless take
+- [ ] Cmd-Tab away and back: windowed waits for the pointer to come into it (or a
+  click); fullscreen and borderless take
   the mouse straight back. Minimise and restore. Open Mission Control while the game
   holds the mouse and come back.
 - [ ] On a Retina screen, the system pointer shown while the mouse is let go is the same

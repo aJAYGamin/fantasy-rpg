@@ -301,11 +301,18 @@ func _hides_cursor(ev: InputEvent) -> bool:
 
 ## Switching away, or the window losing focus any other way (minimised, say), always lets
 ## the mouse go, so a player is never stuck with a mouse they can't take elsewhere. Coming
-## back to a fullscreen or borderless game picks it up at once; a windowed one waits for a
-## click inside it.
+## back to a fullscreen or borderless game picks it up at once; a windowed one waits for the
+## pointer to come into it, or a click inside it. A let-go pointer leaving the window and
+## coming back in picks it up too (_on_pointer_back).
 func _notification(what: int) -> void:
 	var was_in_front := _in_front()
 	match what:
+		NOTIFICATION_WM_MOUSE_EXIT:
+			hold.on_pointer_left()
+			return
+		NOTIFICATION_WM_MOUSE_ENTER:
+			_on_pointer_back()
+			return
 		NOTIFICATION_APPLICATION_FOCUS_OUT:
 			_app_focused = false
 		NOTIFICATION_APPLICATION_FOCUS_IN:
@@ -363,6 +370,19 @@ func _route_released(ev: InputEvent, root: Window) -> void:
 	# So whatever is under the new spot lights up before the mouse moves again.
 	_push_still_move()
 
+## The let-go system pointer came back over the window. It is picked up if it has been out
+## since it was let go (hold decides) and the game is in front: the system moves a pointer the
+## game doesn't hold at desktop speed, so the cursor runs at the game's sensitivity only once
+## the game holds it again. It carries on from where the pointer came in (_hold_again), and a
+## still move there tells the menus the mouse is in use, as after a pick-up click. (Godot marks
+## the pointer as in the window only after this notification, so hover follows the next move.)
+func _on_pointer_back() -> void:
+	if not _in_front() or not hold.on_pointer_back():
+		return
+	_hold_again()
+	shown = true
+	_push_still_move()
+
 ## The pad brings the cursor back. A let-go mouse is picked up first, so the drawn
 ## cursor and the system pointer never both show, but never while another app is in
 ## front: that would take the mouse from it. Returns whether the cursor shows.
@@ -402,10 +422,10 @@ func _let_go_of_buttons() -> void:
 	_click_down = false
 	_click_held = false
 
-## The mouse is held again without a click: the game came back to the front, or became
-## fullscreen. The cursor carries on from the system pointer if it is over the game, so a
-## click that brought a borderless game back lands where it was aimed. The cursor shows
-## when the mouse next moves.
+## The mouse is held again without a click: the game came back to the front, became
+## fullscreen, or the let-go pointer came back over it. The cursor carries on from the system
+## pointer if it is over the game, so a click that brought a borderless game back lands where
+## it was aimed. The cursor shows when the mouse next moves (_on_pointer_back shows it at once).
 func _hold_again() -> void:
 	if installed:
 		var root := get_tree().root

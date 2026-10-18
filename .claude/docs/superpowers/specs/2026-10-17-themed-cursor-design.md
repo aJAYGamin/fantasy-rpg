@@ -31,7 +31,7 @@ any of the three. The new cursor must not take anything away from any of them.
 | Where players choose | **Settings → Controls → Mouse**, a third page beside Keyboard and Controller. |
 | Page layout | **Compact**: one row each — Cursor Shape `◀ name ▶`, Cursor Colour `◀ name ▶`, Mouse Sensitivity slider. **No preview section** on this page. |
 | Fullscreen | The game holds the mouse while it is in front; the player sees only the game's cursor. |
-| Windowed | Pushing the cursor past the window's edge lets it **slip out to the desktop**; **clicking back in** picks it up again. |
+| Windowed | Pushing the cursor past the window's edge lets it **slip out to the desktop**; **coming back into the window** (or a click in it) picks it up again. |
 | All inputs | Every screen must be fully usable by controller, by keyboard, and by mouse. |
 | Controller cursor | The controller's **right stick moves the cursor**, and **pressing the right stick clicks** with it — that single press is all a click takes. The Controller settings page is updated to match (below). |
 | Dropdowns | **Max FPS** (Performance page) becomes a `◀ ▶` row like the Mouse page. **Window Mode and Resolution** (Display page) keep their dropdowns, with the cursor drawn above an open list. |
@@ -182,13 +182,20 @@ Updated for the new control:
   of the window from that same point, at desktop speed. While let go:
   *my call* — the system pointer wears the player's themed cursor over the game
   window (so it still looks right; it moves at desktop speed until picked up).
-  **Clicking** inside the window picks the mouse up again, with the game's
-  cursor appearing exactly where the click happened. *My call:* that first click
-  only picks the mouse up and does not press whatever it landed on.
+  **Moving the pointer back into the window** picks the mouse up again, with the
+  game's cursor appearing where the pointer came in and moving at the game's
+  sensitivity from there. *(Changed 2026-10-17 after play-testing: a click used to
+  be the only way, and the pointer moving at desktop speed over the game until
+  then read as the sensitivity being lost.)* The pointer must have left the window
+  first: letting go puts it just inside the edge. **Clicking** inside the window
+  still picks it up too, with the cursor exactly where the click happened. *My
+  call:* that first click only picks the mouse up and does not press whatever it
+  landed on.
 - Switching away from the game (Cmd/Alt-Tab, or the window losing focus for any
   reason) always lets the mouse go. *My call:* coming back to a **fullscreen or
   borderless** game picks the mouse up again straight away; coming back to a
-  **windowed** game waits for a click inside the window, as above.
+  **windowed** game waits for the pointer to come into the window or a click
+  inside it, as above.
 - At no point may the player be stuck with a mouse they can't get out of the
   window.
 - *My call:* built on Godot's own cross-platform mouse handling, with nothing
@@ -231,8 +238,8 @@ or fixed) for the user.
    double-click, wheel, slider and scrollbar drags, text fields).
 5. Keyboard and controller play is unaffected; the cursor hides while they're in
    use and comes back with the mouse.
-6. Windowed play: the mouse slips out at the edges and is picked up again by a
-   click; switching apps always releases it.
+6. Windowed play: the mouse slips out at the edges and is picked up again when it
+   comes back into the window (or by a click); switching apps always releases it.
 6a. On a controller, the right stick moves the same cursor anywhere in the game
    and the stick press clicks (holding it drags); Right Stick Sensitivity sets
    its speed; Cursor Click can be remapped on the Controller page like any other

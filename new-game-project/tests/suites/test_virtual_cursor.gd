@@ -1115,6 +1115,39 @@ func test_after_picking_up_the_next_click_clicks() -> void:
 	assert_eq(reader.releases, 1, "its release is not swallowed")
 	_end()
 
+func test_the_pointer_coming_back_into_the_window_picks_the_mouse_up() -> void:
+	# Let go, the pointer is the system's and moves at desktop speed: it must not stay so
+	# once it is back over the game, or the player's sensitivity seems lost until a click.
+	var layer := _begin()
+	var reader := InputReader.new()
+	layer.add_child(reader)
+	_slip_out()
+	_vc().notification(Node.NOTIFICATION_WM_MOUSE_ENTER)
+	assert_false(_held(), "letting go can report the pointer entering (it is put just inside the edge): no pick-up")
+	_vc().notification(Node.NOTIFICATION_WM_MOUSE_EXIT)
+	reader.last = null
+	_vc().notification(Node.NOTIFICATION_WM_MOUSE_ENTER)
+	assert_true(_held(), "out of the window and back in picks the mouse up, no click needed")
+	assert_true(_vc().shown, "the drawn cursor is back")
+	assert_true(reader.last is InputEventMouseMotion and reader.last.relative == Vector2.ZERO,
+			"with a still move, which tells the menus the mouse is in use")
+	assert_eq(reader.presses + reader.releases, 0, "it presses nothing")
+	GameManager.settings.mouse_sensitivity = 2.0
+	var before := _vc().pointer_pos
+	_push(Vector2(-10, 0))
+	assert_near(before.x - _vc().pointer_pos.x, 20.0, 0.01, "and the mouse moves it at the game's sensitivity again")
+	_end()
+
+func test_the_pointer_coming_back_while_another_app_is_in_front_leaves_the_mouse() -> void:
+	_begin()
+	_slip_out()
+	_vc().notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	_vc().notification(Node.NOTIFICATION_WM_MOUSE_EXIT)
+	_vc().notification(Node.NOTIFICATION_WM_MOUSE_ENTER)
+	assert_false(_held(), "passing over the game while another app is in front never takes the mouse")
+	assert_false(_vc().shown, "or shows the drawn cursor")
+	_end()
+
 func test_the_right_stick_picks_a_let_go_mouse_up() -> void:
 	_begin()
 	_slip_out()

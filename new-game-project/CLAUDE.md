@@ -49,7 +49,7 @@ order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless — only headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~6088 tests, 57 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves). Never F6 / Run Current Scene: the runner refuses a windowed run (prints this command and quits), because it would install the cursor's window hook and the hold tests would capture and warp your real pointer.
+- **Run tests headless — only headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~6104 tests, 57 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves). Never F6 / Run Current Scene: the runner refuses a windowed run (prints this command and quits), because it would install the cursor's window hook and the hold tests would capture and warp your real pointer.
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -1143,13 +1143,23 @@ the game has to take the mouse over and move and draw the cursor itself.
   event reaches the game** (`_route_released`) except a left press inside the window, which picks
   the mouse up with `pointer_pos` at the press and swallows that press and its release (the click
   presses nothing), then pushes a still move there so hover and the glow are right at once. The
-  right stick or Cursor Click picks it up too (`_show_for_pad`). **Focus:** the mouse is held only
+  right stick or Cursor Click picks it up too (`_show_for_pad`). **Coming back in:** the system
+  pointer leaving the window (`NOTIFICATION_WM_MOUSE_EXIT` → `hold.on_pointer_left`) and then
+  coming back in (`NOTIFICATION_WM_MOUSE_ENTER` → `_on_pointer_back`) picks the mouse up with no
+  click, the cursor carrying on from where it came in (`_hold_again`), so the cursor is at the
+  game's sensitivity as soon as it is over the game — the system moves a pointer the game doesn't
+  hold at desktop speed, which in play read as the sensitivity being lost. Only an enter that
+  follows a leave since letting go counts (`CursorHold` keeps `_left`, reset by every transition):
+  the let-go puts the pointer just inside the edge, and on macOS the switch from captured to
+  visible itself reports the pointer entering. Never while another app is in front. Godot sets the
+  root's `mouse_in_window` only after this notification, so hover follows the next move.
+  **Focus:** the mouse is held only
   while the game is in front: `_app_focused` (`NOTIFICATION_APPLICATION_FOCUS_IN/OUT`) **and**
   `_window_focused` (`NOTIFICATION_WM_WINDOW_FOCUS_IN/OUT`, read from
   `DisplayServer.window_is_focused()` because an embedded dropdown taking focus sends the root a
   window focus-out too). Losing either (Cmd-Tab, minimising) lets go; coming back picks up a
   fullscreen or borderless game at once (the cursor carries on from the system pointer if it is
-  over the game), while a windowed one waits for a click. Never captured while not in front
+  over the game), while a windowed one waits for the pointer to come in, or a click. Never captured while not in front
   (`_wanted_mouse_mode`): a game that opens behind another app takes the mouse when it comes to the
   front. `on_display_changed()` (from `GameManager.apply_display_and_save`, deferred, and the
   launch display apply) re-hooks and picks a let-go mouse up if the game is now fullscreen or
@@ -1238,7 +1248,8 @@ the game has to take the mouse over and move and draw the cursor itself.
   viewport — a Node2D or a Control, not only the root — and `DisplayServer.mouse_get_position()`):
   with the mouse captured it is the hidden OS pointer, not the cursor. Read
   `GameManager.virtual_cursor.pointer_pos`, or the position on the event. The one exception is `VirtualCursor._hold_again`, which reads it while the
-  system pointer is still visible, just before capturing, so the cursor carries on from it.
+  system pointer is still visible, just before capturing, so the cursor carries on from it
+  (focus coming back, a switch to fullscreen, the pointer coming back into the window).
   Godot's own `Window.update_mouse_cursor_state()` does read it: it pushes a mouse move of its own
   at the hidden OS pointer, so hover jumps there. It runs when a hovered control already in the tree
   changes `mouse_default_cursor_shape`, and at the end of a drag-and-drop. Nothing triggers it
@@ -1484,7 +1495,7 @@ BattleScene (Node2D)
   tests capture and warp the developer's real pointer. The runner also keeps `user://config.cfg`
   (its bytes, or that it was absent) before the first suite and puts it back after the last, so
   a suite can't leave the developer's settings changed — a test that saves settings should still
-  `_protect()` / `_restore()` it, as `test_settings` does. **~6088 tests / 57 suites**
+  `_protect()` / `_restore()` it, as `test_settings` does. **~6104 tests / 57 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,
