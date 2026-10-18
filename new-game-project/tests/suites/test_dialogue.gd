@@ -90,3 +90,59 @@ func test_the_pause_key_waits_for_a_conversation_to_end() -> void:
 	assert_false(DialogueManager.is_active(), "the conversation is over")
 	assert_true(OverworldScene.pause_menu_allowed(false, false, DialogueManager.is_active()),
 		"and then the pause key opens the menu")
+
+# --- clicking the box ---------------------------------------------------------
+
+## A left press and release pushed into the root at `spot` (root-viewport pixels), as
+## the themed cursor pushes the mouse and the stick's Cursor Click.
+func _click_at(spot: Vector2) -> void:
+	var root := GameManager.get_tree().root
+	for pressed in [true, false]:
+		var ev := InputEventMouseButton.new()
+		ev.button_index = MOUSE_BUTTON_LEFT
+		ev.pressed = pressed
+		ev.position = spot
+		ev.global_position = spot
+		root.push_input(ev, true)
+
+func test_a_click_on_the_dialogue_box_advances_it() -> void:
+	# The box is where a player clicks (with the mouse, or the stick cursor's Cursor
+	# Click). Its panel used to stop the click, so it never reached the advance; only a
+	# click elsewhere on the screen moved the conversation on.
+	var kept_controller: bool = GameManager._controller_mode
+	var kept_keyboard: bool = GameManager._keyboard_nav
+	# DialogueManager makes the global box on a deferred call, after the tests have run,
+	# so build one the same way (a child of the manager) if it isn't there yet.
+	var box = DialogueManager._box
+	var made := box == null
+	if made:
+		box = load("res://scripts/dialogue/DialogueBox.gd").new()
+		DialogueManager.add_child(box)
+	DialogueManager.play_lines("Bob", ["one", "two", "three"])
+	box._finish_typing()   # the line has finished typing out
+	var panel: Control = box._root.get_child(0)
+	_click_at(panel.get_global_rect().get_center())
+	assert_eq(DialogueManager.current_text(), "two", "a click on the box shows the next line")
+	box._finish_typing()
+	_click_at(panel.get_global_rect().position + Vector2(6, 6))   # the box's padding, outside the text
+	assert_eq(DialogueManager.current_text(), "three", "so does a click on the box's edge")
+
+	# A revealed choice is still picked with its button, which keeps taking clicks.
+	DialogueManager.play([
+		{"id": "q", "speaker": "Bob", "text": "Well?", "choices": [
+			{"label": "Yes", "next": null},
+			{"label": "No", "next": null},
+		]},
+	])
+	box._finish_typing()
+	assert_true(box._choices_box.visible, "the choices are showing")
+	for b in box._choice_buttons:
+		assert_eq((b as Control).mouse_filter, Control.MOUSE_FILTER_STOP, "each choice button still takes its click")
+	_click_at(panel.get_global_rect().get_center())
+	assert_eq(DialogueManager.current_text(), "Well?", "a click beside the choices doesn't skip the question")
+
+	DialogueManager.end_dialogue()
+	if made:
+		DialogueManager.remove_child(box)
+		box.free()
+	GameManager._apply_input_mode(kept_controller, kept_keyboard)
