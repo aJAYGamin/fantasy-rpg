@@ -3,7 +3,7 @@
 **Date:** 2026-10-17 · **Branch:** `themed-cursor` · **Spec:**
 `.claude/docs/superpowers/specs/2026-10-17-themed-cursor-design.md` ("Every screen, every input")
 
-**Addendum, branch `onscreen-keyboard`:** the one gap this pass left open (renaming a
+**Addendum, branch `onscreen-keyboard` (play-tested and merged 2026-10-18):** the one gap this pass left open (renaming a
 controller keybind profile on a pad) is closed by the on-screen keyboard
 (`.claude/docs/superpowers/specs/2026-10-17-onscreen-keyboard-design.md`). The Settings —
 Keyboard and Controller rows below, "Open gaps" and the checklist's **On-screen keyboard**
@@ -95,7 +95,7 @@ or `open` (a gap left for a decision).
 ## Open gaps (left for a decision)
 
 1. ~~**Renaming a keybind profile needs a keyboard.**~~ **Closed (branch
-   `onscreen-keyboard`).** On the Controller page, A on the "Rename" field (or a
+   `onscreen-keyboard`, merged 2026-10-18).** On the Controller page, A on the "Rename" field (or a
    stick-cursor click on it) opens an on-screen keyboard, so a pad-only player can
    rename a controller profile; see the spec,
    `.claude/docs/superpowers/specs/2026-10-17-onscreen-keyboard-design.md`. The

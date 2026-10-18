@@ -1933,9 +1933,10 @@ profiles, movesets/loadouts, rest areas, and the controller-navigation pass.
   mouse event is routed through, an in-game mouse sensitivity, the right stick moving it with a
   remappable Cursor Click, the mouse held / let go per window mode, the Settings → Controls →
   Mouse page, and an every-screen, every-input pass. See **Themed cursor**.
-- **On-screen keyboard** (branch `onscreen-keyboard`, 2026-10-17; built, play-test pending, not yet
-  merged): a themed QWERTY panel for renaming a controller keybind profile on a pad, the one gap the
-  every-screen pass left. See **On-screen keyboard** under P4.
+- **On-screen keyboard — DONE** (branch `onscreen-keyboard`, 2026-10-18): a themed QWERTY panel for
+  renaming a controller keybind profile on a pad, the one gap the every-screen pass left. The
+  play-test also added a note on the Mouse page saying where the right stick's speed is set. See
+  **On-screen keyboard** and **Mouse page** under P4.
 - **Stats screen format tweaks** — minor visual/format work the user deferred.
 - **Save/load edge cases — DONE** (branch `save-check`, 2026-10-16): the
   `SaveCoverage` safety net (see **Save System**); item and gear prices, the inn
@@ -2019,7 +2020,7 @@ These are **scheduled as Track C** in the Roadmap above; the detail lives here.
 - **Virtual cursor + mouse sensitivity (was "Chunk D" of P4): DONE** (2026-10-17) — see
   **Themed cursor** in Core Systems. Its every-screen pass left one gap, renaming a keybind
   profile on a pad (a controller could reach the field but not type); the on-screen keyboard
-  (branch `onscreen-keyboard`, spec `.claude/docs/superpowers/specs/2026-10-17-onscreen-keyboard-design.md`)
+  (branch `onscreen-keyboard`, merged 2026-10-18; spec `.claude/docs/superpowers/specs/2026-10-17-onscreen-keyboard-design.md`)
   closed it — see **On-screen keyboard** under P4. The manual play-test checklist, the keyboard's
   steps included, is in `.claude/docs/superpowers/notes/2026-10-17-every-screen-every-input.md`.
 - **Stats screen format tweaks:** minor visual/format work on the P1 Stats screen that the
