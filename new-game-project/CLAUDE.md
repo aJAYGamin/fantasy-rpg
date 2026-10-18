@@ -49,7 +49,7 @@ order and its contents.
 - **Autoload Singleton:** `GameManager` (`res://scripts/GameManager.gd`)
 - **Main scenes:** `MainMenu.tscn`, `OverworldScene.tscn`, `BattleScene.tscn`
 - **Fonts:** Cinzel-Regular.ttf, Cinzel-Bold.ttf (`res://fonts/`)
-- **Run tests headless — only headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~6104 tests, 57 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves). Never F6 / Run Current Scene: the runner refuses a windowed run (prints this command and quits), because it would install the cursor's window hook and the hold tests would capture and warp your real pointer.
+- **Run tests headless — only headless:** `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tests/TestRunner.tscn --quit-after 5` (currently **~6388 tests, 58 suites** — count varies slightly with how many save slots exist, since a few SaveSerializer tests skip to protect real saves). Never F6 / Run Current Scene: the runner refuses a windowed run (prints this command and quits), because it would install the cursor's window hook and the hold tests would capture and warp your real pointer.
 - **Force class-cache rescan** (after adding a new `class_name` file): `… --headless --editor --quit-after 3 --path .`
 
 ---
@@ -69,6 +69,7 @@ scripts/
     EquipmentScreen.gd        # class_name EquipmentScreen — pause-menu per-hero equip page, 5 slots (P3)
     SettingsScreen.gd         # class_name SettingsScreen — settings hub (Game/Controls/Audio/Display/Performance) (P4)
     CyclerRow.gd              # class_name CyclerRow — a "name ◀ value ▶" settings row (Max FPS; the Mouse page's shape + colour)
+    OnScreenKeyboard.gd       # class_name OnScreenKeyboard — themed QWERTY panel; renames a controller profile on a pad — see On-screen keyboard
     FocusUtil.gd              # class_name FocusUtil — L1/R1 category-cycle detection + held-state queries (P4)
     HoldRepeat.gd             # class_name HoldRepeat — auto-repeat timing for held nav / category cycling
     SaveIndicator.gd          # class_name SaveIndicator — bottom-right auto-save status badge (P5)
@@ -135,7 +136,7 @@ tools/                        # one-shot / offline scripts, run as scenes (not -
 tests/
   TestRunner.tscn/.gd         # runs all suites, HEADLESS ONLY (refuses a windowed run; keeps config.cfg as it found it); register suites in SUITE_PATHS
   TestSuite.gd                # base class with assert_* helpers
-  suites/                     # one test_<feature>.gd per system (57 suites)
+  suites/                     # one test_<feature>.gd per system (58 suites)
   fixtures/                   # move_library_baseline.json — pre-migration snapshot for the MoveLibrary suite
 assets/  backgrounds/ characters/ enemies/ icons/ ui/
 fonts/   music/
@@ -1223,7 +1224,9 @@ the game has to take the mouse over and move and draw the cursor itself.
   the same pushed mouse events as the mouse, so a screen that works with the mouse works with it
   (nothing outside `scripts/cursor/` reads the mouse any other way — keep it so). The stick has no
   wheel: a long list is scrolled by dragging its scrollbar, so every scroll list keeps the themed,
-  draggable bar. Open: renaming a keybind profile still needs a keyboard (no on-screen keyboard).
+  draggable bar. The one gap it left, renaming a keybind profile on a pad, is closed by the
+  on-screen keyboard (see **On-screen keyboard** under P4); it tells a Cursor Click on the Rename
+  field from a real mouse click with `VirtualCursor.pad_click`.
 - **The popup mirror.** Embedded popups (an OptionButton's list) draw above every
   CanvasLayer of the root, so an open list would cover the cursor. `update_mirrors()` (every
   frame) gives each open window in `get_embedded_subwindows()` its own internal CanvasLayer +
@@ -1495,11 +1498,11 @@ BattleScene (Node2D)
   tests capture and warp the developer's real pointer. The runner also keeps `user://config.cfg`
   (its bytes, or that it was absent) before the first suite and puts it back after the last, so
   a suite can't leave the developer's settings changed — a test that saves settings should still
-  `_protect()` / `_restore()` it, as `test_settings` does. **~6104 tests / 57 suites**
+  `_protect()` / `_restore()` it, as `test_settings` does. **~6388 tests / 58 suites**
   currently: character, skill, elemental, rarity, enemy, encounter_group, resonance,
   enemy_ai, game_manager, party_factory, save_serializer, status_system, hero_palette,
   stats_screen, items_screen, item_factory, equipment, settings, input_map, focus_guard,
-  auto_save, level_up_screen, defeat_flow, roaming_enemy, move_library, skill_resolver, status_chips, battle_menu_gating, enemy_cards, meter_bars, skill_options, scrollbars, multi_turn, cursor_art, cursor_motion, cursor_hold, virtual_cursor, cycler_row, runner_guards.
+  auto_save, level_up_screen, defeat_flow, roaming_enemy, move_library, skill_resolver, status_chips, battle_menu_gating, enemy_cards, meter_bars, skill_options, scrollbars, multi_turn, cursor_art, cursor_motion, cursor_hold, virtual_cursor, cycler_row, onscreen_keyboard, runner_guards.
 - ⚠️ **`TOTAL … 0 failed` can hide a runtime script error.** A `SCRIPT ERROR` inside
   a test aborts that test method WITHOUT recording a failure, so a broken test
   just stops counting. After a full run also grep the output for `SCRIPT ERROR`
@@ -1682,6 +1685,29 @@ own Testing Policy above — the policy (a suite per feature, registered in
     `SettingsModel.MOUSE_SENS_STEP`). A shape or colour change sets the setting and calls
     `apply_cursor_and_save()` (the live cursor follows at once, so there is no preview section); the colour row
     also re-tints the shape row's icon. The right stick's speed stays on the Controller page.
+  - **On-screen keyboard (Settings → Controls → Controller → Rename)** (`scripts/ui/OnScreenKeyboard.gd`,
+    `class_name OnScreenKeyboard`; spec + mockup: `.claude/docs/superpowers/specs/2026-10-17-onscreen-keyboard-*`):
+    a themed QWERTY panel (⇧, ⌫, a `! ?` symbols page, Space, ✕ Cancel, ✓ Done; names capped at
+    `InputProfiles.MAX_NAME_LENGTH`, edited at the end only) so a pad-only player can rename a controller profile.
+    **Opens** from the Controller page's field only (the Keyboard page's `_kb_profile_name` has none, by design — user,
+    2026-10-17): the pad's Confirm on the highlighted field (`SettingsScreen._input`; Enter on it stays a text box's) or a
+    stick-cursor click (`_on_pad_name_gui_input` reads `VirtualCursor.pad_click`, true only while `_push_click` delivers
+    Cursor Click, so a real mouse click still puts the caret in). `_open_name_keyboard` adds it as the screen's LAST
+    child (its `_input` runs first); it is its own focus scope, highlight on Q. `finished(text)` goes through
+    `_on_profile_renamed` (the usual `InputProfiles.set_name` rules); either signal returns the highlight to Rename with
+    `set_preferred_focus` (the page is `FOCUS_NONE` under the panel's scope, so never `grab_focus`).
+    **Buttons:** Confirm (A) presses the key, Cancel/Back (B) deletes (held repeats), X cancels, Y adds a space, LB toggles
+    capitals, Pause/Menu (Start) finishes. A/B/Start follow the player's remaps; X/Y/LB are fixed, and one the player has
+    bound to Confirm/Cancel/Pause acts as that binding (`legend_entries()` names their real buttons). A real keyboard
+    types, Backspace deletes, Enter = Done, Esc = Cancel.
+    ⚠️ Whatever the panel acts on it swallows, so the page's B, the pause menu and the overworld's pause handler never
+    hear it. `GameManager._input` then never sees that press either, so the panel calls `GameManager.note_input_device(event)`
+    first (the old `_input` body: input-mode switch + activity stamps) and a swallowed pad press still brings the highlight
+    back. ⚠️ A trigger bound to Cancel/Pause acts once per pull and the whole pull is swallowed; a panel closed mid-pull
+    stays hidden (`_draining`) until the release sample, else the rest of the pull reaches the pause handler as fresh
+    presses. A page rebuild while open frees the panel (`_exit_tree` drops its scope) and counts as Cancel. Cinzel draws
+    lowercase as small capitals, so capitals on/off shows only as letter size (no indicator on ⇧). Suite
+    `onscreen_keyboard` (+ the opening tests in `settings` and `virtual_cursor`).
   - **`CyclerRow`** (`scripts/ui/CyclerRow.gd`): name · `◀` · `[icon or dot] value` · `▶`, same width for every row so
     steppers line up. ONE focus stop: the arrows are click-only (`BattleUITheme.mark_no_focus`, so the focus guard
     never makes them focusable), and the row consumes `ui_left`/`ui_right` while focused (`_gui_input`, stepping
@@ -1741,7 +1767,7 @@ own Testing Policy above — the policy (a suite per feature, registered in
       stepping it (the repeat calls `step`), and on a `Slider` leaves focus alone. Before this, a held d-pad
       right on any slider (the Controller page's stick sliders too) slid focus off it after the initial delay
       (wrapping, since a slider has no neighbour on its right).
-  - Suites: `settings`, `input_map`, `focus_guard`, `hold_repeat`.
+  - Suites: `settings`, `input_map`, `focus_guard`, `hold_repeat`, `onscreen_keyboard`.
 - **Phase P5 — Auto-save** (`scripts/save/AutoSaveSystem.gd` `class_name AutoSaveSystem`;
   `scripts/ui/SaveIndicator.gd` `class_name SaveIndicator`): auto-saves to the active slot on
   entering a town/safe zone. `MapArea.safe_zones: Array[Rect2]` lists town rects in world space
@@ -1891,6 +1917,9 @@ profiles, movesets/loadouts, rest areas, and the controller-navigation pass.
   mouse event is routed through, an in-game mouse sensitivity, the right stick moving it with a
   remappable Cursor Click, the mouse held / let go per window mode, the Settings → Controls →
   Mouse page, and an every-screen, every-input pass. See **Themed cursor**.
+- **On-screen keyboard** (branch `onscreen-keyboard`, 2026-10-17; built, play-test pending, not yet
+  merged): a themed QWERTY panel for renaming a controller keybind profile on a pad, the one gap the
+  every-screen pass left. See **On-screen keyboard** under P4.
 - **Stats screen format tweaks** — minor visual/format work the user deferred.
 - **Save/load edge cases — DONE** (branch `save-check`, 2026-10-16): the
   `SaveCoverage` safety net (see **Save System**); item and gear prices, the inn
@@ -1972,10 +2001,11 @@ save".
 ### Deferred / known follow-ups
 These are **scheduled as Track C** in the Roadmap above; the detail lives here.
 - **Virtual cursor + mouse sensitivity (was "Chunk D" of P4): DONE** (2026-10-17) — see
-  **Themed cursor** in Core Systems. Left open by its every-screen pass: renaming a keybind
-  profile needs a keyboard (a controller can reach the field but not type; an on-screen keyboard
-  would be new UI). The manual play-test checklist is in
-  `.claude/docs/superpowers/notes/2026-10-17-every-screen-every-input.md`.
+  **Themed cursor** in Core Systems. Its every-screen pass left one gap, renaming a keybind
+  profile on a pad (a controller could reach the field but not type); the on-screen keyboard
+  (branch `onscreen-keyboard`, spec `.claude/docs/superpowers/specs/2026-10-17-onscreen-keyboard-design.md`)
+  closed it — see **On-screen keyboard** under P4. The manual play-test checklist, the keyboard's
+  steps included, is in `.claude/docs/superpowers/notes/2026-10-17-every-screen-every-input.md`.
 - **Stats screen format tweaks:** minor visual/format work on the P1 Stats screen that the
   user deferred "to some point later" — expect them.
 - **Roamer state is in-memory only** (per session), not written into the save JSON. After a
