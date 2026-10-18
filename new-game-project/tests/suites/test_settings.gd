@@ -1036,7 +1036,7 @@ func test_a_rebuild_while_open_closes_the_keyboard() -> void:  # Review Focus 5
 	assert_true(is_instance_valid(panel), "the keyboard opens")
 	var old: WeakRef = weakref(panel)
 	assert_true(GameManager.has_focus_scope(panel), "it is a focus scope while open")
-	screen._build()   # a controller connecting, say
+	screen._build()   # as Back or any change of view does (nothing rebuilds the page when a controller connects)
 	assert_true(screen._keyboard_panel == null, "a rebuild closes the keyboard")
 	assert_eq(_keyboards_under(screen).size(), 0, "and leaves none under the screen")
 	var dead: Object = old.get_ref()   # still there until the end of the frame
