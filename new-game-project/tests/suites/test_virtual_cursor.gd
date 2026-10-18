@@ -22,6 +22,9 @@ class InputReader extends Node:
 	var last: InputEvent = null
 	var last_motion: InputEventMouseMotion = null
 	var last_motion_mask := -1
+	## VirtualCursor.pad_click as each left press and release arrived.
+	var pad_on_press: Array = []
+	var pad_on_release: Array = []
 
 	func _input(ev: InputEvent) -> void:
 		last = ev
@@ -30,6 +33,8 @@ class InputReader extends Node:
 				presses += 1
 			else:
 				releases += 1
+			if ev.button_index == MOUSE_BUTTON_LEFT:
+				(pad_on_press if ev.pressed else pad_on_release).append(GameManager.virtual_cursor.pad_click)
 		elif ev is InputEventMouseMotion:
 			last_motion = ev
 			last_motion_mask = ev.button_mask
@@ -182,6 +187,14 @@ func _pad_motion(axis: JoyAxis, value: float) -> InputEventJoypadMotion:
 	ev.axis_value = value
 	_vc().route_os_event(ev)
 	return ev
+
+## A frame lays containers out on a deferred call and none runs inside a test, so sort
+## them here, top-down, the way the engine would.
+func _lay_out(node: Node) -> void:
+	if node is Container:
+		node.notification(Container.NOTIFICATION_SORT_CHILDREN)
+	for child in node.get_children():
+		_lay_out(child)
 
 ## Makes `button` the whole of Cursor Click's binding.
 func _bind_cursor_click(button: JoyButton) -> void:
@@ -1282,4 +1295,101 @@ func test_a_game_that_opens_behind_another_app_holds_the_mouse_once_in_front() -
 	_vc().notification(Node.NOTIFICATION_WM_WINDOW_FOCUS_IN)
 	assert_true(_held(), "once in front, even a windowed game holds the mouse without a click")
 	assert_eq(_vc()._wanted_mouse_mode(), Input.MOUSE_MODE_CAPTURED, "and takes it")
+	_end()
+
+# --- Telling the stick's click from the mouse's ------------------------------------
+
+func test_a_stick_click_says_it_came_from_the_pad() -> void:
+	# Cursor Click and a real mouse button both reach a control as a left InputEventMouseButton;
+	# pad_click is how a control (the Controller page's Rename field) tells them apart.
+	var layer := _begin()
+	var reader := InputReader.new()
+	layer.add_child(reader)
+	_motion_to(Vector2(300, 200))   # the cursor is up, so the stick's press clicks
+	assert_false(_vc().pad_click, "no click is being pushed")
+	_stick_click()
+	assert_eq(reader.pad_on_press, [true], "the press the stick made says it came from the pad")
+	assert_eq(reader.pad_on_release, [true], "and so does its release")
+	assert_false(_vc().pad_click, "and the flag is down again afterwards")
+	_click()
+	assert_eq(reader.pad_on_press, [true, false], "a real mouse press does not")
+	assert_eq(reader.pad_on_release, [true, false], "nor its release")
+	assert_false(_vc().pad_click, "and the flag stays down")
+	_end()
+
+## A Settings screen on `layer`, on `view`, laid out now, with `field` in the visible part of its
+## scroll area. The field commits its text when it loses focus (writing config.cfg), so a test
+## that uses it keeps the config file and the controller profile's name (see _keep_config).
+func _settings_page(layer: CanvasLayer, view: String, field_name: String) -> SettingsScreen:
+	var screen := SettingsScreen.new()
+	layer.add_child(screen)
+	screen.set_anchors_preset(Control.PRESET_FULL_RECT)
+	screen._view = view
+	screen._build()
+	_lay_out(screen)
+	var scroll := screen.find_children("*", "ScrollContainer", true, false)[0] as ScrollContainer
+	scroll.ensure_control_visible(screen.get(field_name))
+	_lay_out(screen)
+	return screen
+
+var _kept_config := {}
+
+func _keep_config() -> void:
+	var path := "user://config.cfg"
+	var profiles := GameManager.input_profiles
+	_kept_config = {
+		"had": FileAccess.file_exists(path),
+		"bytes": FileAccess.get_file_as_bytes(path) if FileAccess.file_exists(path) else PackedByteArray(),
+		"names": [profiles.name_for(true, profiles.active_index(true)), profiles.name_for(false, profiles.active_index(false))],
+	}
+
+func _put_config_back() -> void:
+	var path := "user://config.cfg"
+	var profiles := GameManager.input_profiles
+	profiles.set_name(true, profiles.active_index(true), _kept_config["names"][0])
+	profiles.set_name(false, profiles.active_index(false), _kept_config["names"][1])
+	if _kept_config["had"]:
+		var f := FileAccess.open(path, FileAccess.WRITE)
+		f.store_buffer(_kept_config["bytes"])
+		f.close()
+	elif FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)
+
+func test_the_stick_cursor_opens_the_rename_keyboard_and_the_mouse_does_not() -> void:
+	var layer := _begin()
+	_keep_config()
+	var profiles := GameManager.input_profiles
+	profiles.set_name(false, profiles.active_index(false), "Couch")
+	var screen := _settings_page(layer, "controller", "_pad_profile_name")
+	var field := screen._pad_profile_name
+	var scroll := screen.find_children("*", "ScrollContainer", true, false)[0] as ScrollContainer
+	assert_true(scroll.get_global_rect().encloses(field.get_global_rect()), "the Rename field is inside the scroll area's visible part")
+
+	_motion_to(field.get_global_rect().get_center())
+	_click()
+	assert_true(screen._keyboard_panel == null, "a real mouse click on the field opens no keyboard")
+	assert_true(field.has_focus(), "it puts the caret in, as it always did")
+	_stick_click()
+	assert_true(is_instance_valid(screen._keyboard_panel), "the stick cursor's click opens the keyboard")
+	if is_instance_valid(screen._keyboard_panel):
+		assert_eq(screen._keyboard_panel.get_text(), "Couch", "on the profile's current name")
+
+	layer.remove_child(screen)
+	screen.free()
+	_put_config_back()
+	_end()
+
+func test_the_stick_cursor_opens_nothing_from_the_keyboard_pages_field() -> void:
+	var layer := _begin()
+	_keep_config()
+	var screen := _settings_page(layer, "keyboard", "_kb_profile_name")
+	var field := screen._kb_profile_name
+	_motion_to(field.get_global_rect().get_center())
+	_stick_click()
+	assert_true(screen._keyboard_panel == null, "the Keyboard page's field gets no on-screen keyboard from the stick either")
+	assert_eq(screen.find_children("*", "OnScreenKeyboard", true, false).size(), 0, "none is anywhere under the screen")
+
+	layer.remove_child(screen)
+	screen.free()
+	_put_config_back()
 	_end()

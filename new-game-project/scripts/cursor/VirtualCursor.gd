@@ -64,6 +64,12 @@ var _buttons := 0
 var _click_down := false
 ## The Cursor Click control is held down (an edge, so one pull of a trigger is one press).
 var _click_held := false
+## True only while Cursor Click is being pushed in as a left press or release (_push_click).
+## Both it and a real mouse button reach a control as the same InputEventMouseButton; a
+## control that must tell them apart (the Controller page's Rename field) reads this in the
+## handler of the click itself, where the push is synchronous. It is false for every real
+## mouse event and as soon as the push is done.
+var pad_click := false
 ## The game is the app in front, and its window has the system's focus (it can lose it
 ## with the app still in front: minimised, say). Both start true: the window opens in
 ## front, and a notification sent before the scene tree existed would never arrive.
@@ -275,7 +281,9 @@ func _push_click(pressed: bool) -> void:
 	var mb := InputEventMouseButton.new()
 	mb.button_index = MOUSE_BUTTON_LEFT
 	mb.pressed = pressed
+	pad_click = true
 	_push_button(mb)
+	pad_click = false
 
 ## Announces an event on the root window's window_input signal, as the engine's own
 ## window does before delivering, then delivers it. `in_root_units`: the event's

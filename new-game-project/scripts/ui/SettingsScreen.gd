@@ -48,6 +48,10 @@ var _pad_profile_name: LineEdit = null
 var _listening: bool = false
 var _listen_action: String = ""
 var _listen_keyboard: bool = true
+# The on-screen keyboard over the Controller page's Rename field; null whenever it is not
+# open. Set to null the moment it reports (finished / cancelled), even though it may linger,
+# hidden, in the tree for a moment (it frees itself, or waits out a held trigger first).
+var _keyboard_panel: OnScreenKeyboard = null
 
 func setup(standalone: bool = false) -> void:
 	_standalone = standalone
@@ -65,9 +69,20 @@ func _exit_tree() -> void:
 func _input(event: InputEvent) -> void:
 	if not visible:
 		return
+	# The keyboard is this screen's last child, so it has heard every press before this runs;
+	# what it let by (the d-pad, Confirm, releases) is its to use, not the page's.
+	if _keyboard_open():
+		return
 	# While rebinding, capture the next key/controller input for the slot.
 	if _listening:
 		_capture_rebind(event)
+		return
+	# The pad's Confirm on the Controller page's Rename field: a pad has no keys to type
+	# with, so it types on the screen. Enter on the field, or a click, stays a text box's.
+	if _is_pad_confirm(event) and _name_field_has_focus():
+		GameManager.note_input_device(event)   # this screen takes the press, so GameManager never sees it
+		_open_name_keyboard()
+		get_viewport().set_input_as_handled()
 		return
 	if event.is_action_pressed("ui_cancel"):
 		var parent := _parent_of(_view)
@@ -107,6 +122,9 @@ func _build() -> void:
 	for c in get_children():
 		remove_child(c)
 		c.queue_free()
+	# The on-screen keyboard went with the other children (leaving the tree dropped its
+	# focus scope): a rebuild counts as Cancel. The next Confirm on the field opens a new one.
+	_keyboard_panel = null
 	_kb_buttons.clear()
 	_pad_buttons.clear()
 	if _listening:
@@ -439,6 +457,9 @@ func _profile_block(keyboard: bool) -> VBoxContainer:
 	else:
 		_pad_profile_pick = pick
 		_pad_profile_name = field
+		# Only this page's field gets the on-screen keyboard: someone renaming a keyboard
+		# profile has a keyboard.
+		field.gui_input.connect(_on_pad_name_gui_input)
 
 	box.add_child(_labeled_row("Active Profile", pick))
 	box.add_child(_labeled_row("Rename", field))
@@ -470,6 +491,60 @@ func _refresh_profile_name_field(keyboard: bool) -> void:
 	var field: LineEdit = _kb_profile_name if keyboard else _pad_profile_name
 	if is_instance_valid(field):
 		field.text = profiles.name_for(keyboard, profiles.active_index(keyboard))
+
+## True while the on-screen keyboard is open (see _keyboard_panel).
+func _keyboard_open() -> bool:
+	return is_instance_valid(_keyboard_panel)
+
+## A pad button (or a stick or trigger put on Confirm) just pressed as the player's Confirm.
+func _is_pad_confirm(event: InputEvent) -> bool:
+	return (event is InputEventJoypadButton or event is InputEventJoypadMotion) \
+		and event.is_action_pressed("ui_accept")
+
+## The Controller page's Rename field holds the highlight (the Keyboard page's never counts,
+## and a rebuilt page's old field, detached and waiting to be freed, holds nothing).
+func _name_field_has_focus() -> bool:
+	return is_instance_valid(_pad_profile_name) and _pad_profile_name.is_inside_tree() \
+		and _pad_profile_name.has_focus()
+
+## A click on the Controller page's Rename field. The stick cursor's Cursor Click opens the
+## on-screen keyboard; a real mouse click is left to the field (the caret), as it always was.
+func _on_pad_name_gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT \
+			and GameManager.virtual_cursor != null and GameManager.virtual_cursor.pad_click:
+		_pad_profile_name.accept_event()   # not a caret click
+		_open_name_keyboard()
+
+## Opens the on-screen keyboard over the page, on the active controller profile's name.
+## It is added last so its `_input` runs before this screen's own (and before the pause
+## menu's and the overworld's, which sit earlier in the tree). It registers its own focus
+## scope and puts the highlight on its Q key; this page stays visible, dimmed, behind it.
+func _open_name_keyboard() -> void:
+	if _keyboard_open():
+		return
+	var profiles: InputProfiles = GameManager.input_profiles
+	var panel := OnScreenKeyboard.new()
+	add_child(panel)
+	_keyboard_panel = panel
+	panel.finished.connect(_on_name_keyboard_finished)
+	panel.cancelled.connect(_on_name_keyboard_cancelled)
+	panel.open(profiles.name_for(false, profiles.active_index(false)), InputProfiles.MAX_NAME_LENGTH)
+
+## Done: the typed name goes through the same rules as one typed into the field.
+func _on_name_keyboard_finished(text: String) -> void:
+	_on_name_keyboard_closed()
+	_on_profile_renamed(false, text)
+
+## Cancel: the name stays what it was.
+func _on_name_keyboard_cancelled() -> void:
+	_on_name_keyboard_closed()
+
+## Either way the keyboard frees itself (after a held trigger lets go, if one is held, so
+## this must not touch it), and the highlight goes back to the Rename field it came from.
+func _on_name_keyboard_closed() -> void:
+	_keyboard_panel = null
+	if is_instance_valid(_pad_profile_name):
+		GameManager.set_preferred_focus(self, _pad_profile_name)
 
 ## A themed single-line text box. Commits on Enter or when focus leaves, so the
 ## player can click away without losing what they typed.

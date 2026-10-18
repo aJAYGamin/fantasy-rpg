@@ -381,6 +381,20 @@ func test_confirm_presses_the_highlighted_key_and_directions_move_it() -> void:
 	assert_eq(_reader.heard.size(), 2, "a direction passes through")
 	_end()
 
+func test_a_confirm_release_with_no_press_presses_nothing() -> void:
+	# The Confirm press that opens the panel (the Controller page's Rename field) is taken
+	# by the page, so its release arrives alone, on whichever key holds the highlight.
+	_begin()
+	GameManager.set_controller_mode_for_test(true)
+	var panel := _open("Couch")
+	GameManager.update_focus_guard_for_test()
+	assert_eq(_focus_owner(), panel.key_button("Q"), "the highlight is on Q")
+	_pad(JOY_BUTTON_A, false)
+	assert_eq(panel.get_text(), "Couch", "a release the key never saw pressed types nothing")
+	assert_eq(_reader.released.size(), 1, "it passed through, as every release does")
+	assert_true(GameManager.has_focus_scope(panel), "and the panel is still open")
+	_end()
+
 func test_releases_pass_through_and_change_nothing() -> void:
 	_begin()
 	var panel := _open("Couch")
