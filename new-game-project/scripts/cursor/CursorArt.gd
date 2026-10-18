@@ -415,6 +415,20 @@ static func texture(shape: String, colour: String) -> ImageTexture:
 	_texture_key = key
 	return _texture
 
+## The shape as a small icon (the Settings Mouse page's Cursor Shape row): the cursor's own
+## art at RENDER_SCALE without the glow margin, with mipmaps, so it shrinks cleanly into a
+## slot a quarter of its size or less (drawn with a mipmap filter). Null if the ids are
+## unknown. Not cached: made when the page shows a style.
+static func icon(shape: String, colour: String) -> ImageTexture:
+	var img := image(shape, colour)
+	if img == null:
+		return null
+	var view: Rect2 = SHAPE_DATA[shape]["view"]
+	var margin := int(GLOW_MARGIN * RENDER_SCALE)
+	var art := img.get_region(Rect2i(Vector2i(margin, margin), Vector2i(view.size * RENDER_SCALE)))
+	art.generate_mipmaps()
+	return ImageTexture.create_from_image(art)
+
 ## Every {token} a body template can use, resolved for one colour.
 static func _tokens(colour: String) -> Dictionary:
 	var palette: Dictionary = PALETTES[colour]

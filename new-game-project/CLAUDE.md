@@ -1692,8 +1692,10 @@ own Testing Policy above — the policy (a suite per feature, registered in
     waiting for a PAD button every button binds, B included. The Keyboard and Controller pages run
     past their scroll area, so every detail view's scroll has `follow_focus` on.
   - **Mouse page (Settings → Controls → Mouse):** three rows — **Cursor Shape** and **Cursor Colour** (`CyclerRow`s;
-    the shape row shows an icon of the shape in the CURRENT colour, the colour row a dot, ringed for Void and
-    Obsidian) and **Mouse Sensitivity** (`_sens_row` with the mouse's own 0.25–3.00 range and
+    the shape row shows an icon of the shape in the CURRENT colour — `CursorArt.icon(shape, colour)`, the cursor's
+    own art at 4× without the glow margin, with mipmaps, which `CyclerRow` draws with
+    `TEXTURE_FILTER_LINEAR_WITH_MIPMAPS` so it shrinks into its 20 × 26 slot cleanly — the colour row a dot, ringed
+    for Void and Obsidian) and **Mouse Sensitivity** (`_sens_row` with the mouse's own 0.25–3.00 range and
     `SettingsModel.MOUSE_SENS_STEP`). A shape or colour change sets the setting and calls
     `apply_cursor_and_save()` (the live cursor follows at once, so there is no preview section); the colour row
     also re-tints the shape row's icon. The right stick's speed stays on the Controller page, and a note under the slider (`STICK_SPEED_NOTE`) says so — a play-tester moved Mouse Sensitivity, saw the stick cursor unchanged and took it for a bug.

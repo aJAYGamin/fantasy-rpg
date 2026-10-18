@@ -129,3 +129,20 @@ func test_textures_are_rendered_at_the_art_size_times_scale() -> void:
 	var big := CursorArt.texture("A", "amethyst")
 	assert_eq(Vector2i(big.get_width(), big.get_height()), Vector2i(164, 196), "default is RENDER_SCALE (4x)")
 	assert_eq(CursorArt.RENDER_SCALE, 4.0, "rasterised at 4x")
+
+func test_the_icon_is_the_cursors_art_without_its_glow_margin_with_mipmaps() -> void:
+	var icon := CursorArt.icon("A", "amethyst")
+	assert_true(icon != null, "an icon for a real style")
+	assert_true(CursorArt.icon("Z", "amethyst") == null, "none for an unknown shape")
+	if icon == null:
+		return
+	var view: Rect2 = CursorArt.SHAPE_DATA["A"]["view"]
+	var size := Vector2i(view.size * CursorArt.RENDER_SCALE)
+	assert_eq(Vector2i(icon.get_width(), icon.get_height()), size, "the art's own size at 4x, no glow margin (84 x 116)")
+	var img := icon.get_image()
+	assert_true(img.has_mipmaps(), "with mipmaps, so it shrinks into the Mouse page's small slot cleanly")
+	var base := img.duplicate() as Image
+	base.clear_mipmaps()
+	var margin := int(CursorArt.GLOW_MARGIN * CursorArt.RENDER_SCALE)
+	var drawn := CursorArt.image("A", "amethyst").get_region(Rect2i(Vector2i(margin, margin), size))
+	assert_true(base.get_data() == drawn.get_data(), "and exactly the art the cursor draws")

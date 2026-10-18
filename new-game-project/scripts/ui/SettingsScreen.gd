@@ -403,38 +403,25 @@ func _build_mouse(v: VBoxContainer) -> void:
 
 	var shape_row := CyclerRow.new()
 	shape_row.setup("Cursor Shape", shape_names, maxi(0, CursorArt.SHAPES.find(s.cursor_shape)), MOUSE_NAME_WIDTH)
-	shape_row.set_icon(_shape_icon(s.cursor_shape, s.cursor_colour))
+	shape_row.set_icon(CursorArt.icon(s.cursor_shape, s.cursor_colour))
 	var colour_row := CyclerRow.new()
 	colour_row.setup("Cursor Colour", colour_names, maxi(0, CursorArt.COLOURS.find(s.cursor_colour)), MOUSE_NAME_WIDTH)
 	colour_row.set_swatch(CursorArt.swatch(s.cursor_colour), CursorArt.swatch_ring(s.cursor_colour))
 
 	shape_row.changed.connect(func(i: int):
 		s.cursor_shape = CursorArt.SHAPES[i]
-		shape_row.set_icon(_shape_icon(s.cursor_shape, s.cursor_colour))
+		shape_row.set_icon(CursorArt.icon(s.cursor_shape, s.cursor_colour))
 		GameManager.apply_cursor_and_save())
 	colour_row.changed.connect(func(i: int):
 		s.cursor_colour = CursorArt.COLOURS[i]
 		colour_row.set_swatch(CursorArt.swatch(s.cursor_colour), CursorArt.swatch_ring(s.cursor_colour))
-		shape_row.set_icon(_shape_icon(s.cursor_shape, s.cursor_colour))   # the icon wears the colour
+		shape_row.set_icon(CursorArt.icon(s.cursor_shape, s.cursor_colour))   # the icon wears the colour
 		GameManager.apply_cursor_and_save())
 	v.add_child(shape_row)
 	v.add_child(colour_row)
 	v.add_child(_sens_row("Mouse Sensitivity", s.mouse_sensitivity, func(val): s.mouse_sensitivity = val,
 		SettingsModel.MOUSE_SENS_MIN, SettingsModel.MOUSE_SENS_MAX, SettingsModel.MOUSE_SENS_STEP))
 	v.add_child(_label(STICK_SPEED_NOTE, BattleUITheme.font_regular(), 11, NOTE_COLOR, HORIZONTAL_ALIGNMENT_CENTER))
-
-## The shape as the cursor draws it (the same texture, so it looks exactly like the
-## cursor), without the transparent margin the hover glow needs.
-func _shape_icon(shape: String, colour: String) -> Texture2D:
-	var tex := CursorArt.texture(shape, colour)
-	if tex == null:
-		return null
-	var view: Rect2 = CursorArt.SHAPE_DATA[shape]["view"]
-	var icon := AtlasTexture.new()
-	icon.atlas = tex
-	var k := CursorArt.RENDER_SCALE
-	icon.region = Rect2(Vector2.ONE * CursorArt.GLOW_MARGIN * k, view.size * k)
-	return icon
 
 # --- Keybind profiles ---------------------------------------------------------
 # Three profiles per device, switched independently. Switching captures the
