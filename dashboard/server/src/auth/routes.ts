@@ -223,7 +223,11 @@ export function authRoutes(app: FastifyInstance, deps: AuthDeps): void {
     if (isLocked(lock, at)) return sendLocked(reply, lock);
 
     if (account !== null && matches.every(Boolean)) {
-      db.transaction(() => {
+      const reset = db.transaction((): boolean => {
+        // The answers just matched were read before the check began. If the owner changed them meanwhile, those
+        // old answers must not win: this attempt counts as a wrong one.
+        const stored = findById(db, account.id)?.answerHashes;
+        if (stored === undefined || JSON.stringify(stored) !== JSON.stringify(account.answerHashes)) return false;
         setPasswordHash(db, account.id, newHash);
         clearLock(db, key, "reset");
         // They just proved who they are with all three answers, so no waiting out a sign-in pause as well.
@@ -231,8 +235,9 @@ export function authRoutes(app: FastifyInstance, deps: AuthDeps): void {
         revokeAllSessions(db, account.id);
         const why = "Your password was changed with your security questions. Every sign-in was ended.";
         addNotification(db, account.id, "security", "Password changed", why, at);
+        return true;
       })();
-      return reply.code(204).send();
+      if (reset) return reply.code(204).send();
     }
 
     const next = registerFailure("reset", lock, at, config.lockMs);

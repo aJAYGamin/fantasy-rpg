@@ -763,6 +763,27 @@ test("a lock that lands while the answers are being checked refuses even right a
   expect(readLock(dbOf(app), "owner", "reset").lockedUntil).not.toBeNull();
 });
 
+test("answers changed while the old ones were being checked do not reset the password", async () => {
+  const app = await ownerApp();
+  const before = dbOf(app).prepare("SELECT password_hash, answer_hashes FROM accounts").get();
+  vi.mocked(verifyPassword).mockImplementationOnce(async (hashed, answer) => {
+    const ok = await realVerify(hashed, answer);
+    // The owner changes their answers, so the ones just matched are no longer the right ones.
+    const stored = JSON.parse(String((dbOf(app).prepare("SELECT answer_hashes FROM accounts").get() as Row).answer_hashes));
+    dbOf(app).prepare("UPDATE accounts SET answer_hashes = ?").run(JSON.stringify([stored[0], stored[1], "$argon2id$new"]));
+    return ok;
+  });
+  const res = await post(app, "/api/auth/forgot", forgotBody());
+  expect(res.statusCode).toBe(401);
+  expect(res.json()).toMatchObject({ error: "wrong_answer" });
+  expect(res.json().lockedUntil).toEqual(expect.any(String));
+  expect((dbOf(app).prepare("SELECT password_hash FROM accounts").get() as Row).password_hash).toBe(
+    (before as Row).password_hash,
+  );
+  expect(notifications(app).map((n) => n.title)).toEqual(["Password reset locked"]);
+  expect((await signin(app, OWNER_PASSWORD)).statusCode).toBe(200);
+});
+
 // ---- logs and unknown routes ------------------------------------------------------------------------
 
 test("passwords, answers and tokens never reach the log", async () => {

@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { ownerApp, signedIn, testApp } from "./helpers.js";
+import { get, ownerApp, signedIn, testApp } from "./helpers.js";
 
 // ---- malformed requests -----------------------------------------------------------------------------
 
@@ -36,13 +36,17 @@ test("every method except GET, HEAD and OPTIONS needs the request header", async
   }
 });
 
-test("a signed-in change without the request header is refused, even with a valid session", async () => {
+test("a signed-in change without the request header is refused, and changes nothing", async () => {
   const { app, cookie } = await signedIn();
-  for (const method of ["POST", "PUT", "PATCH", "DELETE"] as const) {
-    const res = await app.inject({ method, url: "/api/game/status", headers: { cookie } });
-    expect(res.statusCode, method).toBe(403);
-    expect(res.json().error, method).toBe("bad_request_header");
-  }
+  const res = await app.inject({
+    method: "PATCH",
+    url: "/api/settings",
+    payload: { appearance: "dark" },
+    headers: { cookie },
+  });
+  expect(res.statusCode).toBe(403);
+  expect(res.json()).toEqual({ error: "bad_request_header", message: "Missing request header." });
+  expect((await get(app, "/api/settings", cookie)).json().appearance).toBe("light");
 });
 
 // ---- fail closed ------------------------------------------------------------------------------------
@@ -101,5 +105,18 @@ test("every route outside sign-in and health answers 401 without a session", asy
         expect(res.json(), `${method} ${path}`).toEqual({ error: "signed_out", message: "Please sign in." });
       }
     }
+  }
+});
+
+test("every route that changes something refuses a valid session that lacks the request header", async () => {
+  const { app, cookie } = await signedIn();
+  const changing = registeredRoutes(app).flatMap(({ path, methods }) =>
+    methods.filter((method) => !["GET", "HEAD", "OPTIONS"].includes(method)).map((method) => ({ path, method })),
+  );
+  expect(changing.length).toBeGreaterThanOrEqual(8);
+  for (const { path, method } of changing) {
+    const res = await app.inject({ method: method as "POST", url: path.replace(/:\w+/g, "1"), headers: { cookie } });
+    expect(res.statusCode, `${method} ${path}`).toBe(403);
+    expect(res.json().error, `${method} ${path}`).toBe("bad_request_header");
   }
 });

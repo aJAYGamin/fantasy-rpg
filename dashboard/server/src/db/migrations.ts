@@ -55,6 +55,13 @@ const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    version: 2,
+    sql: `
+      -- Wrong current passwords typed while signed in (change password / change answers), counted per session.
+      ALTER TABLE sessions ADD COLUMN wrong_passwords INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];
 
 // Applies each migration that has not been recorded yet, each in its own transaction.

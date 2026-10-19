@@ -33,7 +33,26 @@ test("opening twice applies migrations once", () => {
   const file = tmpFile();
   openDb(file).close();
   const db = openDb(file);
-  expect(db.prepare("SELECT COUNT(*) AS n FROM schema_migrations").get()).toEqual({ n: 1 });
+  expect(db.prepare("SELECT COUNT(*) AS n FROM schema_migrations").get()).toEqual({ n: 2 });
+});
+
+test("a database from before the wrong-password count gains it, keeping its sessions", () => {
+  const file = tmpFile();
+  const old = openDb(file);
+  const id = insertAccount(old, "owner");
+  const now = new Date().toISOString();
+  old
+    .prepare("INSERT INTO sessions (token_hash, account_id, persistent, expires_at, created_at) VALUES (?, ?, 0, ?, ?)")
+    .run("token-hash", id, now, now);
+  // Make it look like migration 1 is the last one that ever ran.
+  old.exec("ALTER TABLE sessions DROP COLUMN wrong_passwords; DELETE FROM schema_migrations WHERE version = 2;");
+  old.close();
+
+  const upgraded = openDb(file);
+  expect(upgraded.prepare("SELECT token_hash, wrong_passwords FROM sessions").all()).toEqual([
+    { token_hash: "token-hash", wrong_passwords: 0 },
+  ]);
+  expect(upgraded.prepare("SELECT COUNT(*) AS n FROM schema_migrations").get()).toEqual({ n: 2 });
 });
 
 test("usernames are unique regardless of case", () => {

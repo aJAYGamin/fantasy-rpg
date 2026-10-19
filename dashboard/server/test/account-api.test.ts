@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
-import { expect, test } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "../../shared/src/api.js";
+import { hashPassword, verifyPassword } from "../src/auth/passwords.js";
 import { addNotification } from "../src/notifications/notifications.js";
 import {
   OWNER_ANSWERS,
@@ -20,6 +21,22 @@ import {
   tmpFile,
 } from "./helpers.js";
 
+// Wraps the real functions so a test can run code while a check or a hash is in flight.
+vi.mock("../src/auth/passwords.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/auth/passwords.js")>();
+  return {
+    ...actual,
+    verifyPassword: vi.fn(actual.verifyPassword),
+    hashPassword: vi.fn(actual.hashPassword),
+  };
+});
+const real = await vi.importActual<typeof import("../src/auth/passwords.js")>("../src/auth/passwords.js");
+
+beforeEach(() => {
+  vi.mocked(verifyPassword).mockReset();
+  vi.mocked(hashPassword).mockReset();
+});
+
 const WRONG = "nope-nope-nope";
 const NEW_PASSWORD = "another long password";
 
@@ -28,6 +45,12 @@ const rows = (app: FastifyInstance, sql: string): Row[] => dbOf(app).prepare(sql
 const lockRows = (app: FastifyInstance) => rows(app, "SELECT username, kind, failures FROM auth_locks");
 const notifications = (app: FastifyInstance) => rows(app, "SELECT kind, title, body FROM notifications ORDER BY id");
 const storedHashes = (app: FastifyInstance) => rows(app, "SELECT password_hash, answer_hashes FROM accounts");
+const sessionCount = (app: FastifyInstance) => rows(app, "SELECT 1 FROM sessions").length;
+const wrongCounts = (app: FastifyInstance) => rows(app, "SELECT wrong_passwords FROM sessions ORDER BY created_at, rowid").map((r) => r.wrong_passwords);
+// A database rule that makes saving one particular notification fail, to see what else is left behind.
+const refuseNotification = (title: string) =>
+  `CREATE TRIGGER refuse BEFORE INSERT ON notifications WHEN NEW.title = '${title}'
+   BEGIN SELECT RAISE(ABORT, 'refused'); END`;
 
 // ---- the account ------------------------------------------------------------------------------------
 
@@ -112,7 +135,7 @@ test("after a change the new password signs in and the old one does not", async 
 
 test("a wrong current password is a 401 with the usual code, and never counts toward the sign-in lock", async () => {
   const { app, cookie } = await signedIn();
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < 4; i++) {
     const res = await post(app, "/api/account/password", { currentPassword: WRONG, newPassword: NEW_PASSWORD }, cookie);
     expect(res.statusCode).toBe(401);
     expect(res.json()).toEqual({ error: "wrong_password", message: "That password isn't right." });
@@ -120,6 +143,149 @@ test("a wrong current password is a 401 with the usual code, and never counts to
   expect(lockRows(app)).toEqual([]);
   expect((await signin(app, OWNER_PASSWORD)).statusCode).toBe(200);
   expect((await get(app, "/api/account", cookie)).statusCode).toBe(200);
+});
+
+// ---- guessing the current password with a stolen session ---------------------------------------------
+
+const guessViaPassword = (app: FastifyInstance, cookie: string) =>
+  post(app, "/api/account/password", { currentPassword: WRONG, newPassword: NEW_PASSWORD }, cookie);
+const guessViaAnswers = (app: FastifyInstance, cookie: string) =>
+  post(app, "/api/account/answers", { currentPassword: WRONG, answers: NEW_ANSWERS }, cookie);
+const SIGNED_OUT = { error: "signed_out", message: "Please sign in." };
+
+test("four wrong current passwords in a row, across both routes, leave the session signed in", async () => {
+  const { app, cookie } = await signedIn();
+  for (const guess of [guessViaPassword, guessViaAnswers, guessViaPassword, guessViaAnswers]) {
+    const res = await guess(app, cookie);
+    expect(res.statusCode).toBe(401);
+    expect(res.json().error).toBe("wrong_password");
+  }
+  expect(wrongCounts(app)).toEqual([4]);
+  expect((await get(app, "/api/account", cookie)).statusCode).toBe(200);
+});
+
+test("the fifth wrong current password ends the session, says so, and leaves the sign-in lock alone", async () => {
+  const { app, cookie } = await signedIn();
+  const before = storedHashes(app);
+  for (const guess of [guessViaPassword, guessViaAnswers, guessViaPassword, guessViaAnswers]) await guess(app, cookie);
+  const fifth = await guessViaPassword(app, cookie);
+  expect(fifth.statusCode).toBe(401);
+  expect(fifth.json()).toEqual(SIGNED_OUT);
+
+  expect((await get(app, "/api/account", cookie)).statusCode).toBe(401);
+  expect(sessionCount(app)).toBe(0);
+  expect(notifications(app)).toMatchObject([{ kind: "security", title: "Signed out after wrong passwords" }]);
+  expect(JSON.stringify(notifications(app))).not.toContain(WRONG);
+  expect(storedHashes(app)).toEqual(before);
+  // The owner is not locked out: signing in with the right password still works.
+  expect(lockRows(app)).toEqual([]);
+  expect((await signin(app, OWNER_PASSWORD)).statusCode).toBe(200);
+});
+
+test("the session is over for every route after the fifth wrong guess, even with the right password", async () => {
+  const { app, cookie } = await signedIn();
+  for (let i = 0; i < 5; i++) await guessViaPassword(app, cookie);
+  const right = await post(app, "/api/account/password", { currentPassword: OWNER_PASSWORD, newPassword: NEW_PASSWORD }, cookie);
+  expect(right.statusCode).toBe(401);
+  expect(right.json()).toEqual(SIGNED_OUT);
+  expect((await signin(app, OWNER_PASSWORD)).statusCode).toBe(200);
+  expect((await signin(app, NEW_PASSWORD)).statusCode).toBe(401);
+});
+
+test("a correct current password starts the count again", async () => {
+  const { app, cookie } = await signedIn();
+  for (let i = 0; i < 4; i++) await guessViaPassword(app, cookie);
+  // Right password, too-short new one: nothing changes except that the count starts over.
+  const right = await post(app, "/api/account/password", { currentPassword: OWNER_PASSWORD, newPassword: "short" }, cookie);
+  expect(right.statusCode).toBe(400);
+  expect(wrongCounts(app)).toEqual([0]);
+  for (let i = 0; i < 4; i++) expect((await guessViaAnswers(app, cookie)).json().error).toBe("wrong_password");
+  expect((await get(app, "/api/account", cookie)).statusCode).toBe(200);
+  expect((await guessViaAnswers(app, cookie)).json()).toEqual(SIGNED_OUT);
+  expect(notifications(app)).toHaveLength(1);
+});
+
+test("a correct answers change also starts the count again", async () => {
+  const { app, cookie } = await signedIn();
+  for (let i = 0; i < 4; i++) await guessViaPassword(app, cookie);
+  const right = await post(app, "/api/account/answers", { currentPassword: OWNER_PASSWORD, answers: NEW_ANSWERS }, cookie);
+  expect(right.statusCode).toBe(204);
+  expect(wrongCounts(app)).toEqual([0]);
+});
+
+test("each session has its own count", async () => {
+  const { app, cookie: first } = await signedIn();
+  const second = await signinCookie(app);
+  for (let i = 0; i < 4; i++) await guessViaPassword(app, first);
+  for (let i = 0; i < 4; i++) await guessViaAnswers(app, second);
+  expect(wrongCounts(app)).toEqual([4, 4]);
+
+  expect((await guessViaPassword(app, first)).json()).toEqual(SIGNED_OUT);
+  expect((await get(app, "/api/account", first)).statusCode).toBe(401);
+  // The other session is untouched: still signed in, still at four.
+  expect((await get(app, "/api/account", second)).statusCode).toBe(200);
+  expect(wrongCounts(app)).toEqual([4]);
+  expect((await guessViaAnswers(app, second)).json()).toEqual(SIGNED_OUT);
+  expect(notifications(app).map((n) => n.title)).toEqual([
+    "Signed out after wrong passwords",
+    "Signed out after wrong passwords",
+  ]);
+});
+
+test("ten wrong guesses at once end the session after exactly five", async () => {
+  const { app, cookie } = await signedIn();
+  const results = await Promise.all(
+    Array.from({ length: 10 }, (_, i) => (i % 2 === 0 ? guessViaPassword(app, cookie) : guessViaAnswers(app, cookie))),
+  );
+  const bodies = results.map((r) => r.json().error);
+  expect(results.every((r) => r.statusCode === 401)).toBe(true);
+  expect(bodies.filter((e) => e === "wrong_password")).toHaveLength(4);
+  expect(bodies.filter((e) => e === "signed_out")).toHaveLength(6);
+  expect(sessionCount(app)).toBe(0);
+  expect(notifications(app).map((n) => n.title)).toEqual(["Signed out after wrong passwords"]);
+});
+
+test("a session that ends while the current password is being checked changes nothing, even if it was right", async () => {
+  const { app, cookie } = await signedIn();
+  const before = storedHashes(app);
+  vi.mocked(verifyPassword).mockImplementationOnce(async (hashed, password) => {
+    const ok = await real.verifyPassword(hashed, password);
+    dbOf(app).exec("DELETE FROM sessions");
+    return ok;
+  });
+  const res = await post(app, "/api/account/password", { currentPassword: OWNER_PASSWORD, newPassword: NEW_PASSWORD }, cookie);
+  expect(res.statusCode).toBe(401);
+  expect(res.json()).toEqual(SIGNED_OUT);
+  expect(storedHashes(app)).toEqual(before);
+  expect(notifications(app)).toEqual([]);
+});
+
+test("a session that ends while the new password is being hashed changes nothing", async () => {
+  const { app, cookie } = await signedIn();
+  const before = storedHashes(app);
+  vi.mocked(hashPassword).mockImplementationOnce(async (password) => {
+    dbOf(app).exec("DELETE FROM sessions");
+    return real.hashPassword(password);
+  });
+  const res = await post(app, "/api/account/password", { currentPassword: OWNER_PASSWORD, newPassword: NEW_PASSWORD }, cookie);
+  expect(res.statusCode).toBe(401);
+  expect(res.json()).toEqual(SIGNED_OUT);
+  expect(storedHashes(app)).toEqual(before);
+  expect(notifications(app)).toEqual([]);
+});
+
+test("a session that ends while the new answers are being hashed changes nothing", async () => {
+  const { app, cookie } = await signedIn();
+  const before = storedHashes(app);
+  vi.mocked(hashPassword).mockImplementationOnce(async (answer) => {
+    dbOf(app).exec("DELETE FROM sessions");
+    return real.hashPassword(answer);
+  });
+  const res = await post(app, "/api/account/answers", { currentPassword: OWNER_PASSWORD, answers: NEW_ANSWERS }, cookie);
+  expect(res.statusCode).toBe(401);
+  expect(res.json()).toEqual(SIGNED_OUT);
+  expect(storedHashes(app)).toEqual(before);
+  expect(notifications(app)).toEqual([]);
 });
 
 test("a new password that is too short is refused and changes nothing", async () => {
@@ -243,6 +409,60 @@ test.each([
   expect(res.statusCode).toBe(400);
   expect(res.json().error).toBe("bad_request");
   expect(storedHashes(app)).toEqual(before);
+});
+
+test("an answers change leaves a security notification that holds no answers and no password", async () => {
+  const { app, cookie } = await signedIn();
+  await post(app, "/api/account/answers", { currentPassword: OWNER_PASSWORD, answers: NEW_ANSWERS }, cookie);
+  expect(notifications(app)).toMatchObject([{ kind: "security", title: "Security answers changed" }]);
+  expect(JSON.stringify(notifications(app))).not.toMatch(/winterfest|harrow|stonecastle|lanternfall/i);
+  expect(JSON.stringify(notifications(app))).not.toContain(OWNER_PASSWORD);
+});
+
+test("a refused answers change leaves no notification", async () => {
+  const { app, cookie } = await signedIn();
+  await post(app, "/api/account/answers", { currentPassword: WRONG, answers: NEW_ANSWERS }, cookie);
+  await post(app, "/api/account/answers", { currentPassword: OWNER_PASSWORD, answers: ["a", "", "c"] }, cookie);
+  expect(notifications(app)).toEqual([]);
+});
+
+test("an answers change whose notification cannot be saved changes nothing", async () => {
+  const { app, cookie } = await signedIn();
+  const before = storedHashes(app);
+  dbOf(app).exec(refuseNotification("Security answers changed"));
+  const res = await post(app, "/api/account/answers", { currentPassword: OWNER_PASSWORD, answers: NEW_ANSWERS }, cookie);
+  expect(res.statusCode).toBe(500);
+  expect(storedHashes(app)).toEqual(before);
+});
+
+test("a password change that lands while the answers are being checked turns the answers change away", async () => {
+  const { app, cookie } = await signedIn();
+  vi.mocked(verifyPassword).mockImplementationOnce(async (hashed, password) => {
+    const ok = await real.verifyPassword(hashed, password);
+    dbOf(app).prepare("UPDATE accounts SET password_hash = ?").run("$argon2id$v=19$changed-in-the-meantime");
+    return ok;
+  });
+  const answersBefore = rows(app, "SELECT answer_hashes FROM accounts");
+  const res = await post(app, "/api/account/answers", { currentPassword: OWNER_PASSWORD, answers: NEW_ANSWERS }, cookie);
+  expect(res.statusCode).toBe(401);
+  expect(res.json().error).toBe("wrong_password");
+  expect(rows(app, "SELECT answer_hashes FROM accounts")).toEqual(answersBefore);
+  expect(notifications(app)).toEqual([]);
+});
+
+test("a password reset that lands while the answers are being hashed turns the answers change away", async () => {
+  const { app, cookie } = await signedIn();
+  const answersBefore = rows(app, "SELECT answer_hashes FROM accounts");
+  vi.mocked(hashPassword).mockImplementationOnce(async (answer) => {
+    // The reset finishes (new password, every session ended) while the new answers are still being hashed.
+    const reset = await post(app, "/api/auth/forgot", forgotBody());
+    expect(reset.statusCode).toBe(204);
+    return real.hashPassword(answer);
+  });
+  const res = await post(app, "/api/account/answers", { currentPassword: OWNER_PASSWORD, answers: NEW_ANSWERS }, cookie);
+  expect(res.statusCode).toBe(401);
+  expect(rows(app, "SELECT answer_hashes FROM accounts")).toEqual(answersBefore);
+  expect(notifications(app).map((n) => n.title)).toEqual(["Password changed"]);
 });
 
 test("changing the answers keeps the password and the other sessions", async () => {
@@ -503,6 +723,38 @@ test("an empty change returns the settings as they are", async () => {
   const res = await patch(app, "/api/settings", {}, cookie);
   expect(res.statusCode).toBe(200);
   expect(res.json()).toEqual({ ...DEFAULT_SETTINGS, appearance: "dark" });
+});
+
+const storedSettings = (app: FastifyInstance) => rows(app, "SELECT json FROM settings").map((r) => JSON.parse(String(r.json)));
+
+test("only the settings that were set are stored, not the defaults", async () => {
+  const { app, cookie } = await signedIn();
+  expect(storedSettings(app)).toEqual([]);
+  await patch(app, "/api/settings", { appearance: "dark" }, cookie);
+  expect(storedSettings(app)).toEqual([{ appearance: "dark" }]);
+  await patch(app, "/api/settings", { notify: { game: false } }, cookie);
+  expect(storedSettings(app)).toEqual([{ appearance: "dark", notify: { game: false } }]);
+  await patch(app, "/api/settings", { notify: { security: true }, appearance: "light" }, cookie);
+  expect(storedSettings(app)).toEqual([{ appearance: "light", notify: { game: false, security: true } }]);
+  // What is read back is still the whole thing, over the defaults.
+  expect((await get(app, "/api/settings", cookie)).json()).toEqual({
+    ...DEFAULT_SETTINGS,
+    notify: { security: true, game: false, changes: true },
+  });
+});
+
+test("a patch with nothing in it stores nothing new", async () => {
+  const { app, cookie } = await signedIn();
+  await patch(app, "/api/settings", { notify: {} }, cookie);
+  await patch(app, "/api/settings", {}, cookie);
+  expect(storedSettings(app).every((saved) => Object.keys(saved).length === 0)).toBe(true);
+});
+
+test("saving drops whatever damaged values were stored and keeps the good ones", async () => {
+  const { app, cookie } = await signedIn();
+  dbOf(app).prepare("INSERT INTO settings (account_id, json) VALUES (1, ?)").run('{"appearance":"neon","sidebar":"icons","x":1}');
+  await patch(app, "/api/settings", { gamePort: 50000 }, cookie);
+  expect(storedSettings(app)).toEqual([{ sidebar: "icons", gamePort: 50000 }]);
 });
 
 test("settings survive a server restart", async () => {

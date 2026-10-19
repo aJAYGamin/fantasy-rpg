@@ -55,3 +55,25 @@ export function revokeAllSessions(db: Db, accountId: number, exceptToken?: strin
     db.prepare("DELETE FROM sessions WHERE account_id = ? AND token_hash != ?").run(accountId, hashToken(exceptToken));
   }
 }
+
+// Counts one wrong current password against this session. The `max`-th one ends the session ("ended"); "gone" means
+// the session was already over. Runs without an await, so overlapping guesses cannot all be counted as the first.
+export function registerWrongPassword(db: Db, token: string, max: number): "counted" | "ended" | "gone" {
+  const tokenHash = hashToken(token);
+  const row = db
+    .prepare<[string], { wrong_passwords: number }>("SELECT wrong_passwords FROM sessions WHERE token_hash = ?")
+    .get(tokenHash);
+  if (!row) return "gone";
+  const count = row.wrong_passwords + 1;
+  if (count >= max) {
+    db.prepare("DELETE FROM sessions WHERE token_hash = ?").run(tokenHash);
+    return "ended";
+  }
+  db.prepare("UPDATE sessions SET wrong_passwords = ? WHERE token_hash = ?").run(count, tokenHash);
+  return "counted";
+}
+
+// The right current password was typed: the count starts again. False when the session was already over.
+export function clearWrongPasswords(db: Db, token: string): boolean {
+  return db.prepare("UPDATE sessions SET wrong_passwords = 0 WHERE token_hash = ?").run(hashToken(token)).changes > 0;
+}
