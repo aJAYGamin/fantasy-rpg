@@ -13,6 +13,7 @@ export type Account = {
 type AccountRow = {
   id: number;
   username: string;
+  role: string;
   display_name: string;
   password_hash: string;
   answer_hashes: string;
@@ -20,15 +21,29 @@ type AccountRow = {
 };
 
 // has_avatar is computed in SQL so the picture itself is never loaded just to know whether there is one.
-const SELECT_ACCOUNT = `SELECT id, username, display_name, password_hash, answer_hashes,
+const SELECT_ACCOUNT = `SELECT id, username, role, display_name, password_hash, answer_hashes,
   avatar IS NOT NULL AS has_avatar FROM accounts`;
+
+// Thrown by createOwner when setup has already happened.
+export class AccountExistsError extends Error {
+  constructor() {
+    super("An account already exists");
+    this.name = "AccountExistsError";
+  }
+}
+
+// "owner" is the only role for now. Anything else in the row is a fault to surface, not to treat as the owner.
+function parseRole(role: string): "owner" {
+  if (role !== "owner") throw new Error(`Unknown account role "${role}"`);
+  return role;
+}
 
 function toAccount(row: AccountRow): Account {
   return {
     id: row.id,
     username: row.username,
     displayName: row.display_name,
-    role: "owner",
+    role: parseRole(row.role),
     hasAvatar: row.has_avatar === 1,
     passwordHash: row.password_hash,
     answerHashes: JSON.parse(row.answer_hashes) as string[],
@@ -58,7 +73,7 @@ export function createOwner(
   now: Date,
 ): Account {
   const create = db.transaction((): number => {
-    if (countAccounts(db) > 0) throw new Error("An account already exists");
+    if (countAccounts(db) > 0) throw new AccountExistsError();
     const result = db
       .prepare(
         `INSERT INTO accounts (username, display_name, password_hash, answer_hashes, role, created_at)

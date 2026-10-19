@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { afterEach, describe, expect, test } from "vitest";
 import { LOCK_MINUTES, MAX_WRONG_PASSWORDS, MIN_PASSWORD_LENGTH } from "../../shared/src/constants.js";
-import { countAccounts, createOwner, findById, findByUsername } from "../src/auth/accounts.js";
+import { AccountExistsError, countAccounts, createOwner, findById, findByUsername } from "../src/auth/accounts.js";
 import { hashAnswers, normalizeAnswer, verifyAnswers } from "../src/auth/answers.js";
 import {
   clearLock,
@@ -45,8 +45,19 @@ describe("answers", () => {
     expect(await verifyAnswers(h, ["lantern festival", "Boston", "chess"])).toEqual([true, false, true]);
   });
 
-  test("normalizing also collapses tabs and line breaks", () => {
-    expect(normalizeAnswer("\tSan \n Francisco  ")).toBe("san francisco");
+  test("normalizing collapses tabs, line breaks, no-break spaces and runs of spaces", () => {
+    expect(normalizeAnswer("\tSan \n Francisco\u00a0 ")).toBe("san francisco");
+    expect(normalizeAnswer("New  York")).toBe("new york");
+  });
+
+  test("accents match however they were typed", async () => {
+    const composed = "Caf\u00e9"; // e-acute as one character
+    const decomposed = "Cafe\u0301"; // e followed by a combining accent
+    expect(decomposed).not.toBe(composed);
+    expect(normalizeAnswer(decomposed)).toBe(normalizeAnswer(composed));
+    expect(normalizeAnswer("CAFE\u0301")).toBe(normalizeAnswer(composed));
+    const h = await hashAnswers([composed, "New York", "Chess"]);
+    expect(await verifyAnswers(h, [decomposed, "new york", "chess"])).toEqual([true, true, true]);
   });
 
   test("every answer is checked, wherever the wrong one is", async () => {
@@ -68,14 +79,11 @@ describe("answers", () => {
     expect(await verifyAnswers(h, ["   ", "new york", "chess"])).toEqual([false, true, true]);
   });
 
-  test("missing or malformed stored hashes never match", async () => {
+  test("a stored hash that is missing or unreadable is an error, not a wrong answer", async () => {
     const h = await hashAnswers(["Lantern Festival", "New York", "Chess"]);
-    expect(await verifyAnswers([h[0]!], ["lantern festival", "new york", "chess"])).toEqual([true, false, false]);
-    expect(await verifyAnswers([h[0]!, "garbage", h[2]!], ["lantern festival", "new york", "chess"])).toEqual([
-      true,
-      false,
-      true,
-    ]);
+    const answers: [string, string, string] = ["lantern festival", "new york", "chess"];
+    await expect(verifyAnswers([h[0]!], answers)).rejects.toThrow();
+    await expect(verifyAnswers([h[0]!, "garbage", h[2]!], answers)).rejects.toThrow();
   });
 });
 
@@ -105,9 +113,10 @@ describe("passwords", () => {
     expect(a).not.toBe(b);
   });
 
-  test("a hash that cannot be read never verifies", async () => {
-    expect(await verifyPassword("not-a-hash", "correct horse battery")).toBe(false);
-    expect(await verifyPassword("", "correct horse battery")).toBe(false);
+  // A broken stored hash must not look like a wrong password: callers count wrong passwords toward a lock.
+  test("a hash that cannot be read is an error, not a wrong password", async () => {
+    await expect(verifyPassword("not-a-hash", "correct horse battery")).rejects.toThrow();
+    await expect(verifyPassword("", "correct horse battery")).rejects.toThrow();
   });
 });
 
@@ -320,8 +329,22 @@ describe("accounts", () => {
   test("a second owner can never be created", () => {
     const db = openDb();
     createOwner(db, input, t0);
-    expect(() => createOwner(db, { ...input, username: "intruder" }, t0)).toThrow(/already/i);
+    let thrown: unknown;
+    try {
+      createOwner(db, { ...input, username: "intruder" }, t0);
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(AccountExistsError);
     expect(countAccounts(db)).toBe(1);
     expect(findByUsername(db, "intruder")).toBeNull();
+  });
+
+  test("an account with an unknown role is refused, never treated as the owner", () => {
+    const db = openDb();
+    const id = insertAccount(db, "guest");
+    db.prepare("UPDATE accounts SET role = 'admin' WHERE id = ?").run(id);
+    expect(() => findById(db, id)).toThrow(/role/i);
+    expect(() => findByUsername(db, "guest")).toThrow(/role/i);
   });
 });

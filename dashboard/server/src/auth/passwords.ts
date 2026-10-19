@@ -11,11 +11,9 @@ export function hashPassword(pw: string): Promise<string> {
   return hash(pw);
 }
 
-// A stored hash that cannot be read counts as a wrong password, never as an error that skips the check.
+// Resolves false only for a wrong password. A stored hash the library cannot read makes it reject, on purpose: that
+// is a broken account row (an error to surface), and must never look like a wrong password, because callers count
+// wrong passwords toward a lock and would lock the owner out of their own account.
 export async function verifyPassword(hashed: string, pw: string): Promise<boolean> {
-  try {
-    return await verify(hashed, pw);
-  } catch {
-    return false;
-  }
+  return verify(hashed, pw);
 }
