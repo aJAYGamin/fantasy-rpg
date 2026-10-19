@@ -1,0 +1,20 @@
+/* signin-v1's .lock: everything centred, the ring in the middle. */
+
+.lock {
+  text-align: center;
+}
+
+.ring {
+  margin: 6px auto 14px;
+}
+
+.note {
+  font-size: var(--text-md);
+  color: var(--dim);
+}
+
+button.tryAgain {
+  width: 100%;
+  margin-top: 18px;
+  font-weight: 600;
+}

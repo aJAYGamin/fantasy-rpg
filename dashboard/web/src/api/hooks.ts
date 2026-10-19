@@ -2,10 +2,12 @@ import { QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/re
 import { useEffect } from "react";
 import type {
   AuthState,
+  ForgotRequest,
   GameStatus,
   NotificationList,
   Settings,
   SettingsPatch,
+  SetupRequest,
   SigninRequest,
   User,
 } from "../../../shared/src/api";
@@ -49,6 +51,24 @@ export function useSignIn() {
     onSuccess: (user) => {
       queryClient.setQueryData<AuthState>(queryKeys.auth, { setupRequired: false, user });
     },
+  });
+}
+
+/** Creates the owner account (first run only); the server signs it in, so the cached auth state follows. */
+export function useSetup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (request: SetupRequest) => api<User>("POST", "/api/auth/setup", request),
+    onSuccess: (user) => {
+      queryClient.setQueryData<AuthState>(queryKeys.auth, { setupRequired: false, user });
+    },
+  });
+}
+
+/** Sets a new password after the three security answers; nobody is signed in by it, so nothing is cached. */
+export function useResetPassword() {
+  return useMutation({
+    mutationFn: (request: ForgotRequest) => api("POST", "/api/auth/forgot", request),
   });
 }
 

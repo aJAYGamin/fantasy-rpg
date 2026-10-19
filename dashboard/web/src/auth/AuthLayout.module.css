@@ -1,21 +1,108 @@
-.page {
+/* signin-v1's .screen / .brandside / .form, stretched to fill the window. */
+
+.screen {
   display: grid;
-  place-items: center;
+  grid-template-columns: 0.9fr 1.1fr;
   min-height: 100vh;
-  padding: var(--space-6);
+  min-height: 100dvh;
+  background: var(--card);
 }
 
-.card {
-  width: min(400px, 100%);
-}
-
-.card h1 {
-  margin-bottom: var(--space-4);
-  font-size: var(--text-xl);
-}
-
-.form {
+.brand {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  justify-content: space-between;
+  gap: var(--space-8);
+  overflow: hidden;
+  padding: clamp(28px, 3.6vw, 52px) clamp(24px, 3.4vw, 52px);
+  background: radial-gradient(circle at 30% 20%, var(--brand-from), var(--brand-to) 60%);
+  color: var(--brand-sub);
+}
+
+/* The soft glow in the panel's lower corner. */
+.brand::after {
+  content: "";
+  position: absolute;
+  right: -60px;
+  bottom: -60px;
+  width: clamp(220px, 24vw, 340px);
+  height: clamp(220px, 24vw, 340px);
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--brand-glow), transparent 70%);
+  pointer-events: none;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--brand-head);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.gem {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--gem);
+  box-shadow: var(--gem-glow);
+}
+
+.tag {
+  font-family: var(--font-brand);
+  font-size: clamp(22px, 2.1vw, 30px);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--brand-head);
+}
+
+.tagsub {
+  max-width: 32em;
+  margin-top: var(--space-2);
+  font-size: var(--text-md);
+  color: var(--brand-sub);
+}
+
+.foot {
+  font-size: var(--text-xs);
+  color: var(--brand-foot);
+}
+
+.formSide {
+  display: flex;
+  padding: clamp(24px, 3.4vw, 52px) clamp(24px, 3.4vw, 52px);
+}
+
+/* Auto margins centre the form in the window, and let a tall one scroll instead of being cut off at the top. */
+.formInner {
+  width: min(100%, 400px);
+  margin: auto;
+}
+
+@media (max-width: 800px) {
+  .screen {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .brand {
+    gap: var(--space-5);
+    padding: var(--space-6);
+  }
+
+  .tag {
+    font-size: 20px;
+  }
+
+  /* Stacked, the form sits right under the panel instead of floating in the middle of what is left. */
+  .formSide {
+    padding: var(--space-6) var(--space-6) var(--space-8);
+  }
+
+  .formInner {
+    margin: 0 auto;
+  }
 }

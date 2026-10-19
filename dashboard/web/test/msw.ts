@@ -10,8 +10,10 @@ import {
   type NotificationList,
   type Settings,
   type SettingsPatch,
+  type SetupRequest,
   type User,
 } from "../../shared/src/api";
+import { MIN_PASSWORD_LENGTH } from "../../shared/src/constants";
 
 export const TEST_OWNER: User = {
   id: 1,
@@ -64,6 +66,13 @@ const handlers = [
     state.auth = SIGNED_IN;
     return HttpResponse.json(TEST_OWNER);
   }),
+  http.post("/api/auth/setup", async ({ request }) => {
+    const { username, displayName } = (await request.json()) as SetupRequest;
+    const user: User = { ...TEST_OWNER, username, displayName };
+    state.auth = { setupRequired: false, user };
+    return HttpResponse.json(user, { status: 201 });
+  }),
+  http.post("/api/auth/forgot", () => new HttpResponse(null, { status: 204 })),
   http.post("/api/auth/signout", () => {
     state.auth = SIGNED_OUT;
     return new HttpResponse(null, { status: 204 });
@@ -78,6 +87,50 @@ const handlers = [
 ];
 
 export const server = setupServer(...handlers);
+
+// ---- refusals the sign-in screens must handle ----
+
+// The server's own sentence for each code, so a test can tell the app's wording from the server's.
+const SERVER_MESSAGES: Record<string, string> = {
+  wrong_password: "That password isn't right.",
+  wrong_answer: "One or more answers didn't match.",
+  locked: "Too many tries. Try again when the timer runs out.",
+  too_short: `Passwords need at least ${MIN_PASSWORD_LENGTH} characters.`,
+  invalid_username: "Usernames are 3 to 32 letters, digits, dots, dashes or underscores.",
+  invalid_display_name: "Display names are 1 to 40 characters.",
+  missing_answer: "Answer all three security questions.",
+  already_set_up: "An account already exists.",
+  server_error: "Something went wrong on the server.",
+};
+
+type Refusal = { error: string; triesLeft?: number; lockedUntil?: string };
+
+/** An ISO time `minutes` from now, for a lockedUntil. */
+export function inMinutes(minutes: number): string {
+  return new Date(Date.now() + minutes * 60_000).toISOString();
+}
+
+// `refusal` may be a function so a lockedUntil is worked out when the answer is sent, not when the test starts.
+function refuse(path: string, status: number, refusal: Refusal | (() => Refusal)): void {
+  server.use(
+    http.post(path, () => {
+      const body = typeof refusal === "function" ? refusal() : refusal;
+      return HttpResponse.json({ message: SERVER_MESSAGES[body.error], ...body }, { status });
+    }),
+  );
+}
+
+/** Makes sign-in answer with a refusal, e.g. mockSignin(401, { error: "wrong_password", triesLeft: 3 }). */
+export const mockSignin = (status: number, refusal: Refusal | (() => Refusal)) =>
+  refuse("/api/auth/signin", status, refusal);
+
+/** Makes first-run setup answer with a refusal. */
+export const mockSetup = (status: number, refusal: Refusal | (() => Refusal)) =>
+  refuse("/api/auth/setup", status, refusal);
+
+/** Makes the password reset answer with a refusal. */
+export const mockForgot = (status: number, refusal: Refusal | (() => Refusal)) =>
+  refuse("/api/auth/forgot", status, refusal);
 
 // ---- what the app sent ----
 

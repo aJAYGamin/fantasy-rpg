@@ -46,7 +46,8 @@ export function Field({ label, hint, error, className, children }: FieldProps) {
         </p>
       )}
       {error && (
-        <p id={errorId} className={styles.error}>
+        // role="alert": an error that appears after a submit is announced as it appears.
+        <p id={errorId} role="alert" className={styles.error}>
           {error}
         </p>
       )}

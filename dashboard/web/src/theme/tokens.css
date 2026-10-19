@@ -9,6 +9,9 @@
  * at 3:1 (theme.test.tsx checks each pair). Where a mockup shade fell short it was moved the smallest step
  * on the same hue: light --dim (was #7a7090), the *-ink text tokens, the placeholder, the off switch and the
  * checkbox border. --am-fill is the amethyst behind white text in both themes (dark --am is too light for it).
+ * The keyboard focus ring is a solid 2px --focus-line (3:1 or better on cards and the page) with the soft
+ * halo outside it. The --brand-* shades are the sign-in screens' plum panel (signin-v1's .brandside); its
+ * small footer line is lifted from the mockup's #7e6aa3 to read at 4.5:1 on the gradient.
  */
 
 :root,
@@ -68,8 +71,17 @@
   --gem: radial-gradient(circle at 35% 30%, #c9a8ff, #7e4fe0 60%, #4b2a99);
   --gem-glow: 0 0 0 3px rgba(156, 107, 245, 0.25);
 
-  --focus-ring: 0 0 0 3px rgba(126, 79, 224, 0.35);
-  --focus-halo: 0 0 0 3px rgba(126, 79, 224, 0.15);
+  --brand-from: #3b2361;
+  --brand-to: #1e1230;
+  --brand-head: #ffffff;
+  --brand-sub: #b9a9d6;
+  --brand-foot: #a090c3;
+  --brand-glow: rgba(156, 107, 245, 0.35);
+
+  --focus-line: #7e4fe0;
+  --focus-tint: rgba(126, 79, 224, 0.15);
+  --focus-halo: 0 0 0 3px var(--focus-tint);
+  --focus-ring: 0 0 0 2px var(--focus-line), 0 0 0 5px var(--focus-tint);
   --bad-halo: 0 0 0 3px rgba(198, 69, 94, 0.15);
   --shadow-pop: 0 10px 30px rgba(42, 34, 56, 0.15);
   --shadow-bar: 0 -4px 14px rgba(42, 34, 56, 0.06);
@@ -131,8 +143,17 @@
   --gem: radial-gradient(circle at 35% 30%, #c9a8ff, #7e4fe0 60%, #4b2a99);
   --gem-glow: 0 0 0 3px rgba(156, 107, 245, 0.25);
 
-  --focus-ring: 0 0 0 3px rgba(156, 107, 245, 0.35);
-  --focus-halo: 0 0 0 3px rgba(156, 107, 245, 0.25);
+  --brand-from: #2a1a47;
+  --brand-to: #0d0817;
+  --brand-head: #ffffff;
+  --brand-sub: #b3a3d3;
+  --brand-foot: #a090c3;
+  --brand-glow: rgba(156, 107, 245, 0.3);
+
+  --focus-line: #9c6bf5;
+  --focus-tint: rgba(156, 107, 245, 0.25);
+  --focus-halo: 0 0 0 3px var(--focus-tint);
+  --focus-ring: 0 0 0 2px var(--focus-line), 0 0 0 5px var(--focus-tint);
   --bad-halo: 0 0 0 3px rgba(238, 111, 134, 0.25);
   --shadow-pop: 0 10px 30px rgba(0, 0, 0, 0.45);
   --shadow-bar: 0 -4px 14px rgba(0, 0, 0, 0.35);

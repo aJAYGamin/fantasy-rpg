@@ -1,0 +1,30 @@
+/* signin-v1's .alert.bad, plus the same shape in green for good news. */
+
+.alert {
+  padding: 10px 12px;
+  border: 1px solid;
+  border-radius: var(--radius-control);
+  font-size: var(--text-md);
+}
+
+.alert b {
+  font-weight: 700;
+}
+
+.alert a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.bad {
+  background: var(--bad-soft);
+  border-color: var(--bad-line);
+  color: var(--bad-ink);
+}
+
+.ok {
+  background: var(--ok-soft);
+  border-color: var(--ok-line);
+  color: var(--ok-ink);
+}

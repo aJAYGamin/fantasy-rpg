@@ -160,8 +160,9 @@ const stylesheets = import.meta.glob<string>("../src/**/*.css", { query: "?raw",
 
 /**
  * Every text colour a stylesheet sets, with the surface it sits on: the same rule's background if it sets one;
- * otherwise the amethyst fill for white-on-amethyst text, the field fills for text inside an input, and the
- * card and page for everything else. Disabled states are exempt from the contrast rule.
+ * otherwise the amethyst fill for white-on-amethyst text, the plum panel for the sign-in screens' brand text
+ * (--brand-*; both ends of its gradient), the field fills for text inside an input, and the card and page for
+ * everything else. Disabled states are exempt from the contrast rule.
  */
 function textPairsInStylesheets(): Pair[] {
   const pairs: Pair[] = [];
@@ -177,9 +178,11 @@ function textPairsInStylesheets(): Pair[] {
         ? [ownBack]
         : fore === "--on-am"
           ? ["--am-fill"]
-          : /\/(Input|PasswordInput)\.module\.css$/.test(path)
-            ? ["--input-bg", "--bad-soft"]
-            : ["--card", "--bg"];
+          : fore.startsWith("--brand-")
+            ? ["--brand-from", "--brand-to"]
+            : /\/(Input|PasswordInput)\.module\.css$/.test(path)
+              ? ["--input-bg", "--bad-soft"]
+              : ["--card", "--bg"];
       for (const back of backs) pairs.push({ fore, back, min: 4.5, where: `${path} ${selector.trim()}` });
     }
   }
@@ -199,6 +202,13 @@ const LISTED: Pair[] = [
   { fore: "--check-border", back: "--bg", min: 3, where: "an unticked checkbox on the page" },
   { fore: "--am-fill", back: "--card", min: 3, where: "a ticked checkbox / chosen segment on a card" },
   { fore: "--am-fill", back: "--bg", min: 3, where: "a ticked checkbox / chosen segment on the page" },
+  // R19: the keyboard focus ring sits on whatever is behind the control, so it must stand out from the card and page.
+  { fore: "--focus-line", back: "--card", min: 3, where: "the keyboard focus ring, on a card" },
+  { fore: "--focus-line", back: "--bg", min: 3, where: "the keyboard focus ring, on the page" },
+  { fore: "--am", back: "--input-bg", min: 3, where: "an input's border while it has focus" },
+  // The sign-in screens' brand panel: text over both ends of its plum gradient.
+  { fore: "--brand-head", back: "--brand-from", min: 4.5, where: "brand panel headline, top end" },
+  { fore: "--brand-head", back: "--brand-to", min: 4.5, where: "brand panel headline, bottom end" },
 ];
 
 test("every colour pair the components use meets WCAG AA in both themes", () => {
@@ -217,6 +227,18 @@ test("every colour pair the components use meets WCAG AA in both themes", () => 
     }
   }
   expect(failures).toEqual([]);
+});
+
+test("the keyboard focus ring is a solid 2px amethyst ring with the soft halo outside it, in both themes", () => {
+  // R19: the old ring was only a 35% halo (about 1.7:1 on white); this one keeps the halo but adds a solid line.
+  for (const [theme, tokens] of [
+    ["light", tokensIn(':root,\n[data-theme="light"]')],
+    ["dark", tokensIn('[data-theme="dark"]')],
+  ] as const) {
+    expect(tokens.get("--focus-ring"), theme).toBe("0 0 0 2px var(--focus-line), 0 0 0 5px var(--focus-tint)");
+    expect(tokens.get("--focus-halo"), theme).toBe("0 0 0 3px var(--focus-tint)");
+    expect(tokens.get("--focus-line"), theme).toBe(tokens.get("--am"));
+  }
 });
 
 test("the focus ring survives forced-colours (high contrast) mode, where shadows are dropped", () => {

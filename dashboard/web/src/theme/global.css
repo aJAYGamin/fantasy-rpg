@@ -57,9 +57,10 @@ a:hover {
 }
 
 /*
- * Keyboard focus is always a visible amethyst ring; mouse clicks don't leave one behind. The transparent
- * outline is invisible normally, but forced-colours (high contrast) mode drops box-shadows and paints outlines
- * in the system colour, so the ring still shows there.
+ * Keyboard focus is always a visible amethyst ring; mouse clicks don't leave one behind. --focus-ring is a
+ * solid 2px line (3:1 or better against the card and the page, in both themes) with the soft halo outside it;
+ * the halo alone was about 1.7:1 on white. The transparent outline is invisible normally, but forced-colours
+ * (high contrast) mode drops box-shadows and paints outlines in the system colour, so the ring still shows there.
  */
 :focus {
   outline: none;

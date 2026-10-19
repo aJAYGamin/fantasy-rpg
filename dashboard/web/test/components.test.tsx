@@ -240,6 +240,8 @@ describe("controls", () => {
     const input = screen.getByLabelText("Port");
     expect(input).toHaveAttribute("aria-invalid", "true");
     expect(input).toHaveAccessibleDescription("The game listens here. Use a port from 1024 to 65535.");
+    // An error that appears after a submit is announced as it appears.
+    expect(screen.getByRole("alert")).toHaveTextContent("Use a port from 1024 to 65535.");
   });
 
   test("PasswordInput's switch is named for its field and says whether it is showing", async () => {
