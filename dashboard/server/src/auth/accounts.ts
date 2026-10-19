@@ -90,3 +90,7 @@ export function createOwner(
   });
   return findById(db, create.immediate()) as Account;
 }
+
+export function setPasswordHash(db: Db, accountId: number, passwordHash: string): void {
+  db.prepare("UPDATE accounts SET password_hash = ? WHERE id = ?").run(passwordHash, accountId);
+}

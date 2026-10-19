@@ -54,7 +54,15 @@ test("an unknown API route stays a JSON 404, never the page", async () => {
     const res = await server.inject({ method: "GET", url });
     expect(res.statusCode, url).toBe(404);
     expect(res.headers["content-type"], url).toContain("application/json");
+    expect(res.json(), url).toEqual({ error: "not_found", message: "Not found" });
   }
+});
+
+test("only a GET for a page falls back to the page; any other request to an unknown path is a JSON 404", async () => {
+  const server = await served();
+  const res = await server.inject({ method: "POST", url: "/debug/party", headers: { "x-amethyst-request": "1" } });
+  expect(res.statusCode).toBe(404);
+  expect(res.json()).toEqual({ error: "not_found", message: "Not found" });
 });
 
 test("without a built web app the server answers only the API", async () => {
