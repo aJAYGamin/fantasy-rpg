@@ -176,18 +176,19 @@ export function authRoutes(app: FastifyInstance, deps: AuthDeps): void {
     }
 
     const next = registerFailure("signin", lock, at, config.lockMs);
-    writeLock(db, key, "signin", next);
-    if (account !== null) {
+    const nowLocked = isLocked(next, at);
+    // The count, the lock and the notices are saved together or not at all.
+    db.transaction(() => {
+      writeLock(db, key, "signin", next);
+      if (account === null) return;
       const what = "A wrong password was entered for this account.";
       addNotification(db, account.id, "security", "Failed sign-in", what, at);
-    }
-    if (isLocked(next, at)) {
-      if (account !== null) {
+      if (nowLocked) {
         const why = `${MAX_WRONG_PASSWORDS} wrong passwords in a row. Sign-in is paused for ${pause}.`;
         addNotification(db, account.id, "security", "Sign-in locked", why, at);
       }
-      return sendLocked(reply, next);
-    }
+    })();
+    if (nowLocked) return sendLocked(reply, next);
     return sendError(reply, 401, "wrong_password", { triesLeft: triesLeft(next) });
   });
 
@@ -233,6 +234,8 @@ export function authRoutes(app: FastifyInstance, deps: AuthDeps): void {
       db.transaction(() => {
         setPasswordHash(db, account.id, newHash);
         clearLock(db, key, "reset");
+        // They just proved who they are with all three answers, so no waiting out a sign-in pause as well.
+        clearLock(db, key, "signin");
         revokeAllSessions(db, account.id);
         const why = "Your password was changed with your security questions. Every sign-in was ended.";
         addNotification(db, account.id, "security", "Password changed", why, at);
@@ -241,11 +244,12 @@ export function authRoutes(app: FastifyInstance, deps: AuthDeps): void {
     }
 
     const next = registerFailure("reset", lock, at, config.lockMs);
-    writeLock(db, key, "reset", next);
-    if (account !== null) {
+    db.transaction(() => {
+      writeLock(db, key, "reset", next);
+      if (account === null) return;
       const why = `A security answer didn't match. Password reset is paused for ${pause}.`;
       addNotification(db, account.id, "security", "Password reset locked", why, at);
-    }
+    })();
     return sendError(reply, 401, "wrong_answer", { lockedUntil: lockedUntilOf(next) });
   });
 }

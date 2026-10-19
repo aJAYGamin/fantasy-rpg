@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { beforeEach, expect, test, vi } from "vitest";
 import { countAccounts } from "../src/auth/accounts.js";
-import { readLock, writeLock } from "../src/auth/locks.js";
+import { isLocked, readLock, writeLock } from "../src/auth/locks.js";
 import { verifyPassword } from "../src/auth/passwords.js";
 import {
   OWNER_ANSWERS,
@@ -41,6 +41,10 @@ const rows = (app: FastifyInstance, sql: string): Row[] => dbOf(app).prepare(sql
 const notifications = (app: FastifyInstance) => rows(app, "SELECT kind, title, body FROM notifications ORDER BY id");
 const lockRows = (app: FastifyInstance) => rows(app, "SELECT username, kind, failures FROM auth_locks");
 const sessionCount = (app: FastifyInstance) => rows(app, "SELECT 1 FROM sessions").length;
+// A database rule that makes saving one particular notification fail, to see what else is left behind.
+const refuseNotification = (title: string) =>
+  `CREATE TRIGGER refuse BEFORE INSERT ON notifications WHEN NEW.title = '${title}'
+   BEGIN SELECT RAISE(ABORT, 'refused'); END`;
 
 // ---- first-run setup ------------------------------------------------------------------------------
 
@@ -381,23 +385,30 @@ test("a typed name that only starts like a real 32 character username does not s
   expect((await signin(app, OWNER_PASSWORD, name)).statusCode).toBe(200);
 });
 
-test("ten wrong sign-ins at once still lock the account after five", async () => {
+test("ten wrong sign-ins at once lock the account after exactly five", async () => {
   const app = await ownerApp();
   const results = await Promise.all(Array.from({ length: 10 }, () => signin(app, WRONG)));
   const codes = results.map((r) => r.statusCode);
-  expect(codes.filter((c) => c === 401).length).toBeLessThanOrEqual(5);
-  expect(codes.every((c) => c === 401 || c === 423)).toBe(true);
-  expect(codes.filter((c) => c === 423).length).toBeGreaterThanOrEqual(5);
+  // Four countdown answers, then the fifth wrong one locks (423) and every later one is turned away (423).
+  expect(codes.filter((c) => c === 401)).toHaveLength(4);
+  expect(codes.filter((c) => c === 423)).toHaveLength(6);
+  const titles = notifications(app).map((n) => n.title);
+  expect(titles.filter((t) => t === "Failed sign-in")).toHaveLength(5);
+  expect(titles.filter((t) => t === "Sign-in locked")).toHaveLength(1);
+  expect(titles).toHaveLength(6);
+  expect(isLocked(readLock(dbOf(app), "owner", "signin"), new Date())).toBe(true);
+  expect(lockRows(app)).toEqual([{ username: "owner", kind: "signin", failures: 0 }]);
   expect((await signin(app, OWNER_PASSWORD)).statusCode).toBe(423);
-  expect(notifications(app).filter((n) => n.title === "Failed sign-in").length).toBeLessThanOrEqual(5);
 });
 
-test("ten wrong sign-ins at once for an unknown name lock it after five too", async () => {
+test("ten wrong sign-ins at once for an unknown name lock it after exactly five too", async () => {
   const app = await ownerApp();
   const results = await Promise.all(Array.from({ length: 10 }, () => signin(app, WRONG, "nobody")));
   const codes = results.map((r) => r.statusCode);
-  expect(codes.filter((c) => c === 401).length).toBeLessThanOrEqual(5);
-  expect(codes.filter((c) => c === 423).length).toBeGreaterThanOrEqual(5);
+  expect(codes.filter((c) => c === 401)).toHaveLength(4);
+  expect(codes.filter((c) => c === 423)).toHaveLength(6);
+  expect(isLocked(readLock(dbOf(app), "nobody", "signin"), new Date())).toBe(true);
+  expect(notifications(app)).toEqual([]);
 });
 
 test("a lock that lands while the password is being checked refuses even the right password", async () => {
@@ -436,6 +447,36 @@ test("a stored password hash that cannot be read is a server error, not a wrong 
   expect(lockRows(app)).toEqual([]);
   expect(notifications(app)).toEqual([]);
   expect(sessionCount(app)).toBe(0);
+});
+
+// ---- failures are saved all together ----------------------------------------------------------------
+
+test("a wrong password whose notification cannot be saved does not count either", async () => {
+  const app = await ownerApp();
+  dbOf(app).exec(refuseNotification("Failed sign-in"));
+  const res = await signin(app, WRONG);
+  expect(res.statusCode).toBe(500);
+  expect(lockRows(app)).toEqual([]);
+  expect(notifications(app)).toEqual([]);
+});
+
+test("a locking wrong password whose second notification cannot be saved leaves the count at four", async () => {
+  const app = await ownerApp();
+  for (let i = 0; i < 4; i++) await signin(app, WRONG);
+  dbOf(app).exec(refuseNotification("Sign-in locked"));
+  const res = await signin(app, WRONG);
+  expect(res.statusCode).toBe(500);
+  expect(lockRows(app)).toEqual([{ username: "owner", kind: "signin", failures: 4 }]);
+  expect(notifications(app).map((n) => n.title)).toEqual(Array(4).fill("Failed sign-in"));
+});
+
+test("a wrong answer whose notification cannot be saved does not lock the reset", async () => {
+  const app = await ownerApp();
+  dbOf(app).exec(refuseNotification("Password reset locked"));
+  const res = await post(app, "/api/auth/forgot", forgotBody({ answers: ["x", "y", "z"] }));
+  expect(res.statusCode).toBe(500);
+  expect(lockRows(app)).toEqual([]);
+  expect(notifications(app)).toEqual([]);
 });
 
 // ---- notifications ----------------------------------------------------------------------------------
@@ -537,7 +578,15 @@ test("signing out ends the session and clears the cookie", async () => {
   const res = await post(app, "/api/auth/signout", {}, cookie);
   expect(res.statusCode).toBe(204);
   expect(res.body).toBe("");
-  expect(String(res.headers["set-cookie"])).toMatch(/amethyst_session=;/);
+  // The cleared cookie has to match the one that was set (same path) and be told to expire at once.
+  expect(res.cookies.find((c) => c.name === "amethyst_session")).toMatchObject({
+    value: "",
+    path: "/",
+    maxAge: 0,
+    httpOnly: true,
+  });
+  expect(String(res.headers["set-cookie"])).toMatch(/Path=\/;/);
+  expect(String(res.headers["set-cookie"])).toMatch(/Max-Age=0/);
   expect((await get(app, "/api/game/status", cookie)).statusCode).toBe(401);
   expect((await get(app, "/api/game/status", other)).statusCode).toBe(200);
   expect((await get(app, "/api/auth/state", cookie)).json().user).toBeNull();
@@ -627,10 +676,44 @@ test("a reset lock survives a server restart", async () => {
   expect((await post(app, "/api/auth/forgot", forgotBody())).statusCode).toBe(423);
 });
 
-test("the sign-in lock and the reset lock are separate", async () => {
+test("a sign-in pause does not stop a reset, and a successful reset lifts it", async () => {
   const app = await ownerApp();
   for (let i = 0; i < 5; i++) await signin(app, WRONG);
+  expect((await signin(app, OWNER_PASSWORD)).statusCode).toBe(423);
+  expect(lockRows(app).map((r) => r.kind)).toEqual(["signin"]);
   expect((await post(app, "/api/auth/forgot", forgotBody())).statusCode).toBe(204);
+  // The person just proved who they are with all three answers: no waiting out the sign-in pause.
+  expect(lockRows(app)).toEqual([]);
+  expect((await signin(app, "a brand new password")).statusCode).toBe(200);
+});
+
+test("a reset lock does not touch the sign-in count", async () => {
+  const app = await ownerApp();
+  await signin(app, WRONG);
+  await post(app, "/api/auth/forgot", forgotBody({ answers: ["x", "y", "z"] }));
+  expect(lockRows(app).map((r) => [r.kind, r.failures])).toEqual([
+    ["signin", 1],
+    ["reset", 0],
+  ]);
+});
+
+test("the sign-in pause that a reset lifts is the typed name's, whatever its case", async () => {
+  const app = await ownerApp();
+  for (let i = 0; i < 5; i++) await signin(app, WRONG, "OWNER");
+  expect((await signin(app, OWNER_PASSWORD, "owner")).statusCode).toBe(423);
+  expect((await post(app, "/api/auth/forgot", forgotBody({ username: " Owner " }))).statusCode).toBe(204);
+  expect((await signin(app, "a brand new password", "OWNER")).statusCode).toBe(200);
+});
+
+test("a reset whose notification cannot be saved changes nothing, not even the sign-in pause", async () => {
+  const app = await ownerApp();
+  for (let i = 0; i < 5; i++) await signin(app, WRONG);
+  const before = dbOf(app).prepare("SELECT password_hash FROM accounts").get();
+  dbOf(app).exec(refuseNotification("Password changed"));
+  const res = await post(app, "/api/auth/forgot", forgotBody());
+  expect(res.statusCode).toBe(500);
+  expect(dbOf(app).prepare("SELECT password_hash FROM accounts").get()).toEqual(before);
+  expect(lockRows(app)).toEqual([{ username: "owner", kind: "signin", failures: 0 }]);
 });
 
 test("an unknown username locks reset after one try, like a real one", async () => {
