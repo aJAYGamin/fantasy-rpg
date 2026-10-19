@@ -1,0 +1,133 @@
+/* Sizes, radius and fills from the mockups' .btn (overview-v3, party-v4, signin-v1). */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--control-bg);
+  color: var(--text);
+  font-size: var(--text-base);
+  font-weight: 500;
+  line-height: 1.45;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color var(--duration-fast) var(--ease),
+    border-color var(--duration-fast) var(--ease),
+    color var(--duration-fast) var(--ease),
+    box-shadow var(--duration-fast) var(--ease);
+}
+
+.button svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  stroke-width: 1.8;
+}
+
+.md {
+  padding: 11px 16px;
+}
+
+.sm {
+  padding: 7px 12px;
+  font-size: var(--text-md);
+}
+
+.button:hover:not(:disabled) {
+  background: var(--control-hover);
+  border-color: var(--am-line);
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.primary {
+  background: var(--am);
+  border-color: var(--am);
+  color: var(--on-am);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--am2);
+  border-color: var(--am2);
+}
+
+/* signin-v1's greyed "Try again": a flat lilac block rather than a faded purple one. */
+.primary:disabled {
+  background: var(--disabled-bg);
+  border-color: var(--disabled-bg);
+  color: var(--disabled-ink);
+  opacity: 1;
+}
+
+.danger {
+  background: var(--bad-soft);
+  border-color: var(--bad-line);
+  color: var(--bad);
+}
+
+.danger:hover:not(:disabled) {
+  background: var(--bad-soft);
+  border-color: var(--bad);
+}
+
+.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--dim);
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--control-hover);
+  border-color: transparent;
+  color: var(--text);
+}
+
+/* Busy is not disabled: the button keeps its colour while the work runs. */
+.button[data-loading] {
+  cursor: progress;
+  opacity: 1;
+}
+
+.primary[data-loading] {
+  background: var(--am);
+  border-color: var(--am);
+  color: var(--on-am);
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 1.6s;
+  }
+
+  .button {
+    transition: none;
+  }
+}

@@ -1,0 +1,68 @@
+/* signin-v1's .in, .in.focus and .in.err. */
+
+.input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--input-bg);
+  color: var(--text);
+  font-size: var(--text-base);
+  line-height: 1.45;
+  appearance: none;
+  transition:
+    border-color var(--duration-fast) var(--ease),
+    box-shadow var(--duration-fast) var(--ease),
+    background-color var(--duration-fast) var(--ease);
+}
+
+.input::placeholder {
+  color: var(--placeholder);
+  opacity: 1;
+}
+
+.input:hover:not(:disabled):not(:focus) {
+  border-color: var(--am-line);
+}
+
+.input:focus,
+.input:focus-visible {
+  border-color: var(--am);
+  box-shadow: var(--focus-halo);
+}
+
+.input[aria-invalid="true"] {
+  border-color: var(--bad);
+  background: var(--bad-soft);
+}
+
+.input[aria-invalid="true"]:focus {
+  box-shadow: var(--bad-halo);
+}
+
+.input:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Keep the browser's autofill from repainting the field in its own colours. */
+.input:-webkit-autofill {
+  -webkit-text-fill-color: var(--text);
+  box-shadow: 0 0 0 1000px var(--input-bg) inset;
+  caret-color: var(--text);
+}
+
+.input:-webkit-autofill:focus {
+  box-shadow:
+    0 0 0 1000px var(--input-bg) inset,
+    var(--focus-halo);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .input {
+    transition: none;
+  }
+}

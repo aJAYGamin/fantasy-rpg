@@ -1,0 +1,20 @@
+.page {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: var(--space-6);
+}
+
+.card {
+  width: min(420px, 100%);
+  text-align: center;
+}
+
+.title {
+  font-size: var(--text-lg);
+}
+
+.text {
+  margin: var(--space-2) 0 var(--space-4);
+  color: var(--dim);
+}

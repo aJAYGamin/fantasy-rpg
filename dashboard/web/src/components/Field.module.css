@@ -1,0 +1,27 @@
+/* signin-v1's .f label / .hint, plus an error line in the mockups' "bad" colour. */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.label {
+  margin-bottom: 5px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--label);
+}
+
+.hint {
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--dim);
+}
+
+.error {
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--bad);
+}

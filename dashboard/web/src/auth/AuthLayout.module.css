@@ -1,0 +1,21 @@
+.page {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: var(--space-6);
+}
+
+.card {
+  width: min(400px, 100%);
+}
+
+.card h1 {
+  margin-bottom: var(--space-4);
+  font-size: var(--text-xl);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}

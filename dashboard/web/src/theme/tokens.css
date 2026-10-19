@@ -1,0 +1,157 @@
+/*
+ * Amethyst Dashboard design tokens. Every colour in the app comes from here; components never hard-code one.
+ * The first block of each theme is copied exactly from the approved mockups (overview-v3 / overview-dark-v1).
+ * The second block holds the in-between shades the mockups use for controls (button fill, input fill,
+ * placeholder, tracks, borders), taken from the same files; where a mockup shows only one theme, the other
+ * theme's value is chosen to sit in the same place on its own palette.
+ */
+
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  --side: #1e1230;
+  --side2: #281a3f;
+  --side-text: #b9a9d6;
+  --side-head: #7e6aa3;
+  --bg: #f5f3f9;
+  --card: #ffffff;
+  --line: #e7e2f0;
+  --text: #2a2238;
+  --dim: #7a7090;
+  --am: #7e4fe0;
+  --am2: #9c6bf5;
+  --am-soft: #efe7ff;
+  --gold: #c9962b;
+  --warn: #d9822b;
+  --ok: #2e9e5b;
+  --ok-soft: #e3f5ea;
+  --bad: #c6455e;
+  --bad-soft: #fbe9ed;
+  --aria: #3d8fe0;
+  --kael: #d84545;
+  --lyra: #4caf50;
+
+  --on-am: #ffffff;
+  --am-ink: #4b2a99;
+  --am-text: #7e4fe0;
+  --am-line: #dccbff;
+  --ok-line: #bfe6cd;
+  --bad-line: #f1c9d2;
+  --warn-soft: #fdebdd;
+  --warn-ink: #c2661e;
+  --neutral-soft: #eeeaf4;
+  --neutral-ink: #6a5f80;
+  --label: #4a405c;
+  --control-bg: #faf8fd;
+  --control-hover: #f3f0f8;
+  --input-bg: #fcfbfe;
+  --placeholder: #a79dba;
+  --row-line: #f3f0f8;
+  --track: #ece8f3;
+  --toggle-off: #dcd6e6;
+  --check-border: #cfc5e0;
+  --disabled-bg: #cfc5e0;
+  --disabled-ink: #ffffff;
+  --scrollbar: #d6cde6;
+  --scrollbar-hover: #b9aed0;
+  --overlay: rgba(30, 18, 48, 0.45);
+  --gem: radial-gradient(circle at 35% 30%, #c9a8ff, #7e4fe0 60%, #4b2a99);
+  --gem-glow: 0 0 0 3px rgba(156, 107, 245, 0.25);
+
+  --focus-ring: 0 0 0 3px rgba(126, 79, 224, 0.35);
+  --focus-halo: 0 0 0 3px rgba(126, 79, 224, 0.15);
+  --bad-halo: 0 0 0 3px rgba(198, 69, 94, 0.15);
+  --shadow-pop: 0 10px 30px rgba(42, 34, 56, 0.15);
+  --shadow-bar: 0 -4px 14px rgba(42, 34, 56, 0.06);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --side: #0d0817;
+  --side2: #1e1433;
+  --side-text: #b3a3d3;
+  --side-head: #6e5b94;
+  --bg: #120d1f;
+  --card: #1a1329;
+  --line: #2c2242;
+  --text: #ece4fa;
+  --dim: #9c8fb8;
+  --am: #9c6bf5;
+  --am2: #b48cff;
+  --am-soft: #2a1d47;
+  --gold: #e2b54b;
+  --warn: #e6a04f;
+  --ok: #4cc27e;
+  --ok-soft: #17301f;
+  --bad: #ee6f86;
+  --bad-soft: #3a1a24;
+  --aria: #5aa7f5;
+  --kael: #f06a6a;
+  --lyra: #6ccf6e;
+
+  --on-am: #ffffff;
+  --am-ink: #cdb4ff;
+  --am-text: #cdb4ff;
+  --am-line: #3d2b66;
+  --ok-line: #2c5a3b;
+  --bad-line: #5a2533;
+  --warn-soft: #3a2814;
+  --warn-ink: #e6a04f;
+  --neutral-soft: #2c2242;
+  --neutral-ink: #b3a3d3;
+  --label: #cbbfe0;
+  --control-bg: #221936;
+  --control-hover: #2a2040;
+  --input-bg: #150f23;
+  --placeholder: #7c6f98;
+  --row-line: #231a36;
+  --track: #2c2242;
+  --toggle-off: #3a2e52;
+  --check-border: #4a3a6a;
+  --disabled-bg: #3a2e52;
+  --disabled-ink: #8f82ab;
+  --scrollbar: #3a2e52;
+  --scrollbar-hover: #4a3a6a;
+  --overlay: rgba(5, 3, 10, 0.65);
+  --gem: radial-gradient(circle at 35% 30%, #c9a8ff, #7e4fe0 60%, #4b2a99);
+  --gem-glow: 0 0 0 3px rgba(156, 107, 245, 0.25);
+
+  --focus-ring: 0 0 0 3px rgba(156, 107, 245, 0.35);
+  --focus-halo: 0 0 0 3px rgba(156, 107, 245, 0.25);
+  --bad-halo: 0 0 0 3px rgba(238, 111, 134, 0.25);
+  --shadow-pop: 0 10px 30px rgba(0, 0, 0, 0.45);
+  --shadow-bar: 0 -4px 14px rgba(0, 0, 0, 0.35);
+}
+
+/* The same in both themes. */
+:root {
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-brand: "Cinzel", Georgia, serif;
+
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-base: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+
+  --radius-sm: 6px;
+  --radius-control: 8px;
+  --radius-card: 10px;
+  --radius-dialog: 12px;
+  --radius-pill: 999px;
+
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 120ms;
+}

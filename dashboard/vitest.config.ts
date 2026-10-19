@@ -18,6 +18,8 @@ export default defineConfig({
           environment: "jsdom",
           include: ["web/test/**/*.test.{ts,tsx}"],
           setupFiles: ["web/test/setup.ts"],
+          // Vitest blanks every stylesheet; the theme tests read stylesheets as text (?raw), so those are kept.
+          css: { include: [/\.css\?raw$/] },
         },
       },
     ],

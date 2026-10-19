@@ -1,0 +1,129 @@
+import { screen, waitFor } from "@testing-library/react";
+import { HttpResponse, http } from "msw";
+import { describe, expect, test } from "vitest";
+import { renderAt, settled, signInThroughForm } from "./helpers";
+import { NO_ACCOUNT, SIGNED_OUT, TEST_OWNER, TEST_PASSWORD, lastRequest, mockAuthState, server } from "./msw";
+
+describe("with no account yet", () => {
+  // Review Focus 4
+  test.each(["/inventory", "/", "/signin", "/forgot", "/settings/account"])(
+    "no account yet: %s lands on Create your account",
+    async (path) => {
+      mockAuthState(NO_ACCOUNT);
+      const { router } = renderAt(path);
+      expect(await screen.findByRole("heading", { name: "Create your account" })).toBeInTheDocument();
+      expect(router.state.location.pathname).toBe("/setup");
+    },
+  );
+});
+
+describe("signed out", () => {
+  test("signed out: a deep link goes to sign in, then back to the page asked for", async () => {
+    // Review Focus 4
+    mockAuthState(SIGNED_OUT);
+    const { router, user, queryClient } = renderAt("/gear");
+    await waitFor(() => expect(router.state.location.pathname).toBe("/signin"));
+    expect(router.state.location.search).toBe("?next=%2Fgear");
+    await signInThroughForm(user); // msw answers 200 + switches auth state
+    await waitFor(() => expect(router.state.location.pathname).toBe("/gear"));
+    expect(lastRequest("/api/auth/signin")?.body).toEqual({
+      username: TEST_OWNER.username,
+      password: TEST_PASSWORD,
+      keepSignedIn: true,
+    });
+    await settled(queryClient);
+  });
+
+  test("the page asked for keeps its query string through sign-in", async () => {
+    mockAuthState(SIGNED_OUT);
+    const { router, user, queryClient } = renderAt("/party?hero=kael");
+    await waitFor(() => expect(router.state.location.pathname).toBe("/signin"));
+    expect(router.state.location.search).toBe("?next=%2Fparty%3Fhero%3Dkael");
+    await signInThroughForm(user);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/party"));
+    expect(router.state.location.search).toBe("?hero=kael");
+    await settled(queryClient);
+  });
+
+  test("the Overview needs no next: it is where sign-in goes anyway", async () => {
+    mockAuthState(SIGNED_OUT);
+    const { router } = renderAt("/");
+    await waitFor(() => expect(router.state.location.pathname).toBe("/signin"));
+    expect(router.state.location.search).toBe("");
+  });
+
+  test("once the account exists, the first-run page sends you to sign in", async () => {
+    mockAuthState(SIGNED_OUT);
+    const { router } = renderAt("/setup");
+    await waitFor(() => expect(router.state.location.pathname).toBe("/signin"));
+  });
+
+  test.each([
+    "https://evil.example/",
+    "//evil.example/",
+    "/\\evil.example",
+    "/\t/evil.example/gear", // parsing drops the tab, leaving //evil.example/gear: another site's page
+    "javascript:alert(1)",
+    "/signin",
+    "gear",
+  ])(
+    "after sign-in, a next that isn't a page in the app (%s) goes to the Overview",
+    async (next) => {
+      mockAuthState(SIGNED_OUT);
+      const { router, user, queryClient } = renderAt(`/signin?next=${encodeURIComponent(next)}`);
+      await signInThroughForm(user);
+      await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+      expect(router.state.location.search).toBe("");
+      await settled(queryClient);
+    },
+  );
+});
+
+describe("when the server can't be reached", () => {
+  test("every page says so and offers to try again", async () => {
+    server.use(http.get("/api/auth/state", () => HttpResponse.error()));
+    const { user, queryClient } = renderAt("/party");
+    expect(await screen.findByRole("heading", { name: "Can't reach the dashboard's server" })).toBeInTheDocument();
+    server.resetHandlers();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("heading", { name: "Party" })).toBeInTheDocument();
+    await settled(queryClient);
+  });
+});
+
+describe("signed in", () => {
+  test.each(["/signin", "/setup", "/forgot"])("signed in: %s goes to the Overview", async (path) => {
+    const { router, queryClient } = renderAt(path);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+    await settled(queryClient);
+  });
+
+  test.each([
+    ["/", "Overview"],
+    ["/party", "Party"],
+    ["/inventory", "Inventory"],
+    ["/gear", "Gear"],
+    ["/location", "Location"],
+    ["/admin", "Admin"],
+    ["/settings", "Settings"],
+    ["/settings/account", "Settings"],
+  ])("signed in: %s shows the %s page", async (path, heading) => {
+    const { queryClient } = renderAt(path);
+    expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
+    await settled(queryClient);
+  });
+
+  test("a signed_out answer from any route sends you to sign in, back to where you were", async () => {
+    // The session ended on the server (expired, revoked, or signed out in another tab).
+    server.use(
+      http.get("/api/settings", () => {
+        mockAuthState(SIGNED_OUT);
+        return HttpResponse.json({ error: "signed_out", message: "Please sign in." }, { status: 401 });
+      }),
+    );
+    const { router, queryClient } = renderAt("/party");
+    await waitFor(() => expect(router.state.location.pathname).toBe("/signin"));
+    expect(router.state.location.search).toBe("?next=%2Fparty");
+    await settled(queryClient);
+  });
+});
