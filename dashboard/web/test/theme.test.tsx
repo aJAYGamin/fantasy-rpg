@@ -85,7 +85,9 @@ const MOCKUP_PALETTE = [
   ["--side", "#1E1230", "#0D0817"],
   ["--side2", "#281A3F", "#1E1433"],
   ["--side-text", "#B9A9D6", "#B3A3D3"],
-  ["--side-head", "#7E6AA3", "#6E5B94"],
+  // The sidebar's group labels were lifted on the same hue (Task 8, R17's rule): #7E6AA3 / #6E5B94 read
+  // 3.78:1 / 3.37:1 on the sidebar.
+  ["--side-head", "#8A78AC", "#8270A7"],
   ["--bg", "#F5F3F9", "#120D1F"],
   ["--card", "#FFFFFF", "#1A1329"],
   ["--line", "#E7E2F0", "#2C2242"],
@@ -162,8 +164,8 @@ const stylesheets = import.meta.glob<string>("../src/**/*.css", { query: "?raw",
 /**
  * Every text colour a stylesheet sets, with the surface it sits on: the same rule's background if it sets one;
  * otherwise the amethyst fill for white-on-amethyst text, the plum panel for the sign-in screens' brand text
- * (--brand-*; both ends of its gradient), the field fills for text inside an input, and the card and page for
- * everything else. Disabled states are exempt from the contrast rule.
+ * (--brand-*; both ends of its gradient), the field fills for text inside an input, the sidebar's plum for the
+ * sidebar's text, and the card and page for everything else. Disabled states are exempt from the contrast rule.
  */
 function textPairsInStylesheets(): Pair[] {
   const pairs: Pair[] = [];
@@ -183,7 +185,9 @@ function textPairsInStylesheets(): Pair[] {
             ? ["--brand-from", "--brand-to"]
             : /\/(Input|PasswordInput)\.module\.css$/.test(path)
               ? ["--input-bg", "--bad-soft"]
-              : ["--card", "--bg"];
+              : /\/shell\/Sidebar\.module\.css$/.test(path)
+                ? ["--side"]
+                : ["--card", "--bg"];
       for (const back of backs) pairs.push({ fore, back, min: 4.5, where: `${path} ${selector.trim()}` });
     }
   }
@@ -207,6 +211,16 @@ const LISTED: Pair[] = [
   { fore: "--focus-line", back: "--card", min: 3, where: "the keyboard focus ring, on a card" },
   { fore: "--focus-line", back: "--bg", min: 3, where: "the keyboard focus ring, on the page" },
   { fore: "--am", back: "--input-bg", min: 3, where: "an input's border while it has focus" },
+  // The sidebar (Task 8): group labels and the filter's placeholder, the focus ring on its plum, the active item.
+  { fore: "--side-head", back: "--side", min: 4.5, where: "sidebar group labels and the filter placeholder" },
+  { fore: "--side-text", back: "--side", min: 4.5, where: "sidebar items" },
+  { fore: "--side-text", back: "--side-hover", min: 4.5, where: "a hovered sidebar item" },
+  { fore: "--side-strong", back: "--side2", min: 4.5, where: "the sidebar item you're on" },
+  { fore: "--focus-line", back: "--side", min: 3, where: "the keyboard focus ring, on the sidebar" },
+  { fore: "--focus-line", back: "--side2", min: 3, where: "the keyboard focus ring, on the sidebar item you're on" },
+  { fore: "--am2", back: "--side", min: 3, where: "the sidebar filter's edge while it has focus" },
+  // The top bar's unread badge: small white digits on amethyst.
+  { fore: "--on-am", back: "--am-fill", min: 4.5, where: "the bell's unread badge" },
   // The sign-in screens' brand panel: text over both ends of its plum gradient.
   { fore: "--brand-head", back: "--brand-from", min: 4.5, where: "brand panel headline, top end" },
   { fore: "--brand-head", back: "--brand-to", min: 4.5, where: "brand panel headline, bottom end" },

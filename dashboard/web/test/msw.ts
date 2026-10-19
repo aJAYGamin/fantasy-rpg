@@ -7,6 +7,7 @@ import {
   type AuthState,
   DEFAULT_SETTINGS,
   type GameStatus,
+  type Notification,
   type NotificationList,
   type Settings,
   type SettingsPatch,
@@ -58,6 +59,16 @@ export function mockAuthState(auth: AuthState): void {
 
 export function mockSettings(patch: Partial<Settings>): void {
   state.settings = { ...state.settings, ...patch };
+}
+
+/** The bell's list; `unread` defaults to the unread ones listed (the server counts beyond the list too). */
+export function mockNotifications(items: Notification[], unread = items.filter((item) => !item.read).length): void {
+  state.notifications = { items, unread };
+}
+
+/** What the fake server would answer right now, e.g. to put it in the cache before the first render. */
+export function mockedAnswers(): Readonly<Pick<MockState, "auth" | "settings" | "notifications">> {
+  return { auth: state.auth, settings: state.settings, notifications: state.notifications };
 }
 
 function applySettingsPatch(patch: SettingsPatch): void {

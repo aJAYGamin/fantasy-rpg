@@ -1,4 +1,6 @@
+import { PageHeader } from "../shell/PageHeader";
+
 // Placeholder: the real Inventory page arrives in a later task.
 export function InventoryPage() {
-  return <h1>Inventory</h1>;
+  return <PageHeader title="Inventory" crumbs={["Debug", "Inventory"]} />;
 }

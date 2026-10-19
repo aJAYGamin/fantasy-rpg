@@ -5,16 +5,22 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { expect } from "vitest";
+import type { Settings, User } from "../../shared/src/api";
 import indexHtml from "../index.html?raw";
 import { AppProviders } from "../src/App";
-import { createQueryClient } from "../src/api/hooks";
+import { createQueryClient, queryKeys } from "../src/api/hooks";
 import { routes } from "../src/router";
-import { TEST_OWNER, TEST_PASSWORD } from "./msw";
+import { TEST_OWNER, TEST_PASSWORD, mockAuthState, mockSettings, mockedAnswers } from "./msw";
 
 const openClients: QueryClient[] = [];
+// The user-event session of the latest render, for click / type / keyboard.
+let latestUser: UserEvent | null = null;
 
-/** Renders the whole app (router, data, theme) at `path`, e.g. "/gear" or "/signin?next=%2Fparty". */
-export function renderAt(path: string) {
+/**
+ * Renders the whole app (router, data, theme) at `path`, e.g. "/gear" or "/signin?next=%2Fparty". `prime` runs
+ * against the fresh query client before the first render, e.g. to put answers in its cache.
+ */
+export function renderAt(path: string, prime?: (queryClient: QueryClient) => void) {
   const queryClient = createQueryClient();
   // A failed request in a test is the answer under test, not something to retry.
   queryClient.setDefaultOptions({
@@ -22,15 +28,54 @@ export function renderAt(path: string) {
     mutations: { ...queryClient.getDefaultOptions().mutations, retry: false },
   });
   openClients.push(queryClient);
+  prime?.(queryClient);
   const router = createMemoryRouter(routes, { initialEntries: [path] });
   const user = userEvent.setup();
+  latestUser = user;
   const view = render(<AppProviders queryClient={queryClient} router={router} />);
   return { ...view, router, queryClient, user };
 }
 
-/** Drops every query client renderAt made, so no refetch timer outlives its test. */
+export type ShellOptions = {
+  /** Settings the signed-in owner has saved (the rest are the defaults). */
+  settings?: Partial<Settings>;
+  /** Changes to the signed-in owner's account. */
+  user?: Partial<User>;
+};
+
+/**
+ * Renders a signed-in page inside the app shell, already drawn: the auth state, settings and notifications the
+ * fake server holds are put in the cache first, so the sidebar and top bar are there on the first render.
+ */
+export function renderShellAt(path: string, { settings, user }: ShellOptions = {}) {
+  if (settings) mockSettings(settings);
+  if (user) mockAuthState({ setupRequired: false, user: { ...TEST_OWNER, ...user } });
+  const answers = mockedAnswers();
+  return renderAt(path, (queryClient) => {
+    queryClient.setQueryData(queryKeys.auth, answers.auth);
+    queryClient.setQueryData(queryKeys.settings, answers.settings);
+    queryClient.setQueryData(queryKeys.notifications, answers.notifications);
+  });
+}
+
+function currentUser(): UserEvent {
+  latestUser ??= userEvent.setup();
+  return latestUser;
+}
+
+/** Clicks like a person would (pointer events, focus), in the latest render's user-event session. */
+export const click = (element: Element) => currentUser().click(element);
+
+/** Types into `element`, clicking it first. */
+export const type = (element: Element, text: string) => currentUser().type(element, text);
+
+/** Presses keys where the focus is, in user-event's syntax, e.g. "{Meta>}k{/Meta}". */
+export const keyboard = (keys: string) => currentUser().keyboard(keys);
+
+/** Drops every query client renderAt made, so no refetch timer outlives its test, and its user-event session. */
 export function clearQueryClients(): void {
   for (const client of openClients.splice(0)) client.clear();
+  latestUser = null;
 }
 
 /** Waits until no request the app started is still in flight. */

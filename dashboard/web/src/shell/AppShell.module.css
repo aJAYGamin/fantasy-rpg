@@ -1,3 +1,46 @@
-.main {
+/* overview-v3's body and main: the sidebar beside a column of the top bar and the page (.page: 24/28 px, 20 px gaps). */
+
+.shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.column {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-5);
   padding: var(--space-6) var(--space-7);
+}
+
+/* It only takes focus from the skip link; a ring around the whole page would just be noise. */
+.page:focus,
+.page:focus-visible {
+  box-shadow: none;
+}
+
+.skip {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 200;
+  padding: 8px 14px;
+  border-radius: var(--radius-control);
+  background: var(--card);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: var(--shadow-pop);
+  transform: translateY(-200%);
+}
+
+.skip:focus {
+  box-shadow: var(--focus-ring);
+  transform: none;
 }

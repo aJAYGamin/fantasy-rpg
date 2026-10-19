@@ -1,4 +1,4 @@
-/* The mockups' .iconbtn: a 34 px square, 7 px radius, dim 18 px outline icon. */
+/* The mockups' .iconbtn: a 34 px square, 7 px radius, dim 18 px outline icon. IconLink wears the same. */
 
 .iconButton {
   display: inline-grid;
@@ -10,6 +10,8 @@
   border-radius: 7px;
   background: transparent;
   color: var(--dim);
+  font-weight: 400;
+  text-decoration: none;
   cursor: pointer;
   transition:
     background-color var(--duration-fast) var(--ease),
@@ -29,6 +31,13 @@
 }
 
 .iconButton:hover:not(:disabled) {
+  background: var(--control-hover);
+  color: var(--text);
+  text-decoration: none;
+}
+
+/* While its menu or panel is open, the button stays lit. */
+.iconButton[aria-expanded="true"] {
   background: var(--control-hover);
   color: var(--text);
 }

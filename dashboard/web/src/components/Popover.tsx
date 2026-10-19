@@ -16,6 +16,8 @@ import { tabbablesIn } from "./focusable";
 export type PopoverTriggerProps = {
   ref: RefObject<HTMLButtonElement | null>;
   onClick: () => void;
+  /** A menu opens from the arrow keys too: Down to its first item, Up to its last. */
+  onKeyDown: (event: KeyboardEvent) => void;
   "aria-expanded": boolean;
   "aria-controls": string | undefined;
   "aria-haspopup": "dialog" | "menu";
@@ -30,19 +32,32 @@ export type PopoverProps = {
   label: string;
   /** Which edge of the button the panel lines up with. */
   align?: "start" | "end";
+  /**
+   * "dialog" (default): a panel of ordinary controls, reached with Tab. "menu": a list of MenuItem / MenuLink
+   * rows, reached with the arrow keys, Home and End, as menus are.
+   */
   role?: "dialog" | "menu";
   className?: string;
 };
 
+const MENU_ITEMS = '[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]';
+
+function menuItemsIn(panel: HTMLElement): HTMLElement[] {
+  return [...panel.querySelectorAll<HTMLElement>(MENU_ITEMS)];
+}
+
 /**
- * A panel that drops down from its button (the top bar's menus). It takes focus when it opens, and closes on
- * Escape, on a click outside it, or when Tab leaves it. Escape and `close` put focus back on the button.
+ * A panel that drops down from its button (the top bar's menus). It takes focus when it opens (a menu: its first
+ * item), and closes on Escape, on a click outside it, or when Tab leaves it. Escape and `close` put focus back on
+ * the button.
  */
 export function Popover({ trigger, children, label, align = "end", role = "dialog", className }: PopoverProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  // Which menu item takes the focus when the menu opens: the last one when it was opened with the Up arrow.
+  const startAtLast = useRef(false);
   const panelId = useId();
 
   const close = useCallback(() => {
@@ -53,7 +68,10 @@ export function Popover({ trigger, children, label, align = "end", role = "dialo
   useEffect(() => {
     if (!open) return;
     const panel = panelRef.current;
-    if (panel) (tabbablesIn(panel)[0] ?? panel).focus();
+    if (panel) {
+      const items = role === "menu" ? menuItemsIn(panel) : tabbablesIn(panel);
+      ((startAtLast.current ? items.at(-1) : items[0]) ?? panel).focus();
+    }
 
     function onPointerDown(event: PointerEvent) {
       const root = rootRef.current;
@@ -66,13 +84,48 @@ export function Popover({ trigger, children, label, align = "end", role = "dialo
     }
     document.addEventListener("pointerdown", onPointerDown);
     return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [open]);
+  }, [open, role]);
 
   function onKeyDown(event: KeyboardEvent) {
     if (open && event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
       close();
+      return;
+    }
+    const panel = panelRef.current;
+    if (role === "menu" && open && panel?.contains(event.target as Node)) moveInMenu(event, panel);
+  }
+
+  // The keys a menu answers to while the focus is on one of its items.
+  function moveInMenu(event: KeyboardEvent, panel: HTMLElement) {
+    const items = menuItemsIn(panel);
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    let next: HTMLElement | undefined;
+    if (event.key === "ArrowDown") next = items[(at + 1) % items.length];
+    else if (event.key === "ArrowUp") next = at <= 0 ? items.at(-1) : items[at - 1];
+    else if (event.key === "Home") next = items[0];
+    else if (event.key === "End") next = items.at(-1);
+    else if (event.key === " " && event.target instanceof HTMLAnchorElement) {
+      // Space picks a menu item; a button does that by itself, a link only answers Enter.
+      event.preventDefault();
+      event.target.click();
+      return;
+    } else return;
+    event.preventDefault();
+    next?.focus();
+  }
+
+  function onTriggerKeyDown(event: KeyboardEvent) {
+    if (role !== "menu" || (event.key !== "ArrowDown" && event.key !== "ArrowUp")) return;
+    event.preventDefault();
+    startAtLast.current = event.key === "ArrowUp";
+    const panel = panelRef.current;
+    if (open && panel) {
+      const items = menuItemsIn(panel);
+      (startAtLast.current ? items.at(-1) : items[0])?.focus();
+    } else {
+      setOpen(true);
     }
   }
 
@@ -87,7 +140,11 @@ export function Popover({ trigger, children, label, align = "end", role = "dialo
     <div ref={rootRef} className={styles.root} onKeyDown={onKeyDown} onBlur={onBlur}>
       {trigger({
         ref: triggerRef,
-        onClick: () => setOpen((now) => !now),
+        onClick: () => {
+          startAtLast.current = false;
+          setOpen((now) => !now);
+        },
+        onKeyDown: onTriggerKeyDown,
         "aria-expanded": open,
         "aria-controls": open ? panelId : undefined,
         "aria-haspopup": role,

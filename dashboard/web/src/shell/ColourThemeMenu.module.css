@@ -1,0 +1,12 @@
+.menu {
+  min-width: 230px;
+}
+
+/* A small gem: the theme's own colour. */
+.swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--gem);
+  box-shadow: var(--gem-glow);
+}

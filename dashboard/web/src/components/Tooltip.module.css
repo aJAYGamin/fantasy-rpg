@@ -1,0 +1,76 @@
+/*
+ * A small dark label (the page's text and card colours swapped). The bubble's padding is a transparent bridge to
+ * the control, so the pointer can move onto it without it disappearing.
+ */
+
+.anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.bubble {
+  position: absolute;
+  z-index: 60;
+  visibility: hidden;
+  opacity: 0;
+  transition:
+    opacity var(--duration-fast) var(--ease),
+    visibility 0s linear var(--duration-fast);
+}
+
+.bottom > .bubble {
+  top: 100%;
+  left: 50%;
+  padding-top: 6px;
+  transform: translateX(-50%);
+}
+
+.bottom.end > .bubble {
+  right: 0;
+  left: auto;
+  transform: none;
+}
+
+.right > .bubble {
+  top: 50%;
+  left: 100%;
+  padding-left: 8px;
+  transform: translateY(-50%);
+}
+
+.text {
+  display: block;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--text);
+  color: var(--card);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  box-shadow: var(--shadow-pop);
+}
+
+/* Resting the pointer shows it after a moment; keyboard focus shows it at once. */
+.anchor:hover > .bubble {
+  visibility: visible;
+  opacity: 1;
+  transition-delay: 350ms;
+}
+
+.anchor:has(:focus-visible) > .bubble {
+  visibility: visible;
+  opacity: 1;
+  transition-delay: 0s;
+}
+
+.anchor[data-dismissed] > .bubble,
+.anchor:has([aria-expanded="true"]) > .bubble {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble {
+    transition: none;
+  }
+}
