@@ -14,6 +14,8 @@ import { checkPasswordGiven, checkUsernameGiven, hasProblem } from "./validation
 
 const triesText = (count: number) => `${count} ${count === 1 ? "try" : "tries"} left`;
 
+type Pause = { until: Date; justLocked: boolean };
+
 export function SignInPage() {
   const signIn = useSignIn();
   const arrival = readArrival(useLocation().state);
@@ -29,15 +31,28 @@ export function SignInPage() {
   const [keepSignedIn, setKeepSignedIn] = useState(true);
   const [showProblems, setShowProblems] = useState(false);
   const [attempts, setAttempts] = useState(0);
+  // Errors that come from pressing Sign in interrupt a screen reader; once typing starts they only wait for a pause.
+  const [editedSinceSubmit, setEditedSinceSubmit] = useState(false);
+  const [pause, setPause] = useState<Pause | null>(null);
+  // The "password changed" note is for the moment of arrival; after an attempt it has done its job.
+  const [attempted, setAttempted] = useState(false);
+  // What the last wrong password said, so a lock that arrives next can be told from one that was already there.
+  const lastTries = useRef<{ username: string; triesLeft: number } | null>(null);
 
   const refusal = refusalOf(signIn.error);
-  const pausedUntil = pauseEnd(refusal, ["locked"]);
   const wrongPassword = refusal?.body.error === "wrong_password";
+  const paused = pause !== null;
+  const announce = editedSinceSubmit ? "polite" : "assertive";
   const problems = showProblems
     ? { username: checkUsernameGiven(username), password: checkPasswordGiven(password) }
     : { username: undefined, password: undefined };
 
   useFocusFirstInvalid(formRef, attempts, null);
+
+  // Once the pause screen is up, the attempt that caused it is let go: it holds the password that was typed.
+  useEffect(() => {
+    if (paused) signIn.reset();
+  }, [paused, signIn.reset]);
 
   // After a refusal the cursor goes back to the password, selected, ready to be typed over.
   useEffect(() => {
@@ -47,7 +62,6 @@ export function SignInPage() {
   }, [refusal]);
 
   // Back from the pause screen the form is new again; put the cursor on the first thing still to fill in.
-  const paused = pausedUntil !== null;
   const wasPaused = useRef(false);
   useEffect(() => {
     if (wasPaused.current && !paused) (username ? passwordRef : usernameRef).current?.focus();
@@ -55,13 +69,15 @@ export function SignInPage() {
   }, [paused, username]);
 
   function backToForm() {
-    signIn.reset();
+    setPause(null);
     setPassword("");
     setShowProblems(false);
+    lastTries.current = null;
   }
 
   function submit(event: FormEvent) {
     event.preventDefault();
+    setEditedSinceSubmit(false);
     const found = hasProblem([checkUsernameGiven(username), checkPasswordGiven(password)]);
     setShowProblems(found);
     if (found) {
@@ -69,11 +85,39 @@ export function SignInPage() {
       setAttempts((count) => count + 1);
       return;
     }
-    signIn.mutate({ username: username.trim(), password, keepSignedIn });
+    setAttempted(true);
+    const request = { username: username.trim(), password, keepSignedIn };
+    signIn.mutate(request, {
+      onError: (error) => {
+        const failure = refusalOf(error);
+        const until = pauseEnd(failure, ["locked"]);
+        if (until !== null) {
+          // The fifth wrong password is what locks, and its answer is the same 423 a lock that was already there
+          // gives. The answer before it said so: one try left.
+          const before = lastTries.current;
+          setPause({ until, justLocked: before?.username === request.username && before.triesLeft === 1 });
+          // Nothing typed stays behind while the page waits.
+          setPassword("");
+          lastTries.current = null;
+        } else if (failure?.body.error === "wrong_password" && failure.body.triesLeft !== undefined) {
+          lastTries.current = { username: request.username, triesLeft: failure.body.triesLeft };
+        } else {
+          lastTries.current = null;
+        }
+      },
+    });
   }
 
-  if (pausedUntil !== null) {
-    return <LockedPanel kind="signin" until={pausedUntil} onTryAgain={backToForm} onBack={backToForm} />;
+  if (pause !== null) {
+    return (
+      <LockedPanel
+        kind="signin"
+        until={pause.until}
+        justLocked={pause.justLocked}
+        onTryAgain={backToForm}
+        onBack={backToForm}
+      />
+    );
   }
 
   const tries = refusal?.body.triesLeft;
@@ -83,7 +127,7 @@ export function SignInPage() {
       <p className={form.lead}>Use the account you created.</p>
       <form ref={formRef} className={form.form} onSubmit={submit} noValidate>
         {refusal ? (
-          <Alert tone="bad" id={alertId}>
+          <Alert tone="bad" id={alertId} className={form.alertAbove}>
             {wrongPassword && tries !== undefined ? (
               <>
                 That password isn't right. <b>{triesText(tries)}</b> before a {LOCK_MINUTES}-minute pause.
@@ -93,9 +137,14 @@ export function SignInPage() {
             )}
           </Alert>
         ) : (
-          arrival && <Alert tone="ok">Password changed. Sign in with your new password.</Alert>
+          arrival &&
+          !attempted && (
+            <Alert tone="ok" className={form.alertAbove}>
+              Password changed. Sign in with your new password.
+            </Alert>
+          )
         )}
-        <Field label="Username" error={problems.username}>
+        <Field label="Username" error={problems.username} announce={announce} className={form.field}>
           <Input
             ref={usernameRef}
             autoComplete="username"
@@ -103,10 +152,13 @@ export function SignInPage() {
             spellCheck={false}
             autoFocus={!arrival}
             value={username}
-            onChange={(event) => setUsername(event.target.value)}
+            onChange={(event) => {
+              setUsername(event.target.value);
+              setEditedSinceSubmit(true);
+            }}
           />
         </Field>
-        <Field label="Password" error={problems.password}>
+        <Field label="Password" error={problems.password} announce={announce} className={form.field}>
           <PasswordInput
             ref={passwordRef}
             showLabel="Show password"
@@ -115,7 +167,10 @@ export function SignInPage() {
             invalid={wrongPassword || undefined}
             aria-describedby={refusal ? alertId : undefined}
             value={password}
-            onChange={(event) => setPassword(event.target.value)}
+            onChange={(event) => {
+              setPassword(event.target.value);
+              setEditedSinceSubmit(true);
+            }}
           />
         </Field>
         <div className={form.row}>

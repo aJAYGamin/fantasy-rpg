@@ -23,13 +23,19 @@ export type FieldProps = {
   hint?: ReactNode;
   /** What's wrong with the value; marks the input invalid. */
   error?: ReactNode;
+  /**
+   * How an error is announced to a screen reader. "polite" (the default) waits for a pause: right for checks that
+   * run as someone types. "assertive" interrupts, as role="alert": for an error that appears because of something
+   * the person just did, like a failed submit or the server's refusal.
+   */
+  announce?: "polite" | "assertive";
   className?: string;
   /** One Input or PasswordInput; it picks up the label, hint and error by itself. */
   children: ReactNode;
 };
 
 /** A labelled form row (signin-v1's .f): label above, input, then hint and error, all tied to the input. */
-export function Field({ label, hint, error, className, children }: FieldProps) {
+export function Field({ label, hint, error, announce = "polite", className, children }: FieldProps) {
   const id = useId();
   const hintId = hint ? `${id}-hint` : undefined;
   const errorId = error ? `${id}-error` : undefined;
@@ -46,8 +52,12 @@ export function Field({ label, hint, error, className, children }: FieldProps) {
         </p>
       )}
       {error && (
-        // role="alert": an error that appears after a submit is announced as it appears.
-        <p id={errorId} role="alert" className={styles.error}>
+        <p
+          id={errorId}
+          role={announce === "assertive" ? "alert" : undefined}
+          aria-live={announce === "polite" ? "polite" : undefined}
+          className={styles.error}
+        >
           {error}
         </p>
       )}

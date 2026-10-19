@@ -83,3 +83,30 @@ test("a signed_out answer from any route is reported; other 401s are not", async
     stop();
   }
 });
+
+test("a refusal says how far the server's clock is from this computer's, from the Date header", async () => {
+  const refusal = { error: "locked", message: "Too many tries.", lockedUntil: "2026-10-19T10:05:00.000Z" };
+  const answerWith = (date: string | undefined) =>
+    server.use(
+      http.post("/api/auth/signin", () =>
+        HttpResponse.json(refusal, { status: 423, headers: date === undefined ? undefined : { Date: date } }),
+      ),
+    );
+  const offsetFor = async () =>
+    ((await failureOf(api("POST", "/api/auth/signin", { username: "owner", password: "x" }))) as ApiFailure).clockOffset;
+
+  // A server 90 seconds ahead (the header has whole-second precision, so allow a second either way).
+  answerWith(new Date(Date.now() + 90_000).toUTCString());
+  expect(Math.abs((await offsetFor()) - 90_000)).toBeLessThanOrEqual(1_000);
+  // A server 90 seconds behind.
+  answerWith(new Date(Date.now() - 90_000).toUTCString());
+  expect(Math.abs((await offsetFor()) + 90_000)).toBeLessThanOrEqual(1_000);
+  // Clocks that agree to within what the header can tell are treated as agreeing.
+  answerWith(new Date().toUTCString());
+  expect(await offsetFor()).toBe(0);
+  // No header, or one that can't be read: no correction.
+  answerWith(undefined);
+  expect(await offsetFor()).toBe(0);
+  answerWith("not a date");
+  expect(await offsetFor()).toBe(0);
+});

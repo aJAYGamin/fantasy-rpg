@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { expect, test } from "vitest";
+import buttonCss from "../src/components/Button.module.css?raw";
 import globalCss from "../src/theme/global.css?raw";
 import tokensCss from "../src/theme/tokens.css?raw";
 import { ThemeProvider, useTheme } from "../src/theme/ThemeProvider";
@@ -239,6 +240,19 @@ test("the keyboard focus ring is a solid 2px amethyst ring with the soft halo ou
     expect(tokens.get("--focus-halo"), theme).toBe("0 0 0 3px var(--focus-tint)");
     expect(tokens.get("--focus-line"), theme).toBe(tokens.get("--am"));
   }
+});
+
+test("a filled button's focus ring has a card-coloured gap inside it, so its own fill can't swallow the ring", () => {
+  for (const [theme, tokens] of [
+    ["light", tokensIn(':root,\n[data-theme="light"]')],
+    ["dark", tokensIn('[data-theme="dark"]')],
+  ] as const) {
+    expect(tokens.get("--focus-ring-filled"), theme).toBe(
+      "0 0 0 2px var(--card), 0 0 0 4px var(--focus-line), 0 0 0 7px var(--focus-tint)",
+    );
+  }
+  const rule = /\.primary:focus-visible,\s*\.danger:focus-visible\s*\{([^}]*)\}/.exec(buttonCss)?.[1];
+  expect(rule).toMatch(/box-shadow:\s*var\(--focus-ring-filled\)/);
 });
 
 test("the focus ring survives forced-colours (high contrast) mode, where shadows are dropped", () => {

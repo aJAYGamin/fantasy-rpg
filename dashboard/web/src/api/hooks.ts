@@ -25,6 +25,9 @@ const SETTINGS_UPDATE = ["settings", "update"] as const;
 export function createQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
+      // A finished mutation keeps what it was sent (the typed passwords and answers) until it is collected. Collect it
+      // as soon as the screen that sent it lets go, instead of five minutes later.
+      mutations: { gcTime: 0 },
       queries: {
         // A refusal won't change by asking again; a dropped connection or a server error might.
         retry: (failures, error) =>

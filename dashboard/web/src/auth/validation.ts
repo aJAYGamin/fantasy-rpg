@@ -1,14 +1,15 @@
-import { MIN_PASSWORD_LENGTH } from "../../../shared/src/constants";
+import {
+  DISPLAY_NAME_MAX,
+  INVALID_DISPLAY_NAME_MESSAGE,
+  INVALID_USERNAME_MESSAGE,
+  MIN_PASSWORD_LENGTH,
+  TOO_SHORT_MESSAGE,
+  USERNAME_RULE,
+} from "../../../shared/src/constants";
 
-// These repeat the server's rules (server/src/auth/routes.ts and accounts.ts) so a mistake is caught before it is
-// sent. The server stays the authority: the pages also show its own refusals, in its own words.
-const USERNAME_RULE = /^[A-Za-z0-9_.-]{3,32}$/;
-const DISPLAY_NAME_MAX = 40;
-
+// The account rules and their sentences come from shared/, the same values the server enforces; checking here
+// only saves a round trip. The server stays the authority, and the pages also show its own refusals.
 const MESSAGES = {
-  displayName: "Display names are 1 to 40 characters.",
-  username: "Usernames are 3 to 32 letters, digits, dots, dashes or underscores.",
-  tooShort: `Passwords need at least ${MIN_PASSWORD_LENGTH} characters.`,
   mismatch: "The passwords don't match.",
   answer: "Enter an answer.",
   needUsername: "Enter your username.",
@@ -23,14 +24,14 @@ const length = (text: string) => [...text].length;
 
 export function checkDisplayName(typed: string): Problem {
   const characters = length(typed.trim());
-  return characters >= 1 && characters <= DISPLAY_NAME_MAX ? undefined : MESSAGES.displayName;
+  return characters >= 1 && characters <= DISPLAY_NAME_MAX ? undefined : INVALID_DISPLAY_NAME_MESSAGE;
 }
 
 export const checkNewUsername = (typed: string): Problem =>
-  USERNAME_RULE.test(typed.trim()) ? undefined : MESSAGES.username;
+  USERNAME_RULE.test(typed.trim()) ? undefined : INVALID_USERNAME_MESSAGE;
 
 export const checkNewPassword = (password: string): Problem =>
-  length(password) >= MIN_PASSWORD_LENGTH ? undefined : MESSAGES.tooShort;
+  length(password) >= MIN_PASSWORD_LENGTH ? undefined : TOO_SHORT_MESSAGE;
 
 export const checkConfirmation = (password: string, confirmation: string): Problem =>
   password === confirmation ? undefined : MESSAGES.mismatch;

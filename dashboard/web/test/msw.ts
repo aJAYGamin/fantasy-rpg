@@ -13,7 +13,11 @@ import {
   type SetupRequest,
   type User,
 } from "../../shared/src/api";
-import { MIN_PASSWORD_LENGTH } from "../../shared/src/constants";
+import {
+  INVALID_DISPLAY_NAME_MESSAGE,
+  INVALID_USERNAME_MESSAGE,
+  TOO_SHORT_MESSAGE,
+} from "../../shared/src/constants";
 
 export const TEST_OWNER: User = {
   id: 1,
@@ -95,9 +99,9 @@ const SERVER_MESSAGES: Record<string, string> = {
   wrong_password: "That password isn't right.",
   wrong_answer: "One or more answers didn't match.",
   locked: "Too many tries. Try again when the timer runs out.",
-  too_short: `Passwords need at least ${MIN_PASSWORD_LENGTH} characters.`,
-  invalid_username: "Usernames are 3 to 32 letters, digits, dots, dashes or underscores.",
-  invalid_display_name: "Display names are 1 to 40 characters.",
+  too_short: TOO_SHORT_MESSAGE,
+  invalid_username: INVALID_USERNAME_MESSAGE,
+  invalid_display_name: INVALID_DISPLAY_NAME_MESSAGE,
   missing_answer: "Answer all three security questions.",
   already_set_up: "An account already exists.",
   server_error: "Something went wrong on the server.",
@@ -105,32 +109,46 @@ const SERVER_MESSAGES: Record<string, string> = {
 
 type Refusal = { error: string; triesLeft?: number; lockedUntil?: string };
 
-/** An ISO time `minutes` from now, for a lockedUntil. */
-export function inMinutes(minutes: number): string {
-  return new Date(Date.now() + minutes * 60_000).toISOString();
+/** An ISO time `minutes` after `from` (default: now), for a lockedUntil. */
+export function inMinutes(minutes: number, from: number = Date.now()): string {
+  return new Date(from + minutes * 60_000).toISOString();
 }
 
-// `refusal` may be a function so a lockedUntil is worked out when the answer is sent, not when the test starts.
-function refuse(path: string, status: number, refusal: Refusal | (() => Refusal)): void {
+// What a refusal can be: a fixed answer, or a function of the server's clock so a lockedUntil is worked out when the
+// answer is sent, not when the test starts.
+type Refusing = Refusal | ((serverNow: number) => Refusal);
+
+type RefuseOptions = {
+  /**
+   * Makes the server's clock this many ms ahead of this computer's, and says so in the answer's Date header (which
+   * has whole-second precision, as a real one does).
+   */
+  clockAhead?: number;
+};
+
+function refuse(path: string, status: number, refusal: Refusing, { clockAhead }: RefuseOptions = {}): void {
   server.use(
     http.post(path, () => {
-      const body = typeof refusal === "function" ? refusal() : refusal;
-      return HttpResponse.json({ message: SERVER_MESSAGES[body.error], ...body }, { status });
+      const serverNow =
+        clockAhead === undefined ? Date.now() : Math.floor((Date.now() + clockAhead) / 1000) * 1000;
+      const body = typeof refusal === "function" ? refusal(serverNow) : refusal;
+      const headers = clockAhead === undefined ? undefined : { Date: new Date(serverNow).toUTCString() };
+      return HttpResponse.json({ message: SERVER_MESSAGES[body.error], ...body }, { status, headers });
     }),
   );
 }
 
 /** Makes sign-in answer with a refusal, e.g. mockSignin(401, { error: "wrong_password", triesLeft: 3 }). */
-export const mockSignin = (status: number, refusal: Refusal | (() => Refusal)) =>
-  refuse("/api/auth/signin", status, refusal);
+export const mockSignin = (status: number, refusal: Refusing, options?: RefuseOptions) =>
+  refuse("/api/auth/signin", status, refusal, options);
 
 /** Makes first-run setup answer with a refusal. */
-export const mockSetup = (status: number, refusal: Refusal | (() => Refusal)) =>
-  refuse("/api/auth/setup", status, refusal);
+export const mockSetup = (status: number, refusal: Refusing, options?: RefuseOptions) =>
+  refuse("/api/auth/setup", status, refusal, options);
 
 /** Makes the password reset answer with a refusal. */
-export const mockForgot = (status: number, refusal: Refusal | (() => Refusal)) =>
-  refuse("/api/auth/forgot", status, refusal);
+export const mockForgot = (status: number, refusal: Refusing, options?: RefuseOptions) =>
+  refuse("/api/auth/forgot", status, refusal, options);
 
 // ---- what the app sent ----
 

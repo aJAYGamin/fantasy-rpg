@@ -1,10 +1,14 @@
-/* The furniture the sign-in forms share: heading, lead line, field rows, the full-width button (signin-v1). */
+/*
+ * The furniture the sign-in forms share, spaced exactly as signin-v1 does it. The mockup's form is a flex column,
+ * where margins add up rather than collapse, and so is this one: there is no gap between rows, only each row's own
+ * margins (.f 12 below; .q 10 above and 4 below; .row 4 above and 8 below; .btn 6 above), so the sums match.
+ */
 
+/* line-height is inherited (1.45), as the mockup's h3 does, which makes the heading 29px tall. */
 .title {
-  margin-bottom: var(--space-1);
+  margin-bottom: 4px;
   font-size: var(--text-xl);
   font-weight: 700;
-  line-height: 1.3;
 }
 
 /* A heading the cursor is sent to on purpose (the pause screen); it isn't a control, so it shows no ring. */
@@ -21,13 +25,22 @@
 .form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+}
+
+/* signin-v1's .f. */
+.field {
+  margin-bottom: 12px;
 }
 
 .two {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  column-gap: 10px;
+}
+
+/* The new-password pair sits 14px under the last answer (the mockup's inline margin-top). */
+.afterAnswers {
+  margin-top: 14px;
 }
 
 @media (max-width: 480px) {
@@ -56,7 +69,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  margin: var(--space-1) 0 var(--space-2);
+  margin: 4px 0 8px;
   font-size: var(--text-md);
 }
 
@@ -65,33 +78,57 @@
   margin-top: 10px;
 }
 
-/* Two classes' worth of weight (element + class) so signin-v1's 600 beats Button's own 500 in any load order. */
+/*
+ * signin-v1's .btn: 6px above, 42.3px tall (padding 11, no border; Button's 1px border takes one of the 11),
+ * font-weight 600. Element + class so it wins over Button's own rules whatever order the stylesheets load in.
+ */
 button.submit {
   width: 100%;
   margin-top: 6px;
+  padding-block: 10px;
   font-weight: 600;
 }
 
-/* A fieldset that looks like a plain group; its legend is the group's heading. */
+/* Setup's button is 14px under the last answer. */
+button.submitAfterAnswers {
+  margin-top: 14px;
+}
+
+/* signin-v1's .alert sits 14px above the first field. */
+.alertAbove {
+  margin-bottom: 14px;
+}
+
+/* A refusal between the last answer and the button keeps the same 14px either side. */
+.alertAfterAnswers {
+  margin-top: 14px;
+}
+
+.alertBeforeButton {
+  margin-bottom: 8px;
+}
+
+/* A group of fields under its own heading (setup's security questions); its legend is the group's heading. */
 .group {
   display: flex;
   flex-direction: column;
-  gap: 10px;
   min-width: 0;
-  margin: var(--space-1) 0 0;
+  margin: 4px 0 0;
   padding: 0;
   border: 0;
 }
 
 .legend {
   padding: 0;
-  margin-bottom: var(--space-1);
+  margin-bottom: 4px;
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--label);
 }
 
+/* signin-v1's .muted: a little larger than the heading beside it, and regular weight. */
 .legendNote {
+  font-size: var(--text-md);
   font-weight: 400;
   color: var(--dim);
 }

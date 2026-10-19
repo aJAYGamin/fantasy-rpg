@@ -72,6 +72,12 @@
   opacity: 1;
 }
 
+/* A filled button's own colour would swallow the ring, so a gap of the card colour keeps the two apart. */
+.primary:focus-visible,
+.danger:focus-visible {
+  box-shadow: var(--focus-ring-filled);
+}
+
 .danger {
   background: var(--bad-soft);
   border-color: var(--bad-line);

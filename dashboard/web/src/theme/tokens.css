@@ -10,7 +10,8 @@
  * on the same hue: light --dim (was #7a7090), the *-ink text tokens, the placeholder, the off switch and the
  * checkbox border. --am-fill is the amethyst behind white text in both themes (dark --am is too light for it).
  * The keyboard focus ring is a solid 2px --focus-line (3:1 or better on cards and the page) with the soft
- * halo outside it. The --brand-* shades are the sign-in screens' plum panel (signin-v1's .brandside); its
+ * halo outside it; --focus-ring-filled is the same with a 2px card-coloured gap inside, for filled buttons,
+ * whose own fill would otherwise swallow the ring. The --brand-* shades are the sign-in screens' plum panel (signin-v1's .brandside); its
  * small footer line is lifted from the mockup's #7e6aa3 to read at 4.5:1 on the gradient.
  */
 
@@ -82,6 +83,7 @@
   --focus-tint: rgba(126, 79, 224, 0.15);
   --focus-halo: 0 0 0 3px var(--focus-tint);
   --focus-ring: 0 0 0 2px var(--focus-line), 0 0 0 5px var(--focus-tint);
+  --focus-ring-filled: 0 0 0 2px var(--card), 0 0 0 4px var(--focus-line), 0 0 0 7px var(--focus-tint);
   --bad-halo: 0 0 0 3px rgba(198, 69, 94, 0.15);
   --shadow-pop: 0 10px 30px rgba(42, 34, 56, 0.15);
   --shadow-bar: 0 -4px 14px rgba(42, 34, 56, 0.06);
@@ -154,6 +156,7 @@
   --focus-tint: rgba(156, 107, 245, 0.25);
   --focus-halo: 0 0 0 3px var(--focus-tint);
   --focus-ring: 0 0 0 2px var(--focus-line), 0 0 0 5px var(--focus-tint);
+  --focus-ring-filled: 0 0 0 2px var(--card), 0 0 0 4px var(--focus-line), 0 0 0 7px var(--focus-tint);
   --bad-halo: 0 0 0 3px rgba(238, 111, 134, 0.25);
   --shadow-pop: 0 10px 30px rgba(0, 0, 0, 0.45);
   --shadow-bar: 0 -4px 14px rgba(0, 0, 0, 0.35);

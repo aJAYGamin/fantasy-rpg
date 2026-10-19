@@ -19,7 +19,7 @@ export function renderAt(path: string) {
   // A failed request in a test is the answer under test, not something to retry.
   queryClient.setDefaultOptions({
     queries: { ...queryClient.getDefaultOptions().queries, retry: false },
-    mutations: { retry: false },
+    mutations: { ...queryClient.getDefaultOptions().mutations, retry: false },
   });
   openClients.push(queryClient);
   const router = createMemoryRouter(routes, { initialEntries: [path] });

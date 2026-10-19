@@ -12,3 +12,12 @@
   font-size: var(--text-xs);
   font-weight: 600;
 }
+
+/* signin-v1's .q: 10px above, 4px between the question and its answer, nothing below (the next .q brings its own). */
+.question {
+  margin-top: 10px;
+}
+
+.question label {
+  margin-bottom: 4px;
+}

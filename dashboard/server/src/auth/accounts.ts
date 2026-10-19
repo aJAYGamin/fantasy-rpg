@@ -1,3 +1,4 @@
+import { DISPLAY_NAME_MAX } from "../../../shared/src/constants.js";
 import type { Db } from "../db/database.js";
 
 export type Account = {
@@ -49,8 +50,6 @@ function toAccount(row: AccountRow): Account {
     answerHashes: JSON.parse(row.answer_hashes) as string[],
   };
 }
-
-const DISPLAY_NAME_MAX = 40;
 
 // The name as it will be stored: trimmed, and 1 to 40 characters as a person counts them. Null when it breaks that.
 export function cleanDisplayName(typed: string): string | null {

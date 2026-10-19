@@ -1,6 +1,12 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import type { AuthState } from "../../../shared/src/api.js";
-import { MAX_WRONG_PASSWORDS, SECURITY_QUESTIONS, SESSION_COOKIE } from "../../../shared/src/constants.js";
+import {
+  MAX_WRONG_PASSWORDS,
+  SECURITY_QUESTIONS,
+  SESSION_COOKIE,
+  USERNAME_MAX,
+  USERNAME_RULE,
+} from "../../../shared/src/constants.js";
 import { isAnswers, isObject } from "../bodies.js";
 import type { Config } from "../config.js";
 import type { Db } from "../db/database.js";
@@ -34,8 +40,6 @@ export interface AuthDeps {
   dummyHash: string;
 }
 
-const USERNAME_RULE = /^[A-Za-z0-9_.-]{3,32}$/;
-const USERNAME_MAX = 32;
 const DAY_SECONDS = 86_400;
 
 // The typed username as a lock key: trimmed and cut to the longest name an account can have, so a stranger typing a

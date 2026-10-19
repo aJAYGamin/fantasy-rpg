@@ -1,4 +1,4 @@
-import { type ChangeEvent, type FormEvent, useRef, useState } from "react";
+import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { LOCK_MINUTES, SECURITY_QUESTIONS } from "../../../shared/src/constants";
 import { useResetPassword } from "../api/hooks";
@@ -13,7 +13,6 @@ import { useFocusFirstInvalid } from "./focus";
 import { type SignInArrival, useSignInTo } from "./links";
 import { pauseEnd, refusalOf } from "./refusal";
 import {
-  type Problem,
   checkAnswer,
   checkConfirmation,
   checkNewPassword,
@@ -23,6 +22,7 @@ import {
 
 type Answers = [string, string, string];
 type Values = { username: string; answers: Answers; newPassword: string; confirm: string };
+type Pause = { until: Date; justLocked: boolean };
 
 const EMPTY: Values = { username: "", answers: ["", "", ""], newPassword: "", confirm: "" };
 
@@ -44,19 +44,35 @@ export function ForgotPage() {
   const [values, setValues] = useState<Values>(EMPTY);
   const [showProblems, setShowProblems] = useState(false);
   const [attempts, setAttempts] = useState(0);
+  // "The passwords don't match" is only fair once there is something in Confirm to compare, or it has been left.
+  const [confirmTouched, setConfirmTouched] = useState(false);
+  // Errors that come from pressing Reset password interrupt a screen reader; once typing starts they only wait
+  // for a pause.
+  const [editedSinceSubmit, setEditedSinceSubmit] = useState(false);
+  const [pause, setPause] = useState<Pause | null>(null);
   // Set once the pause screen has been left, so the cursor starts on the first answer instead of the name.
   const [afterPause, setAfterPause] = useState(false);
 
   const refusal = refusalOf(resetPassword.error);
-  const pausedUntil = pauseEnd(refusal, ["wrong_answer", "locked"]);
   const serverSaysTooShort = refusal?.body.error === "too_short";
   const found = showProblems ? checkAll(values) : undefined;
+  const announce = editedSinceSubmit ? "polite" : "assertive";
+  const paused = pause !== null;
+  const confirmProblem =
+    !confirmTouched && values.confirm === "" ? undefined : found?.confirm;
 
   useFocusFirstInvalid(formRef, attempts, refusal);
 
+  // Once the pause screen is up, the attempt that caused it is let go: it holds the answers that were typed.
+  useEffect(() => {
+    if (paused) resetPassword.reset();
+  }, [paused, resetPassword.reset]);
+
   function edit(field: "username" | "newPassword" | "confirm") {
     return (event: ChangeEvent<HTMLInputElement>) => {
-      setValues((now) => ({ ...now, [field]: event.target.value }));
+      const typed = event.target.value;
+      setValues((now) => ({ ...now, [field]: typed }));
+      setEditedSinceSubmit(true);
       // The server's complaint was about the old password.
       if (field === "newPassword" && serverSaysTooShort) resetPassword.reset();
     };
@@ -70,15 +86,19 @@ export function ForgotPage() {
         answers[index] = typed;
         return { ...now, answers };
       });
+      setEditedSinceSubmit(true);
     };
   }
 
   function submit(event: FormEvent) {
     event.preventDefault();
+    setEditedSinceSubmit(false);
     const checks = checkAll(values);
     const problem = hasProblem([checks.username, ...checks.answers, checks.newPassword, checks.confirm]);
     setShowProblems(problem);
     if (problem) {
+      // If the passwords differ the person has to be told, even when Confirm is still empty.
+      if (checks.confirm !== undefined) setConfirmTouched(true);
       setAttempts((count) => count + 1);
       return;
     }
@@ -90,19 +110,30 @@ export function ForgotPage() {
           const arrival: SignInArrival = { passwordChanged: true, username };
           void navigate(signInTo, { replace: true, state: arrival });
         },
+        onError: (error) => {
+          const failure = refusalOf(error);
+          const until = pauseEnd(failure, ["wrong_answer", "locked"]);
+          if (until === null) return;
+          // A wrong answer is what locks the reset; a locked answer means the lock was already there.
+          setPause({ until, justLocked: failure?.body.error === "wrong_answer" });
+          // Nothing typed stays behind while the page waits: the answers and the new password are gone, the name stays.
+          setValues((now) => ({ ...EMPTY, username: now.username }));
+        },
       },
     );
   }
 
-  // The pause is over: the form comes back with the name kept, and the answers and passwords typed before are gone.
+  // The pause is over: the form comes back as it was left, empty of everything but the name.
   function backToForm() {
-    resetPassword.reset();
-    setValues((now) => ({ ...EMPTY, username: now.username }));
+    setPause(null);
     setShowProblems(false);
+    setConfirmTouched(false);
     setAfterPause(true);
   }
 
-  if (pausedUntil !== null) return <LockedPanel kind="reset" until={pausedUntil} onTryAgain={backToForm} />;
+  if (pause !== null) {
+    return <LockedPanel kind="reset" until={pause.until} justLocked={pause.justLocked} onTryAgain={backToForm} />;
+  }
 
   return (
     <AuthLayout
@@ -112,7 +143,7 @@ export function ForgotPage() {
       <h1 className={form.title}>Answer your security questions</h1>
       <p className={form.lead}>Capitals and extra spaces don't matter.</p>
       <form ref={formRef} className={form.form} onSubmit={submit} noValidate>
-        <Field label="Username" error={found?.username}>
+        <Field label="Username" error={found?.username} announce={announce} className={form.field}>
           <Input
             autoComplete="username"
             autoCapitalize="none"
@@ -123,7 +154,13 @@ export function ForgotPage() {
           />
         </Field>
         {SECURITY_QUESTIONS.map((question, index) => (
-          <QuestionField key={question} number={index + 1} question={question} error={found?.answers[index]}>
+          <QuestionField
+            key={question}
+            number={index + 1}
+            question={question}
+            error={found?.answers[index]}
+            announce={announce}
+          >
             <PasswordInput
               showLabel={`Show answer ${index + 1}`}
               autoComplete="off"
@@ -133,10 +170,12 @@ export function ForgotPage() {
             />
           </QuestionField>
         ))}
-        <div className={form.two}>
+        <div className={cx(form.two, form.afterAnswers)}>
           <Field
             label="New password"
             error={found?.newPassword ?? (serverSaysTooShort ? refusal?.body.message : undefined)}
+            announce={announce}
+            className={form.field}
           >
             <PasswordInput
               showLabel="Show new password"
@@ -152,7 +191,9 @@ export function ForgotPage() {
                 Confirm<span className={form.visuallyHidden}> new password</span>
               </>
             }
-            error={found?.confirm}
+            error={confirmProblem}
+            announce={announce}
+            className={form.field}
           >
             <PasswordInput
               showLabel="Show confirm new password"
@@ -160,10 +201,15 @@ export function ForgotPage() {
               placeholder="Again"
               value={values.confirm}
               onChange={edit("confirm")}
+              onBlur={() => setConfirmTouched(true)}
             />
           </Field>
         </div>
-        {refusal && !serverSaysTooShort && <Alert tone="bad">{refusal.body.message}</Alert>}
+        {refusal && !serverSaysTooShort && (
+          <Alert tone="bad" className={form.alertBeforeButton}>
+            {refusal.body.message}
+          </Alert>
+        )}
         <Button type="submit" variant="primary" loading={resetPassword.isPending} className={form.submit}>
           Reset password
         </Button>

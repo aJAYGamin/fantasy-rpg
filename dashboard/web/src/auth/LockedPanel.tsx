@@ -1,38 +1,41 @@
 import { useEffect, useRef } from "react";
 import { Link } from "react-router";
 import { LOCK_MINUTES, MAX_WRONG_PASSWORDS } from "../../../shared/src/constants";
-import { Button, Countdown, Ring } from "../components";
+import { Button, Countdown, Ring, useSecondsLeft } from "../components";
 import { cx } from "../components/cx";
 import { AuthLayout } from "./AuthLayout";
 import form from "./AuthForm.module.css";
 import styles from "./LockedPanel.module.css";
 import { useSignInTo } from "./links";
-import { spokenDuration, useSecondsLeft } from "./useSecondsLeft";
+import { spokenDuration } from "./spokenDuration";
 
 export type LockedPanelProps = {
   /** What is paused: signing in (too many wrong passwords) or resetting the password (a wrong answer). */
   kind: "signin" | "reset";
-  /** When the pause ends. */
+  /** When the pause ends, on this computer's clock. */
   until: Date;
+  /**
+   * Whether the attempt that was just made is the one that caused the pause. Then the lead says what went wrong;
+   * otherwise (a pause that was already there) it only says the pause is on, because the page can't know why.
+   */
+  justLocked: boolean;
   /** Pressed once the time is up; the page brings its form back. */
   onTryAgain: () => void;
   /** Set on the sign-in page itself: "Back to sign in" there just closes this panel. */
   onBack?: () => void;
 };
 
-const COPY = {
-  signin: {
-    title: "Sign-in is paused",
-    lead: `That was ${MAX_WRONG_PASSWORDS} wrong passwords in a row. You can try again when the timer runs out.`,
-  },
-  reset: {
-    title: "Password reset is locked",
-    lead: "One of the answers didn't match. You can try again when the timer runs out.",
-  },
+const TITLES = { signin: "Sign-in is paused", reset: "Password reset is locked" } as const;
+
+const CAUSES = {
+  signin: `That was ${MAX_WRONG_PASSWORDS} wrong passwords in a row. You can try again when the timer runs out.`,
+  reset: "One of the answers didn't match. You can try again when the timer runs out.",
 } as const;
 
+const EARLIER = "Too many tries recently. You can try again when the timer runs out.";
+
 /** signin-v1's fourth screen: a ring counting down to the end of the pause, and a Try again that wakes when it does. */
-export function LockedPanel({ kind, until, onTryAgain, onBack }: LockedPanelProps) {
+export function LockedPanel({ kind, until, justLocked, onTryAgain, onBack }: LockedPanelProps) {
   const secondsLeft = useSecondsLeft(until);
   const timeIsUp = secondsLeft === 0;
   const heading = useRef<HTMLHeadingElement>(null);
@@ -46,9 +49,9 @@ export function LockedPanel({ kind, until, onTryAgain, onBack }: LockedPanelProp
     <AuthLayout tagline="Taking a short pause." tagsub="This stops anyone from guessing over and over.">
       <div className={styles.lock}>
         <h1 ref={heading} tabIndex={-1} className={cx(form.title, form.focusTarget)}>
-          {COPY[kind].title}
+          {TITLES[kind]}
         </h1>
-        <p className={form.lead}>{COPY[kind].lead}</p>
+        <p className={form.lead}>{justLocked ? CAUSES[kind] : EARLIER}</p>
         <Ring
           size="lg"
           className={styles.ring}

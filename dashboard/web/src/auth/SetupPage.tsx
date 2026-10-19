@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router";
 import { MIN_PASSWORD_LENGTH, SECURITY_QUESTIONS } from "../../../shared/src/constants";
 import { queryKeys, useSetup } from "../api/hooks";
 import { Button, Field, Input, PasswordInput } from "../components";
+import { cx } from "../components/cx";
 import { Alert } from "./Alert";
 import { AuthLayout } from "./AuthLayout";
 import form from "./AuthForm.module.css";
@@ -54,19 +55,29 @@ export function SetupPage() {
   const [values, setValues] = useState<Values>(EMPTY);
   const [showProblems, setShowProblems] = useState(false);
   const [attempts, setAttempts] = useState(0);
+  // "The passwords don't match" is only fair once there is something in Confirm to compare, or it has been left.
+  const [confirmTouched, setConfirmTouched] = useState(false);
+  // Errors that come from pressing Create account interrupt a screen reader; once typing starts they only wait
+  // for a pause.
+  const [editedSinceSubmit, setEditedSinceSubmit] = useState(false);
 
   const refusal = refusalOf(setup.error);
   const refusedField = refusal ? FIELD_FOR_REFUSAL[refusal.body.error] : undefined;
   const found = showProblems ? checkAll(values) : undefined;
+  const announce = editedSinceSubmit ? "polite" : "assertive";
   // What to show under a field: this page's own check first, otherwise what the server said about it.
-  const problemFor = (field: FieldName): Problem =>
-    found?.[field] ?? (refusedField === field ? refusal?.body.message : undefined);
+  const problemFor = (field: FieldName): Problem => {
+    if (field === "confirm" && !confirmTouched && values.confirm === "") return undefined;
+    return found?.[field] ?? (refusedField === field ? refusal?.body.message : undefined);
+  };
 
   useFocusFirstInvalid(formRef, attempts, refusal);
 
   function edit(field: FieldName) {
     return (event: ChangeEvent<HTMLInputElement>) => {
-      setValues((now) => ({ ...now, [field]: event.target.value }));
+      const typed = event.target.value;
+      setValues((now) => ({ ...now, [field]: typed }));
+      setEditedSinceSubmit(true);
       // The server's complaint was about the old value.
       if (refusedField === field) setup.reset();
     };
@@ -80,11 +91,13 @@ export function SetupPage() {
         answers[index] = typed;
         return { ...now, answers };
       });
+      setEditedSinceSubmit(true);
     };
   }
 
   function submit(event: FormEvent) {
     event.preventDefault();
+    setEditedSinceSubmit(false);
     const checks = checkAll(values);
     const problem = hasProblem([
       checks.displayName,
@@ -95,6 +108,8 @@ export function SetupPage() {
     ]);
     setShowProblems(problem);
     if (problem) {
+      // If the passwords differ the person has to be told, even when Confirm is still empty.
+      if (checks.confirm !== undefined) setConfirmTouched(true);
       setAttempts((count) => count + 1);
       return;
     }
@@ -141,7 +156,7 @@ export function SetupPage() {
       <p className={form.lead}>You'll be the owner of this dashboard.</p>
       <form ref={formRef} className={form.form} onSubmit={submit} noValidate>
         <div className={form.two}>
-          <Field label="Display name" error={problemFor("displayName")}>
+          <Field label="Display name" error={problemFor("displayName")} announce={announce} className={form.field}>
             <Input
               autoComplete="name"
               autoFocus
@@ -150,7 +165,7 @@ export function SetupPage() {
               onChange={edit("displayName")}
             />
           </Field>
-          <Field label="Username" error={problemFor("username")}>
+          <Field label="Username" error={problemFor("username")} announce={announce} className={form.field}>
             <Input
               autoComplete="username"
               autoCapitalize="none"
@@ -160,7 +175,13 @@ export function SetupPage() {
             />
           </Field>
         </div>
-        <Field label="Password" hint={hint} error={problemFor("password")}>
+        <Field
+          label="Password"
+          hint={hint}
+          error={problemFor("password")}
+          announce={announce}
+          className={form.field}
+        >
           <PasswordInput
             showLabel="Show password"
             autoComplete="new-password"
@@ -169,12 +190,13 @@ export function SetupPage() {
           />
           <StrengthMeter level={strength} />
         </Field>
-        <Field label="Confirm password" error={problemFor("confirm")}>
+        <Field label="Confirm password" error={problemFor("confirm")} announce={announce} className={form.field}>
           <PasswordInput
             showLabel="Show confirm password"
             autoComplete="new-password"
             value={values.confirm}
             onChange={edit("confirm")}
+            onBlur={() => setConfirmTouched(true)}
           />
         </Field>
         <fieldset className={form.group}>
@@ -182,9 +204,18 @@ export function SetupPage() {
             SECURITY QUESTIONS <span className={form.legendNote}>· used to reset your password</span>
           </legend>
           {SECURITY_QUESTIONS.map((question, index) => (
-            <QuestionField key={question} number={index + 1} question={question} error={found?.answers[index]}>
+            <QuestionField
+              key={question}
+              number={index + 1}
+              question={question}
+              error={found?.answers[index]}
+              announce={announce}
+            >
               <Input
                 autoComplete="off"
+                spellCheck={false}
+                autoCorrect="off"
+                autoCapitalize="off"
                 placeholder="Your answer"
                 value={values.answers[index]}
                 onChange={editAnswer(index)}
@@ -193,7 +224,7 @@ export function SetupPage() {
           ))}
         </fieldset>
         {refusal && !refusedField && (
-          <Alert tone="bad">
+          <Alert tone="bad" className={form.alertAfterAnswers}>
             {refusal.body.message}
             {alreadySetUp && (
               <>
@@ -205,7 +236,12 @@ export function SetupPage() {
             )}
           </Alert>
         )}
-        <Button type="submit" variant="primary" loading={setup.isPending} className={form.submit}>
+        <Button
+          type="submit"
+          variant="primary"
+          loading={setup.isPending}
+          className={cx(form.submit, form.submitAfterAnswers)}
+        >
           Create account
         </Button>
       </form>

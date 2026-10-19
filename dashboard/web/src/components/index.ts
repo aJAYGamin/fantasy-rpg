@@ -1,7 +1,7 @@
 export { Button, type ButtonProps } from "./Button";
 export { Card, type CardProps } from "./Card";
 export { Checkbox, type CheckboxProps } from "./Checkbox";
-export { Countdown, type CountdownProps } from "./Countdown";
+export { Countdown, type CountdownProps, useSecondsLeft } from "./Countdown";
 export { Dialog, type DialogProps } from "./Dialog";
 export { Field, type FieldProps } from "./Field";
 export { IconButton, type IconButtonProps } from "./IconButton";

@@ -3,10 +3,18 @@ import type { UserEvent } from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { LOCK_MINUTES, SECURITY_QUESTIONS } from "../../shared/src/constants";
+import {
+  DISPLAY_NAME_MAX,
+  LOCK_MINUTES,
+  MIN_PASSWORD_LENGTH,
+  SECURITY_QUESTIONS,
+  USERNAME_MAX,
+  USERNAME_MIN,
+} from "../../shared/src/constants";
 import { LockedPanel } from "../src/auth/LockedPanel";
 import { passwordStrength } from "../src/auth/strength";
-import { spokenDuration } from "../src/auth/useSecondsLeft";
+import { spokenDuration } from "../src/auth/spokenDuration";
+import { checkDisplayName, checkNewPassword, checkNewUsername } from "../src/auth/validation";
 import { renderAt, settled } from "./helpers";
 import {
   NO_ACCOUNT,
@@ -73,7 +81,11 @@ async function fillSetup(user: UserEvent, overrides: Partial<SetupValues> = {}) 
   for (const index of [0, 1, 2]) await replace(user, answerFor(index), values.answers[index]);
 }
 
+// Errors the page shows because of something the person just did (a failed submit) are alerts; ones that come and
+// go as they type are polite live regions. This reads either kind.
 const alertTexts = () => screen.queryAllByRole("alert").map((element) => element.textContent);
+const errorTexts = () =>
+  [...document.querySelectorAll('[role="alert"], [aria-live="polite"]')].map((element) => element.textContent);
 
 describe("first-run setup", () => {
   test("shows the three questions in order and creates the account", async () => {
@@ -164,19 +176,76 @@ describe("first-run setup", () => {
     ]);
     await replace(user, screen.getByLabelText("Username"), "owner");
     await replace(user, screen.getByLabelText("Display name"), "x".repeat(41));
-    expect(alertTexts()).toEqual(["Display names are 1 to 40 characters."]);
+    expect(errorTexts()).toEqual(["Display names are 1 to 40 characters."]);
     await replace(user, screen.getByLabelText("Display name"), "x".repeat(40));
-    expect(alertTexts()).toEqual([]);
+    expect(errorTexts()).toEqual([]);
     expect(requestsTo("/api/auth/setup")).toHaveLength(0);
   });
 
   test("a problem goes away as soon as it is fixed", async () => {
     const { user } = await openSetup();
     await user.click(button("Create account"));
-    expect(alertTexts()).toHaveLength(6);
+    expect(errorTexts()).toHaveLength(6);
     await user.type(screen.getByLabelText("Display name"), "Test Owner");
-    expect(alertTexts()).toHaveLength(5);
+    expect(errorTexts()).toHaveLength(5);
     expect(screen.getByLabelText("Display name")).not.toHaveAttribute("aria-invalid");
+  });
+
+  test("errors from pressing the button interrupt a screen reader; once typing starts they wait for a pause", async () => {
+    const { user } = await openSetup();
+    await user.click(button("Create account"));
+    expect(alertTexts()).toHaveLength(6);
+
+    await user.type(screen.getByLabelText("Display name"), "Test Owner");
+    // Still wrong, now shown as the person works on them: polite, not alerts.
+    expect(alertTexts()).toEqual([]);
+    expect(errorTexts()).toHaveLength(5);
+
+    await user.click(button("Create account"));
+    expect(alertTexts()).toHaveLength(5);
+  });
+
+  test("Confirm says nothing about a mismatch until it has something in it or has been left", async () => {
+    const { user } = await openSetup();
+    await user.click(button("Create account"));
+    expect(screen.getByLabelText("Confirm password")).not.toHaveAttribute("aria-invalid");
+
+    // Typing the password, with Confirm still waiting its turn, is not a mismatch yet.
+    await replace(user, screen.getByLabelText("Password"), TEST_PASSWORD);
+    expect(screen.getByLabelText("Confirm password")).not.toHaveAttribute("aria-invalid");
+    expect(errorTexts()).not.toContain("The passwords don't match.");
+
+    await user.type(screen.getByLabelText("Confirm password"), "lantern");
+    expect(errorTexts()).toContain("The passwords don't match.");
+    await replace(user, screen.getByLabelText("Confirm password"), TEST_PASSWORD);
+    expect(errorTexts()).not.toContain("The passwords don't match.");
+  });
+
+  test("leaving Confirm empty counts as having been there: the mismatch shows once it has been left", async () => {
+    const { user } = await openSetup();
+    await user.click(button("Create account"));
+    await replace(user, screen.getByLabelText("Password"), TEST_PASSWORD);
+    await user.click(screen.getByLabelText("Confirm password"));
+    await user.tab();
+    expect(errorTexts()).toContain("The passwords don't match.");
+  });
+
+  test("a password that differs from an empty Confirm is still reported when that is all that is wrong", async () => {
+    const { user } = await openSetup();
+    await fillSetup(user, { confirm: "" });
+    await user.click(button("Create account"));
+    expect(screen.getByRole("alert")).toHaveTextContent("The passwords don't match.");
+    expect(requestsTo("/api/auth/setup")).toHaveLength(0);
+  });
+
+  test("every answer field turns off spell-check, auto-correct and auto-capitalise", async () => {
+    await openSetup();
+    for (const index of [0, 1, 2]) {
+      expect(answerFor(index)).toHaveAttribute("spellcheck", "false");
+      expect(answerFor(index)).toHaveAttribute("autocorrect", "off");
+      expect(answerFor(index)).toHaveAttribute("autocapitalize", "off");
+      expect(answerFor(index)).toHaveAttribute("autocomplete", "off");
+    }
   });
 
   test("the strength meter has four steps and the hint says which one you are on", async () => {
@@ -334,6 +403,17 @@ describe("sign in", () => {
     expect(router.state.location.pathname).toBe("/forgot");
     expect(router.state.location.search).toBe("?next=%2Fgear");
   });
+
+  test("what was typed does not outlive the screen: a finished request is collected as soon as the page lets go", async () => {
+    mockSignin(401, { error: "wrong_password", triesLeft: 3 });
+    const { user, queryClient, unmount } = await openSignIn();
+    await signInWith(user, "owner", "nope-nope-nope");
+    await screen.findByText(/3 tries left/);
+    expect(queryClient.getMutationCache().getAll()).toHaveLength(1);
+    unmount();
+    // The sent password is in the request's variables; with the default five-minute keep it would sit here.
+    await waitFor(() => expect(queryClient.getMutationCache().getAll()).toHaveLength(0));
+  });
 });
 
 // ---- the pause ----
@@ -378,6 +458,58 @@ describe("a locked sign-in", () => {
     await screen.findByRole("heading", { name: "Sign-in is paused" });
     await user.click(screen.getByRole("link", { name: "Back to sign in" }));
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    await settled(queryClient);
+  });
+
+  test("the fifth wrong password says what went wrong", async () => {
+    mockSignin(401, { error: "wrong_password", triesLeft: 1 });
+    const { user, queryClient } = await openSignIn();
+    await signInWith(user, "owner", "nope-nope-nope");
+    await screen.findByText("1 try left");
+    mockSignin(423, () => ({ error: "locked", lockedUntil: inMinutes(5) }));
+    await user.click(button("Sign in"));
+    await screen.findByRole("heading", { name: "Sign-in is paused" });
+    expect(
+      screen.getByText("That was 5 wrong passwords in a row. You can try again when the timer runs out."),
+    ).toBeInTheDocument();
+    await settled(queryClient);
+  });
+
+  test("a pause that was already there only says it is on, because the page can't know why", async () => {
+    mockSignin(423, () => ({ error: "locked", lockedUntil: inMinutes(5) }));
+    const { user, queryClient } = await openSignIn();
+    await signInWith(user, "owner", "x");
+    await screen.findByRole("heading", { name: "Sign-in is paused" });
+    expect(screen.getByText("Too many tries recently. You can try again when the timer runs out.")).toBeInTheDocument();
+    expect(screen.queryByText(/5 wrong passwords/)).toBeNull();
+    await settled(queryClient);
+  });
+
+  test("a pause that arrives after a different name's last try is not blamed on this attempt either", async () => {
+    mockSignin(401, { error: "wrong_password", triesLeft: 1 });
+    const { user, queryClient } = await openSignIn();
+    await signInWith(user, "owner", "nope-nope-nope");
+    await screen.findByText("1 try left");
+    mockSignin(423, () => ({ error: "locked", lockedUntil: inMinutes(5) }));
+    await signInWith(user, "someone-else", "nope-nope-nope");
+    await screen.findByRole("heading", { name: "Sign-in is paused" });
+    expect(screen.getByText("Too many tries recently. You can try again when the timer runs out.")).toBeInTheDocument();
+    await settled(queryClient);
+  });
+
+  test("the countdown follows the server's clock when it is not this computer's", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    // The server's clock is a minute and a half ahead: its five minutes from its "now" is 5:00 from now here too.
+    mockSignin(423, (serverNow) => ({ error: "locked", lockedUntil: inMinutes(5, serverNow) }), { clockAhead: 90_000 });
+    const { user, queryClient } = await openSignIn();
+    await signInWith(user, "owner", "x");
+    await screen.findByRole("heading", { name: "Sign-in is paused" });
+    expect(screen.getByRole("timer")).toHaveTextContent("5:00");
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuetext", "5 minutes");
+    act(() => {
+      vi.advanceTimersByTime(5 * 60_000);
+    });
+    expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled();
     await settled(queryClient);
   });
 
@@ -475,7 +607,46 @@ describe("forgot password", () => {
     await user.click(resetButton());
     expect(await screen.findByRole("heading", { name: "Password reset is locked" })).toBeInTheDocument();
     expect(screen.getByRole("timer")).toHaveTextContent(/^[23]:\d\d$/);
+    // No answer was judged this time, so nothing is said about one.
+    expect(screen.getByText("Too many tries recently. You can try again when the timer runs out.")).toBeInTheDocument();
+    expect(screen.queryByText(/answers didn't match/)).toBeNull();
     await settled(queryClient);
+  });
+
+  test("while the reset is locked, the answers and new password that were typed are not kept anywhere", async () => {
+    mockForgot(401, () => ({ error: "wrong_answer", lockedUntil: inMinutes(5) }));
+    const { user, queryClient } = await openForgot();
+    await fillForgot(user);
+    await user.click(resetButton());
+    await screen.findByRole("heading", { name: "Password reset is locked" });
+    // The request that held them is let go, and the form's own copy is emptied (the next test shows it empty).
+    await waitFor(() => expect(queryClient.getMutationCache().getAll()).toHaveLength(0));
+    expect(document.body.textContent).not.toContain(ANSWERS[0]);
+  });
+
+  test("every answer field turns off spell-check, auto-correct and auto-capitalise, shown or hidden", async () => {
+    const { user } = await openForgot();
+    const check = () => {
+      for (const index of [0, 1, 2]) {
+        expect(answerFor(index)).toHaveAttribute("spellcheck", "false");
+        expect(answerFor(index)).toHaveAttribute("autocorrect", "off");
+        expect(answerFor(index)).toHaveAttribute("autocapitalize", "off");
+        expect(answerFor(index)).toHaveAttribute("autocomplete", "off");
+      }
+    };
+    check();
+    await user.click(button("Show answer 1"));
+    await user.click(button("Show answer 3"));
+    check();
+  });
+
+  test("Confirm says nothing about a mismatch until it has something in it or has been left", async () => {
+    const { user } = await openForgot();
+    await user.click(resetButton());
+    await replace(user, screen.getByLabelText("New password"), "a brand new password");
+    expect(errorTexts()).not.toContain("The passwords don't match.");
+    await user.type(screen.getByLabelText("Confirm new password"), "a brand");
+    expect(errorTexts()).toContain("The passwords don't match.");
   });
 
   test("Back to sign in on the pause screen goes to sign-in", async () => {
@@ -572,7 +743,7 @@ function renderLocked(untilMs: number, props: Partial<Parameters<typeof LockedPa
   const onTryAgain = vi.fn();
   render(
     <MemoryRouter>
-      <LockedPanel kind="reset" until={new Date(untilMs)} onTryAgain={onTryAgain} {...props} />
+      <LockedPanel kind="reset" until={new Date(untilMs)} justLocked onTryAgain={onTryAgain} {...props} />
     </MemoryRouter>,
   );
   return { onTryAgain };
@@ -600,11 +771,39 @@ describe("LockedPanel", () => {
     expect(within(ring).getByRole("timer")).toHaveTextContent("4:05");
   });
 
-  test("reset and sign-in each say what happened", () => {
+  test("reset and sign-in each say what happened when this attempt caused the pause", () => {
     const start = Date.now();
     renderLocked(start + 60_000, { kind: "signin" });
     expect(screen.getByRole("heading", { name: "Sign-in is paused" })).toBeInTheDocument();
     expect(screen.getByText("That was 5 wrong passwords in a row. You can try again when the timer runs out.")).toBeInTheDocument();
+  });
+
+  test.each(["signin", "reset"] as const)("a %s pause that was already there does not claim a cause", (kind) => {
+    renderLocked(Date.now() + 60_000, { kind, justLocked: false });
+    expect(screen.getByText("Too many tries recently. You can try again when the timer runs out.")).toBeInTheDocument();
+  });
+
+  test("the number is right the moment the page is looked at again, after timers ran late", () => {
+    // A hidden tab's timers are slowed or stopped; the clock moved on without them.
+    const start = Date.parse("2026-10-19T10:00:00.000Z");
+    vi.useFakeTimers({ now: start });
+    renderLocked(start + 300_000);
+    const ring = screen.getByRole("progressbar", { name: "Time until you can try again" });
+    expect(screen.getByRole("timer")).toHaveTextContent("5:00");
+
+    vi.setSystemTime(start + 200_000); // moves the clock without running the timers
+    expect(screen.getByRole("timer")).toHaveTextContent("5:00");
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(screen.getByRole("timer")).toHaveTextContent("1:40");
+    expect(ring).toHaveAttribute("aria-valuetext", "1 minute 40 seconds");
+
+    // And it keeps ticking from there, once, not twice.
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(screen.getByRole("timer")).toHaveTextContent("1:39");
   });
 
   test("the heading takes the cursor, so a screen reader starts at what changed", () => {
@@ -666,5 +865,30 @@ describe("spokenDuration", () => {
     [0, "0 seconds"],
   ])("%i seconds is %j", (seconds, words) => {
     expect(spokenDuration(seconds)).toBe(words);
+  });
+});
+
+// ---- the account rules, shared with the server ----
+
+describe("account rules", () => {
+  test("usernames: the shared length limits are the ones the form applies", () => {
+    expect(checkNewUsername("a".repeat(USERNAME_MIN - 1))).toBeDefined();
+    expect(checkNewUsername("a".repeat(USERNAME_MIN))).toBeUndefined();
+    expect(checkNewUsername("a".repeat(USERNAME_MAX))).toBeUndefined();
+    expect(checkNewUsername("a".repeat(USERNAME_MAX + 1))).toBeDefined();
+    expect(checkNewUsername("has space")).toBeDefined();
+    expect(checkNewUsername(" owner ")).toBeUndefined(); // trimmed, as the server does
+  });
+
+  test("display names count characters, not code units", () => {
+    expect(checkDisplayName("   ")).toBeDefined();
+    expect(checkDisplayName("😀".repeat(DISPLAY_NAME_MAX))).toBeUndefined();
+    expect(checkDisplayName("😀".repeat(DISPLAY_NAME_MAX + 1))).toBeDefined();
+  });
+
+  test("passwords: the minimum is the shared one, counted in characters", () => {
+    expect(checkNewPassword("a".repeat(MIN_PASSWORD_LENGTH - 1))).toBeDefined();
+    expect(checkNewPassword("a".repeat(MIN_PASSWORD_LENGTH))).toBeUndefined();
+    expect(checkNewPassword("😀".repeat(MIN_PASSWORD_LENGTH))).toBeUndefined();
   });
 });

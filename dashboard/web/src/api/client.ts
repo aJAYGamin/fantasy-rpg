@@ -7,12 +7,19 @@ export type Method = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 export class ApiFailure extends Error {
   readonly status: number;
   readonly body: ApiError;
+  /**
+   * How far the server's clock is ahead of this computer's, in ms, as of when the answer arrived (0 when the two
+   * agree to within the Date header's precision, or when the answer had no usable Date header). A lock's
+   * `lockedUntil` is on the server's clock, so a countdown to it subtracts this.
+   */
+  readonly clockOffset: number;
 
-  constructor(status: number, body: ApiError) {
+  constructor(status: number, body: ApiError, clockOffset = 0) {
     super(body.message);
     this.name = "ApiFailure";
     this.status = status;
     this.body = body;
+    this.clockOffset = clockOffset;
   }
 }
 
@@ -30,6 +37,17 @@ const signedOutListeners = new Set<() => void>();
 export function onSignedOut(listener: () => void): () => void {
   signedOutListeners.add(listener);
   return () => signedOutListeners.delete(listener);
+}
+
+// The Date header has whole-second precision and the answer took a moment to arrive, so a difference this small
+// is the measurement, not a wrong clock.
+const CLOCK_TOLERANCE_MS = 2_000;
+
+function clockOffsetOf(response: Response, received: number): number {
+  const serverNow = Date.parse(response.headers.get("Date") ?? "");
+  if (Number.isNaN(serverNow)) return 0;
+  const offset = serverNow - received;
+  return Math.abs(offset) < CLOCK_TOLERANCE_MS ? 0 : offset;
 }
 
 function isApiError(value: unknown): value is ApiError {
@@ -71,10 +89,12 @@ export async function api<T = void>(method: Method, path: string, body?: unknown
     throw new ApiFailure(0, UNREACHABLE);
   }
 
+  const received = Date.now();
+
   if (!response.ok) {
     const error = await errorBodyOf(response);
     if (error.error === "signed_out") for (const listener of [...signedOutListeners]) listener();
-    throw new ApiFailure(response.status, error);
+    throw new ApiFailure(response.status, error, clockOffsetOf(response, received));
   }
 
   const text = await response.text();

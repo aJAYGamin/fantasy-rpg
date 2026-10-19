@@ -240,8 +240,26 @@ describe("controls", () => {
     const input = screen.getByLabelText("Port");
     expect(input).toHaveAttribute("aria-invalid", "true");
     expect(input).toHaveAccessibleDescription("The game listens here. Use a port from 1024 to 65535.");
-    // An error that appears after a submit is announced as it appears.
+  });
+
+  test("a Field's error waits for a pause by default, and interrupts only when asked to", () => {
+    const { rerender } = render(
+      <Field label="Port" error="Use a port from 1024 to 65535.">
+        <Input defaultValue="80" />
+      </Field>,
+    );
+    // Checks that run as someone types are polite: no alert.
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText("Use a port from 1024 to 65535.")).toHaveAttribute("aria-live", "polite");
+
+    // An error that appears because of something the person just did (a failed submit) is an alert.
+    rerender(
+      <Field label="Port" error="Use a port from 1024 to 65535." announce="assertive">
+        <Input defaultValue="80" />
+      </Field>,
+    );
     expect(screen.getByRole("alert")).toHaveTextContent("Use a port from 1024 to 65535.");
+    expect(screen.getByRole("alert")).not.toHaveAttribute("aria-live");
   });
 
   test("PasswordInput's switch is named for its field and says whether it is showing", async () => {
@@ -349,6 +367,24 @@ describe("display", () => {
 describe("Countdown", () => {
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  test("re-reads the clock when the page becomes visible again, since a hidden tab's timers run late", () => {
+    vi.useFakeTimers({ now: new Date("2026-10-19T10:00:00.000Z") });
+    const onDone = vi.fn();
+    render(<Countdown until={new Date("2026-10-19T10:05:00.000Z")} onDone={onDone} />);
+    vi.setSystemTime(new Date("2026-10-19T10:03:20.000Z")); // the clock moves; the timers don't run
+    expect(screen.getByRole("timer")).toHaveTextContent("5:00");
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(screen.getByRole("timer")).toHaveTextContent("1:40");
+    vi.setSystemTime(new Date("2026-10-19T10:06:00.000Z"));
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(screen.getByRole("timer")).toHaveTextContent("0:00");
+    expect(onDone).toHaveBeenCalledTimes(1);
   });
 
   test("counts down in m:ss and says when it is done, once", () => {
