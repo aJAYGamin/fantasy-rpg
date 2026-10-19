@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach } from "vitest";
+import { createOwner } from "../src/auth/accounts.js";
 import type { Db } from "../src/db/database.js";
 
 // Every tmpFile() gets its own folder under the OS temp folder; all are removed after each test.
@@ -25,4 +26,13 @@ export function insertAccount(db: Db, username: string): number {
     )
     .run(username, username, "placeholder-hash", JSON.stringify(["a", "b", "c"]), new Date().toISOString());
   return Number(result.lastInsertRowid);
+}
+
+// The one owner account with placeholder hashes, for tests that need an account but never sign in as it.
+export function seedOwner(db: Db): number {
+  return createOwner(
+    db,
+    { username: "owner", displayName: "Owner", passwordHash: "placeholder-hash", answerHashes: ["a", "b", "c"] },
+    new Date(),
+  ).id;
 }
