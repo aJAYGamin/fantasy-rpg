@@ -1,6 +1,21 @@
+/*
+ * The bell's panel, in the mockups' card language: a header row like a card's .ch (14 px 600 on a hairline), then
+ * rows with a tinted round icon, a 14 px title, 13 px dim body and a 12 px dim time. Unread rows have the amethyst
+ * dot of overview-v3's .dot. The Popover around it is bare (no padding) so the header runs edge to edge.
+ */
+
 .panel {
-  width: 300px;
-  padding: 8px 10px 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 8px 10px 8px 18px;
+  border-bottom: 1px solid var(--line);
 }
 
 .title {
@@ -8,8 +23,150 @@
   font-weight: 600;
 }
 
-.note {
-  margin-top: var(--space-2);
+/* A text button in amethyst, with the quiet control wash under the pointer. */
+.markAll {
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--am-text);
+  font-size: var(--text-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease);
+}
+
+.markAll:hover {
+  background: var(--control-hover);
+}
+
+/* Nothing unread: still there to find, but flat and quiet. */
+.markAll[aria-disabled="true"],
+.markAll[aria-disabled="true"]:hover {
+  background: transparent;
+  color: var(--dim);
+  cursor: default;
+}
+
+.error {
+  margin: 6px 6px 0;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bad-soft);
+  color: var(--bad-ink);
+  font-size: var(--text-md);
+}
+
+.empty {
+  padding: 28px 18px 30px;
+  color: var(--dim);
+  font-size: var(--text-base);
+  text-align: center;
+}
+
+.list {
+  max-height: min(440px, calc(100vh - 170px));
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px 10px 10px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease);
+}
+
+.row:hover,
+.row:focus-visible {
+  background: var(--control-hover);
+}
+
+/* The kind's colour, as the status pills use them: a soft tint behind a darker ink. */
+.icon {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+}
+
+.icon svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.8;
+}
+
+.security {
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+}
+
+.game {
+  background: var(--am-soft);
+  color: var(--am-ink);
+}
+
+.changes {
+  background: var(--ok-soft);
+  color: var(--ok-ink);
+}
+
+.text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rowTitle {
+  font-size: var(--text-base);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.unread .rowTitle {
+  font-weight: 600;
+}
+
+.body {
+  margin-top: 1px;
   color: var(--dim);
   font-size: var(--text-md);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.time {
+  margin-top: 4px;
+  color: var(--dim);
+  font-size: var(--text-sm);
+}
+
+.dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--am);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .markAll,
+  .row {
+    transition: none;
+  }
 }

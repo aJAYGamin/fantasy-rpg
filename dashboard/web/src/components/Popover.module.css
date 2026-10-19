@@ -19,6 +19,10 @@
   animation: pop-in var(--duration-fast) var(--ease);
 }
 
+.bare {
+  padding: 0;
+}
+
 /* The panel only takes focus so keyboard users start inside it; it needs no ring of its own. */
 .panel:focus-visible {
   box-shadow: var(--shadow-pop);

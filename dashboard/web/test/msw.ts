@@ -66,6 +66,28 @@ export function mockNotifications(items: Notification[], unread = items.filter((
   state.notifications = { items, unread };
 }
 
+/**
+ * Makes the notification routes wait before they answer, so a test can look at the screen in between. Returns the
+ * function that lets them go; they do their work (the change is kept) at that moment.
+ */
+export function holdNotificationReplies(): () => void {
+  let release = () => {};
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  server.use(
+    http.post("/api/notifications/read-all", async () => {
+      await released;
+      return readAllReply();
+    }),
+    http.post("/api/notifications/:id/read", async ({ params }) => {
+      await released;
+      return readOneReply(Number(params.id));
+    }),
+  );
+  return release;
+}
+
 /** What the fake server would answer right now, e.g. to put it in the cache before the first render. */
 export function mockedAnswers(): Readonly<Pick<MockState, "auth" | "settings" | "notifications">> {
   return { auth: state.auth, settings: state.settings, notifications: state.notifications };
@@ -74,6 +96,29 @@ export function mockedAnswers(): Readonly<Pick<MockState, "auth" | "settings" | 
 function applySettingsPatch(patch: SettingsPatch): void {
   state.settings = { ...state.settings, ...patch, notify: { ...state.settings.notify, ...patch.notify } };
 }
+
+/** Marks notifications read like the real server: `unread` only drops for the kinds the settings count. */
+function markNotificationsRead(ids: ReadonlySet<number> | "all"): boolean {
+  const { items, unread } = state.notifications;
+  const targets = items.filter((item) => !item.read && (ids === "all" || ids.has(item.id)));
+  const counted = targets.filter((item) => state.settings.notify[item.kind]).length;
+  const named = ids === "all" || items.some((item) => ids.has(item.id));
+  state.notifications = {
+    items: items.map((item) => (targets.includes(item) ? { ...item, read: true } : item)),
+    unread: ids === "all" ? 0 : Math.max(0, unread - counted),
+  };
+  return named;
+}
+
+const readAllReply = () => {
+  markNotificationsRead("all");
+  return new HttpResponse(null, { status: 204 });
+};
+
+const readOneReply = (id: number) =>
+  markNotificationsRead(new Set([id]))
+    ? new HttpResponse(null, { status: 204 })
+    : HttpResponse.json({ error: "not_found", message: "Not found" }, { status: 404 });
 
 const handlers = [
   http.get("/api/auth/state", () => HttpResponse.json(state.auth)),
@@ -98,6 +143,8 @@ const handlers = [
     return HttpResponse.json(state.settings);
   }),
   http.get("/api/notifications", () => HttpResponse.json(state.notifications)),
+  http.post("/api/notifications/read-all", () => readAllReply()),
+  http.post("/api/notifications/:id/read", ({ params }) => readOneReply(Number(params.id))),
   http.get("/api/game/status", () => HttpResponse.json(state.game)),
 ];
 

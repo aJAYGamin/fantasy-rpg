@@ -1,7 +1,8 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { RouterProvider, createMemoryRouter } from "react-router";
 import { describe, expect, test, vi } from "vitest";
+import { finishSignOut } from "../src/api/hooks";
 import { routes } from "../src/router";
 import { renderAt, settled, signInThroughForm } from "./helpers";
 import { NO_ACCOUNT, SIGNED_OUT, TEST_OWNER, TEST_PASSWORD, lastRequest, mockAuthState, server } from "./msw";
@@ -142,6 +143,17 @@ describe("signed in", () => {
     const { queryClient } = renderAt(path);
     expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
     await settled(queryClient);
+  });
+
+  test("when you sign out on purpose, the guard's own redirect leaves the sign-in address plain too", async () => {
+    // useSignOut navigates to /signin itself, but the guard sees the signed-out state too and redirects; whichever
+    // of the two lands last, the address must come out the same (this used to be a race).
+    const { router, queryClient } = renderAt("/party");
+    expect(await screen.findByRole("heading", { name: "Party" })).toBeInTheDocument();
+    act(() => finishSignOut(queryClient));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/signin"));
+    await settled(queryClient);
+    expect(router.state.location.search).toBe("");
   });
 
   test("a signed_out answer from any route sends you to sign in, back to where you were", async () => {

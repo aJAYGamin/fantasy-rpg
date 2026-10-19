@@ -353,6 +353,87 @@ describe("avatar menu", () => {
     await settled(queryClient);
   });
 
+  // R29: the answer to a sign-out belongs to the sign-out, not to the menu that sent it.
+  function heldSignOut(outcome: "signed-out" | "refused") {
+    let answer = () => {};
+    const answered = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    server.use(
+      http.post("/api/auth/signout", async () => {
+        await answered;
+        if (outcome === "refused") {
+          return HttpResponse.json({ error: "server_error", message: "Something went wrong on the server." }, { status: 500 });
+        }
+        mockAuthState(SIGNED_OUT);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    return answer;
+  }
+
+  test("a sign-out that succeeds after the menu was dismissed still lands on the sign-in page", async () => {
+    const answer = heldSignOut("signed-out");
+    const { router, queryClient } = renderShellAt("/party");
+    await click(topButton("Account menu"));
+    await click(screen.getByRole("menuitem", { name: "Sign out" }));
+    await keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(router.state.location.pathname).toBe("/party");
+    answer();
+    await waitFor(() => expect(router.state.location.pathname).toBe("/signin"));
+    await settled(queryClient);
+    expect(router.state.location.search).toBe("");
+    expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+  });
+
+  test("a sign-out that fails after the menu was dismissed says so in the shell, and the notice can be dismissed", async () => {
+    const answer = heldSignOut("refused");
+    const { router, queryClient } = renderShellAt("/party");
+    await click(topButton("Account menu"));
+    await click(screen.getByRole("menuitem", { name: "Sign out" }));
+    await keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).toBeNull();
+    answer();
+    const notice = await screen.findByRole("alert");
+    expect(notice).toHaveTextContent("Couldn't sign out. Try again.");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(router.state.location.pathname).toBe("/party");
+    await click(within(notice).getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByRole("alert")).toBeNull();
+    await settled(queryClient);
+  });
+
+  test("the shell's sign-out notice goes when sign-out is tried again", async () => {
+    const answer = heldSignOut("refused");
+    const { router, queryClient } = renderShellAt("/party");
+    await click(topButton("Account menu"));
+    await click(screen.getByRole("menuitem", { name: "Sign out" }));
+    await keyboard("{Escape}");
+    answer();
+    await screen.findByRole("alert");
+
+    server.resetHandlers();
+    await click(topButton("Account menu"));
+    // The notice is not in the way of the menu, and does not repeat what the menu would say.
+    await click(screen.getByRole("menuitem", { name: "Sign out" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/signin"));
+    expect(screen.queryByRole("alert")).toBeNull();
+    await settled(queryClient);
+  });
+
+  test("a failed sign-out with the menu still open is announced once, in the menu", async () => {
+    const answer = heldSignOut("refused");
+    const { queryClient } = renderShellAt("/party");
+    await click(topButton("Account menu"));
+    await click(screen.getByRole("menuitem", { name: "Sign out" }));
+    answer();
+    const alerts = await screen.findAllByRole("alert");
+    expect(alerts).toHaveLength(1);
+    expect(within(screen.getByRole("menu")).getByRole("alert")).toHaveTextContent("Couldn't sign out. Try again.");
+    await settled(queryClient);
+  });
+
   test("the avatar menu names the account and links to the profile", async () => {
     const { router, queryClient } = renderShellAt("/");
     await click(topButton("Account menu"));

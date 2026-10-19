@@ -3,6 +3,7 @@ import { Outlet } from "react-router";
 import styles from "./AppShell.module.css";
 import { SearchPalette } from "./SearchPalette";
 import { Sidebar } from "./Sidebar";
+import { SignOutNotice } from "./SignOutNotice";
 import { TopBar } from "./TopBar";
 import { useSidebarMode } from "./useSidebarMode";
 
@@ -70,6 +71,7 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
+      <SignOutNotice />
       <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );

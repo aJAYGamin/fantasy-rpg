@@ -1,5 +1,5 @@
 import { Navigate, Outlet, type RouteObject, useLocation } from "react-router";
-import { useAuthState } from "./api/hooks";
+import { useAuthState, useSignedOutByChoice } from "./api/hooks";
 import { ForgotPage } from "./auth/ForgotPage";
 import { SetupPage } from "./auth/SetupPage";
 import { SignInPage } from "./auth/SignInPage";
@@ -61,10 +61,14 @@ function useGuardState() {
 function RequireSignedIn() {
   const state = useGuardState();
   const location = useLocation();
+  const byChoice = useSignedOutByChoice();
   if (state.kind === "pending") return <Pending />;
   if (state.kind === "unreachable") return <ServerUnreachable onRetry={state.retry} />;
   if (state.setupRequired) return <Navigate to="/setup" replace />;
-  if (state.user === null) return <Navigate to={signInPathFor(location.pathname + location.search)} replace />;
+  if (state.user === null) {
+    // Signing out on purpose isn't an interrupted visit to come back to (R25); a session that ended on its own is.
+    return <Navigate to={byChoice ? "/signin" : signInPathFor(location.pathname + location.search)} replace />;
+  }
   return <Outlet />;
 }
 

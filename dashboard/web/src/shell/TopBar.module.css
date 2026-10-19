@@ -69,6 +69,12 @@
   position: relative;
 }
 
+/* The panel under the bell: wide enough for a title, two lines of detail and a time on one row. */
+.notifications {
+  width: 380px;
+  max-width: calc(100vw - 2 * var(--space-4));
+}
+
 /*
  * The mockup's .bell b: 7 px above and 9 px right of the 18 px icon, which sits 8 px inside the 34 px button.
  * Offsets count from inside the button's 1 px (transparent) border.

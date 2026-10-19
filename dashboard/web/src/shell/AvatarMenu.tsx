@@ -1,6 +1,5 @@
 import { LogOut, Settings, User as UserIcon } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router";
 import type { User } from "../../../shared/src/api";
 import { useAuthState, useSignOut } from "../api/hooks";
 import { MenuItem, MenuLink, MenuSeparator, Popover, Tooltip } from "../components";
@@ -25,12 +24,12 @@ function Avatar({ user }: { user: User }) {
 
 /**
  * The menu's rows. They mount each time the menu opens, so a sign-out error from last time doesn't linger. Sign out
- * keeps the menu open until the server agrees: on success it goes to the sign-in page (plainly: signing out on
- * purpose isn't an interrupted visit to come back to), on failure it says so and can be tried again.
+ * keeps the menu open until the server agrees: on success useSignOut goes to the sign-in page, on failure the menu
+ * says so and it can be tried again. (If the menu is dismissed meanwhile, useSignOut still finishes the job, and
+ * the shell's SignOutNotice reports a failure.)
  */
 function AccountMenuItems({ user, close }: { user: User; close: () => void }) {
   const signOut = useSignOut();
-  const navigate = useNavigate();
   return (
     <>
       <div className={styles.who} aria-hidden="true">
@@ -44,11 +43,7 @@ function AccountMenuItems({ user, close }: { user: User; close: () => void }) {
         Settings
       </MenuLink>
       <MenuSeparator />
-      <MenuItem
-        icon={<LogOut />}
-        disabled={signOut.isPending}
-        onClick={() => signOut.mutate(undefined, { onSuccess: () => navigate("/signin", { replace: true }) })}
-      >
+      <MenuItem icon={<LogOut />} disabled={signOut.isPending} onClick={() => signOut.mutate()}>
         Sign out
       </MenuItem>
       {signOut.isError && (

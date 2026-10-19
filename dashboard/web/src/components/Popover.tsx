@@ -37,6 +37,8 @@ export type PopoverProps = {
    * rows, reached with the arrow keys, Home and End, as menus are.
    */
   role?: "dialog" | "menu";
+  /** No padding inside the panel, for contents that draw their own header and rows edge to edge. */
+  bare?: boolean;
   className?: string;
 };
 
@@ -51,7 +53,7 @@ function menuItemsIn(panel: HTMLElement): HTMLElement[] {
  * item), and closes on Escape, on a click outside it, or when Tab leaves it. Escape and `close` put focus back on
  * the button.
  */
-export function Popover({ trigger, children, label, align = "end", role = "dialog", className }: PopoverProps) {
+export function Popover({ trigger, children, label, align = "end", role = "dialog", bare, className }: PopoverProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -156,7 +158,7 @@ export function Popover({ trigger, children, label, align = "end", role = "dialo
           role={role}
           aria-label={label}
           tabIndex={-1}
-          className={cx(styles.panel, styles[align], className)}
+          className={cx(styles.panel, styles[align], bare && styles.bare, className)}
         >
           {typeof children === "function" ? children(close) : children}
         </div>

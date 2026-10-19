@@ -104,6 +104,8 @@ function NotificationsBell() {
   return (
     <Popover
       label="Notifications"
+      bare
+      className={styles.notifications}
       trigger={(props) => (
         <Tooltip text="Notifications">
           <IconButton {...props} label={label} bordered={false} className={styles.bell}>
@@ -117,7 +119,7 @@ function NotificationsBell() {
         </Tooltip>
       )}
     >
-      {(close) => <NotificationsPanel onClose={close} />}
+      <NotificationsPanel />
     </Popover>
   );
 }

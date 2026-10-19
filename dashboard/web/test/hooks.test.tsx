@@ -2,6 +2,7 @@ import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import type { ReactNode } from "react";
+import { MemoryRouter } from "react-router";
 import { afterEach, expect, test, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "../../shared/src/api";
 import {
@@ -23,7 +24,10 @@ function renderWithData<T>(hook: () => T) {
   queryClient.setDefaultOptions({ queries: { retry: false }, mutations: { retry: false } });
   clients.push(queryClient);
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    // The router is there for useSignOut, which goes to the sign-in page when it is done.
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>{children}</MemoryRouter>
+    </QueryClientProvider>
   );
   return { ...renderHook(hook, { wrapper }), queryClient };
 }

@@ -3,6 +3,7 @@ import { type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode,
 import { createPortal } from "react-dom";
 import styles from "./Dialog.module.css";
 import { IconButton } from "./IconButton";
+import { cx } from "./cx";
 import { tabbablesIn } from "./focusable";
 
 export type DialogProps = {
@@ -12,6 +13,12 @@ export type DialogProps = {
   children: ReactNode;
   /** The buttons along the bottom, e.g. Cancel and the action. */
   footer?: ReactNode;
+  /**
+   * "palette": a sheet near the top of the page whose contents are their own header (a search field, results). The
+   * title is still its accessible name, but isn't drawn, and there is no close button: Escape and a click on the
+   * dimmed page close it.
+   */
+  variant?: "dialog" | "palette";
 };
 
 /**
@@ -24,7 +31,8 @@ export function Dialog({ open, ...rest }: DialogProps) {
   return createPortal(<OpenDialog {...rest} />, document.body);
 }
 
-function OpenDialog({ onClose, title, children, footer }: Omit<DialogProps, "open">) {
+function OpenDialog({ onClose, title, children, footer, variant = "dialog" }: Omit<DialogProps, "open">) {
+  const palette = variant === "palette";
   const panelRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const pressedOverlay = useRef(false);
@@ -87,26 +95,36 @@ function OpenDialog({ onClose, title, children, footer }: Omit<DialogProps, "ope
   };
 
   return (
-    <div className={styles.overlay} onPointerDown={onOverlayDown} onClick={onOverlayClick}>
+    <div
+      className={cx(styles.overlay, palette && styles.paletteOverlay)}
+      onPointerDown={onOverlayDown}
+      onClick={onOverlayClick}
+    >
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={styles.panel}
+        className={cx(styles.panel, palette && styles.palettePanel)}
         onKeyDown={onKeyDown}
       >
-        <header className={styles.header}>
-          <h2 id={titleId} className={styles.title}>
+        {palette ? (
+          <h2 id={titleId} className="visually-hidden">
             {title}
           </h2>
-          <IconButton label="Close" bordered={false} onClick={onClose}>
-            <X />
-          </IconButton>
-        </header>
+        ) : (
+          <header className={styles.header}>
+            <h2 id={titleId} className={styles.title}>
+              {title}
+            </h2>
+            <IconButton label="Close" bordered={false} onClick={onClose}>
+              <X />
+            </IconButton>
+          </header>
+        )}
         <div ref={contentRef} className={styles.content}>
-          <div className={styles.body}>{children}</div>
+          <div className={cx(styles.body, palette && styles.paletteBody)}>{children}</div>
           {footer !== undefined && <footer className={styles.footer}>{footer}</footer>}
         </div>
       </div>
