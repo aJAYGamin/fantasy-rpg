@@ -17,3 +17,10 @@ mono_crash.*.json
 
 # Claude Code internal worktrees
 .claude/worktrees/
+
+# Amethyst Dashboard
+dashboard/node_modules/
+dashboard/data/
+dashboard/dist/
+dashboard/test-results/
+dashboard/playwright-report/

@@ -1,0 +1,13 @@
+{
+  // Shared compiler options. The server and web configs extend this; it includes no files itself.
+  "compilerOptions": {
+    "target": "ES2023",
+    "strict": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true
+  },
+  "files": []
+}

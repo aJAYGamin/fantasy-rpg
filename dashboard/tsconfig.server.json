@@ -1,0 +1,21 @@
+{
+  // Everything that runs on Node: the server, its tests, shared code, the tool configs and e2e specs.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "outDir": "dist/server",
+    "rootDir": "."
+  },
+  "include": [
+    "server/src",
+    "server/test",
+    "shared/src",
+    "e2e",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "playwright.config.ts"
+  ]
+}

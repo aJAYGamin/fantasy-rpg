@@ -1,0 +1,52 @@
+import { expect, test } from "vitest";
+import { loadConfig } from "../src/config.js";
+
+test("defaults match the documented ones", () => {
+  expect(loadConfig({})).toEqual({
+    port: 4517,
+    host: "127.0.0.1",
+    dbPath: "data/amethyst.db",
+    secureCookies: false,
+    webDist: null,
+    lockMs: 5 * 60_000,
+  });
+});
+
+test("every documented env name is read", () => {
+  const config = loadConfig({
+    AMETHYST_PORT: "5000",
+    AMETHYST_HOST: "0.0.0.0",
+    AMETHYST_DB: "/tmp/other.db",
+    AMETHYST_SECURE_COOKIES: "1",
+  });
+  expect(config).toMatchObject({
+    port: 5000,
+    host: "0.0.0.0",
+    dbPath: "/tmp/other.db",
+    secureCookies: true,
+  });
+});
+
+test("an unusable port is refused instead of silently replaced", () => {
+  expect(() => loadConfig({ AMETHYST_PORT: "abc" })).toThrow(/AMETHYST_PORT/);
+  expect(() => loadConfig({ AMETHYST_PORT: "70000" })).toThrow(/AMETHYST_PORT/);
+});
+
+test("the built web app is served only in production", () => {
+  expect(loadConfig({ NODE_ENV: "production" }).webDist).toBe("dist/web");
+  expect(loadConfig({ NODE_ENV: "development" }).webDist).toBeNull();
+});
+
+test("the lock length can be shortened only when NODE_ENV is test", () => {
+  const realLock = 5 * 60_000;
+  expect(loadConfig({ NODE_ENV: "test", AMETHYST_LOCK_SECONDS: "3" }).lockMs).toBe(3000);
+  expect(loadConfig({ NODE_ENV: "production", AMETHYST_LOCK_SECONDS: "3" }).lockMs).toBe(realLock);
+  expect(loadConfig({ NODE_ENV: "development", AMETHYST_LOCK_SECONDS: "3" }).lockMs).toBe(realLock);
+  expect(loadConfig({ AMETHYST_LOCK_SECONDS: "3" }).lockMs).toBe(realLock);
+});
+
+test("a nonsense test lock length never shortens the real lock", () => {
+  for (const bad of ["0", "-5", "abc", ""]) {
+    expect(loadConfig({ NODE_ENV: "test", AMETHYST_LOCK_SECONDS: bad }).lockMs).toBe(5 * 60_000);
+  }
+});

@@ -1,0 +1,5 @@
+{
+  // What `npm run build` emits: only the server and the shared code it imports.
+  "extends": "./tsconfig.server.json",
+  "include": ["server/src", "shared/src"]
+}
