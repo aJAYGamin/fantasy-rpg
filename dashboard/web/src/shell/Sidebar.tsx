@@ -8,10 +8,11 @@ import { NAV, type NavGroup, type NavItem } from "./nav";
 
 /** The groups and pages whose label contains `query` (any capitals); groups left empty drop out. */
 function matching(query: string): NavGroup[] {
-  const wanted = query.trim().toLocaleLowerCase();
+  // Plain lower-casing, not the browser locale's: the labels are fixed English words.
+  const wanted = query.trim().toLowerCase();
   return NAV.map((group) => ({
     ...group,
-    items: group.items.filter((item) => item.label.toLocaleLowerCase().includes(wanted)),
+    items: group.items.filter((item) => item.label.toLowerCase().includes(wanted)),
   })).filter((group) => group.items.length > 0);
 }
 
@@ -21,6 +22,12 @@ function matching(query: string): NavGroup[] {
  */
 export function Sidebar({ collapsed }: { collapsed: boolean }) {
   const [filter, setFilter] = useState("");
+  // Folding hides the filter, so it also forgets it: unfolding later shows every page, not a stale narrowing.
+  const [wasCollapsed, setWasCollapsed] = useState(collapsed);
+  if (collapsed !== wasCollapsed) {
+    setWasCollapsed(collapsed);
+    if (collapsed) setFilter("");
+  }
   const groups = matching(collapsed ? "" : filter);
   const id = useId();
 

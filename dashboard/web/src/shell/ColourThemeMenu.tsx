@@ -22,7 +22,7 @@ export function ColourThemeMenu() {
           <MenuItem checked icon={<span className={styles.swatch} />} onClick={close}>
             Amethyst
           </MenuItem>
-          <MenuItem disabled inset>
+          <MenuItem disabled inset className={styles.note}>
             More themes coming later
           </MenuItem>
         </>

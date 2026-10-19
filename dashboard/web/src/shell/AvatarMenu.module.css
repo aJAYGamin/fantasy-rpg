@@ -60,6 +60,15 @@
   overflow-wrap: anywhere;
 }
 
+.error {
+  margin: 4px 0 2px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bad-soft);
+  color: var(--bad-ink);
+  font-size: var(--text-md);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .avatar {
     transition: none;

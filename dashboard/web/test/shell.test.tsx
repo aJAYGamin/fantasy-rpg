@@ -1,9 +1,12 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { HttpResponse, http } from "msw";
 import { describe, expect, test, vi } from "vitest";
 import type { Notification } from "../../shared/src/api";
+import tooltipCss from "../src/components/Tooltip.module.css?raw";
+import { Dialog } from "../src/components";
 import { PageHeader } from "../src/shell/PageHeader";
 import { click, keyboard, mockMatchMedia, renderShellAt, settled, type } from "./helpers";
-import { lastRequest, mockNotifications, requestsTo } from "./msw";
+import { SIGNED_OUT, lastRequest, mockAuthState, mockNotifications, requestsTo, server } from "./msw";
 
 const banner = () => screen.getByRole("banner");
 const topButton = (name: string) => within(banner()).getByRole("button", { name });
@@ -63,6 +66,17 @@ describe("sidebar", () => {
     const { queryClient } = renderShellAt("/", { settings: { sidebar: "icons" } });
     for (const name of PAGES) expect(screen.getByRole("link", { name })).toBeInTheDocument();
     expect(screen.queryByPlaceholderText("Filter")).toBeNull();
+    await settled(queryClient);
+  });
+
+  test("folding the sidebar clears the filter, so unfolding shows every page again", async () => {
+    const { queryClient } = renderShellAt("/");
+    await type(screen.getByPlaceholderText("Filter"), "gea");
+    expect(screen.queryByRole("link", { name: "Party" })).toBeNull();
+    await click(topButton("Collapse sidebar"));
+    await click(topButton("Expand sidebar"));
+    expect(screen.getByPlaceholderText("Filter")).toHaveValue("");
+    for (const name of PAGES) expect(screen.getByRole("link", { name })).toBeVisible();
     await settled(queryClient);
   });
 
@@ -137,6 +151,61 @@ describe("top bar", () => {
     await keyboard("{Escape}");
     expect(filter).toHaveValue("");
     await settled(queryClient);
+  });
+
+  test("a keydown with no key at all (Chrome's autofill sends those) is ignored, not an error", async () => {
+    const { queryClient } = renderShellAt("/");
+    const errors: unknown[] = [];
+    const onError = (event: ErrorEvent) => {
+      errors.push(event.error);
+      event.preventDefault();
+    };
+    window.addEventListener("error", onError);
+    try {
+      document.dispatchEvent(new Event("keydown"));
+    } finally {
+      window.removeEventListener("error", onError);
+    }
+    expect(errors).toEqual([]);
+    expect(screen.queryByRole("dialog", { name: "Search" })).toBeNull();
+    await settled(queryClient);
+  });
+
+  test("⌘K does nothing while another dialog is open", async () => {
+    const { queryClient } = renderShellAt("/");
+    render(
+      <Dialog open onClose={() => {}} title="Reset to before debugging?">
+        <p>This rewinds the game.</p>
+      </Dialog>,
+    );
+    await keyboard("{Meta>}k{/Meta}");
+    await keyboard("{Control>}k{/Control}");
+    expect(screen.queryByRole("dialog", { name: "Search" })).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Reset to before debugging?" })).toBeInTheDocument();
+    await settled(queryClient);
+  });
+
+  test("on a Mac, Ctrl+K in a text field is left to the field; ⌘K, or Ctrl+K elsewhere, opens search", async () => {
+    Object.defineProperty(navigator, "platform", { configurable: true, get: () => "MacIntel" });
+    try {
+      const { queryClient } = renderShellAt("/");
+      const filter = screen.getByPlaceholderText("Filter");
+      await click(filter);
+      await keyboard("{Control>}k{/Control}");
+      expect(screen.queryByRole("dialog", { name: "Search" })).toBeNull();
+      await keyboard("{Meta>}k{/Meta}");
+      expect(screen.getByRole("dialog", { name: "Search" })).toBeInTheDocument();
+      await keyboard("{Escape}");
+      expect(filter).toHaveFocus();
+
+      topButton("Collapse sidebar").focus();
+      await keyboard("{Control>}k{/Control}");
+      expect(screen.getByRole("dialog", { name: "Search" })).toBeInTheDocument();
+      await keyboard("{Escape}");
+      await settled(queryClient);
+    } finally {
+      Reflect.deleteProperty(navigator, "platform");
+    }
   });
 
   test("the bell shows the unread count in its badge and its name, and opens the notifications", async () => {
@@ -232,6 +301,55 @@ describe("avatar menu", () => {
     await waitFor(() => expect(router.state.location.pathname).toBe("/signin"));
     expect(requestsTo("/api/auth/signout")).toHaveLength(1);
     expect(lastRequest("/api/auth/signout")?.body).toEqual({});
+    // R25: signing out on purpose is not an interrupted visit, so sign-in doesn't offer to go back to Party.
+    await settled(queryClient);
+    expect(router.state.location.search).toBe("");
+    expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+  });
+
+  test("a sign-out the server refuses keeps the menu open and says so; trying again works", async () => {
+    server.use(
+      http.post("/api/auth/signout", () =>
+        HttpResponse.json({ error: "server_error", message: "Something went wrong on the server." }, { status: 500 }),
+      ),
+    );
+    const { router, queryClient } = renderShellAt("/party");
+    await click(topButton("Account menu"));
+    await click(screen.getByRole("menuitem", { name: "Sign out" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't sign out. Try again.");
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/party");
+    const signOut = screen.getByRole("menuitem", { name: "Sign out" });
+    expect(signOut).not.toHaveAttribute("aria-disabled");
+
+    server.resetHandlers();
+    await click(signOut);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/signin"));
+    await settled(queryClient);
+  });
+
+  test("Sign out can't be sent twice while the first is on its way", async () => {
+    let answer = () => {};
+    const answered = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    server.use(
+      http.post("/api/auth/signout", async () => {
+        await answered;
+        mockAuthState(SIGNED_OUT);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const { router, queryClient } = renderShellAt("/");
+    await click(topButton("Account menu"));
+    const signOut = screen.getByRole("menuitem", { name: "Sign out" });
+    await click(signOut);
+    await waitFor(() => expect(signOut).toHaveAttribute("aria-disabled", "true"));
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    await click(signOut);
+    answer();
+    await waitFor(() => expect(router.state.location.pathname).toBe("/signin"));
+    expect(requestsTo("/api/auth/signout")).toHaveLength(1);
     await settled(queryClient);
   });
 
@@ -327,5 +445,16 @@ describe("page header", () => {
     expect(within(main).getByRole("heading", { level: 1, name: "Location" })).toBeInTheDocument();
     expect(within(main).getByText("Dashboard / Debug / Location")).toBeInTheDocument();
     await settled(queryClient);
+  });
+});
+
+describe("tooltips", () => {
+  test("with reduced motion a tooltip stops fading but still waits for the pointer to rest", () => {
+    const css = tooltipCss.replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(css).toMatch(/\.anchor:hover > \.bubble\s*\{[^}]*transition-delay:\s*350ms/);
+    const reduced = /@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*)\}\s*$/.exec(css)?.[1] ?? "";
+    expect(reduced).toMatch(/\.bubble/);
+    expect(reduced).not.toMatch(/transition:\s*none/);
+    expect(reduced).not.toMatch(/transition-delay/);
   });
 });

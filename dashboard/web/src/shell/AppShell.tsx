@@ -6,13 +6,33 @@ import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { useSidebarMode } from "./useSidebarMode";
 
-/** ⌘K (Mac) or Ctrl+K, from anywhere on the page, even inside a text field. */
+function onAMac(): boolean {
+  const hints = navigator as Navigator & { userAgentData?: { platform?: string } };
+  return /mac/i.test(hints.userAgentData?.platform || navigator.platform || "");
+}
+
+function isEditable(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target.isContentEditable ||
+    target.closest('[contenteditable=""], [contenteditable="true"]') !== null
+  );
+}
+
+/**
+ * ⌘K, or Ctrl+K, opens search from anywhere on the page, even inside a text field. Not while another dialog is up
+ * (it has the floor), and on a Mac Ctrl+K inside a text field is left alone: there it deletes to the end of the line.
+ */
 function useSearchShortcut(open: () => void): void {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key.toLowerCase() !== "k" || !(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
-        return;
-      }
+      // The modifiers first: Chrome's autofill sends keydown events that carry no key at all.
+      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
+      if (event.key?.toLowerCase() !== "k") return;
+      if (document.querySelector('[role="dialog"][aria-modal="true"]') !== null) return;
+      if (event.ctrlKey && !event.metaKey && onAMac() && isEditable(event.target)) return;
       // The browser's own ⌘K / Ctrl+K (its search bar) and the letter itself both stay out of it.
       event.preventDefault();
       open();

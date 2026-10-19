@@ -2,6 +2,12 @@
   min-width: 230px;
 }
 
+/* "More themes coming later": a quieter line than the choices above it. */
+.menu .note {
+  font-size: var(--text-md);
+  font-weight: 400;
+}
+
 /* A small gem: the theme's own colour. */
 .swatch {
   width: 14px;

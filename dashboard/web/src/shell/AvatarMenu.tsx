@@ -1,5 +1,6 @@
 import { LogOut, Settings, User as UserIcon } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import type { User } from "../../../shared/src/api";
 import { useAuthState, useSignOut } from "../api/hooks";
 import { MenuItem, MenuLink, MenuSeparator, Popover, Tooltip } from "../components";
@@ -22,10 +23,46 @@ function Avatar({ user }: { user: User }) {
   return <span className={styles.initials}>{initialsOf(user.displayName)}</span>;
 }
 
+/**
+ * The menu's rows. They mount each time the menu opens, so a sign-out error from last time doesn't linger. Sign out
+ * keeps the menu open until the server agrees: on success it goes to the sign-in page (plainly: signing out on
+ * purpose isn't an interrupted visit to come back to), on failure it says so and can be tried again.
+ */
+function AccountMenuItems({ user, close }: { user: User; close: () => void }) {
+  const signOut = useSignOut();
+  const navigate = useNavigate();
+  return (
+    <>
+      <div className={styles.who} aria-hidden="true">
+        <span className={styles.name}>{user.displayName}</span>
+        <span className={styles.username}>{user.username}</span>
+      </div>
+      <MenuLink to="/settings/account" icon={<UserIcon />} onClick={close}>
+        Profile
+      </MenuLink>
+      <MenuLink to="/settings" icon={<Settings />} onClick={close}>
+        Settings
+      </MenuLink>
+      <MenuSeparator />
+      <MenuItem
+        icon={<LogOut />}
+        disabled={signOut.isPending}
+        onClick={() => signOut.mutate(undefined, { onSuccess: () => navigate("/signin", { replace: true }) })}
+      >
+        Sign out
+      </MenuItem>
+      {signOut.isError && (
+        <p role="alert" className={styles.error}>
+          Couldn't sign out. Try again.
+        </p>
+      )}
+    </>
+  );
+}
+
 /** The avatar at the end of the top bar and its menu: who is signed in, Profile, Settings, Sign out. */
 export function AvatarMenu() {
   const user = useAuthState().data?.user;
-  const signOut = useSignOut();
   if (!user) return null;
 
   return (
@@ -42,31 +79,7 @@ export function AvatarMenu() {
         </Tooltip>
       )}
     >
-      {(close) => (
-        <>
-          <div className={styles.who} aria-hidden="true">
-            <span className={styles.name}>{user.displayName}</span>
-            <span className={styles.username}>{user.username}</span>
-          </div>
-          <MenuLink to="/settings/account" icon={<UserIcon />} onClick={close}>
-            Profile
-          </MenuLink>
-          <MenuLink to="/settings" icon={<Settings />} onClick={close}>
-            Settings
-          </MenuLink>
-          <MenuSeparator />
-          <MenuItem
-            icon={<LogOut />}
-            onClick={() => {
-              close();
-              // On success the guard sees nobody signed in and goes to the sign-in page.
-              signOut.mutate();
-            }}
-          >
-            Sign out
-          </MenuItem>
-        </>
-      )}
+      {(close) => <AccountMenuItems user={user} close={close} />}
     </Popover>
   );
 }

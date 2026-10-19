@@ -219,6 +219,8 @@ const LISTED: Pair[] = [
   { fore: "--focus-line", back: "--side", min: 3, where: "the keyboard focus ring, on the sidebar" },
   { fore: "--focus-line", back: "--side2", min: 3, where: "the keyboard focus ring, on the sidebar item you're on" },
   { fore: "--am2", back: "--side", min: 3, where: "the sidebar filter's edge while it has focus" },
+  // R26: the filter's dashed edge is what shows it's a field, so it reads at 3:1 like any control boundary.
+  { fore: "--side-edge", back: "--side", min: 3, where: "the sidebar filter's dashed edge" },
   // The top bar's unread badge: small white digits on amethyst.
   { fore: "--on-am", back: "--am-fill", min: 4.5, where: "the bell's unread badge" },
   // The sign-in screens' brand panel: text over both ends of its plum gradient.

@@ -69,8 +69,10 @@
   display: none;
 }
 
+/* No fade: it appears and goes at once, but the pointer still has to rest a moment (the hover delay stays). */
 @media (prefers-reduced-motion: reduce) {
   .bubble {
-    transition: none;
+    opacity: 1;
+    transition: visibility 0s;
   }
 }
