@@ -56,13 +56,17 @@ a:hover {
   text-underline-offset: 2px;
 }
 
-/* Keyboard focus is always a visible amethyst ring; mouse clicks don't leave one behind. */
+/*
+ * Keyboard focus is always a visible amethyst ring; mouse clicks don't leave one behind. The transparent
+ * outline is invisible normally, but forced-colours (high contrast) mode drops box-shadows and paints outlines
+ * in the system colour, so the ring still shows there.
+ */
 :focus {
   outline: none;
 }
 
 :focus-visible {
-  outline: none;
+  outline: 3px solid transparent;
   box-shadow: var(--focus-ring);
 }
 

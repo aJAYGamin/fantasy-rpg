@@ -14,7 +14,7 @@
 
 .ok {
   background: var(--ok-soft);
-  color: var(--ok);
+  color: var(--ok-ink);
 }
 
 .am {
@@ -29,7 +29,7 @@
 
 .bad {
   background: var(--bad-soft);
-  color: var(--bad);
+  color: var(--bad-ink);
 }
 
 .neutral {

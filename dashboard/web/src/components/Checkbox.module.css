@@ -39,8 +39,8 @@
 }
 
 .input:checked {
-  border-color: var(--am);
-  background: var(--am);
+  border-color: var(--am-fill);
+  background: var(--am-fill);
 }
 
 .tick {

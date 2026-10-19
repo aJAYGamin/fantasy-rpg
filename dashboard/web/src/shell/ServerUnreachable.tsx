@@ -1,5 +1,5 @@
 import { Button, Card } from "../components";
-import styles from "./ServerUnreachable.module.css";
+import styles from "./CenteredNotice.module.css";
 
 /** Shown instead of any page when the dashboard's own server doesn't answer. */
 export function ServerUnreachable({ onRetry }: { onRetry: () => void }) {

@@ -35,8 +35,10 @@
   border-right: 0;
 }
 
+/* The group shows the ring; in forced-colours mode the outline is drawn inside, clear of the clipped corners. */
 .option:focus-visible {
   box-shadow: none;
+  outline-offset: -3px;
 }
 
 .option:hover:not(:disabled):not([aria-checked="true"]) {
@@ -44,7 +46,7 @@
 }
 
 .option[aria-checked="true"] {
-  background: var(--am);
+  background: var(--am-fill);
   color: var(--on-am);
 }
 

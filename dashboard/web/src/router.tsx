@@ -11,18 +11,22 @@ import { OverviewPage } from "./pages/OverviewPage";
 import { PartyPage } from "./pages/PartyPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { AppShell } from "./shell/AppShell";
+import { RouteError } from "./shell/RouteError";
 import { ServerUnreachable } from "./shell/ServerUnreachable";
 
 const SIGNED_OUT_PAGES = new Set(["/setup", "/signin", "/forgot"]);
 
+const leavesTheSite = (path: string) => path.startsWith("//") || path.startsWith("/\\");
+
 /**
  * Where to go after signing in: the `next` the sign-in page was given, if it is a page of this app, else the
  * Overview. Anything that could leave the site (another origin, "//host", "/\host", a scheme) is ignored, and so
- * are the signed-out pages themselves.
+ * are the signed-out pages themselves. The path is checked again after parsing, because dot-segments collapse
+ * ("/.//host" and "/a/..//host" both become "//host").
  */
 function nextPath(search: string): string {
   const next = new URLSearchParams(search).get("next");
-  if (next === null || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) return "/";
+  if (next === null || !next.startsWith("/") || leavesTheSite(next)) return "/";
   const base = "http://app.invalid";
   let url: URL;
   try {
@@ -31,7 +35,8 @@ function nextPath(search: string): string {
     return "/";
   }
   if (url.origin !== base || SIGNED_OUT_PAGES.has(url.pathname)) return "/";
-  return url.pathname + url.search + url.hash;
+  const path = url.pathname + url.search + url.hash;
+  return leavesTheSite(path) ? "/" : path;
 }
 
 function signInPathFor(path: string): string {
@@ -76,30 +81,36 @@ function RequireSignedOut() {
   return <Outlet />;
 }
 
+// One root route so any page that throws shows the app's own error page, not the router's raw one.
 export const routes: RouteObject[] = [
   {
-    element: <RequireSignedOut />,
-    children: [
-      { path: "/setup", element: <SetupPage /> },
-      { path: "/signin", element: <SignInPage /> },
-      { path: "/forgot", element: <ForgotPage /> },
-    ],
-  },
-  {
-    element: <RequireSignedIn />,
+    errorElement: <RouteError />,
     children: [
       {
-        element: <AppShell />,
+        element: <RequireSignedOut />,
         children: [
-          { index: true, element: <OverviewPage /> },
-          { path: "/party", element: <PartyPage /> },
-          { path: "/inventory", element: <InventoryPage /> },
-          { path: "/gear", element: <GearPage /> },
-          { path: "/location", element: <LocationPage /> },
-          { path: "/admin", element: <AdminPage /> },
-          { path: "/settings", element: <SettingsPage /> },
-          { path: "/settings/:section", element: <SettingsPage /> },
-          { path: "*", element: <Navigate to="/" replace /> },
+          { path: "/setup", element: <SetupPage /> },
+          { path: "/signin", element: <SignInPage /> },
+          { path: "/forgot", element: <ForgotPage /> },
+        ],
+      },
+      {
+        element: <RequireSignedIn />,
+        children: [
+          {
+            element: <AppShell />,
+            children: [
+              { index: true, element: <OverviewPage /> },
+              { path: "/party", element: <PartyPage /> },
+              { path: "/inventory", element: <InventoryPage /> },
+              { path: "/gear", element: <GearPage /> },
+              { path: "/location", element: <LocationPage /> },
+              { path: "/admin", element: <AdminPage /> },
+              { path: "/settings", element: <SettingsPage /> },
+              { path: "/settings/:section", element: <SettingsPage /> },
+              { path: "*", element: <Navigate to="/" replace /> },
+            ],
+          },
         ],
       },
     ],

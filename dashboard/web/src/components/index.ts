@@ -6,7 +6,7 @@ export { Dialog, type DialogProps } from "./Dialog";
 export { Field, type FieldProps } from "./Field";
 export { IconButton, type IconButtonProps } from "./IconButton";
 export { Input, type InputProps } from "./Input";
-export { PasswordInput } from "./PasswordInput";
+export { PasswordInput, type PasswordInputProps } from "./PasswordInput";
 export { Pill, type PillTone } from "./Pill";
 export { Popover, type PopoverProps, type PopoverTriggerProps } from "./Popover";
 export { Ring, type RingColour, type RingProps } from "./Ring";

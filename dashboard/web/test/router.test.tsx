@@ -1,6 +1,8 @@
-import { screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
-import { describe, expect, test } from "vitest";
+import { RouterProvider, createMemoryRouter } from "react-router";
+import { describe, expect, test, vi } from "vitest";
+import { routes } from "../src/router";
 import { renderAt, settled, signInThroughForm } from "./helpers";
 import { NO_ACCOUNT, SIGNED_OUT, TEST_OWNER, TEST_PASSWORD, lastRequest, mockAuthState, server } from "./msw";
 
@@ -63,6 +65,12 @@ describe("signed out", () => {
     "//evil.example/",
     "/\\evil.example",
     "/\t/evil.example/gear", // parsing drops the tab, leaving //evil.example/gear: another site's page
+    // Dot-segments collapse after parsing and leave a path that starts with "//" or "/\": another site.
+    "/.//evil.example",
+    "/..//evil.example",
+    "/%2e//evil.example",
+    "/a/..//evil.example",
+    "/x/../\\evil.example",
     "javascript:alert(1)",
     "/signin",
     "gear",
@@ -88,6 +96,29 @@ describe("when the server can't be reached", () => {
     await user.click(screen.getByRole("button", { name: "Try again" }));
     expect(await screen.findByRole("heading", { name: "Party" })).toBeInTheDocument();
     await settled(queryClient);
+  });
+});
+
+describe("when a page breaks", () => {
+  test("the app's own error page says so and offers a reload, instead of the router's raw one", async () => {
+    // React and the router both report the thrown error; that report is expected here.
+    const report = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      function Broken(): never {
+        throw new Error("broken on purpose");
+      }
+      // The app's own root route, with a page that throws under it.
+      const router = createMemoryRouter(
+        [{ errorElement: routes[0].errorElement, children: [{ path: "/broken", element: <Broken /> }] }],
+        { initialEntries: ["/broken"] },
+      );
+      render(<RouterProvider router={router} />);
+      expect(await screen.findByRole("heading", { name: "Something went wrong" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
+      expect(screen.queryByText(/Unexpected Application Error/)).toBeNull();
+    } finally {
+      report.mockRestore();
+    }
   });
 });
 

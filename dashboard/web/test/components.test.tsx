@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Settings } from "lucide-react";
-import { StrictMode, useState } from "react";
+import { type FormEvent, StrictMode, useState } from "react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   Button,
@@ -127,6 +127,24 @@ describe("Popover and Dialog", () => {
     }
   });
 
+  test("while a dialog is open the page behind it is inert", async () => {
+    const root = document.createElement("div");
+    root.id = "root";
+    document.body.append(root);
+    try {
+      const user = userEvent.setup();
+      render(<DialogDemo />, { container: root });
+      const resetButton = screen.getByRole("button", { name: "Reset everything" });
+      await user.click(resetButton);
+      expect(root).toHaveAttribute("inert");
+      await user.keyboard("{Escape}");
+      expect(root).not.toHaveAttribute("inert");
+      expect(resetButton).toHaveFocus();
+    } finally {
+      root.remove();
+    }
+  });
+
   test("the dialog's close button closes it", async () => {
     const user = userEvent.setup();
     render(<DialogDemo />);
@@ -224,34 +242,68 @@ describe("controls", () => {
     expect(input).toHaveAccessibleDescription("The game listens here. Use a port from 1024 to 65535.");
   });
 
-  test("PasswordInput shows and hides what was typed", async () => {
+  test("PasswordInput's switch is named for its field and says whether it is showing", async () => {
     const user = userEvent.setup();
     render(
-      <Field label="Password">
-        <PasswordInput />
-      </Field>,
+      <>
+        <Field label="Password">
+          <PasswordInput showLabel="Show password" />
+        </Field>
+        <Field label="Confirm password">
+          <PasswordInput showLabel="Show confirm password" />
+        </Field>
+      </>,
     );
     const input = screen.getByLabelText("Password");
+    const show = screen.getByRole("button", { name: "Show password" });
+    expect(screen.getByRole("button", { name: "Show confirm password" })).toHaveAttribute("aria-pressed", "false");
     expect(input).toHaveAttribute("type", "password");
-    await user.click(screen.getByRole("button", { name: "Show" }));
+    expect(show).toHaveAttribute("aria-pressed", "false");
+    await user.click(show);
     expect(input).toHaveAttribute("type", "text");
-    await user.click(screen.getByRole("button", { name: "Hide" }));
+    expect(show).toHaveAttribute("aria-pressed", "true");
+    expect(show).toHaveAccessibleName("Show password");
+    await user.click(show);
     expect(input).toHaveAttribute("type", "password");
+    expect(show).toHaveAttribute("aria-pressed", "false");
   });
 
-  test("a loading Button is busy and can't be pressed again", async () => {
+  test("a loading Button keeps keyboard focus, is busy, and ignores presses until it's done", async () => {
     const onClick = vi.fn();
+    const onSubmit = vi.fn((event: FormEvent) => event.preventDefault());
+    function Save() {
+      const [busy, setBusy] = useState(false);
+      return (
+        <form onSubmit={onSubmit}>
+          <Button
+            type="submit"
+            loading={busy}
+            onClick={() => {
+              onClick();
+              setBusy(true);
+            }}
+          >
+            Save
+          </Button>
+        </form>
+      );
+    }
     const user = userEvent.setup();
-    render(
-      <Button loading onClick={onClick}>
-        Save
-      </Button>,
-    );
+    render(<Save />);
+    await user.tab();
+    await user.keyboard("{Enter}");
     const button = screen.getByRole("button", { name: "Save" });
-    expect(button).toBeDisabled();
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(button).toHaveFocus();
     expect(button).toHaveAttribute("aria-busy", "true");
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).not.toBeDisabled();
+
+    await user.keyboard("{Enter}");
     await user.click(button);
-    expect(onClick).not.toHaveBeenCalled();
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
   test("IconButton is named for screen readers", () => {
@@ -272,6 +324,11 @@ describe("display", () => {
       </Card>,
     );
     expect(screen.getByRole("region", { name: "Game Status" })).toHaveTextContent("Waiting");
+  });
+
+  test("Ring tells screen readers what its centre says, e.g. the time left", () => {
+    render(<Ring percent={82} size="lg" label="4:06" aria-label="Time left" valueText="4 minutes 6 seconds" />);
+    expect(screen.getByRole("progressbar", { name: "Time left" })).toHaveAttribute("aria-valuetext", "4 minutes 6 seconds");
   });
 
   test("Ring shows its label and reports its value, kept within 0–100", () => {
@@ -321,3 +378,9 @@ describe("Countdown", () => {
     expect(onDone).toHaveBeenCalledTimes(1);
   });
 });
+
+// A type-level check (run by `npm run typecheck`): every Ring must be named for screen readers.
+function UnnamedRing() {
+  // @ts-expect-error a Ring without an aria-label does not compile
+  return <Ring percent={1} label="1" />;
+}

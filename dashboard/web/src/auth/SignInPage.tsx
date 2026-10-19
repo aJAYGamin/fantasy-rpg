@@ -28,6 +28,7 @@ export function SignInPage() {
         </Field>
         <Field label="Password" error={problem}>
           <PasswordInput
+            showLabel="Show password"
             autoComplete="current-password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}

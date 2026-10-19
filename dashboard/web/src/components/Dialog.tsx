@@ -16,8 +16,8 @@ export type DialogProps = {
 
 /**
  * A modal dialog over a dimmed page. Focus moves in when it opens (to the first control after the close
- * button), Tab and Shift+Tab stay inside, Escape or a click on the dimmed page closes it, and focus goes back
- * to whatever had it before.
+ * button), Tab and Shift+Tab stay inside, the app behind it (#root) is inert, Escape or a click on the dimmed
+ * page closes it, and focus goes back to whatever had it before.
  */
 export function Dialog({ open, ...rest }: DialogProps) {
   if (!open) return null;
@@ -37,12 +37,17 @@ function OpenDialog({ onClose, title, children, footer }: Omit<DialogProps, "ope
     const first = (content && tabbablesIn(content)[0]) ?? (panel && tabbablesIn(panel)[0]) ?? panel;
     first?.focus();
 
-    // The page behind doesn't scroll while the dialog is up.
-    const root = document.documentElement;
-    const overflow = root.style.overflow;
-    root.style.overflow = "hidden";
+    // The page behind doesn't scroll, and can't be reached by screen readers or clicks, while the dialog is up.
+    const html = document.documentElement;
+    const overflow = html.style.overflow;
+    html.style.overflow = "hidden";
+    const app = document.getElementById("root");
+    const appWasInert = app?.hasAttribute("inert") ?? false;
+    app?.toggleAttribute("inert", true);
     return () => {
-      root.style.overflow = overflow;
+      html.style.overflow = overflow;
+      app?.toggleAttribute("inert", appWasInert);
+      // After the app is live again, or the focus can't land back on it.
       before?.focus();
     };
   }, []);

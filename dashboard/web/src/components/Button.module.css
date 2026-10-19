@@ -38,12 +38,12 @@
   font-size: var(--text-md);
 }
 
-.button:hover:not(:disabled) {
+.button:hover:not(:disabled, [data-loading]) {
   background: var(--control-hover);
   border-color: var(--am-line);
 }
 
-.button:active:not(:disabled) {
+.button:active:not(:disabled, [data-loading]) {
   transform: translateY(1px);
 }
 
@@ -52,15 +52,16 @@
   opacity: 0.45;
 }
 
+/* --am-fill rather than --am: white text needs the deeper amethyst to stay readable in dark mode. */
 .primary {
-  background: var(--am);
-  border-color: var(--am);
+  background: var(--am-fill);
+  border-color: var(--am-fill);
   color: var(--on-am);
 }
 
-.primary:hover:not(:disabled) {
-  background: var(--am2);
-  border-color: var(--am2);
+.primary:hover:not(:disabled, [data-loading]) {
+  background: var(--am-fill-hover);
+  border-color: var(--am-fill-hover);
 }
 
 /* signin-v1's greyed "Try again": a flat lilac block rather than a faded purple one. */
@@ -74,10 +75,10 @@
 .danger {
   background: var(--bad-soft);
   border-color: var(--bad-line);
-  color: var(--bad);
+  color: var(--bad-ink);
 }
 
-.danger:hover:not(:disabled) {
+.danger:hover:not(:disabled, [data-loading]) {
   background: var(--bad-soft);
   border-color: var(--bad);
 }
@@ -88,7 +89,7 @@
   color: var(--dim);
 }
 
-.ghost:hover:not(:disabled) {
+.ghost:hover:not(:disabled, [data-loading]) {
   background: var(--control-hover);
   border-color: transparent;
   color: var(--text);
@@ -101,8 +102,8 @@
 }
 
 .primary[data-loading] {
-  background: var(--am);
-  border-color: var(--am);
+  background: var(--am-fill);
+  border-color: var(--am-fill);
   color: var(--on-am);
 }
 
