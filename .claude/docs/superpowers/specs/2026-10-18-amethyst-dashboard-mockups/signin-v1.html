@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Sign-in mockups v1</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cinzel:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--side:#1E1230;--side2:#281A3F;--am:#7E4FE0;--am2:#9C6BF5;--amSoft:#EFE7FF;--line:#E7E2F0;--text:#2A2238;--dim:#7A7090;--bad:#C6455E;--badSoft:#FBE9ED;--ok:#2E9E5B}
+  *{box-sizing:border-box} body{margin:0;background:#E9E5F1;font:14px/1.45 Inter,system-ui,sans-serif;color:var(--text);padding:28px}
+  h2{margin:0 0 4px;font-size:20px} .sub{color:var(--dim);margin:0 0 22px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:26px}
+  .cap{font-size:12px;font-weight:700;letter-spacing:.08em;color:#5B4A7A;margin:0 0 8px}
+  .screen{display:grid;grid-template-columns:0.9fr 1.1fr;min-height:560px;border-radius:12px;overflow:hidden;box-shadow:0 10px 30px rgba(42,34,56,.15);background:#fff}
+  .brandside{background:radial-gradient(circle at 30% 20%,#3B2361,#1E1230 60%);color:#D9CCF2;padding:34px 30px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden}
+  .brandside::after{content:"";position:absolute;right:-60px;bottom:-60px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(156,107,245,.35),transparent 70%)}
+  .logo{display:flex;align-items:center;gap:10px;color:#fff;font-weight:700;font-size:17px}
+  .gem{width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#C9A8FF,#7E4FE0 60%,#4B2A99);box-shadow:0 0 0 3px rgba(156,107,245,.25)}
+  .tag{font-family:Cinzel,serif;font-size:22px;color:#fff;line-height:1.25}
+  .tagsub{font-size:13px;color:#B9A9D6;margin-top:8px}
+  .foot{font-size:11px;color:#7E6AA3}
+  .form{padding:34px 36px;display:flex;flex-direction:column;justify-content:center}
+  .form h3{margin:0 0 4px;font-size:20px}.form .lead{color:var(--dim);margin:0 0 18px;font-size:13px}
+  .f{margin-bottom:12px}.f label{display:block;font-size:12px;font-weight:600;color:#4A405C;margin-bottom:5px}
+  .in{border:1px solid var(--line);border-radius:8px;padding:10px 12px;color:var(--text);background:#FCFBFE;display:flex;justify-content:space-between}
+  .in.ph{color:#A79DBA}.in.focus{border-color:var(--am);box-shadow:0 0 0 3px rgba(126,79,224,.15)}
+  .in.err{border-color:var(--bad);background:var(--badSoft)}
+  .eye{color:#A79DBA;font-size:12px}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .strength{display:flex;gap:4px;margin-top:6px}.strength i{flex:1;height:4px;border-radius:2px;background:#ECE8F3}.strength i.on{background:var(--ok)}
+  .hint{font-size:11px;color:var(--dim);margin-top:4px}
+  .q{font-size:12px;color:#4A405C;font-weight:600;margin:10px 0 4px}
+  .qnum{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--amSoft);color:var(--am);font-size:11px;margin-right:6px}
+  .btn{display:block;text-align:center;padding:11px;border-radius:8px;font-weight:600;margin-top:6px}
+  .btn.p{background:var(--am);color:#fff}.btn.g{border:1px solid var(--line);color:var(--text)}.btn.dis{background:#CFC5E0;color:#fff}
+  .row{display:flex;justify-content:space-between;align-items:center;font-size:13px;margin:4px 0 8px}
+  .chk{display:flex;align-items:center;gap:8px}.box{width:16px;height:16px;border-radius:4px;background:var(--am);display:grid;place-items:center;color:#fff;font-size:11px}
+  .link{color:var(--am);font-weight:600}
+  .alert{border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:14px}
+  .alert.bad{background:var(--badSoft);color:var(--bad);border:1px solid #F1C9D2}
+  .alert.info{background:var(--amSoft);color:#4B2A99;border:1px solid #DCCBFF}
+  .lock{text-align:center}.lock .ring{width:120px;height:120px;border-radius:50%;margin:6px auto 14px;display:grid;place-items:center;background:conic-gradient(var(--am) 0 82%,#ECE8F3 0)}
+  .lock .ring i{width:100px;height:100px;border-radius:50%;background:#fff;display:grid;place-items:center;font-style:normal;font-size:24px;font-weight:700}
+  .muted{color:var(--dim);font-size:13px}
+  .steps{display:flex;gap:6px;margin-bottom:14px}.steps span{flex:1;height:4px;border-radius:2px;background:#ECE8F3}.steps span.on{background:var(--am)}
+</style></head>
+<body>
+  <h2>Sign-in screens</h2>
+  <p class="sub">Four screens, light mode. The left panel is the same on all of them; the form on the right changes.</p>
+
+  <div class="grid">
+    <!-- 1: first run -->
+    <div>
+      <div class="cap">1 · FIRST TIME ONLY: CREATE THE OWNER ACCOUNT</div>
+      <div class="screen">
+        <div class="brandside">
+          <div class="logo"><div class="gem"></div>Amethyst Dashboard</div>
+          <div><div class="tag">Welcome.<br>Let's set up your account.</div><div class="tagsub">This only appears once. After this, nobody can sign up. You'll create any other accounts yourself, from inside.</div></div>
+          <div class="foot">The Amethyst Requiem · dev dashboard</div>
+        </div>
+        <div class="form">
+          <div class="steps"><span class="on"></span><span class="on"></span></div>
+          <h3>Create your account</h3><p class="lead">You'll be the owner of this dashboard.</p>
+          <div class="two">
+            <div class="f"><label>Display name</label><div class="in">Your name</div></div>
+            <div class="f"><label>Username</label><div class="in focus">owner</div></div>
+          </div>
+          <div class="f"><label>Password</label><div class="in">••••••••••••<span class="eye">Show</span></div><div class="strength"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div><div class="hint">Strong · at least 10 characters</div></div>
+          <div class="f"><label>Confirm password</label><div class="in">••••••••••••<span class="eye">Show</span></div></div>
+          <div class="q" style="margin-top:4px">SECURITY QUESTIONS <span class="muted" style="font-weight:400">· used to reset your password</span></div>
+          <div class="q"><span class="qnum">1</span>What is my favorite holiday?</div><div class="in ph">Your answer</div>
+          <div class="q"><span class="qnum">2</span>Which city was I born in?</div><div class="in ph">Your answer</div>
+          <div class="q"><span class="qnum">3</span>What is my favorite board game?</div><div class="in ph">Your answer</div>
+          <div class="btn p" style="margin-top:14px">Create account</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2: sign in -->
+    <div>
+      <div class="cap">2 · SIGN IN (EVERY TIME AFTER THAT)</div>
+      <div class="screen">
+        <div class="brandside">
+          <div class="logo"><div class="gem"></div>Amethyst Dashboard</div>
+          <div><div class="tag">Welcome back.</div><div class="tagsub">Debug and admin tools for The Amethyst Requiem.</div></div>
+          <div class="foot">The Amethyst Requiem · dev dashboard</div>
+        </div>
+        <div class="form">
+          <h3>Sign in</h3><p class="lead">Use the account you created.</p>
+          <div class="alert bad">That password isn't right. <b>3 tries left</b> before a 5-minute pause.</div>
+          <div class="f"><label>Username</label><div class="in">owner</div></div>
+          <div class="f"><label>Password</label><div class="in err">••••••••<span class="eye">Show</span></div></div>
+          <div class="row"><span class="chk"><span class="box">✓</span>Keep me signed in</span><span class="link">Forgot password?</span></div>
+          <div class="btn p">Sign in</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3: forgot password -->
+    <div>
+      <div class="cap">3 · FORGOT PASSWORD</div>
+      <div class="screen">
+        <div class="brandside">
+          <div class="logo"><div class="gem"></div>Amethyst Dashboard</div>
+          <div><div class="tag">Reset your password.</div><div class="tagsub">Answer all three questions. One wrong answer locks resetting for 5 minutes.</div></div>
+          <div class="foot">The Amethyst Requiem · dev dashboard</div>
+        </div>
+        <div class="form">
+          <h3>Answer your security questions</h3><p class="lead">Capitals and extra spaces don't matter.</p>
+          <div class="f"><label>Username</label><div class="in">owner</div></div>
+          <div class="q"><span class="qnum">1</span>What is my favorite holiday?</div><div class="in">••••••••<span class="eye">Show</span></div>
+          <div class="q"><span class="qnum">2</span>Which city was I born in?</div><div class="in">••••••••<span class="eye">Show</span></div>
+          <div class="q"><span class="qnum">3</span>What is my favorite board game?</div><div class="in focus">••••••<span class="eye">Show</span></div>
+          <div class="two" style="margin-top:14px">
+            <div class="f"><label>New password</label><div class="in ph">New password</div></div>
+            <div class="f"><label>Confirm</label><div class="in ph">Again</div></div>
+          </div>
+          <div class="btn p">Reset password</div>
+          <div class="row" style="justify-content:center;margin-top:10px"><span class="link">← Back to sign in</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4: locked -->
+    <div>
+      <div class="cap">4 · LOCKED AFTER A WRONG ANSWER (OR 5 WRONG PASSWORDS)</div>
+      <div class="screen">
+        <div class="brandside">
+          <div class="logo"><div class="gem"></div>Amethyst Dashboard</div>
+          <div><div class="tag">Taking a short pause.</div><div class="tagsub">This stops anyone from guessing over and over.</div></div>
+          <div class="foot">The Amethyst Requiem · dev dashboard</div>
+        </div>
+        <div class="form lock">
+          <h3>Password reset is locked</h3>
+          <p class="lead">One of the answers didn't match. You can try again when the timer runs out.</p>
+          <div class="ring"><i>4:06</i></div>
+          <div class="muted">The page unlocks on its own. No need to refresh.</div>
+          <div class="btn dis" style="margin-top:18px">Try again</div>
+          <div class="row" style="justify-content:center;margin-top:10px"><span class="link">← Back to sign in</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body></html>
