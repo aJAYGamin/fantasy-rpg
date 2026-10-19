@@ -3,11 +3,14 @@ import fastifyStatic from "@fastify/static";
 import Fastify, { type FastifyInstance } from "fastify";
 import { PRODUCT_NAME } from "../../shared/src/constants.js";
 import type { Config } from "./config.js";
+import type { Db } from "./db/database.js";
 
 const isApiPath = (url: string) => /^\/api(\/|\?|$)/.test(url);
 
 export interface AppOptions {
   config: Config;
+  /** Opened and closed by the caller, not by the app. */
+  db: Db;
   now?: () => Date;
 }
 

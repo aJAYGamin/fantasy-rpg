@@ -5,9 +5,11 @@ import type { FastifyInstance } from "fastify";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { buildApp } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
+import { type Db, openDatabase } from "../src/db/database.js";
 
 let dir: string;
 let app: FastifyInstance | undefined;
+let db: Db | undefined;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "amethyst-web-"));
@@ -19,11 +21,14 @@ beforeEach(() => {
 afterEach(async () => {
   await app?.close();
   app = undefined;
+  db?.close();
+  db = undefined;
   rmSync(dir, { recursive: true, force: true });
 });
 
 async function served() {
-  app = await buildApp({ config: { ...loadConfig({}), webDist: dir } });
+  db = openDatabase(":memory:");
+  app = await buildApp({ config: { ...loadConfig({}), webDist: dir }, db });
   return app;
 }
 
@@ -53,7 +58,8 @@ test("an unknown API route stays a JSON 404, never the page", async () => {
 });
 
 test("without a built web app the server answers only the API", async () => {
-  app = await buildApp({ config: loadConfig({}) });
+  db = openDatabase(":memory:");
+  app = await buildApp({ config: loadConfig({}), db });
   const res = await app.inject({ method: "GET", url: "/" });
   expect(res.statusCode).toBe(404);
 });
