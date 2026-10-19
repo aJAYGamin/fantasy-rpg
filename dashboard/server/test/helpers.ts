@@ -129,15 +129,28 @@ export function get(app: FastifyInstance, url: string, cookie?: string) {
   return app.inject({ method: "GET", url, headers: cookie ? { cookie } : {} });
 }
 
-// Every mutating request carries the header the server demands.
-export function post(app: FastifyInstance, url: string, body: unknown = {}, cookie?: string) {
-  return app.inject({
-    method: "POST",
-    url,
-    payload: body as object,
-    headers: { "x-amethyst-request": "1", ...(cookie ? { cookie } : {}) },
-  });
+// Every request that changes something carries the header the server demands.
+function change(method: "POST" | "PATCH" | "PUT" | "DELETE") {
+  return (app: FastifyInstance, url: string, body?: unknown, cookie?: string) =>
+    app.inject({
+      method,
+      url,
+      // Serialised here so a body that is just a string or a number is still sent as JSON.
+      ...(body === undefined ? {} : { payload: JSON.stringify(body) }),
+      headers: {
+        "x-amethyst-request": "1",
+        ...(body === undefined ? {} : { "content-type": "application/json" }),
+        ...(cookie ? { cookie } : {}),
+      },
+    });
 }
+
+const sendPost = change("POST");
+export const post = (app: FastifyInstance, url: string, body: unknown = {}, cookie?: string) =>
+  sendPost(app, url, body, cookie);
+export const patch = change("PATCH");
+// A DELETE has no body; a JSON content type with nothing in it is a bad request.
+export const del = (app: FastifyInstance, url: string, cookie?: string) => change("DELETE")(app, url, undefined, cookie);
 
 export function signin(app: FastifyInstance, password: string, username = "owner", keepSignedIn = false) {
   return post(app, "/api/auth/signin", { username, password, keepSignedIn });

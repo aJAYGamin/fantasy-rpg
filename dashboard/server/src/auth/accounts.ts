@@ -50,6 +50,15 @@ function toAccount(row: AccountRow): Account {
   };
 }
 
+const DISPLAY_NAME_MAX = 40;
+
+// The name as it will be stored: trimmed, and 1 to 40 characters as a person counts them. Null when it breaks that.
+export function cleanDisplayName(typed: string): string | null {
+  const name = typed.trim();
+  const length = [...name].length;
+  return length >= 1 && length <= DISPLAY_NAME_MAX ? name : null;
+}
+
 export function countAccounts(db: Db): number {
   return (db.prepare<[], { n: number }>("SELECT COUNT(*) AS n FROM accounts").get() as { n: number }).n;
 }
@@ -93,4 +102,31 @@ export function createOwner(
 
 export function setPasswordHash(db: Db, accountId: number, passwordHash: string): void {
   db.prepare("UPDATE accounts SET password_hash = ? WHERE id = ?").run(passwordHash, accountId);
+}
+
+export function setDisplayName(db: Db, accountId: number, displayName: string): void {
+  db.prepare("UPDATE accounts SET display_name = ? WHERE id = ?").run(displayName, accountId);
+}
+
+export function setAnswerHashes(db: Db, accountId: number, answerHashes: string[]): void {
+  db.prepare("UPDATE accounts SET answer_hashes = ? WHERE id = ?").run(JSON.stringify(answerHashes), accountId);
+}
+
+export type Avatar = { bytes: Buffer; type: string };
+
+export function getAvatar(db: Db, accountId: number): Avatar | null {
+  const row = db
+    .prepare<[number], { avatar: Buffer | null; avatar_type: string | null }>(
+      "SELECT avatar, avatar_type FROM accounts WHERE id = ?",
+    )
+    .get(accountId);
+  return row?.avatar && row.avatar_type ? { bytes: row.avatar, type: row.avatar_type } : null;
+}
+
+export function setAvatar(db: Db, accountId: number, avatar: Avatar): void {
+  db.prepare("UPDATE accounts SET avatar = ?, avatar_type = ? WHERE id = ?").run(avatar.bytes, avatar.type, accountId);
+}
+
+export function clearAvatar(db: Db, accountId: number): void {
+  db.prepare("UPDATE accounts SET avatar = NULL, avatar_type = NULL WHERE id = ?").run(accountId);
 }

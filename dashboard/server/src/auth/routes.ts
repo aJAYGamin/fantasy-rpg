@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import type { AuthState } from "../../../shared/src/api.js";
 import { MAX_WRONG_PASSWORDS, SECURITY_QUESTIONS, SESSION_COOKIE } from "../../../shared/src/constants.js";
+import { isAnswers, isObject } from "../bodies.js";
 import type { Config } from "../config.js";
 import type { Db } from "../db/database.js";
 import { sendError } from "../errors.js";
@@ -9,13 +10,14 @@ import { readKeepSignedInDays } from "../settings/settings.js";
 import {
   type Account,
   AccountExistsError,
+  cleanDisplayName,
   countAccounts,
   createOwner,
   findById,
   findByUsername,
   setPasswordHash,
 } from "./accounts.js";
-import { type Answers, hashAnswers, normalizeAnswer, verifyAnswers } from "./answers.js";
+import { hashAnswers, normalizeAnswer, verifyAnswers } from "./answers.js";
 import { sessionTokenOf, toUser, userForToken } from "./guard.js";
 import { type LockState, clearLock, isLocked, readLock, registerFailure, triesLeft, writeLock } from "./locks.js";
 import { checkPasswordPolicy, hashPassword, verifyPassword } from "./passwords.js";
@@ -34,14 +36,7 @@ export interface AuthDeps {
 
 const USERNAME_RULE = /^[A-Za-z0-9_.-]{3,32}$/;
 const USERNAME_MAX = 32;
-const DISPLAY_NAME_MAX = 40;
 const DAY_SECONDS = 86_400;
-
-type Body = Record<string, unknown>;
-const isObject = (value: unknown): value is Body =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-const isAnswers = (value: unknown): value is Answers =>
-  Array.isArray(value) && value.length === 3 && value.every((answer) => typeof answer === "string");
 
 // The typed username as a lock key: trimmed and cut to the longest name an account can have, so a stranger typing a
 // huge name cannot fill the lock table with huge rows. Cut by character, never through the middle of one.
@@ -113,12 +108,9 @@ export function authRoutes(app: FastifyInstance, deps: AuthDeps): void {
     if (countAccounts(db) > 0) return sendError(reply, 409, "already_set_up");
 
     const username = body.username.trim();
-    const displayName = body.displayName.trim();
-    const displayNameLength = [...displayName].length;
+    const displayName = cleanDisplayName(body.displayName);
     if (!USERNAME_RULE.test(username)) return sendError(reply, 400, "invalid_username");
-    if (displayNameLength < 1 || displayNameLength > DISPLAY_NAME_MAX) {
-      return sendError(reply, 400, "invalid_display_name");
-    }
+    if (displayName === null) return sendError(reply, 400, "invalid_display_name");
     if (checkPasswordPolicy(body.password) === "too_short") return sendError(reply, 400, "too_short");
     if (body.answers.some((answer) => normalizeAnswer(answer) === "")) return sendError(reply, 400, "missing_answer");
 

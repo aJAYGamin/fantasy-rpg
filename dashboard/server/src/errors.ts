@@ -15,6 +15,7 @@ const MESSAGES = {
   too_short: `Passwords need at least ${MIN_PASSWORD_LENGTH} characters.`,
   invalid_username: "Usernames are 3 to 32 letters, digits, dots, dashes or underscores.",
   invalid_display_name: "Display names are 1 to 40 characters.",
+  invalid_setting: "That setting isn't valid.",
   missing_answer: "Answer all three security questions.",
   wrong_password: "That password isn't right.",
   wrong_answer: "One or more answers didn't match.",
@@ -27,7 +28,7 @@ export function sendError(
   reply: FastifyReply,
   status: number,
   code: ErrorCode,
-  extra: Pick<ApiError, "triesLeft" | "lockedUntil"> = {},
+  extra: Partial<Pick<ApiError, "message" | "triesLeft" | "lockedUntil">> = {},
 ): FastifyReply {
   const body: ApiError = { error: code, message: MESSAGES[code], ...extra };
   return reply.code(status).send(body);

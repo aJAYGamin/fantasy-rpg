@@ -47,13 +47,20 @@ test("a signed-in change without the request header is refused, even with a vali
 
 // ---- fail closed ------------------------------------------------------------------------------------
 
-// Every route the app has registered, read from Fastify's own route table: "/api/x/:id (GET, HEAD)" lines.
+// Every route the app has registered, read from Fastify's own route table. The table is a tree: a route that shares
+// its start with another is drawn under it with only the rest of its path, so each line is joined to its parent's.
+//   ├── /api/account (GET, HEAD, PATCH)
+//   │   └── /avatar (PUT, GET, HEAD, DELETE)        <- /api/account/avatar
 function registeredRoutes(app: Awaited<ReturnType<typeof testApp>>): { path: string; methods: string[] }[] {
   const lines = app.printRoutes({ commonPrefix: false }).split("\n").filter((line) => line.trim() !== "");
+  const fullPathAtDepth: string[] = [];
   return lines.map((line) => {
-    const match = /(\/\S*) \(([A-Z, ]+)\)$/.exec(line);
+    const match = /^((?:[│ ] {3})*)[├└]── (\S+) \(([A-Z, ]+)\)$/.exec(line);
     if (!match) throw new Error(`Could not read a route from: ${line}`);
-    return { path: match[1] as string, methods: (match[2] as string).split(", ") };
+    const depth = (match[1] as string).length / 4;
+    const path = (depth === 0 ? "" : (fullPathAtDepth[depth - 1] as string)) + (match[2] as string);
+    fullPathAtDepth[depth] = path;
+    return { path, methods: (match[3] as string).split(", ") };
   });
 }
 
@@ -65,8 +72,21 @@ test("every route outside sign-in and health answers 401 without a session", asy
   const guarded = routes.filter((route) => !OPEN_ROUTES.test(route.path));
 
   // If reading the route table ever drifts, this fails instead of quietly checking nothing.
-  expect(routes.length).toBeGreaterThan(guarded.length);
-  expect(guarded.map((route) => route.path)).toContain("/api/game/status");
+  expect(routes.every((route) => route.path.startsWith("/api/"))).toBe(true);
+  expect(routes.map((route) => route.path)).toEqual(expect.arrayContaining(["/api/health", "/api/auth/signin"]));
+  expect(guarded.map((route) => route.path)).toEqual(
+    expect.arrayContaining([
+      "/api/game/status",
+      "/api/account",
+      "/api/account/password",
+      "/api/account/answers",
+      "/api/account/avatar",
+      "/api/settings",
+      "/api/notifications",
+      "/api/notifications/read-all",
+      "/api/notifications/:id/read",
+    ]),
+  );
 
   for (const { path, methods } of guarded) {
     for (const method of methods) {

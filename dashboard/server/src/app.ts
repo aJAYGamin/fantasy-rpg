@@ -11,6 +11,7 @@ import Fastify, {
 } from "fastify";
 import type { User } from "../../shared/src/api.js";
 import { PRODUCT_NAME, REQUEST_HEADER } from "../../shared/src/constants.js";
+import { accountRoutes } from "./account/routes.js";
 import { requireUser } from "./auth/guard.js";
 import { hashPassword } from "./auth/passwords.js";
 import { authRoutes } from "./auth/routes.js";
@@ -18,6 +19,8 @@ import type { Config } from "./config.js";
 import type { Db } from "./db/database.js";
 import { type ErrorCode, sendError } from "./errors.js";
 import { gameRoutes } from "./game/routes.js";
+import { notificationRoutes } from "./notifications/routes.js";
+import { settingsRoutes } from "./settings/routes.js";
 
 const isApiPath = (url: string) => /^\/api(\/|\?|$)/.test(url);
 // Methods that only read. Every other method (even one nobody uses yet) must carry the request header.
@@ -88,6 +91,9 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   await app.register(async (signedIn) => {
     signedIn.addHook("onRequest", requireUser({ db, now }));
     gameRoutes(signedIn);
+    await accountRoutes(signedIn, { db, now });
+    settingsRoutes(signedIn, { db });
+    notificationRoutes(signedIn, { db, now });
   });
 
   return app;
