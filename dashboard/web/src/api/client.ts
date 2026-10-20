@@ -70,16 +70,22 @@ async function errorBodyOf(response: Response): Promise<ApiError> {
 
 /**
  * Calls the dashboard's own server. State-changing requests carry the request header the server insists on,
- * and always send a JSON body (`{}` when there's nothing to send): the server refuses a JSON request with an
- * empty body. Resolves with the parsed JSON answer, or undefined for an empty one; rejects with ApiFailure.
+ * and send a JSON body (`{}` when there's nothing to send): the server refuses a JSON request with an empty body.
+ * A FormData body (an upload) goes as it is, with no Content-Type set here: the browser writes the multipart one,
+ * boundary included, and a hand-made one would lack the boundary. Resolves with the parsed JSON answer, or
+ * undefined for an empty one; rejects with ApiFailure.
  */
 export async function api<T = void>(method: Method, path: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = { Accept: "application/json" };
-  let payload: string | undefined;
+  let payload: string | FormData | undefined;
   if (method !== "GET") {
     headers[REQUEST_HEADER] = "1";
-    headers["Content-Type"] = "application/json";
-    payload = JSON.stringify(body ?? {});
+    if (body instanceof FormData) {
+      payload = body;
+    } else {
+      headers["Content-Type"] = "application/json";
+      payload = JSON.stringify(body ?? {});
+    }
   }
 
   let response: Response;

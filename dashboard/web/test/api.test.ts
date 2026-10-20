@@ -38,6 +38,18 @@ test("a body is sent as JSON and the JSON answer comes back", async () => {
   await vi.waitFor(() => expect(seen[0].body).toEqual({ appearance: "dark" }));
 });
 
+test("an upload goes as it is: the request header, the file, and no JSON content type of its own", async () => {
+  // The browser writes the multipart Content-Type itself, with the boundary; a JSON one would break the upload.
+  const seen = captureRequests();
+  const form = new FormData();
+  form.append("file", new File([new Uint8Array(8)], "me.png", { type: "image/png" }));
+  await expect(api("PUT", "/api/account/avatar", form)).resolves.toBeUndefined();
+  expect(seen[0].method).toBe("PUT");
+  expect(seen[0].headers.get("X-Amethyst-Request")).toBe("1");
+  expect(seen[0].headers.get("Content-Type")).toBeNull();
+  expect(seen[0].body).toBe(form);
+});
+
 test("an answer with no content resolves with nothing", async () => {
   await expect(api("POST", "/api/auth/signout")).resolves.toBeUndefined();
 });

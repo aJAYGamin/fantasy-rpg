@@ -1,0 +1,67 @@
+/* The profile card: the picture and its buttons, then the display name and the username, stacked like the sign-in forms. */
+
+.picture {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/* The avatar circle, at the top bar's colours but larger. */
+.preview {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--am-soft);
+  color: var(--am-text);
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.pictureSide {
+  min-width: 0;
+}
+
+.label {
+  margin-bottom: 5px;
+  color: var(--label);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.hint {
+  margin-top: var(--space-2);
+  color: var(--dim);
+  font-size: var(--text-xs);
+}
+
+.problem {
+  margin-top: var(--space-3);
+}
+
+.field {
+  max-width: 320px;
+  margin-top: var(--space-5);
+}
+
+.username {
+  margin-top: var(--space-5);
+}
+
+.value {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.username .hint {
+  margin-top: var(--space-1);
+}

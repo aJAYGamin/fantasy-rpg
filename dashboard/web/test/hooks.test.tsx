@@ -12,10 +12,14 @@ import {
   useGameStatus,
   useNotifications,
   useSettings,
+  useSetup,
+  useSignIn,
   useSignOut,
+  useSignOutFailed,
+  useSignedOutByChoice,
   useUpdateSettings,
 } from "../src/api/hooks";
-import { SIGNED_OUT, requestsTo, server } from "./msw";
+import { SIGNED_OUT, TEST_PASSWORD, requestsTo, server } from "./msw";
 
 const clients: QueryClient[] = [];
 
@@ -98,4 +102,43 @@ test.each<[string, number, string, () => unknown]>([
   expect(requestsTo(path)).toHaveLength(1);
   await act(() => vi.advanceTimersByTimeAsync(100));
   await vi.waitFor(() => expect(requestsTo(path)).toHaveLength(2));
+});
+
+// The two notes about an earlier sign-out are private to hooks.ts; these are their keys, and the hooks that read them.
+const SIGNED_OUT_BY_CHOICE = ["auth", "signed-out-by-choice"];
+const SIGN_OUT_FAILED = ["notice", "sign-out-failed"];
+
+async function renderWithOldSignOut<T>(hook: () => T) {
+  const rendered = renderWithData(() => ({
+    mutation: hook(),
+    byChoice: useSignedOutByChoice(),
+    failed: useSignOutFailed().failed,
+  }));
+  act(() => {
+    rendered.queryClient.setQueryData(SIGNED_OUT_BY_CHOICE, true);
+    rendered.queryClient.setQueryData(SIGN_OUT_FAILED, true);
+  });
+  await waitFor(() => expect(rendered.result.current).toMatchObject({ byChoice: true, failed: true }));
+  return rendered;
+}
+
+test("signing in forgets an earlier sign-out: where it was going, and that it had failed", async () => {
+  const { result } = await renderWithOldSignOut(useSignIn);
+  act(() => result.current.mutation.mutate({ username: "owner", password: TEST_PASSWORD, keepSignedIn: false }));
+  await waitFor(() => expect(result.current.mutation.isSuccess).toBe(true));
+  expect(result.current).toMatchObject({ byChoice: false, failed: false });
+});
+
+test("creating the account forgets an earlier sign-out too", async () => {
+  const { result } = await renderWithOldSignOut(useSetup);
+  act(() =>
+    result.current.mutation.mutate({
+      username: "owner",
+      displayName: "Test Owner",
+      password: TEST_PASSWORD,
+      answers: ["Midwinter", "Tarnwick", "Lanterns and Lanes"],
+    }),
+  );
+  await waitFor(() => expect(result.current.mutation.isSuccess).toBe(true));
+  expect(result.current).toMatchObject({ byChoice: false, failed: false });
 });

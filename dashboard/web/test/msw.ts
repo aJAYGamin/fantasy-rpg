@@ -3,6 +3,7 @@
 
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
+import { vi } from "vitest";
 import {
   type AuthState,
   DEFAULT_SETTINGS,
@@ -12,9 +13,11 @@ import {
   type Settings,
   type SettingsPatch,
   type SetupRequest,
+  type UpdateAccountRequest,
   type User,
 } from "../../shared/src/api";
 import {
+  DISPLAY_NAME_MAX,
   INVALID_DISPLAY_NAME_MESSAGE,
   INVALID_USERNAME_MESSAGE,
   TOO_SHORT_MESSAGE,
@@ -97,6 +100,16 @@ function applySettingsPatch(patch: SettingsPatch): void {
   state.settings = { ...state.settings, ...patch, notify: { ...state.settings.notify, ...patch.notify } };
 }
 
+function setHasAvatar(hasAvatar: boolean): void {
+  if (state.auth.user) state.auth = { ...state.auth, user: { ...state.auth.user, hasAvatar } };
+}
+
+// A 1 × 1 transparent PNG.
+const TINY_PNG = Uint8Array.from(
+  atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="),
+  (character) => character.charCodeAt(0),
+);
+
 /** Marks notifications read like the real server: `unread` only drops for the kinds the settings count. */
 function markNotificationsRead(ids: ReadonlySet<number> | "all"): boolean {
   const { items, unread } = state.notifications;
@@ -137,6 +150,35 @@ const handlers = [
     state.auth = SIGNED_OUT;
     return new HttpResponse(null, { status: 204 });
   }),
+  http.patch("/api/account", async ({ request }) => {
+    const { displayName } = (await request.json()) as UpdateAccountRequest;
+    const name = displayName.trim();
+    const length = [...name].length;
+    if (state.auth.user === null) return refusalReply(401, "signed_out");
+    if (length < 1 || length > DISPLAY_NAME_MAX) return refusalReply(400, "invalid_display_name");
+    const user: User = { ...state.auth.user, displayName: name };
+    state.auth = { ...state.auth, user };
+    return HttpResponse.json(user);
+  }),
+  // Like the real server, a wrong current password is a 401; every other check is up to the test (mockRefusal).
+  http.post("/api/account/password", async ({ request }) => {
+    const { currentPassword } = (await request.json()) as { currentPassword: string };
+    return currentPassword === TEST_PASSWORD ? new HttpResponse(null, { status: 204 }) : refusalReply(401, "wrong_password");
+  }),
+  http.post("/api/account/answers", async ({ request }) => {
+    const { currentPassword } = (await request.json()) as { currentPassword: string };
+    return currentPassword === TEST_PASSWORD ? new HttpResponse(null, { status: 204 }) : refusalReply(401, "wrong_password");
+  }),
+  // The upload (PUT) is answered by fakeUploads below: jsdom's File can't travel through Node's fetch.
+  http.get("/api/account/avatar", () =>
+    state.auth.user?.hasAvatar
+      ? new HttpResponse(TINY_PNG, { headers: { "Content-Type": "image/png", "Cache-Control": "no-store" } })
+      : refusalReply(404, "not_found"),
+  ),
+  http.delete("/api/account/avatar", () => {
+    setHasAvatar(false);
+    return new HttpResponse(null, { status: 204 });
+  }),
   http.get("/api/settings", () => HttpResponse.json(state.settings)),
   http.patch("/api/settings", async ({ request }) => {
     applySettingsPatch((await request.json()) as SettingsPatch);
@@ -150,7 +192,7 @@ const handlers = [
 
 export const server = setupServer(...handlers);
 
-// ---- refusals the sign-in screens must handle ----
+// ---- refusals the pages must handle ----
 
 // The server's own sentence for each code, so a test can tell the app's wording from the server's.
 const SERVER_MESSAGES: Record<string, string> = {
@@ -160,12 +202,23 @@ const SERVER_MESSAGES: Record<string, string> = {
   too_short: TOO_SHORT_MESSAGE,
   invalid_username: INVALID_USERNAME_MESSAGE,
   invalid_display_name: INVALID_DISPLAY_NAME_MESSAGE,
+  invalid_setting: "That setting isn't valid.",
   missing_answer: "Answer all three security questions.",
   already_set_up: "An account already exists.",
+  signed_out: "Please sign in.",
+  too_large: "That request is too large.",
+  unsupported_media_type: "That kind of request isn't supported.",
+  not_found: "Not found",
   server_error: "Something went wrong on the server.",
 };
 
-type Refusal = { error: string; triesLeft?: number; lockedUntil?: string };
+type Refusal = { error: string; message?: string; triesLeft?: number; lockedUntil?: string };
+
+const refusalBody = (refusal: Refusal) => ({ message: SERVER_MESSAGES[refusal.error], ...refusal });
+
+function refusalReply(status: number, error: string) {
+  return HttpResponse.json(refusalBody({ error }), { status });
+}
 
 /** An ISO time `minutes` after `from` (default: now), for a lockedUntil. */
 export function inMinutes(minutes: number, from: number = Date.now()): string {
@@ -184,29 +237,44 @@ type RefuseOptions = {
   clockAhead?: number;
 };
 
-function refuse(path: string, status: number, refusal: Refusing, { clockAhead }: RefuseOptions = {}): void {
+type RefusedMethod = "post" | "patch" | "put" | "delete";
+
+function refuse(
+  method: RefusedMethod,
+  path: string,
+  status: number,
+  refusal: Refusing,
+  { clockAhead }: RefuseOptions = {},
+): void {
   server.use(
-    http.post(path, () => {
+    http[method](path, () => {
       const serverNow =
         clockAhead === undefined ? Date.now() : Math.floor((Date.now() + clockAhead) / 1000) * 1000;
       const body = typeof refusal === "function" ? refusal(serverNow) : refusal;
       const headers = clockAhead === undefined ? undefined : { Date: new Date(serverNow).toUTCString() };
-      return HttpResponse.json({ message: SERVER_MESSAGES[body.error], ...body }, { status, headers });
+      return HttpResponse.json(refusalBody(body), { status, headers });
     }),
   );
 }
 
+/**
+ * Makes one route answer with a refusal, e.g. mockRefusal("post", "/api/account/answers", 400, { error: "missing_answer" }).
+ * A `message` overrides the code's usual sentence (invalid_setting's message is the setting's key).
+ */
+export const mockRefusal = (method: RefusedMethod, path: string, status: number, refusal: Refusing) =>
+  refuse(method, path, status, refusal);
+
 /** Makes sign-in answer with a refusal, e.g. mockSignin(401, { error: "wrong_password", triesLeft: 3 }). */
 export const mockSignin = (status: number, refusal: Refusing, options?: RefuseOptions) =>
-  refuse("/api/auth/signin", status, refusal, options);
+  refuse("post", "/api/auth/signin", status, refusal, options);
 
 /** Makes first-run setup answer with a refusal. */
 export const mockSetup = (status: number, refusal: Refusing, options?: RefuseOptions) =>
-  refuse("/api/auth/setup", status, refusal, options);
+  refuse("post", "/api/auth/setup", status, refusal, options);
 
 /** Makes the password reset answer with a refusal. */
 export const mockForgot = (status: number, refusal: Refusing, options?: RefuseOptions) =>
-  refuse("/api/auth/forgot", status, refusal, options);
+  refuse("post", "/api/auth/forgot", status, refusal, options);
 
 // ---- what the app sent ----
 
@@ -215,7 +283,7 @@ export type SeenRequest = {
   /** Path plus query string, e.g. "/api/settings". */
   path: string;
   headers: Headers;
-  /** The parsed JSON body (or the raw text when it isn't JSON); undefined when there was none. */
+  /** The parsed JSON body (or the raw text when it isn't JSON; the FormData of an upload); undefined when there was none. */
   body: unknown;
 };
 
@@ -264,9 +332,45 @@ export function requestsTo(path: string): SeenRequest[] {
   return log.filter((seen) => seen.path.split("?")[0] === path);
 }
 
+// ---- uploads ----
+
+// jsdom's File can't travel through Node's fetch (its body never finishes streaming, and the pipe then breaks with an
+// unhandled error), so the one upload the app makes is answered before it gets that far. It is logged like any other
+// request (its body is the FormData itself, its path the address the app asked for) and answered as the server would.
+let uploadRefusal: { status: number; refusal: Refusal } | null = null;
+let stopFakingUploads = () => {};
+
+/** Answers uploads (a FormData body) itself, from now until stopFakingUploads. Call it after server.listen(). */
+export function fakeUploads(): void {
+  const network = globalThis.fetch;
+  const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+    if (typeof input !== "string" || !(init?.body instanceof FormData)) return network(input, init);
+    const seen: SeenRequest = {
+      method: init.method ?? "GET",
+      path: input,
+      headers: new Headers(init.headers),
+      body: init.body,
+    };
+    log.push(seen);
+    for (const capture of captures) capture.push(seen);
+    if (uploadRefusal) return Response.json(refusalBody(uploadRefusal.refusal), { status: uploadRefusal.status });
+    setHasAvatar(true);
+    return new Response(null, { status: 204 });
+  });
+  stopFakingUploads = () => spy.mockRestore();
+}
+
+export const restoreUploads = () => stopFakingUploads();
+
+/** Makes the next uploads answer with a refusal, e.g. mockUploadRefusal(413, { error: "too_large" }). */
+export function mockUploadRefusal(status: number, refusal: Refusal): void {
+  uploadRefusal = { status, refusal };
+}
+
 /** Back to a signed-in owner with default settings, and an empty request log. Runs after every test. */
 export function resetMocks(): void {
   state = freshState();
   log = [];
   captures = [];
+  uploadRefusal = null;
 }

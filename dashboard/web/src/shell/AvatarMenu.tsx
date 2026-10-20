@@ -1,26 +1,9 @@
 import { LogOut, Settings, User as UserIcon } from "lucide-react";
-import { useState } from "react";
 import type { User } from "../../../shared/src/api";
 import { useAuthState, useSignOut } from "../api/hooks";
 import { MenuItem, MenuLink, MenuSeparator, Popover, Tooltip } from "../components";
+import { Avatar } from "./Avatar";
 import styles from "./AvatarMenu.module.css";
-
-/** Up to two letters from the display name: the first word's and the last word's ("Test Owner" → "TO"). */
-export function initialsOf(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  const picked = words.length > 1 ? [words[0], words[words.length - 1]] : words;
-  // By code point, so a name starting with an emoji keeps it whole.
-  return picked.map((word) => [...word][0]).join("").toLocaleUpperCase();
-}
-
-/** The account's picture, or its initials when there is none (or it fails to load). */
-function Avatar({ user }: { user: User }) {
-  const [broken, setBroken] = useState(false);
-  if (user.hasAvatar && !broken) {
-    return <img className={styles.picture} src="/api/account/avatar" alt="" onError={() => setBroken(true)} />;
-  }
-  return <span className={styles.initials}>{initialsOf(user.displayName)}</span>;
-}
 
 /**
  * The menu's rows. They mount each time the menu opens, so a sign-out error from last time doesn't linger. Sign out

@@ -25,16 +25,6 @@
   box-shadow: var(--focus-ring);
 }
 
-.initials {
-  line-height: 1;
-}
-
-.picture {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
 .menu {
   min-width: 220px;
 }

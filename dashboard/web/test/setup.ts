@@ -2,10 +2,13 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, beforeEach } from "vitest";
 import { clearQueryClients, mockMatchMedia } from "./helpers";
-import { resetMocks, server } from "./msw";
+import { fakeUploads, resetMocks, restoreUploads, server } from "./msw";
 
 // A request no test mocked is a bug in the test (or the app), so it fails instead of warning.
-beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
+beforeAll(() => {
+  server.listen({ onUnhandledFrame: "error" });
+  fakeUploads();
+});
 
 // jsdom has no matchMedia; by default the Mac is in light mode.
 beforeEach(() => {
@@ -22,4 +25,7 @@ afterEach(() => {
   delete document.documentElement.dataset.theme;
 });
 
-afterAll(() => server.close());
+afterAll(() => {
+  restoreUploads();
+  server.close();
+});

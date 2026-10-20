@@ -1,5 +1,5 @@
 import { Navigate, Outlet, type RouteObject, useLocation } from "react-router";
-import { useAuthState, useSignedOutByChoice } from "./api/hooks";
+import { useAuthState, useForgetSignOutWhileSignedIn, useSignedOutByChoice } from "./api/hooks";
 import { ForgotPage } from "./auth/ForgotPage";
 import { SetupPage } from "./auth/SetupPage";
 import { SignInPage } from "./auth/SignInPage";
@@ -62,6 +62,7 @@ function RequireSignedIn() {
   const state = useGuardState();
   const location = useLocation();
   const byChoice = useSignedOutByChoice();
+  useForgetSignOutWhileSignedIn(state.kind === "ready" && state.user !== null);
   if (state.kind === "pending") return <Pending />;
   if (state.kind === "unreachable") return <ServerUnreachable onRetry={state.retry} />;
   if (state.setupRequired) return <Navigate to="/setup" replace />;

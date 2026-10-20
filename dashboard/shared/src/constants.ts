@@ -29,6 +29,13 @@ export const SESSION_HOURS_DEFAULT = 12;
 export const KEEP_SIGNED_IN_DAY_CHOICES = [7, 30, 90] as const;
 
 export const DEFAULT_GAME_PORT = 47821;
+export const GAME_PORT_MIN = 1024;
+export const GAME_PORT_MAX = 65535;
+export const INVALID_GAME_PORT_MESSAGE = `Use a port from ${GAME_PORT_MIN} to ${GAME_PORT_MAX}.`;
+
+// The profile picture: what the server accepts, and what the Settings page checks before sending.
+export const AVATAR_TYPES = ["image/png", "image/jpeg", "image/webp"] as const;
+export const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
 
 export const SESSION_COOKIE = "amethyst_session";
 // Sent on every state-changing request; the server answers 403 without it.

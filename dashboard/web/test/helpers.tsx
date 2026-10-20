@@ -72,6 +72,17 @@ export const type = (element: Element, text: string) => currentUser().type(eleme
 /** Presses keys where the focus is, in user-event's syntax, e.g. "{Meta>}k{/Meta}". */
 export const keyboard = (keys: string) => currentUser().keyboard(keys);
 
+/** Clears a field and puts `text` in it, leaving the cursor there (pasting is quick, and handles emoji). */
+export async function replace(field: Element, text: string): Promise<void> {
+  await currentUser().clear(field);
+  if (text === "") return;
+  await currentUser().click(field);
+  await currentUser().paste(text);
+}
+
+/** Chooses `file` in a file input, as the system's file chooser would. */
+export const upload = (input: HTMLElement, file: File) => currentUser().upload(input, file);
+
 /** Drops every query client renderAt made, so no refetch timer outlives its test, and its user-event session. */
 export function clearQueryClients(): void {
   for (const client of openClients.splice(0)) client.clear();

@@ -2,10 +2,19 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { RouterProvider, createMemoryRouter } from "react-router";
 import { describe, expect, test, vi } from "vitest";
-import { finishSignOut } from "../src/api/hooks";
+import { finishSignOut, queryKeys } from "../src/api/hooks";
 import { routes } from "../src/router";
 import { renderAt, settled, signInThroughForm } from "./helpers";
-import { NO_ACCOUNT, SIGNED_OUT, TEST_OWNER, TEST_PASSWORD, lastRequest, mockAuthState, server } from "./msw";
+import {
+  NO_ACCOUNT,
+  SIGNED_IN,
+  SIGNED_OUT,
+  TEST_OWNER,
+  TEST_PASSWORD,
+  lastRequest,
+  mockAuthState,
+  server,
+} from "./msw";
 
 describe("with no account yet", () => {
   // Review Focus 4
@@ -154,6 +163,28 @@ describe("signed in", () => {
     await waitFor(() => expect(router.state.location.pathname).toBe("/signin"));
     await settled(queryClient);
     expect(router.state.location.search).toBe("");
+  });
+
+  test("once someone is signed in again, an earlier sign-out on purpose is forgotten, so a later expiry keeps its way back", async () => {
+    const { router, queryClient } = renderAt("/party");
+    expect(await screen.findByRole("heading", { name: "Party" })).toBeInTheDocument();
+    act(() => finishSignOut(queryClient));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/signin"));
+    expect(router.state.location.search).toBe("");
+
+    // Another tab signs in; this one finds out and moves on.
+    mockAuthState(SIGNED_IN);
+    await act(() => queryClient.invalidateQueries({ queryKey: queryKeys.auth }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+    await act(() => router.navigate("/party"));
+    expect(await screen.findByRole("heading", { name: "Party" })).toBeInTheDocument();
+
+    // Later the session ends on its own. It isn't a sign-out on purpose, so it must remember where it was.
+    mockAuthState(SIGNED_OUT);
+    await act(() => queryClient.invalidateQueries({ queryKey: queryKeys.auth }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/signin"));
+    expect(router.state.location.search).toBe("?next=%2Fparty");
+    await settled(queryClient);
   });
 
   test("a signed_out answer from any route sends you to sign in, back to where you were", async () => {

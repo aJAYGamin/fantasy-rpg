@@ -1,0 +1,10 @@
+/* The gem beside "Amethyst": the sidebar brand's, smaller. */
+.swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--gem);
+  vertical-align: -1px;
+}

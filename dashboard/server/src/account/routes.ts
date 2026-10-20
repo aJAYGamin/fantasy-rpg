@@ -1,7 +1,7 @@
 import fastifyMultipart from "@fastify/multipart";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { User } from "../../../shared/src/api.js";
-import { MAX_WRONG_PASSWORDS } from "../../../shared/src/constants.js";
+import { AVATAR_MAX_BYTES, MAX_WRONG_PASSWORDS } from "../../../shared/src/constants.js";
 import {
   type Account,
   cleanDisplayName,
@@ -22,8 +22,6 @@ import type { Db } from "../db/database.js";
 import { sendError } from "../errors.js";
 import { addNotification } from "../notifications/notifications.js";
 import { sniffImageType } from "./images.js";
-
-const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
 
 // Registered inside the signed-in scope. Async because it adds the multipart parser to that scope (and only that
 // scope: nowhere else accepts an upload).

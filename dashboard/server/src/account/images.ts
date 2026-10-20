@@ -1,4 +1,6 @@
-export type ImageType = "image/png" | "image/jpeg" | "image/webp";
+import type { AVATAR_TYPES } from "../../../shared/src/constants.js";
+
+export type ImageType = (typeof AVATAR_TYPES)[number];
 
 const startsWith = (bytes: Buffer, signature: readonly number[], at = 0) =>
   bytes.length >= at + signature.length && signature.every((byte, i) => bytes[at + i] === byte);

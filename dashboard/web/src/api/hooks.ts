@@ -3,6 +3,8 @@ import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
 import type {
   AuthState,
+  ChangeAnswersRequest,
+  ChangePasswordRequest,
   ForgotRequest,
   GameStatus,
   NotificationKind,
@@ -11,6 +13,7 @@ import type {
   SettingsPatch,
   SetupRequest,
   SigninRequest,
+  UpdateAccountRequest,
   User,
 } from "../../../shared/src/api";
 import { ApiFailure, api, onSignedOut } from "./client";
@@ -48,13 +51,39 @@ export function useAuthState() {
   });
 }
 
+// Small notes kept in the query cache, so they live as long as the app does and each test starts without them.
+// The first one's "auth" prefix keeps it through sign-out's clean-up of everything else.
+const SIGNED_OUT_BY_CHOICE = ["auth", "signed-out-by-choice"] as const;
+// Whether a sign-out failed after the menu that started it was gone.
+const SIGN_OUT_FAILED = ["notice", "sign-out-failed"] as const;
+// How many times the profile picture has changed in this visit (see usePictureVersion).
+const PICTURE_VERSION = ["account", "picture-version"] as const;
+
+function useNote<T>(key: readonly string[], none: T): T {
+  const { data } = useQuery({
+    queryKey: key,
+    queryFn: () => none,
+    initialData: none,
+    staleTime: Number.POSITIVE_INFINITY,
+    gcTime: Number.POSITIVE_INFINITY,
+  });
+  return data ?? none;
+}
+
+// A new sign-in starts with a clean slate: nothing left over from the last session may decide where it goes (the
+// "signed out on purpose" note drops its way back) or show a message about it (a sign-out that had failed).
+function forgetSignOut(queryClient: QueryClient): void {
+  queryClient.setQueryData(SIGNED_OUT_BY_CHOICE, false);
+  queryClient.setQueryData(SIGN_OUT_FAILED, false);
+}
+
 /** Signs in; on success the cached auth state becomes signed in, and the guards move on to the page asked for. */
 export function useSignIn() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (request: SigninRequest) => api<User>("POST", "/api/auth/signin", request),
     onSuccess: (user) => {
-      queryClient.setQueryData(SIGNED_OUT_BY_CHOICE, false);
+      forgetSignOut(queryClient);
       queryClient.setQueryData<AuthState>(queryKeys.auth, { setupRequired: false, user });
     },
   });
@@ -66,7 +95,7 @@ export function useSetup() {
   return useMutation({
     mutationFn: (request: SetupRequest) => api<User>("POST", "/api/auth/setup", request),
     onSuccess: (user) => {
-      queryClient.setQueryData(SIGNED_OUT_BY_CHOICE, false);
+      forgetSignOut(queryClient);
       queryClient.setQueryData<AuthState>(queryKeys.auth, { setupRequired: false, user });
     },
   });
@@ -79,28 +108,23 @@ export function useResetPassword() {
   });
 }
 
-// One-bit notes kept in the query cache, so they live as long as the app does and each test starts without them.
-// The first one's "auth" prefix keeps it through sign-out's clean-up of everything else.
-const SIGNED_OUT_BY_CHOICE = ["auth", "signed-out-by-choice"] as const;
-// Whether a sign-out failed after the menu that started it was gone.
-const SIGN_OUT_FAILED = ["notice", "sign-out-failed"] as const;
-
-function useNote(key: readonly string[]): boolean {
-  return useQuery({
-    queryKey: key,
-    queryFn: () => false,
-    initialData: false,
-    staleTime: Number.POSITIVE_INFINITY,
-    gcTime: Number.POSITIVE_INFINITY,
-  }).data;
-}
-
 /**
  * Whether the person has just signed out on purpose, as opposed to a session that ended on its own. The guards send
  * the second kind to sign-in with a way back (`next`); the first goes to plain /signin.
  */
 export function useSignedOutByChoice(): boolean {
-  return useNote(SIGNED_OUT_BY_CHOICE);
+  return useNote<boolean>(SIGNED_OUT_BY_CHOICE, false);
+}
+
+/**
+ * While someone is signed in, "signed out on purpose" is old news. Forget it, so that a session which later ends on
+ * its own (or a sign-in made in another tab) doesn't find the note still there and lose the way back (`next`).
+ */
+export function useForgetSignOutWhileSignedIn(signedIn: boolean): void {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (signedIn) queryClient.setQueryData(SIGNED_OUT_BY_CHOICE, false);
+  }, [signedIn, queryClient]);
 }
 
 /**
@@ -147,7 +171,7 @@ export function useSignOut() {
 /** Whether to tell the person a sign-out failed after its menu was gone, and how to put that notice away. */
 export function useSignOutFailed() {
   const queryClient = useQueryClient();
-  const failed = useNote(SIGN_OUT_FAILED);
+  const failed = useNote<boolean>(SIGN_OUT_FAILED, false);
   return { failed, dismiss: () => queryClient.setQueryData(SIGN_OUT_FAILED, false) };
 }
 
@@ -196,6 +220,71 @@ export function useUpdateSettings() {
       }
     },
   });
+}
+
+/** Replaces the signed-in account in the cached auth state, so the top bar and the menus follow at once. */
+function changeUser(queryClient: QueryClient, change: (user: User) => User): void {
+  queryClient.setQueryData<AuthState>(queryKeys.auth, (state) =>
+    state?.user ? { ...state, user: change(state.user) } : state,
+  );
+}
+
+/** Renames the signed-in account. The server's answer is the account as saved. */
+export function useUpdateDisplayName() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (request: UpdateAccountRequest) => api<User>("PATCH", "/api/account", request),
+    onSuccess: (saved) => changeUser(queryClient, () => saved),
+  });
+}
+
+/** Changes the password. Every other sign-in ends; this one stays. Nothing is cached (R23). */
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: (request: ChangePasswordRequest) => api("POST", "/api/account/password", request),
+  });
+}
+
+/** Changes the three security answers. Nothing is cached (R23). */
+export function useChangeAnswers() {
+  return useMutation({
+    mutationFn: (request: ChangeAnswersRequest) => api("POST", "/api/account/answers", request),
+  });
+}
+
+// After the picture changes, the cached account says whether there is one, and the picture's version moves on:
+// every <img> of it asks for it again (its address changes) and starts afresh (it is keyed by the version), even one
+// that had failed to load.
+function pictureChanged(queryClient: QueryClient, hasAvatar: boolean): void {
+  changeUser(queryClient, (user) => ({ ...user, hasAvatar }));
+  queryClient.setQueryData<number>(PICTURE_VERSION, (version) => (version ?? 0) + 1);
+}
+
+/** Sets the profile picture from a file the person chose (the server checks the type and size again). */
+export function useUploadAvatar() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return api("PUT", "/api/account/avatar", form);
+    },
+    onSuccess: () => pictureChanged(queryClient, true),
+  });
+}
+
+/** Removes the profile picture; the initials show instead. */
+export function useRemoveAvatar() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api("DELETE", "/api/account/avatar"),
+    onSuccess: () => pictureChanged(queryClient, false),
+  });
+}
+
+/** How many times the picture has changed in this visit: 0 until it does. */
+export function usePictureVersion(): number {
+  return useNote<number>(PICTURE_VERSION, 0);
 }
 
 export function useNotifications() {

@@ -1,0 +1,16 @@
+/* A small green "✓ Saved" at the right of a card's header. */
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--ok-ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.status svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.4;
+}

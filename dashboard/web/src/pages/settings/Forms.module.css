@@ -1,0 +1,47 @@
+/*
+ * The two forms under Account (change password, change security answers), spaced as the sign-in forms are
+ * (AuthForm.module.css): 12px under each field, the questions' own 10px above and 4px between question and answer.
+ */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  max-width: 420px;
+}
+
+.field {
+  margin-bottom: 12px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin: 4px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.legend {
+  padding: 0;
+  margin-bottom: 4px;
+  color: var(--label);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.legendNote {
+  color: var(--dim);
+  font-size: var(--text-md);
+  font-weight: 400;
+}
+
+.alert {
+  margin-top: 14px;
+}
+
+button.submit {
+  align-self: flex-start;
+  margin-top: 14px;
+  font-weight: 600;
+}

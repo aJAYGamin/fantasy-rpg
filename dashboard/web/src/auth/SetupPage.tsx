@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { type ChangeEvent, type FormEvent, type MouseEvent, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { MIN_PASSWORD_LENGTH, SECURITY_QUESTIONS } from "../../../shared/src/constants";
+import { SECURITY_QUESTIONS } from "../../../shared/src/constants";
 import { queryKeys, useSetup } from "../api/hooks";
 import { Button, Field, Input, PasswordInput } from "../components";
 import { cx } from "../components/cx";
@@ -12,7 +12,7 @@ import { QuestionField } from "./QuestionField";
 import { StrengthMeter } from "./StrengthMeter";
 import { useFocusFirstInvalid } from "./focus";
 import { refusalOf } from "./refusal";
-import { STRENGTH_WORDS, passwordStrength } from "./strength";
+import { passwordHint, passwordStrength } from "./strength";
 import {
   type Problem,
   checkAnswer,
@@ -132,10 +132,7 @@ export function SetupPage() {
   }
 
   const strength = passwordStrength(values.password);
-  const hint =
-    strength === 0
-      ? `At least ${MIN_PASSWORD_LENGTH} characters`
-      : `${STRENGTH_WORDS[strength]} · at least ${MIN_PASSWORD_LENGTH} characters`;
+  const hint = passwordHint(strength);
   const alreadySetUp = refusal?.body.error === "already_set_up";
 
   return (

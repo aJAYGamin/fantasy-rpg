@@ -1,10 +1,7 @@
 import { DEFAULT_SETTINGS, type Settings, type SettingsPatch } from "../../../shared/src/api.js";
-import { KEEP_SIGNED_IN_DAY_CHOICES } from "../../../shared/src/constants.js";
+import { GAME_PORT_MAX, GAME_PORT_MIN, KEEP_SIGNED_IN_DAY_CHOICES } from "../../../shared/src/constants.js";
 import { isObject } from "../bodies.js";
 import type { Db } from "../db/database.js";
-
-const MIN_GAME_PORT = 1024;
-const MAX_GAME_PORT = 65535;
 
 const oneOf =
   <T extends string | number>(choices: readonly T[]) =>
@@ -12,7 +9,7 @@ const oneOf =
     choices.includes(value as T);
 const isBoolean = (value: unknown): value is boolean => typeof value === "boolean";
 const isPort = (value: unknown): value is number =>
-  typeof value === "number" && Number.isInteger(value) && value >= MIN_GAME_PORT && value <= MAX_GAME_PORT;
+  typeof value === "number" && Number.isInteger(value) && value >= GAME_PORT_MIN && value <= GAME_PORT_MAX;
 
 // What each setting may be. A key that is not here is not a setting.
 const CHECKS: { [K in keyof Omit<Settings, "notify">]: (value: unknown) => value is Settings[K] } = {

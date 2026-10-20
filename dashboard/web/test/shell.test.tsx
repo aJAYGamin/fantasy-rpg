@@ -5,7 +5,8 @@ import type { Notification } from "../../shared/src/api";
 import tooltipCss from "../src/components/Tooltip.module.css?raw";
 import { Dialog } from "../src/components";
 import { PageHeader } from "../src/shell/PageHeader";
-import { click, keyboard, mockMatchMedia, renderShellAt, settled, type } from "./helpers";
+import { queryKeys } from "../src/api/hooks";
+import { click, keyboard, mockMatchMedia, renderShellAt, settled, signInThroughForm, type } from "./helpers";
 import { SIGNED_OUT, lastRequest, mockAuthState, mockNotifications, requestsTo, server } from "./msw";
 
 const banner = () => screen.getByRole("banner");
@@ -124,7 +125,8 @@ describe("top bar", () => {
   test("the settings icon goes to Settings", async () => {
     const { router, queryClient } = renderShellAt("/");
     await click(within(banner()).getByRole("link", { name: "Settings" }));
-    expect(router.state.location.pathname).toBe("/settings");
+    // /settings opens the first section (R31).
+    expect(router.state.location.pathname).toBe("/settings/appearance");
     await settled(queryClient);
   });
 
@@ -422,6 +424,29 @@ describe("avatar menu", () => {
     await settled(queryClient);
   });
 
+  test("a sign-out notice from an earlier session is gone once the owner signs in again", async () => {
+    // The sign-out failed after its menu was gone, so the shell showed its notice. Then the session ended on the
+    // server and the owner signed in again: the old notice must not greet the new session.
+    const answer = heldSignOut("refused");
+    const { router, queryClient, user } = renderShellAt("/party");
+    await click(topButton("Account menu"));
+    await click(screen.getByRole("menuitem", { name: "Sign out" }));
+    await keyboard("{Escape}");
+    answer();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't sign out. Try again.");
+
+    mockAuthState(SIGNED_OUT);
+    await act(() => queryClient.invalidateQueries({ queryKey: queryKeys.auth }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/signin"));
+    expect(router.state.location.search).toBe("?next=%2Fparty");
+
+    await signInThroughForm(user);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/party"));
+    expect(await screen.findByRole("heading", { name: "Party" })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+    await settled(queryClient);
+  });
+
   test("a failed sign-out with the menu still open is announced once, in the menu", async () => {
     const answer = heldSignOut("refused");
     const { queryClient } = renderShellAt("/party");
@@ -480,7 +505,7 @@ describe("avatar menu", () => {
     expect(within(screen.getByRole("menu")).getAllByRole("menuitem")[0]).toHaveFocus();
     await keyboard("{ArrowDown}");
     await keyboard(" ");
-    expect(router.state.location.pathname).toBe("/settings");
+    expect(router.state.location.pathname).toBe("/settings/appearance");
     expect(screen.queryByRole("menu")).toBeNull();
     await settled(queryClient);
   });

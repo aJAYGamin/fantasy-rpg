@@ -22,3 +22,10 @@ export function passwordStrength(password: string): Strength {
   const mixed = KINDS.filter((kind) => kind.test(password)).length >= 3;
   return Math.min(4, base + (mixed ? 1 : 0)) as Strength;
 }
+
+/** The hint under a new password: how strong it is so far, then the length rule. */
+export function passwordHint(level: Strength): string {
+  return level === 0
+    ? `At least ${MIN_PASSWORD_LENGTH} characters`
+    : `${STRENGTH_WORDS[level]} · at least ${MIN_PASSWORD_LENGTH} characters`;
+}
