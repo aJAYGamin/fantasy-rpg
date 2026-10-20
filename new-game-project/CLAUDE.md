@@ -1976,6 +1976,19 @@ profiles, movesets/loadouts, rest areas, and the controller-navigation pass.
   `SaveCoverage` safety net (see **Save System**); item and gear prices, the inn
   price tier and whole-number Memory Echo counts now survive a load.
 
+#### Amethyst Dashboard — stage 1 **DONE**, stage 2 next (before Track A)
+- A local web dashboard for play-testing (React + a small Fastify/SQLite server), in the
+  repo's top-level `dashboard/` folder, outside this Godot project. How to run, build and
+  test it: `dashboard/README.md`. Design:
+  `.claude/docs/superpowers/specs/2026-10-18-amethyst-dashboard-design.md`.
+- **Stage 1 — the dashboard itself — DONE** (branch `amethyst-dashboard`, 2026-10-20):
+  owner account, sign-in with lockouts, both themes, search, notifications, Settings; the
+  Debug pages say "waiting for the game" and Admin says "In development". Nothing in the
+  game changed.
+- **Stage 2 — the game connection — next**: a debug-build-only listener in the game so the
+  Debug pages (party, gold and items, gear, location, quick actions, reset to before
+  debugging) work live. It gets its own plan.
+
 #### Track A — Story progression (second to last)
 - `GameManager.story_flags` exists but is **referenced by nothing** — the story
   system is a declared variable and no more. Make it real: flags that gate NPC

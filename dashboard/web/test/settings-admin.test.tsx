@@ -8,8 +8,10 @@ import {
   SECURITY_QUESTIONS,
   TOO_SHORT_MESSAGE,
 } from "../../shared/src/constants";
-import { DEFAULT_SETTINGS } from "../../shared/src/api";
+import { DEFAULT_SETTINGS, type SettingsPatch } from "../../shared/src/api";
+import { ApiFailure } from "../src/api/client";
 import { queryKeys } from "../src/api/hooks";
+import { problemWithSetting } from "../src/pages/settings/useSettingsSaver";
 import { click, keyboard, renderAt, renderShellAt, replace, settled, topBar, upload } from "./helpers";
 import {
   SIGNED_OUT,
@@ -204,6 +206,46 @@ describe("Appearance", () => {
     await click(screen.getByRole("radio", { name: "Icons only" }));
     await settled(queryClient);
     expect(within(region("Appearance")).queryByRole("alert")).toBeNull();
+  });
+
+  test("a refusal still says so when another change was made before it came back", async () => {
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    // Dark is refused, but only once Icons only has been sent (and saved) behind it.
+    server.use(
+      http.patch("/api/settings", async ({ request }) => {
+        const patch = (await request.clone().json()) as SettingsPatch;
+        if (patch.appearance !== "dark") return undefined;
+        await held;
+        return HttpResponse.json({ error: "invalid_setting", message: "appearance" }, { status: 400 });
+      }),
+    );
+    const { queryClient } = renderShellAt("/settings/appearance");
+    await click(screen.getByRole("radio", { name: "Dark" }));
+    await click(screen.getByRole("radio", { name: "Icons only" }));
+    await waitFor(() => expect(savedBodies()).toEqual([{ appearance: "dark" }, { sidebar: "icons" }]));
+    release();
+    expect(await within(region("Appearance")).findByRole("alert")).toHaveTextContent(
+      "That setting couldn't be saved.",
+    );
+    await settled(queryClient);
+    // Dark is undone; Icons only, which the server took, stays.
+    expect(document.documentElement.dataset.theme).toBe("light");
+    expect(screen.getByRole("radio", { name: "Light" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "Icons only" })).toHaveAttribute("aria-checked", "true");
+    expect(within(topBar()).getByRole("button", { name: "Expand sidebar" })).toBeVisible();
+  });
+
+  test("a refused setting whose name isn't one the app knows gets the general sentence", () => {
+    // Names an ordinary object answers to by itself must not be taken for a sentence.
+    for (const name of ["constructor", "toString", "__proto__", "hasOwnProperty", "somethingNew"]) {
+      const refusal = new ApiFailure(400, { error: "invalid_setting", message: name });
+      expect(problemWithSetting(refusal)).toBe("That setting couldn't be saved.");
+    }
+    const port = new ApiFailure(400, { error: "invalid_setting", message: "gamePort" });
+    expect(problemWithSetting(port)).toBe(INVALID_GAME_PORT_MESSAGE);
   });
 
   test("Saved goes away by itself after a couple of seconds", async () => {
@@ -458,6 +500,42 @@ describe("Account: the profile", () => {
     expect(requestsTo("/api/account")).toEqual([]);
   });
 
+  test("an Enter that finishes composing text (Japanese, Chinese, Korean) doesn't save", async () => {
+    const { queryClient } = renderShellAt("/settings/account");
+    const name = within(profile()).getByLabelText("Display name");
+    await replace(name, "Ada Vale");
+    // Chromium and Firefox mark that Enter as composing; Safari sends it with the composition key code, 229.
+    fireEvent.keyDown(name, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(name, { key: "Enter", keyCode: 229 });
+    await settled(queryClient);
+    expect(requestsTo("/api/account")).toEqual([]);
+    expect(name).toHaveValue("Ada Vale");
+    // The Enter after it is an ordinary one, and saves.
+    fireEvent.keyDown(name, { key: "Enter", keyCode: 13 });
+    await waitFor(() => expect(requestsTo("/api/account")).toHaveLength(1));
+    await settled(queryClient);
+  });
+
+  test("a problem found by pressing Enter is announced at once; leaving the field or typing on, politely", async () => {
+    const { queryClient } = renderShellAt("/settings/account");
+    const name = within(profile()).getByLabelText("Display name");
+    await replace(name, "   ");
+    await keyboard("{Enter}");
+    expect(within(profile()).getByRole("alert")).toHaveTextContent(INVALID_DISPLAY_NAME_MESSAGE);
+    // Typing on, the problem follows the text without interrupting.
+    await replace(name, "x".repeat(41));
+    expect(within(profile()).getByText(INVALID_DISPLAY_NAME_MESSAGE)).toHaveAttribute("aria-live", "polite");
+    expect(within(profile()).queryByRole("alert")).toBeNull();
+
+    await keyboard("{Escape}");
+    await replace(name, "   ");
+    await keyboard("{Tab}");
+    expect(within(profile()).getByText(INVALID_DISPLAY_NAME_MESSAGE)).toHaveAttribute("aria-live", "polite");
+    expect(within(profile()).queryByRole("alert")).toBeNull();
+    await settled(queryClient);
+    expect(requestsTo("/api/account")).toEqual([]);
+  });
+
   test("a display name the server refuses shows its sentence and goes back to the saved one", async () => {
     mockRefusal("patch", "/api/account", 400, { error: "invalid_display_name" });
     const { queryClient } = renderShellAt("/settings/account");
@@ -526,6 +604,18 @@ describe("Account: the profile", () => {
     await settled(queryClient);
     expect(within(profile()).getByText("TO")).toBeVisible();
     expect(topButton("Account menu").querySelector("img")).toBeNull();
+  });
+
+  test.each([
+    [413, "Pictures can be at most 2 MB."],
+    [415, "Pictures must be PNG, JPEG or WebP."],
+  ])("a %i that isn't in the server's words (a page from something in between) still gets its sentence", async (status, sentence) => {
+    mockUploadRefusal(status, "<html><body><h1>Refused</h1></body></html>");
+    const { queryClient } = renderShellAt("/settings/account");
+    await upload(within(profile()).getByLabelText("Choose a picture"), picture());
+    expect(await within(profile()).findByRole("alert")).toHaveTextContent(sentence);
+    await settled(queryClient);
+    expect(within(profile()).getByText("TO")).toBeVisible();
   });
 
   test("the upload button opens the file chooser, from the keyboard too", async () => {

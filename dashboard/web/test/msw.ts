@@ -337,7 +337,7 @@ export function requestsTo(path: string): SeenRequest[] {
 // jsdom's File can't travel through Node's fetch (its body never finishes streaming, and the pipe then breaks with an
 // unhandled error), so the one upload the app makes is answered before it gets that far. It is logged like any other
 // request (its body is the FormData itself, its path the address the app asked for) and answered as the server would.
-let uploadRefusal: { status: number; refusal: Refusal } | null = null;
+let uploadRefusal: { status: number; refusal: Refusal | string } | null = null;
 let stopFakingUploads = () => {};
 
 /** Answers uploads (a FormData body) itself, from now until stopFakingUploads. Call it after server.listen(). */
@@ -353,7 +353,11 @@ export function fakeUploads(): void {
     };
     log.push(seen);
     for (const capture of captures) capture.push(seen);
-    if (uploadRefusal) return Response.json(refusalBody(uploadRefusal.refusal), { status: uploadRefusal.status });
+    if (uploadRefusal) {
+      const { status, refusal } = uploadRefusal;
+      if (typeof refusal === "string") return new Response(refusal, { status, headers: { "Content-Type": "text/html" } });
+      return Response.json(refusalBody(refusal), { status });
+    }
     setHasAvatar(true);
     return new Response(null, { status: 204 });
   });
@@ -362,8 +366,11 @@ export function fakeUploads(): void {
 
 export const restoreUploads = () => stopFakingUploads();
 
-/** Makes the next uploads answer with a refusal, e.g. mockUploadRefusal(413, { error: "too_large" }). */
-export function mockUploadRefusal(status: number, refusal: Refusal): void {
+/**
+ * Makes the next uploads answer with a refusal, e.g. mockUploadRefusal(413, { error: "too_large" }). A string is sent
+ * as an HTML page instead of the server's JSON, as something between the browser and the server might answer.
+ */
+export function mockUploadRefusal(status: number, refusal: Refusal | string): void {
   uploadRefusal = { status, refusal };
 }
 

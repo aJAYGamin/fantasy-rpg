@@ -1,0 +1,13 @@
+{
+  // The Playwright config and the end-to-end specs: Node code that also hands functions to the browser (page.evaluate),
+  // so it sees the DOM's types as well. Kept apart from the server's program, which must not.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["e2e", "playwright.config.ts", "shared/src"]
+}

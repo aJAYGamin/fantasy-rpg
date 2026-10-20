@@ -1,5 +1,6 @@
 {
-  // Everything that runs on Node: the server, its tests, shared code, the tool configs and e2e specs.
+  // Everything that runs on Node: the server, its tests, shared code and the Vite/Vitest configs (the e2e specs and
+  // the Playwright config have tsconfig.e2e.json).
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "module": "NodeNext",
@@ -13,9 +14,7 @@
     "server/src",
     "server/test",
     "shared/src",
-    "e2e",
     "vite.config.ts",
-    "vitest.config.ts",
-    "playwright.config.ts"
+    "vitest.config.ts"
   ]
 }

@@ -436,6 +436,8 @@ describe("search palette", () => {
     await keyboard("{Meta>}k{/Meta}");
     await type(box(), "gea");
     fireEvent.keyDown(box(), { key: "Enter", isComposing: true });
+    // Safari doesn't mark it as composing; its key code, 229, gives it away.
+    fireEvent.keyDown(box(), { key: "Enter", keyCode: 229 });
     expect(router.state.location.pathname).toBe("/");
     expect(palette()).toBeInTheDocument();
     await settled(queryClient);
@@ -468,6 +470,40 @@ describe("search palette", () => {
     expect(box()).toHaveFocus();
     await keyboard("{Escape}");
     expect(opener).toHaveFocus();
+    await settled(queryClient);
+  });
+
+  // fireEvent.click moves no focus, as a click on a button doesn't in Safari and Firefox.
+  test("a click that doesn't focus the box (Safari, Firefox) still gives the focus back to it on Escape", async () => {
+    const { queryClient } = renderShellAt("/");
+    const opener = within(topBar()).getByRole("button", { name: "Search" });
+    fireEvent.click(opener);
+    expect(box()).toHaveFocus();
+    await keyboard("{Escape}");
+    expect(opener).toHaveFocus();
+    await settled(queryClient);
+  });
+
+  test("⌘K from the open notifications panel, then Escape, puts the focus on the bell", async () => {
+    const { queryClient } = renderShellAt("/");
+    await click(bell());
+    expect(panel()).toContainElement(document.activeElement as HTMLElement);
+    await keyboard("{Meta>}k{/Meta}");
+    expect(box()).toHaveFocus();
+    await keyboard("{Escape}");
+    expect(bell()).toHaveFocus();
+    await settled(queryClient);
+  });
+
+  test("⌘K from the open account menu, then Escape, puts the focus on the avatar", async () => {
+    const { queryClient } = renderShellAt("/");
+    const avatar = within(topBar()).getByRole("button", { name: "Account menu" });
+    await click(avatar);
+    expect(screen.getByRole("menuitem", { name: "Profile" })).toHaveFocus();
+    await keyboard("{Meta>}k{/Meta}");
+    expect(screen.queryByRole("menu")).toBeNull();
+    await keyboard("{Escape}");
+    expect(avatar).toHaveFocus();
     await settled(queryClient);
   });
 });

@@ -22,9 +22,25 @@ export type DialogProps = {
 };
 
 /**
+ * The button that opened the popover `element` sits in (the one whose aria-controls names it, or an ancestor), if any.
+ * Read while that popover is still open: it says aria-controls only then.
+ */
+function popoverOpenerOf(element: HTMLElement | null): HTMLElement | null {
+  const openers = [...document.querySelectorAll<HTMLElement>("[aria-controls]")];
+  for (let node = element; node !== null; node = node.parentElement) {
+    const id = node.id;
+    if (id === "") continue;
+    const opener = openers.find((candidate) => candidate.getAttribute("aria-controls")?.split(/\s+/).includes(id));
+    if (opener) return opener;
+  }
+  return null;
+}
+
+/**
  * A modal dialog over a dimmed page. Focus moves in when it opens (to the first control after the close
  * button), Tab and Shift+Tab stay inside, the app behind it (#root) is inert, Escape or a click on the dimmed
- * page closes it, and focus goes back to whatever had it before.
+ * page closes it, and focus goes back to whatever had it before. If that is gone by then (it was in a popover,
+ * which closed when the focus left it, as ⌘K from an open menu does), focus goes to the popover's button instead.
  */
 export function Dialog({ open, ...rest }: DialogProps) {
   if (!open) return null;
@@ -40,6 +56,7 @@ function OpenDialog({ onClose, title, children, footer, variant = "dialog" }: Om
 
   useEffect(() => {
     const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const fallback = popoverOpenerOf(before);
     const panel = panelRef.current;
     const content = contentRef.current;
     const first = (content && tabbablesIn(content)[0]) ?? (panel && tabbablesIn(panel)[0]) ?? panel;
@@ -56,7 +73,8 @@ function OpenDialog({ onClose, title, children, footer, variant = "dialog" }: Om
       html.style.overflow = overflow;
       app?.toggleAttribute("inert", appWasInert);
       // After the app is live again, or the focus can't land back on it.
-      before?.focus();
+      const back = before?.isConnected ? before : fallback?.isConnected ? fallback : null;
+      back?.focus();
     };
   }, []);
 

@@ -35,7 +35,8 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     host: env.AMETHYST_HOST || "127.0.0.1",
     dbPath: env.AMETHYST_DB || "data/amethyst.db",
     secureCookies: env.AMETHYST_SECURE_COOKIES === "1",
-    webDist: env.NODE_ENV === "production" ? "dist/web" : null,
+    // The override lets the end-to-end tests (NODE_ENV=test, so the lock can be short) serve the built app too.
+    webDist: env.AMETHYST_WEB_DIST || (env.NODE_ENV === "production" ? "dist/web" : null),
     lockMs: lockMs(env),
   };
 }

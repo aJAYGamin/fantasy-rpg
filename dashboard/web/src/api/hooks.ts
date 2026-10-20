@@ -212,6 +212,8 @@ export function useUpdateSettings() {
     },
     onError: (_error, _patch, saved) => {
       if (saved?.before) queryClient.setQueryData<Settings>(queryKeys.settings, saved.before);
+      // That snapshot also undoes any change made while this one was on its way; the server's copy puts those back.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.settings });
     },
     onSuccess: (settings) => {
       // With a newer change still on its way, this answer is already out of date; that one's answer will land.

@@ -37,6 +37,15 @@ test("the built web app is served only in production", () => {
   expect(loadConfig({ NODE_ENV: "development" }).webDist).toBeNull();
 });
 
+test("AMETHYST_WEB_DIST names the built web app to serve, in any NODE_ENV", () => {
+  for (const NODE_ENV of [undefined, "test", "development", "production"]) {
+    expect(loadConfig({ NODE_ENV, AMETHYST_WEB_DIST: "/tmp/web" }).webDist).toBe("/tmp/web");
+  }
+  // Left empty, it changes nothing: production still serves dist/web and development still leaves it to Vite.
+  expect(loadConfig({ NODE_ENV: "production", AMETHYST_WEB_DIST: "" }).webDist).toBe("dist/web");
+  expect(loadConfig({ NODE_ENV: "test", AMETHYST_WEB_DIST: "" }).webDist).toBeNull();
+});
+
 test("the lock length can be shortened only when NODE_ENV is test", () => {
   const realLock = 5 * 60_000;
   expect(loadConfig({ NODE_ENV: "test", AMETHYST_LOCK_SECONDS: "3" }).lockMs).toBe(3000);

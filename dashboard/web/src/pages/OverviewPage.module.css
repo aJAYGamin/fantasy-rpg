@@ -61,6 +61,12 @@
   min-width: 0;
 }
 
+/* In a narrower window a long label wraps inside the button, as the mockup's do, instead of running into its edges. */
+.actions .fill {
+  white-space: normal;
+  text-align: center;
+}
+
 .teleport {
   display: flex;
   gap: var(--space-2);

@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { expect, test } from "vitest";
 import buttonCss from "../src/components/Button.module.css?raw";
+import inputCss from "../src/components/Input.module.css?raw";
 import globalCss from "../src/theme/global.css?raw";
 import tokensCss from "../src/theme/tokens.css?raw";
 import { ThemeProvider, useTheme } from "../src/theme/ThemeProvider";
@@ -296,4 +297,13 @@ test("the focus ring survives forced-colours (high contrast) mode, where shadows
   const rule = /(?:^|\n):focus-visible\s*\{([^}]*)\}/.exec(globalCss)?.[1];
   expect(rule).toMatch(/outline:\s*3px solid transparent/);
   expect(rule).toMatch(/box-shadow:\s*var\(--focus-ring\)/);
+});
+
+test("pointing at a field marked wrong keeps its red edge", () => {
+  // The hover edge is the more specific rule, so it has to step aside for an invalid field by name.
+  const hoverEdges = [...inputCss.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(
+    ([, selector, body]) => selector.includes(":hover") && /border-color/.test(body),
+  );
+  expect(hoverEdges.length).toBeGreaterThan(0);
+  for (const [, selector] of hoverEdges) expect(selector).toContain(':not([aria-invalid="true"])');
 });

@@ -7,8 +7,9 @@ import { useSavedNotice } from "./useSavedNotice";
 
 const COULDNT_SAVE = "That setting couldn't be saved.";
 
-// invalid_setting names the setting in its message; this says what was wrong with it, in words (R32).
-const SETTING_SENTENCES: Record<string, string> = { gamePort: INVALID_GAME_PORT_MESSAGE };
+// invalid_setting names the setting in its message; this says what was wrong with it, in words (R32). A Map, so a
+// name such as "constructor" finds nothing rather than something every object has.
+const SETTING_SENTENCES = new Map<string, string>([["gamePort", INVALID_GAME_PORT_MESSAGE]]);
 
 /**
  * The sentence for a settings change the server refused, or nothing when there is nothing to say: a session that has
@@ -18,7 +19,7 @@ export function problemWithSetting(error: unknown): string | undefined {
   const refusal = refusalOf(error);
   if (refusal === null) return COULDNT_SAVE;
   if (refusal.body.error === "signed_out") return undefined;
-  if (refusal.body.error === "invalid_setting") return SETTING_SENTENCES[refusal.body.message] ?? COULDNT_SAVE;
+  if (refusal.body.error === "invalid_setting") return SETTING_SENTENCES.get(refusal.body.message) ?? COULDNT_SAVE;
   return refusal.body.message;
 }
 
@@ -32,9 +33,18 @@ export function useSettingsSaver() {
   const update = useUpdateSettings();
   const [problem, setProblem] = useState<string>();
 
+  // Awaited one by one rather than with mutate's callbacks: those only run for the latest change, so a refusal that
+  // came back after another change was made would say nothing.
   function save(patch: SettingsPatch): void {
     setProblem(undefined);
-    update.mutate(patch, { onSuccess: flash, onError: (error) => setProblem(problemWithSetting(error)) });
+    void (async () => {
+      try {
+        await update.mutateAsync(patch);
+        flash();
+      } catch (error) {
+        setProblem(problemWithSetting(error));
+      }
+    })();
   }
 
   async function commit(patch: SettingsPatch): Promise<void> {

@@ -41,6 +41,8 @@ export function CommitField({
   // What has been typed, or null while the field simply shows the saved text.
   const [draft, setDraft] = useState<string | null>(null);
   const [problem, setProblem] = useState<string>();
+  // Whether that problem was found because Enter was pressed: then it interrupts, as the answer to what was just done.
+  const [problemOnEnter, setProblemOnEnter] = useState(false);
   const [refused, setRefused] = useState<string>();
   const sending = useRef(false);
 
@@ -48,10 +50,11 @@ export function CommitField({
     const text = event.target.value;
     setDraft(text);
     setRefused(undefined);
+    setProblemOnEnter(false);
     if (problem !== undefined) setProblem(check(text.trim()));
   }
 
-  async function commit() {
+  async function commit(by: "enter" | "leaving") {
     if (draft === null || sending.current) return;
     const text = draft.trim();
     if (text === saved) {
@@ -61,6 +64,7 @@ export function CommitField({
     }
     const found = check(text);
     setProblem(found);
+    setProblemOnEnter(by === "enter");
     if (found !== undefined) return;
 
     sending.current = true;
@@ -77,8 +81,11 @@ export function CommitField({
 
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Enter") {
+      // The Enter that ends an input method's composition (Japanese, Chinese, Korean) belongs to the composition.
+      // Safari doesn't mark it as composing; its key code, 229, gives it away.
+      if (event.nativeEvent.isComposing || event.keyCode === 229) return;
       event.preventDefault();
-      void commit();
+      void commit("enter");
     } else if (event.key === "Escape") {
       setDraft(null);
       setProblem(undefined);
@@ -92,11 +99,18 @@ export function CommitField({
       label={label}
       hint={hint}
       error={error}
-      // A refusal comes from something the person just did, so it interrupts; a problem found in their text waits.
-      announce={problem === undefined && refused !== undefined ? "assertive" : "polite"}
+      // A refusal, or a problem found because Enter was pressed, answers what the person just did, so it interrupts;
+      // a problem found on leaving the field, or followed as they type, waits.
+      announce={(problem === undefined ? refused !== undefined : problemOnEnter) ? "assertive" : "polite"}
       className={className}
     >
-      <Input {...input} value={draft ?? saved} onChange={edit} onBlur={() => void commit()} onKeyDown={onKeyDown} />
+      <Input
+        {...input}
+        value={draft ?? saved}
+        onChange={edit}
+        onBlur={() => void commit("leaving")}
+        onKeyDown={onKeyDown}
+      />
     </Field>
   );
 }

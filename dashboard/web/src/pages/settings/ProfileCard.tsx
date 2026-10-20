@@ -22,7 +22,8 @@ function problemWithPicture(file: File): string | undefined {
   return file.size > AVATAR_MAX_BYTES ? TOO_BIG : undefined;
 }
 
-// What the server said about a picture, in the same words (R34); nothing for a session that has ended.
+// What the server said about a picture, in the same words (R34); nothing for a session that has ended. A size or
+// type refusal that isn't in the server's own words (a page from something in between) is known by its status.
 function problemWithUpload(error: unknown): string | undefined {
   const refusal = refusalOf(error);
   if (refusal === null) return "Something went wrong.";
@@ -33,9 +34,10 @@ function problemWithUpload(error: unknown): string | undefined {
       return WRONG_TYPE;
     case "signed_out":
       return undefined;
-    default:
-      return refusal.body.message;
   }
+  if (refusal.status === 413) return TOO_BIG;
+  if (refusal.status === 415) return WRONG_TYPE;
+  return refusal.body.message;
 }
 
 /** The account itself: its picture (or initials), display name, and the username, which can't be changed. */

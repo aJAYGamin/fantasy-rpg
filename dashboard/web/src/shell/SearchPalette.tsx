@@ -107,7 +107,8 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
 
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     // The Enter that ends an input method's composition (Japanese, Chinese, Korean) belongs to the composition.
-    if (event.nativeEvent.isComposing) return;
+    // Safari doesn't mark it as composing; its key code, 229, gives it away.
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       if (flat.length === 0) return;

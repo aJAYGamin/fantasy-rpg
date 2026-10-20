@@ -24,7 +24,8 @@
   opacity: 1;
 }
 
-.input:hover:not(:disabled):not(:focus) {
+/* Not on a field marked wrong: this rule is the more specific one, and would paint over its red edge. */
+.input:hover:not(:disabled):not(:focus):not([aria-invalid="true"]) {
   border-color: var(--am-line);
 }
 

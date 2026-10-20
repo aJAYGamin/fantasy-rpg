@@ -35,7 +35,11 @@ export function TopBar({ collapsed, onToggleSidebar, onOpenSearch }: TopBarProps
         aria-label="Search"
         aria-haspopup="dialog"
         aria-keyshortcuts="Meta+K Control+K"
-        onClick={onOpenSearch}
+        onClick={(event) => {
+          // Safari and Firefox don't focus a clicked button, and the palette gives the focus back to whatever had it.
+          event.currentTarget.focus();
+          onOpenSearch();
+        }}
       >
         <span className={styles.searchText}>{SEARCH_PLACEHOLDER}</span>
       </button>
