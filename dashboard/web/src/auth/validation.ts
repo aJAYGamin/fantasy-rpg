@@ -30,11 +30,15 @@ export function checkDisplayName(typed: string): Problem {
 export const checkNewUsername = (typed: string): Problem =>
   USERNAME_RULE.test(typed.trim()) ? undefined : INVALID_USERNAME_MESSAGE;
 
+// The server takes a password in its NFKC form (an accent typed as one character or as two is the same password, R42),
+// so a password is counted, and compared with its confirmation, in that form too.
+const normalizedPassword = (password: string) => password.normalize("NFKC");
+
 export const checkNewPassword = (password: string): Problem =>
-  length(password) >= MIN_PASSWORD_LENGTH ? undefined : TOO_SHORT_MESSAGE;
+  length(normalizedPassword(password)) >= MIN_PASSWORD_LENGTH ? undefined : TOO_SHORT_MESSAGE;
 
 export const checkConfirmation = (password: string, confirmation: string): Problem =>
-  password === confirmation ? undefined : MESSAGES.mismatch;
+  normalizedPassword(password) === normalizedPassword(confirmation) ? undefined : MESSAGES.mismatch;
 
 export const checkAnswer = (answer: string): Problem => (answer.trim() === "" ? MESSAGES.answer : undefined);
 

@@ -1,8 +1,10 @@
 import { Button, Card } from "../components";
+import { usePageTitle } from "../pageTitle";
 import styles from "./CenteredNotice.module.css";
 
 /** Shown in place of any page that crashed while rendering. */
 export function RouteError() {
+  usePageTitle("Something went wrong");
   return (
     <main className={styles.page}>
       <Card className={styles.card}>

@@ -11,11 +11,12 @@ export function settingsRoutes(app: FastifyInstance, deps: { db: Db }): void {
 
   app.get("/api/settings", async (request): Promise<Settings> => readSettings(db, request.user.id));
 
-  // All or nothing: one bad value saves none of the others. The refusal names the key so the page can point at it.
+  // All or nothing: one bad value saves none of the others. The refusal names the key in `setting`, beside the usual
+  // sentence, so the page can say what was wrong with it.
   app.patch("/api/settings", async (request, reply) => {
     if (!isObject(request.body)) return sendError(reply, 400, "bad_request");
     const checked = checkSettingsPatch(request.body);
-    if ("badKey" in checked) return sendError(reply, 400, "invalid_setting", { message: checked.badKey });
+    if ("badKey" in checked) return sendError(reply, 400, "invalid_setting", { setting: checked.badKey });
     return saveSettings(db, request.user.id, checked.patch);
   });
 }

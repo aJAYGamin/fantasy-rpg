@@ -14,7 +14,7 @@ import {
 import { LockedPanel } from "../src/auth/LockedPanel";
 import { passwordStrength } from "../src/auth/strength";
 import { spokenDuration } from "../src/auth/spokenDuration";
-import { checkDisplayName, checkNewPassword, checkNewUsername } from "../src/auth/validation";
+import { checkConfirmation, checkDisplayName, checkNewPassword, checkNewUsername } from "../src/auth/validation";
 import { renderAt, settled } from "./helpers";
 import {
   NO_ACCOUNT,
@@ -849,6 +849,7 @@ describe("passwordStrength", () => {
     ["lantern-moss-42", 4], // 15 characters in three kinds
     ["correct horse battery staple", 4],
     ["😀😀😀😀😀", 1], // 5 characters, not 10
+    ["\u3392\u2121\u2116\u3371\u338f1", 4], // 6 typed, but "MHzTELNohPakg1" (14) once normalized, as the server counts
   ])("%j is %i", (password, level) => {
     expect(passwordStrength(password)).toBe(level);
   });
@@ -890,5 +891,20 @@ describe("account rules", () => {
     expect(checkNewPassword("a".repeat(MIN_PASSWORD_LENGTH - 1))).toBeDefined();
     expect(checkNewPassword("a".repeat(MIN_PASSWORD_LENGTH))).toBeUndefined();
     expect(checkNewPassword("😀".repeat(MIN_PASSWORD_LENGTH))).toBeUndefined();
+  });
+
+  // R42: the server normalizes a password (NFKC) before it counts it, so the form counts the same way.
+  test("passwords are counted once normalized, as the server counts them", () => {
+    // Letter + combining accent: two code points each, one character once normalized.
+    expect(checkNewPassword("e\u0301".repeat(MIN_PASSWORD_LENGTH - 1))).toBeDefined();
+    expect(checkNewPassword("e\u0301".repeat(MIN_PASSWORD_LENGTH))).toBeUndefined();
+    // Four "ffi" ligatures are twelve letters.
+    expect(checkNewPassword("\ufb03".repeat(4))).toBeUndefined();
+  });
+
+  test("a confirmation is the same password when only the way an accent was typed differs", () => {
+    expect(checkConfirmation("Caf\u00e9 au lait 42", "Cafe\u0301 au lait 42")).toBeUndefined();
+    expect(checkConfirmation("Caf\u00e9 au lait 42", "Cafe au lait 42")).toBeDefined();
+    expect(checkConfirmation("Caf\u00e9 au lait 42", "caf\u00e9 au lait 42")).toBeDefined();
   });
 });

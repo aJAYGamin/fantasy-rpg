@@ -3,6 +3,7 @@ import { Fragment, type ReactNode, useId } from "react";
 import { Link } from "react-router";
 import { useGameConnected } from "../api/hooks";
 import { Button, Card, Pill, Ring, type RingColour, Segmented, Tooltip } from "../components";
+import { usePageTitle } from "../pageTitle";
 import { PageHeader } from "../shell/PageHeader";
 import styles from "./OverviewPage.module.css";
 import { WaitingForGame, WaitingPill } from "./WaitingForGame";
@@ -158,6 +159,7 @@ function QuickActions({ connected }: { connected: boolean }) {
 export function OverviewPage() {
   // The one place on this page that polls the game's status; stage 2 fills the cards once it is connected.
   const connected = useGameConnected();
+  usePageTitle("Overview");
   return (
     <>
       <PageHeader

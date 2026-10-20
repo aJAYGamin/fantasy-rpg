@@ -23,59 +23,93 @@ The pauses below last **5 minutes** for real. (The automated tests shorten them;
 ## 3. Sign out and back in
 
 - [ ] Avatar (top right) → **Sign out**. You're on **Sign in**.
-- [ ] Sign in with **Keep me signed in** ticked. Quit Chrome completely (⌘Q), reopen the page: still signed in.
-- [ ] Sign out, then sign in with **Keep me signed in** unticked. Quit Chrome completely and reopen: you're asked to sign in again. (If Chrome is set to "Continue where you left off", it may keep you signed in for up to 12 hours. That's Chrome, not the dashboard.)
+- [ ] Sign in with **Keep me signed in** ticked.
+- [ ] Quit Chrome completely (⌘Q) and reopen the page: you're still signed in.
+- [ ] Sign out, then sign in with **Keep me signed in** unticked.
+- [ ] Quit Chrome completely and reopen the page: you're asked to sign in again. (If Chrome is set to "Continue where you left off", it may keep you signed in for up to 12 hours. That's Chrome, not the dashboard.)
 
 ## 4. Too many wrong passwords
 
-- [ ] Sign out. Type your username and a wrong password, press Sign in. It says "That password isn't right" and how many tries are left (4).
+- [ ] Sign out.
+- [ ] Type your username and a wrong password, and press **Sign in**. It says "That password isn't right" and how many tries are left (4).
 - [ ] Keep going until the fifth wrong one: **Sign-in is paused**, with a ring counting down from 5:00 and a greyed-out **Try again**.
-- [ ] Refresh the page and sign in again with the right password: still paused (the pause is kept by the server).
-- [ ] Wait it out without touching anything. At 0:00 it says "You can try again now." and **Try again** wakes up. Press it and sign in with the right password.
-- [ ] The bell shows unread notifications for the failed sign-ins and the pause. Open it, open one (it turns read), then **Mark all as read**.
+- [ ] Refresh the page.
+- [ ] Sign in with the right password: still paused (the pause is kept by the server).
+- [ ] Wait it out without touching anything. At 0:00 it says "You can try again now." and **Try again** wakes up.
+- [ ] Press **Try again** and sign in with the right password.
+- [ ] The bell shows unread notifications for the failed sign-ins and the pause. Open it.
+- [ ] Open one notification: it turns read.
+- [ ] Press **Mark all as read**: the bell's number goes away.
 
 ## 5. Forgot password
 
-- [ ] Sign out → **Forgot password?**. Fill in your username, two right answers and **one deliberately wrong** answer, and a new password twice. Press **Reset password**.
-- [ ] **Password reset is locked**, with the countdown. Wait out the 5 minutes.
-- [ ] **Try again**: the form is back with your username kept and the answers cleared.
-- [ ] Answer all three correctly, with odd capitals and extra spaces (for example `  MiDwInTeR  `). They still match.
+- [ ] Sign out, then choose **Forgot password?**.
+- [ ] Fill in your username, two right answers and **one deliberately wrong** answer, and a new password twice.
+- [ ] Press **Reset password**: it says **Password reset is locked**, with the countdown.
+- [ ] Wait out the 5 minutes.
+- [ ] Press **Try again**: the form is back with your username kept and the answers cleared.
+- [ ] Answer all three correctly, typing odd capitals and extra spaces (if an answer is `blue`, `  BLUE  ` works too).
+- [ ] Fill in a new password twice.
+- [ ] Press **Reset password**: the answers still match, and you land on Sign in with "Password changed".
 - [ ] Chrome does **not** offer to save your answers as a password.
-- [ ] You land on Sign in with "Password changed". The old password is refused; the new one works.
+- [ ] Sign in with the old password: it's refused.
+- [ ] Sign in with the new password: it works.
 
 ## 6. The top bar and sidebar
 
-- [ ] The moon switches to dark mode, the sun back to light. Reload in dark mode: no flash of white.
-- [ ] Settings (gear) → Appearance → **Follow my Mac**. Switch your Mac between Light and Dark in System Settings → Appearance: the dashboard follows at once.
+- [ ] The moon switches to dark mode, the sun back to light.
+- [ ] Reload in dark mode: no flash of white.
+- [ ] Settings (gear) → Appearance → **Follow my Mac**.
+- [ ] Switch your Mac between Light and Dark in System Settings → Appearance: the dashboard follows at once.
 - [ ] The palette icon opens the colour theme menu: Amethyst is ticked, "More themes coming later" does nothing.
-- [ ] The corners icon goes full screen; press it again (or Esc) to come back.
-- [ ] The arrow at the left folds the sidebar to icons. Hover each icon: a label appears beside it. Reload: still folded. Unfold it.
-- [ ] Type in the sidebar's **Filter**: the pages narrow down. Type something that matches nothing: "No pages match". Esc clears it.
+- [ ] The corners icon goes full screen.
+- [ ] Press it again (or Esc) to come back.
+- [ ] The arrow at the left folds the sidebar to icons.
+- [ ] Hover each icon: a label appears beside it.
+- [ ] Reload: still folded.
+- [ ] Unfold it.
+- [ ] Type in the sidebar's **Filter**: the pages narrow down.
+- [ ] Type something that matches nothing: "No pages match".
+- [ ] Press Esc: the filter clears.
 
 ## 7. Search
 
-- [ ] Press **⌘K**. Type `loc`, press Enter: the Location page.
-- [ ] ⌘K again, use the arrow keys to move the highlight, Enter to open. Esc closes it without going anywhere.
+- [ ] Press **⌘K**, type `loc` and press Enter: the Location page.
+- [ ] Press ⌘K again and move the highlight with the arrow keys.
+- [ ] Press Enter: the highlighted page opens.
+- [ ] Press ⌘K, then Esc: it closes without going anywhere.
 - [ ] Click the search box in the top bar: the same search opens.
 
 ## 8. Settings
 
-- [ ] **Appearance**: Light, Dark, Follow my Mac; Expanded / Icons only for the sidebar. Each saves at once ("Saved" appears briefly).
-- [ ] **Account**: change your display name (Enter or click away saves it; Esc puts it back). The avatar's initials follow.
-- [ ] **Account**: upload a profile picture (PNG, JPEG or WebP, up to 2 MB). It shows here and in the top bar at once. Try a picture over 2 MB: it says why it can't. Remove the picture: the initials come back.
-- [ ] **Account**: change your password (needs the current one). Then change your security answers (needs the current password). Use your real answers if you change them; only here.
+- [ ] **Appearance**: pick Light, Dark and Follow my Mac in turn. Each saves at once ("Saved" appears briefly).
+- [ ] **Appearance**: switch the sidebar between Expanded and Icons only. Each saves at once.
+- [ ] **Account**: change your display name and press Enter (or click away). It saves, and the avatar's initials follow.
+- [ ] **Account**: type another display name and press Esc. The saved one comes back.
+- [ ] **Account**: upload a profile picture (PNG, JPEG or WebP, up to 2 MB). It shows here and in the top bar at once.
+- [ ] **Account**: try a picture over 2 MB. It says why it can't.
+- [ ] **Account**: remove the picture. The initials come back.
+- [ ] **Account**: change your password (needs the current one). The bell shows "Password changed" at once.
+- [ ] **Account**: change your security answers (needs the current password). Use your real answers if you change them; only here.
 - [ ] **Sign-in**: pick how long "Keep me signed in" lasts.
-- [ ] **Game connection**: type a port below 1024: it says why it can't. Put it back. Flip "Reconnect automatically".
-- [ ] **Notifications**: flip a kind off and on.
+- [ ] **Game connection**: type a port below 1024. It says why it can't.
+- [ ] **Game connection**: put the port back. It saves.
+- [ ] **Game connection**: flip "Reconnect automatically". It saves.
+- [ ] **Notifications**: with "Password changed" still unread on the bell, flip **Account security** off. The bell's number drops at once (security notifications stop counting).
+- [ ] **Notifications**: flip **Account security** back on. The number comes back.
 
 ## 9. The other pages
 
 - [ ] **Admin** says "In development".
-- [ ] **Overview**, **Party**, **Inventory**, **Gear** and **Location** each say the game isn't running and that they're waiting for it. On the Overview, hovering a quick action says "Available once the game is running", and clicking it does nothing.
+- [ ] **Overview**, **Party**, **Inventory**, **Gear** and **Location** each say the game isn't running and that they're waiting for it.
+- [ ] On the Overview, hover a quick action: it says "Available once the game is running".
+- [ ] Click that quick action: nothing happens.
 
 ## 10. Keyboard and mouse
 
-- [ ] Reload the Overview and press **Tab** repeatedly: a purple ring moves through "Skip to content", the sidebar, then every top-bar button in order. Enter or Space opens each one; Esc closes menus and search.
+- [ ] Reload the Overview and press **Tab** repeatedly: a purple ring moves through "Skip to content", the sidebar, then every top-bar button in order.
+- [ ] On each top-bar button, press Enter or Space: it opens.
+- [ ] With a menu or search open, press Esc: it closes.
 - [ ] Do a few of the steps above with the mouse only, and a few with the keyboard only. Everything works both ways.
 
 ## 11. Safari or Firefox (a quick look)

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Outlet } from "react-router";
+import { PageAnnouncer } from "../pageTitle";
 import styles from "./AppShell.module.css";
 import { SearchPalette } from "./SearchPalette";
 import { Sidebar } from "./Sidebar";
@@ -43,7 +44,10 @@ function useSearchShortcut(open: () => void): void {
   }, [open]);
 }
 
-/** The frame of every signed-in page: the sidebar, the top bar, and the page itself below the bar. */
+/**
+ * The frame of every signed-in page: the sidebar, the top bar, and the page itself below the bar. Moving from page to
+ * page reads the new page's title out (PageAnnouncer).
+ */
 export function AppShell() {
   const { collapsed, toggle } = useSidebarMode();
   const [searchOpen, setSearchOpen] = useState(false);
@@ -52,27 +56,29 @@ export function AppShell() {
   useSearchShortcut(openSearch);
 
   return (
-    <div className={styles.shell}>
-      {/* The first Tab stop: past the sidebar and the top bar, straight to the page. */}
-      <a
-        href="#content"
-        className={styles.skip}
-        onClick={(event) => {
-          event.preventDefault();
-          mainRef.current?.focus();
-        }}
-      >
-        Skip to content
-      </a>
-      <Sidebar collapsed={collapsed} />
-      <div className={styles.column}>
-        <TopBar collapsed={collapsed} onToggleSidebar={toggle} onOpenSearch={openSearch} />
-        <main ref={mainRef} id="content" tabIndex={-1} className={styles.page}>
-          <Outlet />
-        </main>
+    <PageAnnouncer>
+      <div className={styles.shell}>
+        {/* The first Tab stop: past the sidebar and the top bar, straight to the page. */}
+        <a
+          href="#content"
+          className={styles.skip}
+          onClick={(event) => {
+            event.preventDefault();
+            mainRef.current?.focus();
+          }}
+        >
+          Skip to content
+        </a>
+        <Sidebar collapsed={collapsed} />
+        <div className={styles.column}>
+          <TopBar collapsed={collapsed} onToggleSidebar={toggle} onOpenSearch={openSearch} />
+          <main ref={mainRef} id="content" tabIndex={-1} className={styles.page}>
+            <Outlet />
+          </main>
+        </div>
+        <SignOutNotice />
+        <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
       </div>
-      <SignOutNotice />
-      <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
-    </div>
+    </PageAnnouncer>
   );
 }

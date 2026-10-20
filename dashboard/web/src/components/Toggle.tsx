@@ -9,12 +9,22 @@ export type ToggleProps = {
   label: string;
   /** Keeps the label for screen readers only, where the row around the switch already says what it is. */
   hideLabel?: boolean;
+  /** The id of a hint shown near the switch, read out as its description. */
+  describedBy?: string;
   disabled?: boolean;
   className?: string;
 };
 
 /** An on/off switch (party-v4's move switch): role="switch", flipped by click, Space or Enter. */
-export function Toggle({ checked, onChange, label, hideLabel = false, disabled = false, className }: ToggleProps) {
+export function Toggle({
+  checked,
+  onChange,
+  label,
+  hideLabel = false,
+  describedBy,
+  disabled = false,
+  className,
+}: ToggleProps) {
   const id = useId();
   return (
     <span className={cx(styles.toggle, disabled && styles.disabled, className)}>
@@ -24,6 +34,7 @@ export function Toggle({ checked, onChange, label, hideLabel = false, disabled =
         role="switch"
         aria-checked={checked}
         aria-label={hideLabel ? label : undefined}
+        aria-describedby={describedBy}
         disabled={disabled}
         className={styles.track}
         onClick={() => onChange(!checked)}

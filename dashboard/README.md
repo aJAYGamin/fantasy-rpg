@@ -46,7 +46,7 @@ Before calling a stage done, walk through the play-test checklist in [docs/stage
 
 ## Where things live
 
-The database is the file `data/amethyst.db`, created on first run (from this folder). It holds the account, sessions, settings and notifications, and is never committed. These environment variables change the defaults:
+The database is the file `data/amethyst.db`, created on first run (from this folder). It holds the account, sessions, settings and notifications, and is never committed. The server prints its full path as it starts. These environment variables change the defaults:
 
 | Variable | Default | What it does |
 | --- | --- | --- |
@@ -55,6 +55,17 @@ The database is the file `data/amethyst.db`, created on first run (from this fol
 | `AMETHYST_DB` | `data/amethyst.db` | The database file |
 | `AMETHYST_WEB_DIST` | `dist/web` with `npm start`, none in development | A built web app for the server to serve |
 | `AMETHYST_SECURE_COOKIES` | off | `1` marks the sign-in cookie Secure (only for HTTPS) |
+| `AMETHYST_ALLOWED_HOSTS` | none | More host names the server answers to, comma-separated (e.g. `mac-mini.local,dash.lan`) |
+
+The server only answers requests addressed to `localhost`, `127.0.0.1`, `[::1]` or the `AMETHYST_HOST` it listens on (unless that is `0.0.0.0` or `::`), whatever the port. Any other host name gets a 403, so a web page elsewhere can't reach this server by pointing one of its own names at your Mac (DNS rebinding). To open the dashboard under another name, add that name to `AMETHYST_ALLOWED_HOSTS`.
+
+## Forgot everything?
+
+If you've lost both your password and your security answers, there is no way back into the account; start again instead:
+
+1. Stop the server (Ctrl+C in Terminal).
+2. Delete the database file, `data/amethyst.db` (or the file `AMETHYST_DB` names), with `amethyst.db-wal` and `amethyst.db-shm` beside it if they are there. This loses the account, its settings and its notifications.
+3. Start the server again. The first visit asks you to create the account again.
 
 ## Run it on this Mac only, for now
 

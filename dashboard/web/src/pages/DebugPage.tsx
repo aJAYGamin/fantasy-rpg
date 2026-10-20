@@ -1,4 +1,5 @@
 import { useGameConnected } from "../api/hooks";
+import { usePageTitle } from "../pageTitle";
 import { PageHeader } from "../shell/PageHeader";
 import styles from "./DebugPage.module.css";
 import { WaitingForGame, WaitingPill } from "./WaitingForGame";
@@ -20,6 +21,7 @@ function ReminderStrip() {
  */
 export function DebugPage({ title }: { title: string }) {
   const connected = useGameConnected();
+  usePageTitle(title);
   return (
     <>
       <PageHeader title={title} crumbs={["Debug", title]} right={connected ? undefined : <WaitingPill />} />

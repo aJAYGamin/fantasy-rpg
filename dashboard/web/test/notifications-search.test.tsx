@@ -3,12 +3,12 @@ import { act } from "react";
 import { HttpResponse, http } from "msw";
 import { describe, expect, test, vi } from "vitest";
 import type { Notification, NotificationKind } from "../../shared/src/api";
-import { REQUEST_HEADER } from "../../shared/src/constants";
+import { REQUEST_HEADER, SECURITY_QUESTIONS } from "../../shared/src/constants";
 import { NAV } from "../src/shell/nav";
 import { relativeTime } from "../src/shell/relativeTime";
 import { type SearchEntry, buildIndex, groupResults, search } from "../src/shell/searchIndex";
-import { click, keyboard, renderShellAt, settled, topBar, type } from "./helpers";
-import { holdNotificationReplies, lastRequest, mockNotifications, requestsTo, server } from "./msw";
+import { click, keyboard, renderShellAt, replace, settled, topBar, type } from "./helpers";
+import { TEST_PASSWORD, holdNotificationReplies, lastRequest, mockNotifications, requestsTo, server } from "./msw";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -198,6 +198,79 @@ describe("notifications panel", () => {
     } finally {
       vi.useRealTimers();
     }
+    await settled(queryClient);
+  });
+});
+
+// The bell asks again by itself only every 30 s. These changes alter what the server counts, so the count must follow
+// at once: each fake route below changes the server's answer at the moment it handles the change, as the real one does.
+describe("the bell's count after a change in Settings", () => {
+  const POLL_MS = 30_000;
+  // Every password in here is invented.
+  const NEW_PASSWORD = "willow-brook-77-fern";
+  const changeServerCount = (method: "patch" | "post", path: string, list: Notification[], unread: number) =>
+    server.use(
+      http[method](path, () => {
+        mockNotifications(list, unread);
+        return undefined; // the usual answer follows
+      }),
+    );
+  const region = (name: string) => within(screen.getByRole("region", { name }));
+
+  test("switching a kind off lowers the count at once, without waiting for the poll", async () => {
+    const list = [note(2, "game", "Game connected"), note(1, "security", "Failed sign-in")];
+    mockNotifications(list, 2);
+    changeServerCount("patch", "/api/settings", list, 1);
+    const { queryClient } = renderShellAt("/settings/notifications");
+    await settled(queryClient);
+    expect(bell()).toHaveAccessibleName("Notifications, 2 unread");
+    const started = Date.now();
+
+    await click(screen.getByRole("switch", { name: "Game connection" }));
+    await waitFor(() => expect(bell()).toHaveAccessibleName("Notifications, 1 unread"));
+    expect(Date.now() - started).toBeLessThan(POLL_MS);
+    await settled(queryClient);
+  });
+
+  test("a change to some other setting doesn't ask for the notifications again", async () => {
+    const { queryClient } = renderShellAt("/settings/appearance");
+    await settled(queryClient);
+    const asked = requestsTo("/api/notifications").length;
+    await click(screen.getByRole("radio", { name: "Dark" }));
+    await waitFor(() => expect(lastRequest("/api/settings")?.method).toBe("PATCH"));
+    await settled(queryClient);
+    expect(requestsTo("/api/notifications")).toHaveLength(asked);
+  });
+
+  test("a password change shows its notice on the bell at once", async () => {
+    changeServerCount("post", "/api/account/password", [note(1, "security", "Password changed")], 1);
+    const { queryClient } = renderShellAt("/settings/account");
+    await settled(queryClient);
+    expect(bell()).toHaveAccessibleName("Notifications");
+
+    const card = region("Change password");
+    await replace(card.getByLabelText("Current password"), TEST_PASSWORD);
+    await replace(card.getByLabelText("New password"), NEW_PASSWORD);
+    await replace(card.getByLabelText("Confirm new password"), NEW_PASSWORD);
+    await click(card.getByRole("button", { name: "Change password" }));
+    await waitFor(() => expect(bell()).toHaveAccessibleName("Notifications, 1 unread"));
+    await settled(queryClient);
+  });
+
+  test("a change of security answers shows its notice on the bell at once", async () => {
+    changeServerCount("post", "/api/account/answers", [note(1, "security", "Security answers changed")], 1);
+    const { queryClient } = renderShellAt("/settings/account");
+    await settled(queryClient);
+    expect(bell()).toHaveAccessibleName("Notifications");
+
+    const card = region("Change security answers");
+    await replace(card.getByLabelText("Current password"), TEST_PASSWORD);
+    // Invented answers, one per question.
+    for (const [index, answer] of ["Tidewake", "Oldharbor", "Runestones"].entries()) {
+      await replace(card.getByLabelText(new RegExp(SECURITY_QUESTIONS[index].replace("?", "\\?"))), answer);
+    }
+    await click(card.getByRole("button", { name: "Save answers" }));
+    await waitFor(() => expect(bell()).toHaveAccessibleName("Notifications, 1 unread"));
     await settled(queryClient);
   });
 });

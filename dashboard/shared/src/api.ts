@@ -20,6 +20,8 @@ export type ApiError = {
   triesLeft?: number;
   /** ISO time a sign-in or reset pause ends. */
   lockedUntil?: string;
+  /** invalid_setting only: the setting that was refused, e.g. "gamePort" or "notify.game". */
+  setting?: string;
 };
 
 export type SetupRequest = {

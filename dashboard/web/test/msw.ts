@@ -212,7 +212,7 @@ const SERVER_MESSAGES: Record<string, string> = {
   server_error: "Something went wrong on the server.",
 };
 
-type Refusal = { error: string; message?: string; triesLeft?: number; lockedUntil?: string };
+type Refusal = { error: string; message?: string; triesLeft?: number; lockedUntil?: string; setting?: string };
 
 const refusalBody = (refusal: Refusal) => ({ message: SERVER_MESSAGES[refusal.error], ...refusal });
 
@@ -259,7 +259,7 @@ function refuse(
 
 /**
  * Makes one route answer with a refusal, e.g. mockRefusal("post", "/api/account/answers", 400, { error: "missing_answer" }).
- * A `message` overrides the code's usual sentence (invalid_setting's message is the setting's key).
+ * A `message` overrides the code's usual sentence; invalid_setting names the refused key in `setting`.
  */
 export const mockRefusal = (method: RefusedMethod, path: string, status: number, refusal: Refusing) =>
   refuse(method, path, status, refusal);

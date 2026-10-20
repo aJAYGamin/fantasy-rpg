@@ -113,6 +113,39 @@ describe("passwords", () => {
     expect(a).not.toBe(b);
   });
 
+  // R42: a password is the same password however its characters were typed (NFKC), and nothing else changes.
+  test("an accented password matches whether it was typed precomposed or decomposed", async () => {
+    const precomposed = "Café au lait 42"; // e-acute as one character
+    const decomposed = "Café au lait 42"; // e followed by a combining accent
+    expect(decomposed).not.toBe(precomposed);
+    expect(await verifyPassword(await hashPassword(precomposed), decomposed)).toBe(true);
+    expect(await verifyPassword(await hashPassword(decomposed), precomposed)).toBe(true);
+  });
+
+  test("full-width and other compatibility forms count as the plain characters", async () => {
+    const h = await hashPassword("correct horse battery");
+    // Full-width letters and ideographic spaces, as an East Asian keyboard can type them.
+    expect(await verifyPassword(h, "ｃｏｒｒｅｃｔ　horse　battery")).toBe(true);
+    // The "ffi" ligature is the three letters f, f and i.
+    expect(await verifyPassword(await hashPassword("oﬃce password"), "office password")).toBe(true);
+  });
+
+  test("normalizing never trims a password or changes its case", async () => {
+    const h = await hashPassword("correct horse battery");
+    expect(await verifyPassword(h, " correct horse battery")).toBe(false);
+    expect(await verifyPassword(h, "correct horse battery ")).toBe(false);
+    expect(await verifyPassword(h, "Correct horse battery")).toBe(false);
+    expect(checkPasswordPolicy(` ${"a".repeat(MIN_PASSWORD_LENGTH - 2)} `)).toBe("ok"); // the spaces count
+  });
+
+  test("the minimum length is counted after normalizing", () => {
+    // Letter + combining accent, nine times: 18 code points, but 9 characters once normalized.
+    expect(checkPasswordPolicy("é".repeat(MIN_PASSWORD_LENGTH - 1))).toBe("too_short");
+    expect(checkPasswordPolicy("é".repeat(MIN_PASSWORD_LENGTH))).toBe("ok");
+    // Four "ffi" ligatures: 4 code points, but 12 letters once normalized.
+    expect(checkPasswordPolicy("ﬃ".repeat(4))).toBe("ok");
+  });
+
   // A broken stored hash must not look like a wrong password: callers count wrong passwords toward a lock.
   test("a hash that cannot be read is an error, not a wrong password", async () => {
     await expect(verifyPassword("not-a-hash", "correct horse battery")).rejects.toThrow();

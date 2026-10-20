@@ -10,6 +10,7 @@ import {
 const MESSAGES = {
   bad_request: "That request couldn't be read.",
   bad_request_header: "Missing request header.",
+  host_not_allowed: "This dashboard doesn't answer to that host name; add it to AMETHYST_ALLOWED_HOSTS to allow it.",
   not_found: "Not found",
   too_large: "That request is too large.",
   unsupported_media_type: "That kind of request isn't supported.",
@@ -32,7 +33,7 @@ export function sendError(
   reply: FastifyReply,
   status: number,
   code: ErrorCode,
-  extra: Partial<Pick<ApiError, "message" | "triesLeft" | "lockedUntil">> = {},
+  extra: Partial<Pick<ApiError, "message" | "triesLeft" | "lockedUntil" | "setting">> = {},
 ): FastifyReply {
   const body: ApiError = { error: code, message: MESSAGES[code], ...extra };
   return reply.code(status).send(body);

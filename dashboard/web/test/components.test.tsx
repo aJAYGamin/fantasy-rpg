@@ -222,6 +222,20 @@ describe("controls", () => {
     expect(toggle).toHaveAttribute("aria-checked", "true");
   });
 
+  test("a Toggle given a hint's id reads that hint as its description", () => {
+    render(
+      <>
+        <Toggle label="Changes" checked onChange={() => {}} describedBy="changes-hint" />
+        <p id="changes-hint">Debug changes applied, waiting or failed.</p>
+        <Toggle label="Sound" checked={false} onChange={() => {}} />
+      </>,
+    );
+    expect(screen.getByRole("switch", { name: "Changes" })).toHaveAccessibleDescription(
+      "Debug changes applied, waiting or failed.",
+    );
+    expect(screen.getByRole("switch", { name: "Sound" })).not.toHaveAttribute("aria-describedby");
+  });
+
   test("Checkbox is a real checkbox with its label", async () => {
     const user = userEvent.setup();
     render(<Checkbox label="Keep me signed in" defaultChecked />);

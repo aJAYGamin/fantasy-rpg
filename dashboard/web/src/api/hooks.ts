@@ -27,6 +27,11 @@ export const queryKeys = {
 
 const SETTINGS_UPDATE = ["settings", "update"] as const;
 
+/** Asks for the notifications again now, after a change to what the bell counts, rather than at the next poll. */
+function refreshBell(queryClient: QueryClient): void {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.notifications });
+}
+
 export function createQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
@@ -215,11 +220,13 @@ export function useUpdateSettings() {
       // That snapshot also undoes any change made while this one was on its way; the server's copy puts those back.
       void queryClient.invalidateQueries({ queryKey: queryKeys.settings });
     },
-    onSuccess: (settings) => {
+    onSuccess: (settings, patch) => {
       // With a newer change still on its way, this answer is already out of date; that one's answer will land.
       if (queryClient.isMutating({ mutationKey: SETTINGS_UPDATE }) === 1) {
         queryClient.setQueryData<Settings>(queryKeys.settings, settings);
       }
+      // The bell counts only the kinds switched on.
+      if (patch.notify !== undefined) refreshBell(queryClient);
     },
   });
 }
@@ -240,17 +247,27 @@ export function useUpdateDisplayName() {
   });
 }
 
-/** Changes the password. Every other sign-in ends; this one stays. Nothing is cached (R23). */
+/**
+ * Changes the password. Every other sign-in ends; this one stays. Nothing is cached (R23). The server adds a "Password
+ * changed" notification, so the bell asks again.
+ */
 export function useChangePassword() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (request: ChangePasswordRequest) => api("POST", "/api/account/password", request),
+    onSuccess: () => refreshBell(queryClient),
   });
 }
 
-/** Changes the three security answers. Nothing is cached (R23). */
+/**
+ * Changes the three security answers. Nothing is cached (R23). The server adds a "Security answers changed"
+ * notification, so the bell asks again.
+ */
 export function useChangeAnswers() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (request: ChangeAnswersRequest) => api("POST", "/api/account/answers", request),
+    onSuccess: () => refreshBell(queryClient),
   });
 }
 

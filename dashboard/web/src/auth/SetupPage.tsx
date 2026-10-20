@@ -5,6 +5,7 @@ import { SECURITY_QUESTIONS } from "../../../shared/src/constants";
 import { queryKeys, useSetup } from "../api/hooks";
 import { Button, Field, Input, PasswordInput } from "../components";
 import { cx } from "../components/cx";
+import { usePageTitle } from "../pageTitle";
 import { Alert } from "./Alert";
 import { AuthLayout } from "./AuthLayout";
 import form from "./AuthForm.module.css";
@@ -48,6 +49,7 @@ function checkAll(values: Values): Record<FieldName, Problem> & { answers: Probl
 
 /** First run: the owner account. Reached only while no account exists (the router sends everyone else away). */
 export function SetupPage() {
+  usePageTitle("Create your account");
   const setup = useSetup();
   const queryClient = useQueryClient();
   const navigate = useNavigate();

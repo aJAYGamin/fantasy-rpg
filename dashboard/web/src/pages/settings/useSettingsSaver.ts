@@ -7,8 +7,8 @@ import { useSavedNotice } from "./useSavedNotice";
 
 const COULDNT_SAVE = "That setting couldn't be saved.";
 
-// invalid_setting names the setting in its message; this says what was wrong with it, in words (R32). A Map, so a
-// name such as "constructor" finds nothing rather than something every object has.
+// invalid_setting names the setting in its own `setting` field; this says what was wrong with it, in words (R32). A
+// Map, so a name such as "constructor" finds nothing rather than something every object has.
 const SETTING_SENTENCES = new Map<string, string>([["gamePort", INVALID_GAME_PORT_MESSAGE]]);
 
 /**
@@ -19,7 +19,9 @@ export function problemWithSetting(error: unknown): string | undefined {
   const refusal = refusalOf(error);
   if (refusal === null) return COULDNT_SAVE;
   if (refusal.body.error === "signed_out") return undefined;
-  if (refusal.body.error === "invalid_setting") return SETTING_SENTENCES.get(refusal.body.message) ?? COULDNT_SAVE;
+  if (refusal.body.error === "invalid_setting") {
+    return SETTING_SENTENCES.get(refusal.body.setting ?? "") ?? COULDNT_SAVE;
+  }
   return refusal.body.message;
 }
 

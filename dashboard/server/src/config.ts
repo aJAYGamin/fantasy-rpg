@@ -1,4 +1,5 @@
 import { LOCK_MINUTES } from "../../shared/src/constants.js";
+import { hostnameOf } from "./hosts.js";
 
 export interface Config {
   port: number;
@@ -9,6 +10,8 @@ export interface Config {
   webDist: string | null;
   /** How long a sign-in or reset lock lasts, in milliseconds. */
   lockMs: number;
+  /** Host names to answer to besides the loopback ones and `host` (lower-case, no port). See hosts.ts. */
+  allowedHosts: string[];
 }
 
 function parsePort(value: string | undefined): number {
@@ -29,6 +32,17 @@ function lockMs(env: NodeJS.ProcessEnv): number {
   return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : full;
 }
 
+// A comma list of host names (a port or brackets may be written, and are dropped). An entry that isn't a host name
+// stops the server rather than being skipped, so a typo can't leave someone wondering why a name is refused.
+function allowedHosts(value: string | undefined): string[] {
+  const entries = (value ?? "").split(",").map((entry) => entry.trim()).filter((entry) => entry !== "");
+  return entries.map((entry) => {
+    const name = hostnameOf(entry);
+    if (name === null) throw new Error(`AMETHYST_ALLOWED_HOSTS must be a comma list of host names, got "${entry}"`);
+    return name;
+  });
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv): Config {
   return {
     port: parsePort(env.AMETHYST_PORT),
@@ -38,5 +52,6 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     // The override lets the end-to-end tests (NODE_ENV=test, so the lock can be short) serve the built app too.
     webDist: env.AMETHYST_WEB_DIST || (env.NODE_ENV === "production" ? "dist/web" : null),
     lockMs: lockMs(env),
+    allowedHosts: allowedHosts(env.AMETHYST_ALLOWED_HOSTS),
   };
 }

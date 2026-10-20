@@ -1,6 +1,7 @@
 import { NavLink, Navigate, useParams } from "react-router";
 import { Card } from "../components";
 import { cx } from "../components/cx";
+import { usePageTitle } from "../pageTitle";
 import { PageHeader } from "../shell/PageHeader";
 import styles from "./SettingsPage.module.css";
 import { AccountSection } from "./settings/AccountSection";
@@ -34,6 +35,7 @@ function SectionBody({ slug }: { slug: SectionSlug }) {
 export function SettingsPage() {
   const { section } = useParams();
   const current = SECTIONS.find((candidate) => candidate.slug === section);
+  usePageTitle(current ? `${current.label} · Settings` : null);
   if (!current) return <Navigate to={`/settings/${DEFAULT_SECTION}`} replace />;
 
   return (

@@ -19,12 +19,24 @@ import type { Config } from "./config.js";
 import type { Db } from "./db/database.js";
 import { type ErrorCode, sendError } from "./errors.js";
 import { gameRoutes } from "./game/routes.js";
+import { allowedHostnames, isAllowedHost } from "./hosts.js";
 import { notificationRoutes } from "./notifications/routes.js";
 import { settingsRoutes } from "./settings/routes.js";
 
 const isApiPath = (url: string) => /^\/api(\/|\?|$)/.test(url);
 // Methods that only read. Every other method (even one nobody uses yet) must carry the request header.
 const READ_ONLY_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+// On every response, the API's and the web app's alike: no other site may show this one inside a frame (to trick a
+// click), no address of it leaks to another site as a Referer, and no browser second-guesses the type sent. There is
+// no script policy yet: index.html runs an inline script before anything paints (the theme), which it would have to
+// allow, and Vite's dev server has needs of its own.
+const SECURITY_HEADERS = {
+  "X-Frame-Options": "DENY",
+  "Content-Security-Policy": "frame-ancestors 'none'",
+  "Referrer-Policy": "no-referrer",
+  "X-Content-Type-Options": "nosniff",
+} as const;
 
 // Every error is the same { error, message } shape. A 5xx never shows its cause to the browser; the cause
 // goes to the log (Fastify's error objects carry no request body, password or token).
@@ -50,11 +62,23 @@ export interface AppOptions {
 export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   const { config, db } = opts;
   const now = opts.now ?? (() => new Date());
+  const allowedHosts = allowedHostnames(config);
   // frameworkErrors covers what Fastify rejects before any route runs (a URL that does not decode, for one): its
-  // own default body would echo the path back.
+  // own default body would echo the path back. No hook runs for those, so they get the headers and the host check here.
   const app = Fastify({
     logger: opts.logger ?? { level: "warn" },
-    frameworkErrors: (error, request, reply) => void replyWithError(error, request, reply),
+    frameworkErrors: (error, request, reply) => {
+      reply.headers(SECURITY_HEADERS);
+      if (!isAllowedHost(request.headers.host, allowedHosts)) return void sendError(reply, 403, "host_not_allowed");
+      void replyWithError(error, request, reply);
+    },
+  });
+
+  // The very first thing for every request: the headers go on whatever answer follows, then a request that names a
+  // host this server doesn't answer to (see hosts.ts) is refused before anything is read, served or looked up.
+  app.addHook("onRequest", async (request, reply) => {
+    reply.headers(SECURITY_HEADERS);
+    if (!isAllowedHost(request.headers.host, allowedHosts)) return sendError(reply, 403, "host_not_allowed");
   });
 
   await app.register(fastifyCookie);
@@ -62,7 +86,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   app.decorateRequest("user", null as unknown as User);
 
   // A cross-site page can make a browser send a form post but cannot add a custom header, so every
-  // state-changing request must carry ours. Checked first, before the body is read or anything is looked up.
+  // state-changing request must carry ours. Checked next, before the body is read or anything is looked up.
   app.addHook("onRequest", async (request, reply) => {
     if (!READ_ONLY_METHODS.has(request.method) && request.headers[REQUEST_HEADER.toLowerCase()] !== "1") {
       return sendError(reply, 403, "bad_request_header");

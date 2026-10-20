@@ -167,6 +167,10 @@ export function authRoutes(app: FastifyInstance, deps: AuthDeps): void {
     const unchanged = account !== null && findById(db, account.id)?.passwordHash === account.passwordHash;
     if (account !== null && correct && unchanged) {
       clearLock(db, key, "signin");
+      // The new cookie replaces whatever this browser had, so the session behind the old one ends too, rather than
+      // living on unseen until it expires.
+      const presented = sessionTokenOf(request);
+      if (presented !== undefined) revokeSession(db, presented);
       startSession(reply, account, keepSignedIn, at);
       return reply.send(toUser(account));
     }

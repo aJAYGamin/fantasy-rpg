@@ -6,8 +6,8 @@ import tooltipCss from "../src/components/Tooltip.module.css?raw";
 import { Dialog } from "../src/components";
 import { PageHeader } from "../src/shell/PageHeader";
 import { queryKeys } from "../src/api/hooks";
-import { click, keyboard, mockMatchMedia, renderShellAt, settled, signInThroughForm, topBar, type } from "./helpers";
-import { SIGNED_OUT, lastRequest, mockAuthState, mockNotifications, requestsTo, server } from "./msw";
+import { click, keyboard, mockMatchMedia, renderAt, renderShellAt, settled, signInThroughForm, topBar, type } from "./helpers";
+import { NO_ACCOUNT, SIGNED_OUT, lastRequest, mockAuthState, mockNotifications, requestsTo, server } from "./msw";
 
 const topButton = (name: string) => within(topBar()).getByRole("button", { name });
 const PAGES = ["Overview", "Party", "Inventory", "Gear", "Location", "Admin"];
@@ -549,6 +549,84 @@ describe("page header", () => {
     const main = screen.getByRole("main");
     expect(within(main).getByRole("heading", { level: 1, name: "Location" })).toBeInTheDocument();
     expect(within(main).getByText("Dashboard / Debug / Location")).toBeInTheDocument();
+    await settled(queryClient);
+  });
+});
+
+describe("page titles", () => {
+  const announcer = () => screen.getByTestId("page-announcer");
+
+  test.each([
+    ["/", "Overview · Amethyst Dashboard"],
+    ["/party", "Party · Amethyst Dashboard"],
+    ["/inventory", "Inventory · Amethyst Dashboard"],
+    ["/gear", "Gear · Amethyst Dashboard"],
+    ["/location", "Location · Amethyst Dashboard"],
+    ["/admin", "Admin · Amethyst Dashboard"],
+    ["/settings", "Appearance · Settings · Amethyst Dashboard"],
+    ["/settings/appearance", "Appearance · Settings · Amethyst Dashboard"],
+    ["/settings/account", "Account · Settings · Amethyst Dashboard"],
+    ["/settings/sign-in", "Sign-in · Settings · Amethyst Dashboard"],
+    ["/settings/game-connection", "Game connection · Settings · Amethyst Dashboard"],
+    ["/settings/notifications", "Notifications · Settings · Amethyst Dashboard"],
+  ])("%s is titled %j in the browser tab", async (path, title) => {
+    const { queryClient } = renderShellAt(path);
+    await waitFor(() => expect(document.title).toBe(title));
+    await settled(queryClient);
+  });
+
+  test.each([
+    ["/signin", "Sign in · Amethyst Dashboard", SIGNED_OUT],
+    ["/forgot", "Reset your password · Amethyst Dashboard", SIGNED_OUT],
+    ["/setup", "Create your account · Amethyst Dashboard", NO_ACCOUNT],
+  ])("%s is titled %j", async (path, title, auth) => {
+    mockAuthState(auth);
+    const { queryClient } = renderAt(path);
+    await waitFor(() => expect(document.title).toBe(title));
+    await settled(queryClient);
+  });
+
+  test("the screen for a server that can't be reached has a title too", async () => {
+    server.use(http.get("/api/auth/state", () => HttpResponse.error()));
+    const { queryClient } = renderAt("/party");
+    await waitFor(() => expect(document.title).toBe("Can't reach the server · Amethyst Dashboard"));
+    await settled(queryClient);
+  });
+
+  test("moving to another page reads its title out politely, once, and leaves the focus where it was", async () => {
+    const { queryClient } = renderShellAt("/");
+    await waitFor(() => expect(document.title).toBe("Overview · Amethyst Dashboard"));
+    // One live region for the whole shell. The page a visit starts on isn't read: the browser reads it as it loads.
+    expect(screen.getAllByTestId("page-announcer")).toHaveLength(1);
+    expect(announcer()).toHaveAttribute("role", "status");
+    expect(announcer()).toBeEmptyDOMElement();
+
+    const party = screen.getByRole("link", { name: "Party" });
+    await click(party);
+    expect(announcer()).toHaveTextContent("Party · Amethyst Dashboard");
+    expect(document.title).toBe("Party · Amethyst Dashboard");
+    expect(party).toHaveFocus();
+
+    // /settings goes on to its first section; only where it lands is read.
+    await click(within(topBar()).getByRole("link", { name: "Settings" }));
+    expect(announcer()).toHaveTextContent("Appearance · Settings · Amethyst Dashboard");
+    const sections = within(screen.getByRole("navigation", { name: "Settings sections" }));
+    await click(sections.getByRole("link", { name: "Account" }));
+    expect(announcer()).toHaveTextContent("Account · Settings · Amethyst Dashboard");
+    expect(sections.getByRole("link", { name: "Account" })).toHaveFocus();
+    await settled(queryClient);
+  });
+
+  test("a page that is only passed through on the way somewhere else isn't read out", async () => {
+    const { queryClient, router } = renderShellAt("/admin");
+    await waitFor(() => expect(document.title).toBe("Admin · Amethyst Dashboard"));
+    const heard: string[] = [];
+    const observer = new MutationObserver(() => heard.push(announcer().textContent ?? ""));
+    observer.observe(announcer(), { childList: true, characterData: true, subtree: true });
+    await act(() => router.navigate("/settings"));
+    await waitFor(() => expect(announcer()).toHaveTextContent("Appearance · Settings · Amethyst Dashboard"));
+    observer.disconnect();
+    expect(heard.filter((text) => text !== "")).toEqual(["Appearance · Settings · Amethyst Dashboard"]);
     await settled(queryClient);
   });
 });

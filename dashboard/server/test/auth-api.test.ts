@@ -128,6 +128,31 @@ test("the password minimum counts characters, not bytes", async () => {
   expect(res.statusCode).toBe(201);
 });
 
+// R42: setup, sign-in and reset all take a password as the same one however its characters were typed.
+test("a password set up with a decomposed accent signs in typed precomposed, and a reset normalizes too", async () => {
+  const app = await testApp();
+  expect((await post(app, "/api/auth/setup", setupBody({ password: "Café au lait 42" }))).statusCode).toBe(201);
+  expect((await signin(app, "Café au lait 42")).statusCode).toBe(200);
+  expect((await signin(app, "Café au lait 42")).statusCode).toBe(200);
+
+  // A new password typed in full-width letters is the plain one.
+  const fullWidth = "ｎｅｗ pass ｗｏｒｄ 9";
+  expect((await post(app, "/api/auth/forgot", forgotBody({ newPassword: fullWidth }))).statusCode).toBe(204);
+  expect((await signin(app, "new pass word 9")).statusCode).toBe(200);
+  expect((await signin(app, "Café au lait 42")).statusCode).toBe(401);
+});
+
+test.each([
+  ["setup", (app: FastifyInstance) => post(app, "/api/auth/setup", setupBody({ password: "é".repeat(9) }))],
+  ["reset", (app: FastifyInstance) => post(app, "/api/auth/forgot", forgotBody({ newPassword: "é".repeat(9) }))],
+])("%s counts the password's length after normalizing", async (route, send) => {
+  // Nine accented letters typed as letter + combining accent: 18 code points, 9 characters.
+  const app = route === "setup" ? await testApp() : await ownerApp();
+  const res = await send(app);
+  expect(res.statusCode).toBe(400);
+  expect(res.json().error).toBe("too_short");
+});
+
 test("the username may use letters, digits, underscore, dot and dash", async () => {
   const app = await testApp();
   const res = await post(app, "/api/auth/setup", setupBody({ username: "Mr_Owner-2.0" }));
@@ -595,6 +620,28 @@ test("signing out ends the session and clears the cookie", async () => {
 test("signing out with no session is harmless", async () => {
   const app = await ownerApp();
   expect((await post(app, "/api/auth/signout")).statusCode).toBe(204);
+});
+
+// R44: a browser that signs in again doesn't leave its old session alive behind the new cookie.
+test("signing in ends the session behind the cookie the browser sent along, and only that one", async () => {
+  const app = await ownerApp();
+  const old = await signinCookie(app);
+  const elsewhere = await signinCookie(app);
+  const res = await post(app, "/api/auth/signin", { username: "owner", password: OWNER_PASSWORD, keepSignedIn: false }, old);
+  expect(res.statusCode).toBe(200);
+  const fresh = cookieOf(res);
+  expect(fresh).not.toBe(old);
+  expect((await get(app, "/api/auth/state", old)).json().user).toBeNull();
+  expect((await get(app, "/api/auth/state", fresh)).json().user).toMatchObject({ username: "owner" });
+  expect((await get(app, "/api/auth/state", elsewhere)).json().user).toMatchObject({ username: "owner" });
+  expect(sessionCount(app)).toBe(2);
+});
+
+test("a sign-in that fails leaves the session behind the cookie alone", async () => {
+  const app = await ownerApp();
+  const old = await signinCookie(app);
+  expect((await post(app, "/api/auth/signin", { username: "owner", password: WRONG }, old)).statusCode).toBe(401);
+  expect((await get(app, "/api/auth/state", old)).json().user).toMatchObject({ username: "owner" });
 });
 
 // ---- forgot password --------------------------------------------------------------------------------

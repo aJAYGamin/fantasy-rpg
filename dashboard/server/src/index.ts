@@ -1,5 +1,5 @@
 import { mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import { PRODUCT_NAME } from "../../shared/src/constants.js";
 import { buildApp } from "./app.js";
 import { loadConfig } from "./config.js";
@@ -9,6 +9,8 @@ const config = loadConfig(process.env);
 // SQLite creates the file, but not the folder that holds it.
 mkdirSync(dirname(config.dbPath), { recursive: true });
 const db = openDatabase(config.dbPath);
+// Which file holds the account, said once, as a full path: the one to back up, or to delete to start over (README).
+console.log(`${PRODUCT_NAME} database: ${resolve(config.dbPath)}`);
 const app = await buildApp({ config, db });
 
 // Closing the database flushes the WAL file, so a Ctrl+C never leaves a half-written database behind.

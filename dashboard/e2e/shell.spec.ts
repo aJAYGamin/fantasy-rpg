@@ -156,10 +156,13 @@ test("Escape gives the focus back to the search box, and to a menu's button when
   await page.keyboard.press("Escape");
   await expect(bell).toBeFocused();
 
+  // The menu closes as the palette takes the focus; the avatar, which opened it, gets the focus back.
   const avatar = topBar(page).getByRole("button", { name: "Account menu" });
   await avatar.click();
   await expect(page.getByRole("menuitem", { name: "Profile" })).toBeFocused();
   await page.keyboard.press("ControlOrMeta+k");
+  await expect(page.getByRole("combobox", { name: "Search" })).toBeFocused();
+  await expect(page.getByRole("menu")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(avatar).toBeFocused();
 });

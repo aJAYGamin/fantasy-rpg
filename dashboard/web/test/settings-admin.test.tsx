@@ -191,7 +191,7 @@ describe("Appearance", () => {
   });
 
   test("a refused change is undone and says so, in the app's own sentence", async () => {
-    mockRefusal("patch", "/api/settings", 400, { error: "invalid_setting", message: "appearance" });
+    mockRefusal("patch", "/api/settings", 400, { error: "invalid_setting", setting: "appearance" });
     const { queryClient } = renderShellAt("/settings/appearance");
     await click(screen.getByRole("radio", { name: "Dark" }));
     expect(await within(region("Appearance")).findByRole("alert")).toHaveTextContent(
@@ -219,7 +219,10 @@ describe("Appearance", () => {
         const patch = (await request.clone().json()) as SettingsPatch;
         if (patch.appearance !== "dark") return undefined;
         await held;
-        return HttpResponse.json({ error: "invalid_setting", message: "appearance" }, { status: 400 });
+        return HttpResponse.json(
+          { error: "invalid_setting", message: "That setting isn't valid.", setting: "appearance" },
+          { status: 400 },
+        );
       }),
     );
     const { queryClient } = renderShellAt("/settings/appearance");
@@ -241,11 +244,14 @@ describe("Appearance", () => {
   test("a refused setting whose name isn't one the app knows gets the general sentence", () => {
     // Names an ordinary object answers to by itself must not be taken for a sentence.
     for (const name of ["constructor", "toString", "__proto__", "hasOwnProperty", "somethingNew"]) {
-      const refusal = new ApiFailure(400, { error: "invalid_setting", message: name });
+      const refusal = new ApiFailure(400, { error: "invalid_setting", message: "That setting isn't valid.", setting: name });
       expect(problemWithSetting(refusal)).toBe("That setting couldn't be saved.");
     }
-    const port = new ApiFailure(400, { error: "invalid_setting", message: "gamePort" });
+    const port = new ApiFailure(400, { error: "invalid_setting", message: "That setting isn't valid.", setting: "gamePort" });
     expect(problemWithSetting(port)).toBe(INVALID_GAME_PORT_MESSAGE);
+    // The setting is named in its own field; a message that happens to read "gamePort" names nothing.
+    const unnamed = new ApiFailure(400, { error: "invalid_setting", message: "gamePort" });
+    expect(problemWithSetting(unnamed)).toBe("That setting couldn't be saved.");
   });
 
   test("Saved goes away by itself after a couple of seconds", async () => {
@@ -380,7 +386,7 @@ describe("Game connection", () => {
   });
 
   test("a refused port shows the app's sentence for it and goes back to the saved one", async () => {
-    mockRefusal("patch", "/api/settings", 400, { error: "invalid_setting", message: "gamePort" });
+    mockRefusal("patch", "/api/settings", 400, { error: "invalid_setting", setting: "gamePort" });
     const { queryClient } = renderShellAt("/settings/game-connection");
     await replace(port(), "50000");
     await keyboard("{Enter}");
@@ -421,6 +427,19 @@ describe("Notifications", () => {
     await waitFor(() => expect(savedBodies()).toEqual([patch]));
     expect(kind).not.toBeChecked();
     expect(within(region("Notifications")).getByText("Saved")).toBeVisible();
+    await settled(queryClient);
+  });
+
+  test("each switch's dim line under it is its description", async () => {
+    const { queryClient } = renderShellAt("/settings/notifications");
+    const notifications = within(region("Notifications"));
+    for (const [name, hint] of [
+      ["Account security", "Failed sign-ins, pauses, and changes to your password or answers."],
+      ["Game connection", "The game connecting and disconnecting."],
+      ["Changes", "Debug changes applied, waiting or failed."],
+    ]) {
+      expect(notifications.getByRole("switch", { name }), name).toHaveAccessibleDescription(hint);
+    }
     await settled(queryClient);
   });
 

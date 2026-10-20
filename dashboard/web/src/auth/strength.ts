@@ -9,17 +9,18 @@ const KINDS = [/\p{Ll}/u, /\p{Lu}/u, /\p{Nd}/u, /[^\p{L}\p{Nd}]/u];
 
 /**
  * A rough guide for the meter, not a promise: 0 for nothing typed, then 1 to 4. Length matters most, counted in
- * characters as a person sees them (the same count the server enforces). Repeating a character adds little, so
- * each distinct character counts twice at most; mixing three kinds of character earns one more step. Passwords
- * under the minimum length are always 1.
+ * characters as a person sees them, in the normalized (NFKC) form the server takes (the same count it enforces).
+ * Repeating a character adds little, so each distinct character counts twice at most; mixing three kinds of
+ * character earns one more step. Passwords under the minimum length are always 1.
  */
 export function passwordStrength(password: string): Strength {
-  const characters = [...password];
+  const normalized = password.normalize("NFKC");
+  const characters = [...normalized];
   if (characters.length === 0) return 0;
   const counted = Math.min(characters.length, new Set(characters).size * 2);
   if (counted < MIN_PASSWORD_LENGTH) return 1;
   const base = counted >= 20 ? 4 : counted >= 14 ? 3 : 2;
-  const mixed = KINDS.filter((kind) => kind.test(password)).length >= 3;
+  const mixed = KINDS.filter((kind) => kind.test(normalized)).length >= 3;
   return Math.min(4, base + (mixed ? 1 : 0)) as Strength;
 }
 

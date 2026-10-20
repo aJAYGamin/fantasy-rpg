@@ -9,6 +9,7 @@ test("defaults match the documented ones", () => {
     secureCookies: false,
     webDist: null,
     lockMs: 5 * 60_000,
+    allowedHosts: [],
   });
 });
 
@@ -18,13 +19,27 @@ test("every documented env name is read", () => {
     AMETHYST_HOST: "0.0.0.0",
     AMETHYST_DB: "/tmp/other.db",
     AMETHYST_SECURE_COOKIES: "1",
+    AMETHYST_ALLOWED_HOSTS: "dash.lan",
   });
   expect(config).toMatchObject({
     port: 5000,
     host: "0.0.0.0",
     dbPath: "/tmp/other.db",
     secureCookies: true,
+    allowedHosts: ["dash.lan"],
   });
+});
+
+test("AMETHYST_ALLOWED_HOSTS is a comma list of host names, kept lower-case and without ports or brackets", () => {
+  const { allowedHosts } = loadConfig({ AMETHYST_ALLOWED_HOSTS: " Dash.LAN , mac-mini.local:4517,[fe80::1],, " });
+  expect(allowedHosts).toEqual(["dash.lan", "mac-mini.local", "fe80::1"]);
+  expect(loadConfig({ AMETHYST_ALLOWED_HOSTS: "" }).allowedHosts).toEqual([]);
+});
+
+test("an entry of AMETHYST_ALLOWED_HOSTS that isn't a host name is refused instead of silently dropped", () => {
+  for (const bad of ["dash.lan:http", "two words", "[::1", "http://dash.lan"]) {
+    expect(() => loadConfig({ AMETHYST_ALLOWED_HOSTS: `localhost,${bad}` }), bad).toThrow(/AMETHYST_ALLOWED_HOSTS/);
+  }
 });
 
 test("an unusable port is refused instead of silently replaced", () => {

@@ -133,6 +133,28 @@ test("after a change the new password signs in and the old one does not", async 
   expect(stored).not.toContain(NEW_PASSWORD);
 });
 
+// R42: both the current and the new password are normalized, so the way a character was typed doesn't matter.
+test("changing the password normalizes the current one and the new one", async () => {
+  const { app, cookie } = await signedIn();
+  // OWNER_PASSWORD with full-width letters and ideographic spaces.
+  const fullWidthCurrent = "ｃｏｒｒｅｃｔ　horse　battery";
+  const decomposedNew = "Café au lait 42";
+  const res = await post(app, "/api/account/password", { currentPassword: fullWidthCurrent, newPassword: decomposedNew }, cookie);
+  expect(res.statusCode).toBe(204);
+  expect((await signin(app, "Café au lait 42")).statusCode).toBe(200);
+
+  const tooShort = await post(app, "/api/account/password", { currentPassword: "Café au lait 42", newPassword: "é".repeat(9) }, cookie);
+  expect(tooShort.statusCode).toBe(400);
+  expect(tooShort.json().error).toBe("too_short");
+});
+
+test("changing the answers normalizes the current password too", async () => {
+  const { app, cookie } = await signedIn();
+  const fullWidthCurrent = "ｃｏｒｒｅｃｔ　horse　battery";
+  const res = await post(app, "/api/account/answers", { currentPassword: fullWidthCurrent, answers: ["Tidewake", "Oldharbor", "Runestones"] }, cookie);
+  expect(res.statusCode).toBe(204);
+});
+
 test("a wrong current password is a 401 with the usual code, and never counts toward the sign-in lock", async () => {
   const { app, cookie } = await signedIn();
   for (let i = 0; i < 4; i++) {
@@ -795,11 +817,11 @@ test.each([
   ["notify.sound", { notify: { sound: true } }],
   ["notify.constructor", { notify: { constructor: true } }],
   ["theme", { theme: "dark" }],
-])("setting %s is refused with its name in the message: %j", async (key, body) => {
+])("setting %s is refused with a sentence, and its name in a field of its own: %j", async (key, body) => {
   const { app, cookie } = await signedIn();
   const res = await patch(app, "/api/settings", body, cookie);
   expect(res.statusCode).toBe(400);
-  expect(res.json()).toEqual({ error: "invalid_setting", message: key });
+  expect(res.json()).toEqual({ error: "invalid_setting", message: "That setting isn't valid.", setting: key });
   expect((await get(app, "/api/settings", cookie)).json()).toEqual(DEFAULT_SETTINGS);
 });
 
@@ -807,7 +829,7 @@ test("one bad setting among good ones saves none of them", async () => {
   const { app, cookie } = await signedIn();
   const res = await patch(app, "/api/settings", { appearance: "dark", sidebar: "icons", gamePort: 80 }, cookie);
   expect(res.statusCode).toBe(400);
-  expect(res.json().message).toBe("gamePort");
+  expect(res.json().setting).toBe("gamePort");
   expect((await get(app, "/api/settings", cookie)).json()).toEqual(DEFAULT_SETTINGS);
 });
 

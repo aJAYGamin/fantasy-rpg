@@ -67,7 +67,10 @@ test("a settings change shows at once, before the server answers, and stays once
 test("a settings change the server refuses is undone", async () => {
   server.use(
     http.patch("/api/settings", () =>
-      HttpResponse.json({ error: "invalid_setting", message: "appearance" }, { status: 400 }),
+      HttpResponse.json(
+        { error: "invalid_setting", message: "That setting isn't valid.", setting: "appearance" },
+        { status: 400 },
+      ),
     ),
   );
   const { result } = renderWithData(() => ({ settings: useSettings(), update: useUpdateSettings() }));

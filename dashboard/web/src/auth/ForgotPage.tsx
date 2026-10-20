@@ -4,6 +4,7 @@ import { LOCK_MINUTES, SECURITY_QUESTIONS } from "../../../shared/src/constants"
 import { useResetPassword } from "../api/hooks";
 import { Button, Field, Input, PasswordInput } from "../components";
 import { cx } from "../components/cx";
+import { usePageTitle } from "../pageTitle";
 import { Alert } from "./Alert";
 import { AuthLayout } from "./AuthLayout";
 import form from "./AuthForm.module.css";
@@ -37,6 +38,7 @@ function checkAll(values: Values) {
 }
 
 export function ForgotPage() {
+  usePageTitle("Reset your password");
   const resetPassword = useResetPassword();
   const navigate = useNavigate();
   const signInTo = useSignInTo();

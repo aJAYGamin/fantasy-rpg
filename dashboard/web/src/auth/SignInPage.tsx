@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router";
 import { LOCK_MINUTES } from "../../../shared/src/constants";
 import { useSignIn } from "../api/hooks";
 import { Button, Checkbox, Field, Input, PasswordInput } from "../components";
+import { usePageTitle } from "../pageTitle";
 import { Alert } from "./Alert";
 import { AuthLayout } from "./AuthLayout";
 import form from "./AuthForm.module.css";
@@ -17,6 +18,7 @@ const triesText = (count: number) => `${count} ${count === 1 ? "try" : "tries"} 
 type Pause = { until: Date; justLocked: boolean };
 
 export function SignInPage() {
+  usePageTitle("Sign in");
   const signIn = useSignIn();
   const arrival = readArrival(useLocation().state);
   const forgotTo = useForgotTo();

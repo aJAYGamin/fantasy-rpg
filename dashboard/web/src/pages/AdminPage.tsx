@@ -1,5 +1,6 @@
 import { Shield } from "lucide-react";
 import { Card } from "../components";
+import { usePageTitle } from "../pageTitle";
 import { PageHeader } from "../shell/PageHeader";
 import styles from "./AdminPage.module.css";
 
@@ -8,6 +9,7 @@ import styles from "./AdminPage.module.css";
  * same whether or not the game is connected.
  */
 export function AdminPage() {
+  usePageTitle("Admin");
   return (
     <>
       <PageHeader title="Admin" crumbs={["Admin"]} />

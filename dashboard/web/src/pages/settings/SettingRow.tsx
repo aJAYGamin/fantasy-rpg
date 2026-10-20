@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useId } from "react";
 import { Toggle } from "../../components";
 import styles from "./SettingRow.module.css";
 
@@ -30,12 +30,22 @@ export type ToggleRowProps = {
   onChange: (checked: boolean) => void;
 };
 
-/** A switch with its name beside it (party-v4's .mv row), and a dim line under the name. */
+/** A switch with its name beside it (party-v4's .mv row), and a dim line under the name that is its description. */
 export function ToggleRow({ label, hint, checked, onChange }: ToggleRowProps) {
+  const hintId = useId();
   return (
     <div className={styles.toggleRow}>
-      <Toggle label={label} checked={checked} onChange={onChange} />
-      {hint !== undefined && <p className={styles.toggleHint}>{hint}</p>}
+      <Toggle
+        label={label}
+        checked={checked}
+        onChange={onChange}
+        describedBy={hint === undefined ? undefined : hintId}
+      />
+      {hint !== undefined && (
+        <p id={hintId} className={styles.toggleHint}>
+          {hint}
+        </p>
+      )}
     </div>
   );
 }
