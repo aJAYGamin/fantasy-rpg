@@ -47,11 +47,21 @@
   transform: translateY(1px);
 }
 
-/* Unavailable looks like disabled, but the button can still take the pointer and the focus. */
-.button:disabled,
-.button[data-unavailable] {
+.button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+/*
+ * Unavailable looks like disabled, but the button can still take the pointer and the focus. It is dimmed with colours
+ * (a flat neutral block, like the pill's), not opacity: opacity on the button would fade its focus ring as well.
+ * More specific than every variant's own colours, so primary (below), danger and ghost all go flat and grey.
+ */
+.button[data-unavailable] {
+  border-color: var(--neutral-soft);
+  background: var(--neutral-soft);
+  color: var(--neutral-ink);
+  cursor: not-allowed;
 }
 
 /* --am-fill rather than --am: white text needs the deeper amethyst to stay readable in dark mode. */
@@ -67,12 +77,18 @@
 }
 
 /* signin-v1's greyed "Try again": a flat lilac block rather than a faded purple one. */
-.primary:disabled,
-.primary[data-unavailable] {
+.primary:disabled {
   background: var(--disabled-bg);
   border-color: var(--disabled-bg);
   color: var(--disabled-ink);
   opacity: 1;
+}
+
+/* Keeps the lilac block, but with ink that reads on it: white on --disabled-bg is only 1.6:1 in light. */
+.primary[data-unavailable] {
+  background: var(--disabled-bg);
+  border-color: var(--disabled-bg);
+  color: var(--label);
 }
 
 /* A filled button's own colour would swallow the ring, so a gap of the card colour keeps the two apart. */

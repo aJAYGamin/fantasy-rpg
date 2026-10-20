@@ -362,10 +362,11 @@ export function useGameStatus() {
 }
 
 /**
- * Whether the game is running and linked right now. Anything short of a clear "connected" (not asked yet, or the
- * answer failed) counts as waiting, so a page shows its waiting state until the game itself says otherwise.
+ * Whether the game is running and linked right now. Anything short of a clear, current "connected" counts as waiting:
+ * not asked yet, or the latest ask failed (React Query keeps the last good answer when a refetch fails, so the
+ * failure is checked on its own), so a page shows its waiting state until the game itself says otherwise.
  */
 export function useGameConnected(): boolean {
-  const { data } = useGameStatus();
-  return Boolean(data?.connected);
+  const { data, isError } = useGameStatus();
+  return !isError && Boolean(data?.connected);
 }

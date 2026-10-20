@@ -1,5 +1,5 @@
 import { ChevronDown } from "lucide-react";
-import { type ReactNode, useId } from "react";
+import { Fragment, type ReactNode, useId } from "react";
 import { Link } from "react-router";
 import { useGameConnected } from "../api/hooks";
 import { Button, Card, Pill, Ring, type RingColour, Segmented, Tooltip } from "../components";
@@ -48,54 +48,56 @@ function NoData() {
   return <p className={styles.empty}>No data yet</p>;
 }
 
+/** The one-click buttons at the top of Quick Actions, in order. */
+const ONE_CLICK: ReadonlyArray<{ label: string; variant?: "primary" }> = [
+  { label: "Heal party + full resonance", variant: "primary" },
+  { label: "Unlock all moves" },
+  { label: "Max out gold" },
+  { label: "Save the game now" },
+];
+
 /**
- * The Quick Actions, all shown but unavailable until the game runs. They stay focusable and say why on hover and on
- * keyboard focus (aria-disabled rather than disabled), and a press does nothing.
+ * The Quick Actions. While the game isn't running every control is shown but unavailable: it stays focusable and says
+ * why on hover and on keyboard focus (aria-disabled rather than disabled), and a press does nothing. Once the game is
+ * connected they are plain controls; stage 2 gives each its action.
  */
-function QuickActions() {
+function QuickActions({ connected }: { connected: boolean }) {
   const reasonId = useId();
-  const stillWaiting = { unavailable: true, "aria-describedby": reasonId } as const;
-  const withReason = (children: ReactNode, className?: string, align?: "end") => (
-    <Tooltip text={WHY_UNAVAILABLE} className={className} align={align}>
-      {children}
-    </Tooltip>
-  );
+  const waiting = !connected;
+  const unavailable = waiting ? ({ unavailable: true, "aria-describedby": reasonId } as const) : {};
+  // The wrapper puts the tooltip on a waiting control; the control sits in the same box either way.
+  const gate = (children: ReactNode, { className, align }: { className?: string; align?: "end" } = {}) =>
+    waiting ? (
+      <Tooltip text={WHY_UNAVAILABLE} className={className} align={align}>
+        {children}
+      </Tooltip>
+    ) : (
+      <span className={className}>{children}</span>
+    );
 
   return (
     <Card title="Quick Actions" actions={<Pill tone="am">Applies right away</Pill>}>
       {/* The tooltip is drawn only; this is what a screen reader hears for each control that points here. */}
-      <span id={reasonId} className="visually-hidden">
-        {WHY_UNAVAILABLE}
-      </span>
+      {waiting && (
+        <span id={reasonId} className="visually-hidden">
+          {WHY_UNAVAILABLE}
+        </span>
+      )}
       <div className={styles.actions}>
-        {withReason(
-          <Button variant="primary" className={styles.fill} {...stillWaiting}>
-            Heal party + full resonance
-          </Button>,
-          styles.cell,
-        )}
-        {withReason(
-          <Button className={styles.fill} {...stillWaiting}>
-            Unlock all moves
-          </Button>,
-          styles.cell,
-        )}
-        {withReason(
-          <Button className={styles.fill} {...stillWaiting}>
-            Max out gold
-          </Button>,
-          styles.cell,
-        )}
-        {withReason(
-          <Button className={styles.fill} {...stillWaiting}>
-            Save the game now
-          </Button>,
-          styles.cell,
-        )}
+        {ONE_CLICK.map(({ label, variant }) => (
+          <Fragment key={label}>
+            {gate(
+              <Button variant={variant} className={styles.fill} {...unavailable}>
+                {label}
+              </Button>,
+              { className: styles.cell },
+            )}
+          </Fragment>
+        ))}
       </div>
 
       <div className={styles.teleport}>
-        {withReason(
+        {gate(
           // A select that can't open yet: stage 2 lists the saved spots.
           <button
             type="button"
@@ -103,47 +105,46 @@ function QuickActions() {
             aria-label="Teleport to…"
             aria-haspopup="listbox"
             aria-expanded={false}
-            aria-disabled="true"
-            aria-describedby={reasonId}
+            aria-disabled={waiting || undefined}
+            aria-describedby={waiting ? reasonId : undefined}
             className={styles.select}
           >
             <span>Teleport to…</span>
             <ChevronDown aria-hidden="true" />
           </button>,
-          styles.cell,
+          { className: styles.cell },
         )}
-        {withReason(
-          <Button className={styles.go} {...stillWaiting}>
+        {gate(
+          <Button className={styles.go} {...unavailable}>
             Go
           </Button>,
-          undefined,
           // At the card's right edge: the bubble lines up with the button's right side instead of overflowing the page.
-          "end",
+          { align: "end" },
         )}
       </div>
 
       <div className={styles.difficulty}>
         <span className={styles.difficultyLabel}>Difficulty</span>
-        {withReason(
+        {gate(
           <Segmented
             label="Difficulty"
             options={DIFFICULTIES}
             value={null}
-            // Nothing can be chosen until the game is running.
+            // Nothing is chosen yet: stage 2 reads the game's difficulty and changes it.
             onChange={() => {}}
-            unavailable
-            aria-describedby={reasonId}
+            unavailable={waiting}
+            aria-describedby={waiting ? reasonId : undefined}
             className={styles.segmented}
           />,
-          styles.cell,
+          { className: styles.cell },
         )}
       </div>
 
-      {withReason(
-        <Button variant="danger" className={styles.fill} {...stillWaiting}>
+      {gate(
+        <Button variant="danger" className={styles.fill} {...unavailable}>
           Reset to before debugging
         </Button>,
-        styles.reset,
+        { className: styles.reset },
       )}
       <p className={styles.note}>Quick actions skip the Apply step. They wait if you're in a battle or conversation.</p>
     </Card>
@@ -181,7 +182,7 @@ export function OverviewPage() {
         >
           {!connected && <WaitingForGame framed={false} />}
         </Card>
-        <QuickActions />
+        <QuickActions connected={connected} />
       </div>
 
       <Card flush>

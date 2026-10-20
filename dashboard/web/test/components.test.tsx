@@ -383,6 +383,8 @@ describe("controls", () => {
       expect(radio).toHaveAttribute("aria-checked", "false");
       expect(radio).toHaveAttribute("aria-disabled", "true");
       expect(radio).not.toBeDisabled();
+      // Some screen readers skip the group's description once focus is on an option.
+      expect(radio).toHaveAccessibleDescription("Available once the game is running");
     }
 
     // One Tab stop, the first option, since none is chosen; the next Tab leaves the group.

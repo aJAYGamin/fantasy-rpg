@@ -14,7 +14,8 @@ export type SegmentedProps<T extends string> = {
   disabled?: boolean;
   /**
    * Greyed and inert, yet still reachable so a tooltip can say why (a `disabled` option gets neither hover nor focus):
-   * the options carry aria-disabled, press and arrow keys change nothing. Point `aria-describedby` at the reason.
+   * the options carry aria-disabled, press and arrow keys change nothing. Point `aria-describedby` at the reason; the
+   * group and each option are described by it.
    */
   unavailable?: boolean;
   "aria-describedby"?: string;
@@ -88,6 +89,8 @@ export function Segmented<T extends string>({
           role="radio"
           aria-checked={index === chosen}
           aria-disabled={unavailable || undefined}
+          // Some screen readers skip a group's description once focus is on an option, so an unavailable option carries it too.
+          aria-describedby={unavailable ? describedBy : undefined}
           tabIndex={index === tabStop ? 0 : -1}
           disabled={disabled}
           className={styles.option}

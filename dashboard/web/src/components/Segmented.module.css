@@ -50,10 +50,15 @@
   color: var(--on-am);
 }
 
-.option:disabled,
-.option[aria-disabled="true"] {
+.option:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+/* Unavailable but still focusable: dimmed by colour, since opacity would fade the focus outline (forced-colours mode). */
+.option[aria-disabled="true"]:not([aria-checked="true"]) {
+  color: var(--dim);
+  cursor: not-allowed;
 }
 
 @media (prefers-reduced-motion: reduce) {

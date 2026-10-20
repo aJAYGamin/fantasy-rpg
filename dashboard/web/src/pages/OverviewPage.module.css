@@ -93,10 +93,15 @@
   flex-shrink: 0;
 }
 
-/* Unavailable: greyed like a disabled control, yet it takes the pointer and the focus (so the tooltip can show). */
+/*
+ * Unavailable: flat and grey like an unavailable button, yet it takes the pointer and the focus (so the tooltip can
+ * show). Dimmed by colour, not opacity, which would fade its focus ring.
+ */
 .select[aria-disabled="true"] {
+  border-color: var(--neutral-soft);
+  background: var(--neutral-soft);
+  color: var(--neutral-ink);
   cursor: not-allowed;
-  opacity: 0.55;
 }
 
 .difficulty {

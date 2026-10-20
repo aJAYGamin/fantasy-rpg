@@ -1,6 +1,7 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { describe, expect, test } from "vitest";
+import { queryKeys } from "../src/api/hooks";
 import waitingCss from "../src/pages/WaitingForGame.module.css?raw";
 import { click, keyboard, renderShellAt, settled } from "./helpers";
 import { captureRequests, requestsTo, server } from "./msw";
@@ -56,6 +57,15 @@ describe("the Debug pages", () => {
     await settled(queryClient);
   });
 
+  test.each(["/party", "/inventory", "/gear", "/location"])(
+    "%s is the only one watching the game's status, so it is asked once every few seconds",
+    async (path) => {
+      const { queryClient } = renderShellAt(path);
+      await settled(queryClient);
+      expect(queryClient.getQueryCache().find({ queryKey: queryKeys.game })?.getObserversCount()).toBe(1);
+    },
+  );
+
   test("a short reminder says applied changes stay if the game is saved, and where Reset lives", async () => {
     const { queryClient } = renderShellAt("/gear");
     const strip = screen.getByText(/Changes you apply here stay if you save the game\./);
@@ -88,6 +98,25 @@ describe("the Debug pages", () => {
     // The page itself stays: its header and the reminder are not part of the waiting state.
     expect(screen.getByRole("heading", { name: "Party", level: 1 })).toBeVisible();
     expect(screen.getByText(/Changes you apply here stay/)).toBeVisible();
+    await settled(queryClient);
+  });
+
+  test("when the game was connected and its status then stops answering, the waiting state comes back", async () => {
+    // React Query keeps the last good answer when a refetch fails; that old "connected" must not be believed.
+    gameIsRunning();
+    const { queryClient } = renderShellAt("/party");
+    await waitFor(() => expect(screen.queryByText(hasFullText("✦ The game isn't running ✦"))).toBeNull());
+    const askAgain = () => act(() => queryClient.refetchQueries({ queryKey: queryKeys.game }));
+
+    server.use(http.get("/api/game/status", () => HttpResponse.json({ error: "server_error" }, { status: 500 })));
+    await askAgain();
+    expect(await findFullText("✦ The game isn't running ✦")).toBeVisible();
+    expect(fullText("○ Waiting for the game")).toBeVisible();
+
+    // And an answer that says connected again takes it away again.
+    gameIsRunning();
+    await askAgain();
+    await waitFor(() => expect(screen.queryByText(hasFullText("✦ The game isn't running ✦"))).toBeNull());
     await settled(queryClient);
   });
 
@@ -133,10 +162,11 @@ describe("the Overview while waiting", () => {
     await settled(queryClient);
   });
 
-  test("the page asks for the game's status once, not once for each card that shows it", async () => {
+  test("the page is the only one watching the game's status, so it is asked once every few seconds", async () => {
+    // Each watcher runs its own 3 s timer, so a second one would double the requests (the first load asks once either way).
     const { queryClient } = renderShellAt("/");
     await settled(queryClient);
-    expect(requestsTo("/api/game/status")).toHaveLength(1);
+    expect(queryClient.getQueryCache().find({ queryKey: queryKeys.game })?.getObserversCount()).toBe(1);
   });
 
   test("the Debug reminder is only on the Debug pages", async () => {
@@ -174,7 +204,28 @@ describe("the Overview while waiting", () => {
       expect(radio).toHaveAttribute("aria-disabled", "true");
       expect(radio).toHaveAttribute("aria-checked", "false");
       expect(radio).not.toBeDisabled();
+      // Focus lands on an option, and some screen readers skip the group's description then.
+      expect(radio).toHaveAccessibleDescription(REASON);
     }
+    await settled(queryClient);
+  });
+
+  test("once the game is connected the quick actions are plain controls: no unavailable state, no reason", async () => {
+    gameIsRunning();
+    const { queryClient } = renderShellAt("/");
+    await waitFor(() => expect(screen.queryByText(hasFullText("✦ The game isn't running ✦"))).toBeNull());
+    const card = region("Quick Actions");
+    const controls = [
+      ...ACTIONS.map((name) => within(card).getByRole("button", { name })),
+      within(card).getByRole("combobox", { name: "Teleport to…" }),
+      within(card).getByRole("radiogroup", { name: "Difficulty" }),
+      ...within(card).getAllByRole("radio"),
+    ];
+    for (const control of controls) {
+      expect(control).not.toHaveAttribute("aria-disabled");
+      expect(control).not.toHaveAccessibleDescription();
+    }
+    expect(within(card).queryByText(REASON)).toBeNull();
     await settled(queryClient);
   });
 

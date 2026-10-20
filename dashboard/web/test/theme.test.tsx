@@ -246,6 +246,27 @@ test("every colour pair the components use meets WCAG AA in both themes", () => 
   expect(failures).toEqual([]);
 });
 
+test("no rule fades a control that can still take the keyboard focus, since that would fade its focus ring too", () => {
+  // R19: opacity on the focused element also fades its box-shadow ring (to about 2:1). A control that is unavailable but
+  // still focusable (aria-disabled, data-unavailable) is dimmed with colours instead. A truly :disabled one can't be focused.
+  const fading: string[] = [];
+  let checked = 0;
+  for (const [path, css] of Object.entries(stylesheets)) {
+    for (const [, selectors, body] of css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const focusable = selectors
+        .split(",")
+        .filter((selector) => /\[data-unavailable\]|\[aria-disabled/.test(selector.replace(/:not\([^)]*\)/g, "")));
+      if (focusable.length === 0) continue;
+      checked++;
+      const opacity = /(?<![\w-])opacity:\s*([\d.]+)/.exec(body)?.[1];
+      if (opacity !== undefined && Number(opacity) < 1) fading.push(`${path} ${focusable[0].trim()} has opacity ${opacity}`);
+    }
+  }
+  // Rules for the unavailable Button and its variants, the Segmented options and the Teleport select.
+  expect(checked).toBeGreaterThanOrEqual(4);
+  expect(fading).toEqual([]);
+});
+
 test("the keyboard focus ring is a solid 2px amethyst ring with the soft halo outside it, in both themes", () => {
   // R19: the old ring was only a 35% halo (about 1.7:1 on white); this one keeps the halo but adds a solid line.
   for (const [theme, tokens] of [
