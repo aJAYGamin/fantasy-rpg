@@ -326,6 +326,80 @@ describe("controls", () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
+  test("an unavailable Button stays focusable and describable, and ignores presses and submits", async () => {
+    const onClick = vi.fn();
+    const onSubmit = vi.fn((event: FormEvent) => event.preventDefault());
+    const user = userEvent.setup();
+    render(
+      <form onSubmit={onSubmit}>
+        <span id="why">Available once the game is running</span>
+        <Button type="submit" unavailable aria-describedby="why" onClick={onClick}>
+          Save the game now
+        </Button>
+      </form>,
+    );
+    const button = screen.getByRole("button", { name: "Save the game now" });
+    // aria-disabled, not disabled: a disabled button gets no hover or focus, so nothing could explain it.
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).not.toBeDisabled();
+    expect(button).not.toHaveAttribute("aria-busy");
+    expect(button).toHaveAccessibleDescription("Available once the game is running");
+
+    await user.tab();
+    expect(button).toHaveFocus();
+    await user.keyboard("{Enter}");
+    await user.keyboard(" ");
+    await user.click(button);
+    expect(onClick).not.toHaveBeenCalled();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  test("an unavailable Segmented can show no choice, is one Tab stop, and changes nothing", async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <>
+        <span id="why">Available once the game is running</span>
+        <Button>Before</Button>
+        <Segmented
+          label="Difficulty"
+          value={null}
+          onChange={onChange}
+          unavailable
+          aria-describedby="why"
+          options={[
+            { value: "easy", label: "Easy" },
+            { value: "normal", label: "Normal" },
+            { value: "hard", label: "Hard" },
+          ]}
+        />
+        <Button>After</Button>
+      </>,
+    );
+    const group = screen.getByRole("radiogroup", { name: "Difficulty" });
+    expect(group).toHaveAccessibleDescription("Available once the game is running");
+    const radios = screen.getAllByRole("radio");
+    for (const radio of radios) {
+      expect(radio).toHaveAttribute("aria-checked", "false");
+      expect(radio).toHaveAttribute("aria-disabled", "true");
+      expect(radio).not.toBeDisabled();
+    }
+
+    // One Tab stop, the first option, since none is chosen; the next Tab leaves the group.
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Before" })).toHaveFocus();
+    await user.tab();
+    expect(radios[0]).toHaveFocus();
+    await user.keyboard("{ArrowRight}{End} ");
+    expect(radios[0]).toHaveFocus();
+    await user.click(radios[2]);
+    expect(onChange).not.toHaveBeenCalled();
+    for (const radio of radios) expect(radio).toHaveAttribute("aria-checked", "false");
+    radios[0].focus();
+    await user.tab();
+    expect(screen.getByRole("button", { name: "After" })).toHaveFocus();
+  });
+
   test("IconButton is named for screen readers", () => {
     render(
       <IconButton label="Settings">

@@ -7,7 +7,7 @@ import { REQUEST_HEADER } from "../../shared/src/constants";
 import { NAV } from "../src/shell/nav";
 import { relativeTime } from "../src/shell/relativeTime";
 import { type SearchEntry, buildIndex, groupResults, search } from "../src/shell/searchIndex";
-import { click, keyboard, renderShellAt, settled, type } from "./helpers";
+import { click, keyboard, renderShellAt, settled, topBar, type } from "./helpers";
 import { holdNotificationReplies, lastRequest, mockNotifications, requestsTo, server } from "./msw";
 
 const MINUTE = 60_000;
@@ -20,7 +20,7 @@ function note(id: number, kind: NotificationKind, title: string, extra: Partial<
   return { id, kind, title, body: `${title}: details.`, createdAt: nowIso(), read: false, ...extra };
 }
 
-const bell = () => within(screen.getByRole("banner")).getByRole("button", { name: /^Notifications/ });
+const bell = () => within(topBar()).getByRole("button", { name: /^Notifications/ });
 const panel = () => screen.getByRole("dialog", { name: "Notifications" });
 const items = () => within(panel()).getAllByRole("listitem");
 
@@ -317,7 +317,7 @@ describe("search palette", () => {
   test("⌘K opens search and the keyboard picks a result", async () => {
     const { router, queryClient } = renderShellAt("/");
     await keyboard("{Meta>}k{/Meta}");
-    await type(screen.getByRole("combobox"), "gea");
+    await type(box(), "gea");
     await keyboard("{ArrowDown}{Enter}");
     expect(router.state.location.pathname).toBe("/gear");
     expect(screen.queryByRole("dialog", { name: "Search" })).toBeNull();
@@ -463,7 +463,7 @@ describe("search palette", () => {
 
   test("the top-bar box opens it, and Escape gives the focus back to the box", async () => {
     const { queryClient } = renderShellAt("/");
-    const opener = within(screen.getByRole("banner")).getByRole("button", { name: "Search" });
+    const opener = within(topBar()).getByRole("button", { name: "Search" });
     await click(opener);
     expect(box()).toHaveFocus();
     await keyboard("{Escape}");

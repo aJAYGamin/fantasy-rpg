@@ -10,7 +10,7 @@ import {
 } from "../../shared/src/constants";
 import { DEFAULT_SETTINGS } from "../../shared/src/api";
 import { queryKeys } from "../src/api/hooks";
-import { click, keyboard, renderAt, renderShellAt, replace, settled, upload } from "./helpers";
+import { click, keyboard, renderAt, renderShellAt, replace, settled, topBar, upload } from "./helpers";
 import {
   SIGNED_OUT,
   TEST_PASSWORD,
@@ -27,8 +27,6 @@ const NEW_PASSWORD = "willow-brook-77-fern";
 const ANSWERS: [string, string, string] = ["Midwinter", "Tarnwick", "Lanterns and Lanes"];
 
 const region = (name: string) => screen.getByRole("region", { name });
-// Testing Library calls every <header> a banner, even a card's (which isn't, in a browser); the top bar comes first.
-const topBar = () => screen.getAllByRole("banner")[0];
 const topButton = (name: string) => within(topBar()).getByRole("button", { name });
 const settingsPatches = () => requestsTo("/api/settings").filter((request) => request.method === "PATCH");
 const savedBodies = () => settingsPatches().map((request) => request.body);

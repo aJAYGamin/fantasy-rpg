@@ -6,11 +6,10 @@ import tooltipCss from "../src/components/Tooltip.module.css?raw";
 import { Dialog } from "../src/components";
 import { PageHeader } from "../src/shell/PageHeader";
 import { queryKeys } from "../src/api/hooks";
-import { click, keyboard, mockMatchMedia, renderShellAt, settled, signInThroughForm, type } from "./helpers";
+import { click, keyboard, mockMatchMedia, renderShellAt, settled, signInThroughForm, topBar, type } from "./helpers";
 import { SIGNED_OUT, lastRequest, mockAuthState, mockNotifications, requestsTo, server } from "./msw";
 
-const banner = () => screen.getByRole("banner");
-const topButton = (name: string) => within(banner()).getByRole("button", { name });
+const topButton = (name: string) => within(topBar()).getByRole("button", { name });
 const PAGES = ["Overview", "Party", "Inventory", "Gear", "Location", "Admin"];
 
 function unread(id: number, title: string): Notification {
@@ -97,7 +96,7 @@ describe("sidebar", () => {
 describe("top bar", () => {
   test("every top-bar button has a name", async () => {
     const { queryClient } = renderShellAt("/");
-    const buttons = within(banner()).getAllByRole("button");
+    const buttons = within(topBar()).getAllByRole("button");
     expect(buttons.length).toBeGreaterThanOrEqual(6);
     for (const b of buttons) expect(b).toHaveAccessibleName();
     await settled(queryClient);
@@ -124,7 +123,7 @@ describe("top bar", () => {
 
   test("the settings icon goes to Settings", async () => {
     const { router, queryClient } = renderShellAt("/");
-    await click(within(banner()).getByRole("link", { name: "Settings" }));
+    await click(within(topBar()).getByRole("link", { name: "Settings" }));
     // /settings opens the first section (R31).
     expect(router.state.location.pathname).toBe("/settings/appearance");
     await settled(queryClient);
@@ -520,7 +519,7 @@ describe("keyboard", () => {
       ...PAGES.map((name) => screen.getByRole("link", { name })),
       topButton("Collapse sidebar"),
       topButton("Search"),
-      within(banner()).getByRole("link", { name: "Settings" }),
+      within(topBar()).getByRole("link", { name: "Settings" }),
       topButton("Switch to dark mode"),
       topButton("Colour theme"),
       topButton("Notifications"),

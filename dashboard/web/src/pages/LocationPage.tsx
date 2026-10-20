@@ -1,6 +1,5 @@
-import { PageHeader } from "../shell/PageHeader";
+import { DebugPage } from "./DebugPage";
 
-// Placeholder: the real Location page arrives in a later task.
 export function LocationPage() {
-  return <PageHeader title="Location" crumbs={["Debug", "Location"]} />;
+  return <DebugPage title="Location" />;
 }

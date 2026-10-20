@@ -1,6 +1,5 @@
-import { PageHeader } from "../shell/PageHeader";
+import { DebugPage } from "./DebugPage";
 
-// Placeholder: the real Gear page arrives in a later task.
 export function GearPage() {
-  return <PageHeader title="Gear" crumbs={["Debug", "Gear"]} />;
+  return <DebugPage title="Gear" />;
 }

@@ -1,0 +1,195 @@
+/* overview-v3's .mini, .grid2, .qa, .sel, .diff, .strip and .note, with the cards empty while the game isn't running. */
+
+/* The header's three numbers: 11 px letter-spaced labels over 17 px bold values. */
+.mini {
+  display: flex;
+  gap: var(--space-7);
+  margin: 0;
+}
+
+.mini dt {
+  color: var(--dim);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
+.mini dd {
+  margin: 2px 0 0;
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+/* Two cards side by side, the left a little wider. */
+.row {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: var(--space-5);
+}
+
+/* Game Status stretches to Quick Actions' height; its message sits in the middle of that. */
+.status {
+  display: flex;
+  flex-direction: column;
+}
+
+.statusBody {
+  display: flex;
+  flex: 1;
+}
+
+/* ---- Quick Actions ---- */
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* The tooltip's wrapper, so the control inside can fill it. */
+.cell {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.fill {
+  flex: 1;
+  min-width: 0;
+}
+
+.teleport {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: 10px;
+}
+
+.teleport .go {
+  padding: 10px 16px;
+}
+
+/* overview-v3's .sel .inp: a bordered box with the prompt at the left and a chevron at the right. */
+.select {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--dim);
+  text-align: left;
+}
+
+.select svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+/* Unavailable: greyed like a disabled control, yet it takes the pointer and the focus (so the tooltip can show). */
+.select[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.difficulty {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: 10px;
+}
+
+.difficultyLabel {
+  width: 70px;
+  color: var(--dim);
+  font-size: var(--text-md);
+}
+
+.difficulty .segmented {
+  display: grid;
+  width: 100%;
+}
+
+.reset {
+  display: flex;
+  margin-top: 10px;
+}
+
+.note {
+  margin-top: 10px;
+  color: var(--dim);
+  font-size: var(--text-sm);
+}
+
+/* ---- the stat strip ---- */
+
+.strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.gauge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 16px 18px;
+  border-right: 1px solid var(--line);
+}
+
+.gauge:last-child {
+  border-right: 0;
+}
+
+.gaugeLabel {
+  color: var(--dim);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.gaugeValue {
+  color: var(--dim);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* ---- the party summary and the debug activity ---- */
+
+.open {
+  color: var(--am-text);
+  font-size: var(--text-md);
+  font-weight: 500;
+}
+
+.empty {
+  display: grid;
+  place-items: center;
+  min-height: 170px;
+  color: var(--dim);
+}
+
+@media (max-width: 1100px) {
+  .row {
+    grid-template-columns: 1fr;
+  }
+
+  .strip {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .gauge:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .gauge:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--line);
+  }
+}

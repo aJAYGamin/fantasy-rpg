@@ -1,6 +1,5 @@
-import { PageHeader } from "../shell/PageHeader";
+import { DebugPage } from "./DebugPage";
 
-// Placeholder: the real Inventory page arrives in a later task.
 export function InventoryPage() {
-  return <PageHeader title="Inventory" crumbs={["Debug", "Inventory"]} />;
+  return <DebugPage title="Inventory" />;
 }

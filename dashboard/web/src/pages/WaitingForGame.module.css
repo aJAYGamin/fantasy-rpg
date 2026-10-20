@@ -1,0 +1,90 @@
+/* The "game isn't running" message: a softly pulsing gem (the brand's), a Cinzel heading, one line to say what to do. */
+
+.card {
+  align-self: center;
+  width: min(100%, 520px);
+  margin-top: var(--space-8);
+}
+
+.message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 44px 32px 38px;
+  text-align: center;
+}
+
+/* Inside the Game Status card, centred in whatever height the Quick Actions beside it make. */
+.inCard {
+  flex: 1;
+  justify-content: center;
+  padding: 28px 24px;
+}
+
+.gem {
+  position: relative;
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  margin-bottom: var(--space-5);
+  border-radius: 50%;
+  background: var(--gem);
+  box-shadow: var(--gem-glow);
+}
+
+/* The pulse: a copy of the glow that swells and fades, over and over. Only transform and opacity move. */
+.gem::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: var(--gem-glow);
+  animation: pulse 2.8s var(--ease) infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+
+.heading {
+  font-family: var(--font-brand);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0.03em;
+}
+
+.star {
+  color: var(--am-text);
+}
+
+.text {
+  max-width: 420px;
+  margin-top: var(--space-2);
+  color: var(--dim);
+  font-size: var(--text-base);
+}
+
+.status {
+  margin-top: var(--space-5);
+  color: var(--dim);
+  font-size: var(--text-sm);
+  letter-spacing: 0.02em;
+}
+
+/* No pulse: just the gem. */
+@media (prefers-reduced-motion: reduce) {
+  .gem::after {
+    display: none;
+    animation: none;
+  }
+}

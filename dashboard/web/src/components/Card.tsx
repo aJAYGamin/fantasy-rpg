@@ -10,10 +10,12 @@ export type CardProps = {
   /** No body padding, for content that runs edge to edge (the stat strip). */
   flush?: boolean;
   className?: string;
+  /** For the body, e.g. to let it fill a card that has been stretched to match its neighbour. */
+  bodyClassName?: string;
   children?: ReactNode;
 };
 
-export function Card({ title, actions, flush = false, className, children }: CardProps) {
+export function Card({ title, actions, flush = false, className, bodyClassName, children }: CardProps) {
   const titleId = useId();
   const hasHeader = title !== undefined || actions !== undefined;
   return (
@@ -28,7 +30,7 @@ export function Card({ title, actions, flush = false, className, children }: Car
           {actions !== undefined && <div className={styles.actions}>{actions}</div>}
         </header>
       )}
-      <div className={cx(!flush && styles.body)}>{children}</div>
+      <div className={cx(!flush && styles.body, bodyClassName)}>{children}</div>
     </section>
   );
 }

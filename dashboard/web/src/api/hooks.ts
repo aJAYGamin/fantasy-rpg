@@ -360,3 +360,12 @@ export function useGameStatus() {
     refetchInterval: 3_000,
   });
 }
+
+/**
+ * Whether the game is running and linked right now. Anything short of a clear "connected" (not asked yet, or the
+ * answer failed) counts as waiting, so a page shows its waiting state until the game itself says otherwise.
+ */
+export function useGameConnected(): boolean {
+  const { data } = useGameStatus();
+  return Boolean(data?.connected);
+}

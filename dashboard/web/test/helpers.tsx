@@ -89,6 +89,16 @@ export function clearQueryClients(): void {
   latestUser = null;
 }
 
+/**
+ * The top bar. Testing Library calls every <header> a banner, a Card's too, although in a browser only a header
+ * outside <main> and <section> is one. So this takes the banners a browser would, and insists there is exactly one.
+ */
+export function topBar(): HTMLElement {
+  const bars = screen.getAllByRole("banner").filter((bar) => bar.closest("main, section") === null);
+  expect(bars).toHaveLength(1);
+  return bars[0];
+}
+
 /** Waits until no request the app started is still in flight. */
 export async function settled(queryClient: QueryClient): Promise<void> {
   await waitFor(() => expect(queryClient.isFetching() + queryClient.isMutating()).toBe(0));
