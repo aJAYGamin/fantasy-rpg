@@ -13,7 +13,7 @@ export type AuthLayoutProps = {
 
 /**
  * signin-v1's screen: the plum brand panel on the left with the gem, the product name, a tagline and the footer
- * line; the form on the right, on the card colour. Below 800 px the panel stacks on top.
+ * line; the form on the right, on the card color. Below 800 px the panel stacks on top.
  */
 export function AuthLayout({ tagline, tagsub, children }: AuthLayoutProps) {
   return (

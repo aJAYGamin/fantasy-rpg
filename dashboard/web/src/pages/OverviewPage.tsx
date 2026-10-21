@@ -2,7 +2,7 @@ import { ChevronDown } from "lucide-react";
 import { Fragment, type ReactNode, useId } from "react";
 import { Link } from "react-router";
 import { useGameConnected } from "../api/hooks";
-import { Button, Card, Pill, Ring, type RingColour, Segmented, Tooltip } from "../components";
+import { Button, Card, Pill, Ring, type RingColor, Segmented, Tooltip } from "../components";
 import { usePageTitle } from "../pageTitle";
 import { PageHeader } from "../shell/PageHeader";
 import styles from "./OverviewPage.module.css";
@@ -17,11 +17,11 @@ const DIFFICULTIES = [
   { value: "hard", label: "Hard" },
 ] as const;
 
-const GAUGES: ReadonlyArray<{ label: string; colour: RingColour }> = [
-  { label: "Party HP", colour: "am" },
-  { label: "Party MP", colour: "aria" },
-  { label: "Moves unlocked", colour: "am2" },
-  { label: "Items carried", colour: "gold" },
+const GAUGES: ReadonlyArray<{ label: string; color: RingColor }> = [
+  { label: "Party HP", color: "am" },
+  { label: "Party MP", color: "aria" },
+  { label: "Moves unlocked", color: "am2" },
+  { label: "Items carried", color: "gold" },
 ];
 
 /** A dash where a number will go, read as "no data yet" rather than as punctuation. */
@@ -189,9 +189,9 @@ export function OverviewPage() {
 
       <Card flush>
         <div className={styles.strip}>
-          {GAUGES.map(({ label, colour }) => (
+          {GAUGES.map(({ label, color }) => (
             <div key={label} className={styles.gauge}>
-              <Ring percent={0} label="—" colour={colour} aria-label={label} valueText="No data yet" />
+              <Ring percent={0} label="—" color={color} aria-label={label} valueText="No data yet" />
               <div>
                 <div className={styles.gaugeLabel}>{label}</div>
                 <div className={styles.gaugeValue}>No data yet</div>

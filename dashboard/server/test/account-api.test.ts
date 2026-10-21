@@ -701,7 +701,7 @@ test("settings start at the defaults and save partial changes", async () => {
 test("the defaults are what the brief lists", () => {
   expect(DEFAULT_SETTINGS).toEqual({
     appearance: "light",
-    colourTheme: "amethyst",
+    colorTheme: "amethyst",
     sidebar: "expanded",
     keepSignedInDays: 30,
     gamePort: 47821,
@@ -717,11 +717,11 @@ test("every setting can be changed, one change at a time, and the rest stay", as
   await patch(app, "/api/settings", { keepSignedInDays: 90 }, cookie);
   await patch(app, "/api/settings", { gamePort: 50000 }, cookie);
   await patch(app, "/api/settings", { autoReconnect: false }, cookie);
-  await patch(app, "/api/settings", { colourTheme: "amethyst" }, cookie);
+  await patch(app, "/api/settings", { colorTheme: "amethyst" }, cookie);
   const res = await patch(app, "/api/settings", { notify: { game: false } }, cookie);
   const expected = {
     appearance: "system",
-    colourTheme: "amethyst",
+    colorTheme: "amethyst",
     sidebar: "icons",
     keepSignedInDays: 90,
     gamePort: 50000,
@@ -792,14 +792,14 @@ test("settings survive a server restart", async () => {
 
 test("bad settings are refused", async () => {
   const { app, cookie } = await signedIn();
-  expect((await patch(app, "/api/settings", { colourTheme: "teal" }, cookie)).statusCode).toBe(400);
+  expect((await patch(app, "/api/settings", { colorTheme: "teal" }, cookie)).statusCode).toBe(400);
   expect((await patch(app, "/api/settings", { gamePort: 80 }, cookie)).statusCode).toBe(400);
 });
 
 test.each([
   ["appearance", { appearance: "sepia" }],
   ["appearance", { appearance: 1 }],
-  ["colourTheme", { colourTheme: "teal" }],
+  ["colorTheme", { colorTheme: "teal" }],
   ["sidebar", { sidebar: "hidden" }],
   ["keepSignedInDays", { keepSignedInDays: 10 }],
   ["keepSignedInDays", { keepSignedInDays: "30" }],

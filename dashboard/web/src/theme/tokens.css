@@ -1,16 +1,16 @@
 /*
- * Amethyst Dashboard design tokens. Every colour in the app comes from here; components never hard-code one.
+ * Amethyst Dashboard design tokens. Every color in the app comes from here; components never hard-code one.
  * The first block of each theme is copied from the approved mockups (overview-v3 / overview-dark-v1).
  * The second block holds the in-between shades the mockups use for controls (button fill, input fill,
  * placeholder, tracks, borders), taken from the same files; where a mockup shows only one theme, the other
  * theme's value is chosen to sit in the same place on its own palette.
  *
- * Every text colour reads at WCAG AA (4.5:1) on the surfaces it sits on, and control tracks and boundaries
+ * Every text color reads at WCAG AA (4.5:1) on the surfaces it sits on, and control tracks and boundaries
  * at 3:1 (theme.test.tsx checks each pair). Where a mockup shade fell short it was moved the smallest step
  * on the same hue: light --dim (was #7a7090), the *-ink text tokens, the placeholder, the off switch and the
  * checkbox border. --am-fill is the amethyst behind white text in both themes (dark --am is too light for it).
  * The keyboard focus ring is a solid 2px --focus-line (3:1 or better on cards and the page) with the soft
- * halo outside it; --focus-ring-filled is the same with a 2px card-coloured gap inside, for filled buttons,
+ * halo outside it; --focus-ring-filled is the same with a 2px card-colored gap inside, for filled buttons,
  * whose own fill would otherwise swallow the ring. The --brand-* shades are the sign-in screens' plum panel (signin-v1's .brandside); its
  * small footer line is lifted from the mockup's #7e6aa3 to read at 4.5:1 on the gradient.
  * The --side-* shades are the sidebar's (deep plum in both themes). Its group labels, --side-head, are lifted on the

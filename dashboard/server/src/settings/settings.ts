@@ -14,7 +14,7 @@ const isPort = (value: unknown): value is number =>
 // What each setting may be. A key that is not here is not a setting.
 const CHECKS: { [K in keyof Omit<Settings, "notify">]: (value: unknown) => value is Settings[K] } = {
   appearance: oneOf(["light", "dark", "system"]),
-  colourTheme: oneOf(["amethyst"]),
+  colorTheme: oneOf(["amethyst"]),
   sidebar: oneOf(["expanded", "icons"]),
   keepSignedInDays: oneOf(KEEP_SIGNED_IN_DAY_CHOICES),
   gamePort: isPort,

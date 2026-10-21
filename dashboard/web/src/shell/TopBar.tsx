@@ -4,7 +4,7 @@ import { useNotifications, useUpdateSettings } from "../api/hooks";
 import { IconButton, IconLink, Popover, Tooltip } from "../components";
 import { useTheme } from "../theme/ThemeProvider";
 import { AvatarMenu } from "./AvatarMenu";
-import { ColourThemeMenu } from "./ColourThemeMenu";
+import { ColorThemeMenu } from "./ColorThemeMenu";
 import { NotificationsPanel } from "./NotificationsPanel";
 import styles from "./TopBar.module.css";
 
@@ -51,7 +51,7 @@ export function TopBar({ collapsed, onToggleSidebar, onOpenSearch }: TopBarProps
           </IconLink>
         </Tooltip>
         <ThemeButton />
-        <ColourThemeMenu />
+        <ColorThemeMenu />
         <FullScreenButton />
         <NotificationsBell />
         <div className={styles.avatarSlot}>

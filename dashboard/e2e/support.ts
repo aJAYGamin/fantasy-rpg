@@ -59,12 +59,12 @@ function chunk(type: string, data: Buffer): Buffer {
   return Buffer.concat([length, body, check]);
 }
 
-/** A real PNG file: `width` × `height` pixels of one RGB colour. */
+/** A real PNG file: `width` × `height` pixels of one RGB color. */
 export function solidPng(width: number, height: number, [red, green, blue]: [number, number, number]): Buffer {
   const header = Buffer.alloc(13);
   header.writeUInt32BE(width, 0);
   header.writeUInt32BE(height, 4);
-  // 8 bits per channel, colour type 2 (RGB), standard compression, filter and no interlacing.
+  // 8 bits per channel, color type 2 (RGB), standard compression, filter and no interlacing.
   header.set([8, 2, 0, 0, 0], 8);
   // Each row starts with its filter type (0, none), then its pixels.
   const pixel = [red, green, blue];

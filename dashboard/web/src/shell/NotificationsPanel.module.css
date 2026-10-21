@@ -93,7 +93,7 @@
   background: var(--control-hover);
 }
 
-/* The kind's colour, as the status pills use them: a soft tint behind a darker ink. */
+/* The kind's color, as the status pills use them: a soft tint behind a darker ink. */
 .icon {
   display: grid;
   flex-shrink: 0;

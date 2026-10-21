@@ -48,7 +48,7 @@ export type NotificationKind = "security" | "game" | "changes";
 
 export type Settings = {
   appearance: "light" | "dark" | "system";
-  colourTheme: "amethyst";
+  colorTheme: "amethyst";
   sidebar: "expanded" | "icons";
   keepSignedInDays: 7 | 30 | 90;
   gamePort: number;
@@ -59,7 +59,7 @@ export type Settings = {
 
 export const DEFAULT_SETTINGS: Settings = {
   appearance: "light",
-  colourTheme: "amethyst",
+  colorTheme: "amethyst",
   sidebar: "expanded",
   keepSignedInDays: 30,
   gamePort: DEFAULT_GAME_PORT,

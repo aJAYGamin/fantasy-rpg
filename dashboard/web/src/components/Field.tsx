@@ -34,7 +34,7 @@ export type FieldProps = {
   children: ReactNode;
 };
 
-/** A labelled form row (signin-v1's .f): label above, input, then hint and error, all tied to the input. */
+/** A labeled form row (signin-v1's .f): label above, input, then hint and error, all tied to the input. */
 export function Field({ label, hint, error, announce = "polite", className, children }: FieldProps) {
   const id = useId();
   const hintId = hint ? `${id}-hint` : undefined;

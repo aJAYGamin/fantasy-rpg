@@ -2,7 +2,7 @@ import { STRENGTH_WORDS, type Strength } from "./strength";
 import styles from "./StrengthMeter.module.css";
 
 /**
- * Four bars under a new password. The hint under it says the level in words; the bars add colour and give
+ * Four bars under a new password. The hint under it says the level in words; the bars add color and give
  * assistive tech a named meter.
  */
 export function StrengthMeter({ level }: { level: Strength }) {

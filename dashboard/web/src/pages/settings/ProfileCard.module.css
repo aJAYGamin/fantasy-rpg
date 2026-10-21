@@ -6,7 +6,7 @@
   gap: var(--space-4);
 }
 
-/* The avatar circle, at the top bar's colours but larger. */
+/* The avatar circle, at the top bar's colors but larger. */
 .preview {
   display: grid;
   flex-shrink: 0;

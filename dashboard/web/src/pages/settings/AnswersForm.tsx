@@ -13,7 +13,7 @@ type Answers = [string, string, string];
 
 const NO_ANSWERS: Answers = ["", "", ""];
 
-// A slot the server would take for blank even though it isn't empty (it normalises like this before it looks).
+// A slot the server would take for blank even though it isn't empty (it normalizes like this before it looks).
 const isBlank = (answer: string) => answer.normalize("NFKC").trim() === "";
 
 /**

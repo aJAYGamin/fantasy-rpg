@@ -32,7 +32,7 @@ The pauses below last **5 minutes** for real. (The automated tests shorten them;
 
 - [ ] Sign out.
 - [ ] Type your username and a wrong password, and press **Sign in**. It says "That password isn't right" and how many tries are left (4).
-- [ ] Keep going until the fifth wrong one: **Sign-in is paused**, with a ring counting down from 5:00 and a greyed-out **Try again**.
+- [ ] Keep going until the fifth wrong one: **Sign-in is paused**, with a ring counting down from 5:00 and a grayed-out **Try again**.
 - [ ] Refresh the page.
 - [ ] Sign in with the right password: still paused (the pause is kept by the server).
 - [ ] Wait it out without touching anything. At 0:00 it says "You can try again now." and **Try again** wakes up.
@@ -61,7 +61,7 @@ The pauses below last **5 minutes** for real. (The automated tests shorten them;
 - [ ] Reload in dark mode: no flash of white.
 - [ ] Settings (gear) → Appearance → **Follow my Mac**.
 - [ ] Switch your Mac between Light and Dark in System Settings → Appearance: the dashboard follows at once.
-- [ ] The palette icon opens the colour theme menu: Amethyst is ticked, "More themes coming later" does nothing.
+- [ ] The palette icon opens the color theme menu: Amethyst is ticked, "More themes coming later" does nothing.
 - [ ] The corners icon goes full screen.
 - [ ] Press it again (or Esc) to come back.
 - [ ] The arrow at the left folds the sidebar to icons.
@@ -117,7 +117,7 @@ The pauses below last **5 minutes** for real. (The automated tests shorten them;
 The automated tests use Chrome only, so open <http://localhost:5173> in Safari or Firefox too (sign in there) and check:
 
 - [ ] The folded sidebar: the icons line up, and each one's label shows on hover, above the page rather than hidden under it.
-- [ ] The notifications, avatar and colour theme menus open, look right and close on Esc and on a click outside.
+- [ ] The notifications, avatar and color theme menus open, look right and close on Esc and on a click outside.
 - [ ] ⌘K opens search there too.
 - [ ] Tooltips appear on hover over the top-bar buttons.
 - [ ] Click the top-bar search box, press **Esc**, then **Tab**: the ring lands on the Settings gear (the next button), not back at the top of the page.

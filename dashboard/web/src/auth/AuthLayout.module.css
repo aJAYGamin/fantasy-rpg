@@ -76,7 +76,7 @@
   padding: 34px 36px;
 }
 
-/* Auto margins centre the form in the window, and let a tall one scroll instead of being cut off at the top. */
+/* Auto margins center the form in the window, and let a tall one scroll instead of being cut off at the top. */
 .formInner {
   width: min(100%, 400px);
   margin: auto;

@@ -2,7 +2,7 @@ import { type Page, expect, test } from "@playwright/test";
 import { ANSWERS, OWNER, SECURITY_QUESTIONS } from "./support.js";
 
 // One account, made by the first test, on this file's own server: it started with an empty database, and its locks
-// last 3 seconds (AMETHYST_LOCK_SECONDS, honoured only under NODE_ENV=test). Each test picks up where the last left it.
+// last 3 seconds (AMETHYST_LOCK_SECONDS, honored only under NODE_ENV=test). Each test picks up where the last left it.
 test.describe.configure({ mode: "serial" });
 
 // Invented, like everything else here.

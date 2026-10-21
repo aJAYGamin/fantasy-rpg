@@ -70,7 +70,7 @@ export function ProfileCard() {
     remove.mutate(undefined, {
       onSuccess: () => {
         flash();
-        // The button that was pressed is gone now; the cursor goes to its neighbour rather than to nowhere.
+        // The button that was pressed is gone now; the cursor goes to its neighbor rather than to nowhere.
         uploadButton.current?.focus();
       },
       onError: (error) => setPictureProblem(problemWithUpload(error)),

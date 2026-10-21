@@ -40,7 +40,7 @@ npx playwright install chromium   # once
 npm run build && npm run e2e      # e2e tests what the last build made, so build first
 ```
 
-`npm run e2e` starts its own servers, one per spec file (ports 4618 and 4619), each with an empty database in a fresh temporary folder that is removed afterwards. They run with `NODE_ENV=test` and `AMETHYST_LOCK_SECONDS=3`, so the sign-in and reset pauses last 3 seconds instead of 5 minutes; the server honours that setting only when `NODE_ENV` is `test`. A failed run leaves its traces in `test-results/`.
+`npm run e2e` starts its own servers, one per spec file (ports 4618 and 4619), each with an empty database in a fresh temporary folder that is removed afterwards. They run with `NODE_ENV=test` and `AMETHYST_LOCK_SECONDS=3`, so the sign-in and reset pauses last 3 seconds instead of 5 minutes; the server honors that setting only when `NODE_ENV` is `test`. A failed run leaves its traces in `test-results/`.
 
 Before calling a stage done, walk through the play-test checklist in [docs/stage1-playtest.md](docs/stage1-playtest.md).
 

@@ -35,7 +35,7 @@
   border-right: 0;
 }
 
-/* The group shows the ring; in forced-colours mode the outline is drawn inside, clear of the clipped corners. */
+/* The group shows the ring; in forced-colors mode the outline is drawn inside, clear of the clipped corners. */
 .option:focus-visible {
   box-shadow: none;
   outline-offset: -3px;
@@ -55,7 +55,7 @@
   opacity: 0.5;
 }
 
-/* Unavailable but still focusable: dimmed by colour, since opacity would fade the focus outline (forced-colours mode). */
+/* Unavailable but still focusable: dimmed by color, since opacity would fade the focus outline (forced-colors mode). */
 .option[aria-disabled="true"]:not([aria-checked="true"]) {
   color: var(--dim);
   cursor: not-allowed;

@@ -230,11 +230,11 @@ describe("top bar", () => {
     await settled(queryClient);
   });
 
-  test("the colour theme menu shows Amethyst chosen and more themes coming later", async () => {
+  test("the color theme menu shows Amethyst chosen and more themes coming later", async () => {
     const { queryClient } = renderShellAt("/");
-    const trigger = topButton("Colour theme");
+    const trigger = topButton("Color theme");
     await click(trigger);
-    const menu = screen.getByRole("menu", { name: "Colour theme" });
+    const menu = screen.getByRole("menu", { name: "Color theme" });
     const amethyst = within(menu).getByRole("menuitemradio", { name: "Amethyst" });
     expect(amethyst).toHaveAttribute("aria-checked", "true");
     expect(amethyst).toHaveFocus();
@@ -243,7 +243,7 @@ describe("top bar", () => {
     await keyboard("{ArrowDown}");
     expect(later).toHaveFocus();
     await keyboard("{Enter}");
-    expect(screen.getByRole("menu", { name: "Colour theme" })).toBeInTheDocument();
+    expect(screen.getByRole("menu", { name: "Color theme" })).toBeInTheDocument();
     await click(amethyst);
     expect(screen.queryByRole("menu")).toBeNull();
     expect(trigger).toHaveFocus();
@@ -521,7 +521,7 @@ describe("keyboard", () => {
       topButton("Search"),
       within(topBar()).getByRole("link", { name: "Settings" }),
       topButton("Switch to dark mode"),
-      topButton("Colour theme"),
+      topButton("Color theme"),
       topButton("Notifications"),
       topButton("Account menu"),
     ];

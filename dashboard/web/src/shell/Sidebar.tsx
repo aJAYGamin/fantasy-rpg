@@ -18,7 +18,7 @@ function matching(query: string): NavGroup[] {
 
 /**
  * The deep-plum sidebar: brand, a filter that narrows the pages, and the page groups. Folded (`collapsed`), it is
- * a 72 px rail of icons, each named for screen readers and labelled by a tooltip.
+ * a 72 px rail of icons, each named for screen readers and labeled by a tooltip.
  */
 export function Sidebar({ collapsed }: { collapsed: boolean }) {
   const [filter, setFilter] = useState("");

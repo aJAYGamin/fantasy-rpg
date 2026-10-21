@@ -100,23 +100,23 @@ test("Tab from the top of the page reaches every top-bar button in order, each w
     "Search",
     "Settings",
     "Switch to dark mode",
-    "Colour theme",
+    "Color theme",
     "Full screen",
     "Notifications",
     "Account menu",
   ];
-  // The ring's solid line is --focus-line, as the browser writes colours in a box-shadow.
-  const ringColour = await page.evaluate(() => {
+  // The ring's solid line is --focus-line, as the browser writes colors in a box-shadow.
+  const ringColor = await page.evaluate(() => {
     const probe = document.createElement("span");
     probe.style.color = getComputedStyle(document.documentElement).getPropertyValue("--focus-line");
     document.body.append(probe);
-    const colour = getComputedStyle(probe).color;
+    const color = getComputedStyle(probe).color;
     probe.remove();
-    return colour;
+    return color;
   });
 
   // The ring fades in (a short transition), so the check waits for it to be drawn in full.
-  const ring = new RegExp(`${ringColour.replace(/[()]/g, "\\$&")} 0px 0px 0px 2px`);
+  const ring = new RegExp(`${ringColor.replace(/[()]/g, "\\$&")} 0px 0px 0px 2px`);
 
   const reached: string[] = [];
   // Skip to content, then the sidebar's filter and pages come first; the top bar follows.

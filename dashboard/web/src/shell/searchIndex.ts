@@ -36,7 +36,7 @@ const SETTINGS_SECTIONS = [
   {
     slug: "appearance",
     label: "Appearance",
-    keywords: ["theme", "dark mode", "light mode", "colour", "color", "sidebar"],
+    keywords: ["theme", "dark mode", "light mode", "color", "color", "sidebar"],
   },
   {
     slug: "account",

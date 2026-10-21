@@ -53,9 +53,9 @@
 }
 
 /*
- * Unavailable looks like disabled, but the button can still take the pointer and the focus. It is dimmed with colours
+ * Unavailable looks like disabled, but the button can still take the pointer and the focus. It is dimmed with colors
  * (a flat neutral block, like the pill's), not opacity: opacity on the button would fade its focus ring as well.
- * More specific than every variant's own colours, so primary (below), danger and ghost all go flat and grey.
+ * More specific than every variant's own colors, so primary (below), danger and ghost all go flat and gray.
  */
 .button[data-unavailable] {
   border-color: var(--neutral-soft);
@@ -76,7 +76,7 @@
   border-color: var(--am-fill-hover);
 }
 
-/* signin-v1's greyed "Try again": a flat lilac block rather than a faded purple one. */
+/* signin-v1's grayed "Try again": a flat lilac block rather than a faded purple one. */
 .primary:disabled {
   background: var(--disabled-bg);
   border-color: var(--disabled-bg);
@@ -91,7 +91,7 @@
   color: var(--label);
 }
 
-/* A filled button's own colour would swallow the ring, so a gap of the card colour keeps the two apart. */
+/* A filled button's own color would swallow the ring, so a gap of the card color keeps the two apart. */
 .primary:focus-visible,
 .danger:focus-visible {
   box-shadow: var(--focus-ring-filled);
@@ -120,7 +120,7 @@
   color: var(--text);
 }
 
-/* Busy is not disabled: the button keeps its colour while the work runs. */
+/* Busy is not disabled: the button keeps its color while the work runs. */
 .button[data-loading] {
   cursor: progress;
   opacity: 1;

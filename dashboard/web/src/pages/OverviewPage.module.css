@@ -100,8 +100,8 @@
 }
 
 /*
- * Unavailable: flat and grey like an unavailable button, yet it takes the pointer and the focus (so the tooltip can
- * show). Dimmed by colour, not opacity, which would fade its focus ring.
+ * Unavailable: flat and gray like an unavailable button, yet it takes the pointer and the focus (so the tooltip can
+ * show). Dimmed by color, not opacity, which would fade its focus ring.
  */
 .select[aria-disabled="true"] {
   border-color: var(--neutral-soft);

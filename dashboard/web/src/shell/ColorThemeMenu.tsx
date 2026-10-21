@@ -1,17 +1,17 @@
 import { Palette } from "lucide-react";
 import { IconButton, MenuItem, Popover, Tooltip } from "../components";
-import styles from "./ColourThemeMenu.module.css";
+import styles from "./ColorThemeMenu.module.css";
 
-/** The colour theme picker. Amethyst is the only theme for now; the menu says more are coming. */
-export function ColourThemeMenu() {
+/** The color theme picker. Amethyst is the only theme for now; the menu says more are coming. */
+export function ColorThemeMenu() {
   return (
     <Popover
       role="menu"
-      label="Colour theme"
+      label="Color theme"
       className={styles.menu}
       trigger={(props) => (
-        <Tooltip text="Colour theme">
-          <IconButton {...props} label="Colour theme" bordered={false}>
+        <Tooltip text="Color theme">
+          <IconButton {...props} label="Color theme" bordered={false}>
             <Palette />
           </IconButton>
         </Tooltip>

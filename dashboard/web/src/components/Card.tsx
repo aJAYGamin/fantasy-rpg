@@ -10,7 +10,7 @@ export type CardProps = {
   /** No body padding, for content that runs edge to edge (the stat strip). */
   flush?: boolean;
   className?: string;
-  /** For the body, e.g. to let it fill a card that has been stretched to match its neighbour. */
+  /** For the body, e.g. to let it fill a card that has been stretched to match its neighbor. */
   bodyClassName?: string;
   children?: ReactNode;
 };

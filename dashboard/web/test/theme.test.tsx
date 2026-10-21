@@ -116,26 +116,26 @@ function tokensIn(selector: string): Map<string, string> {
   return new Map([...block.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim()]));
 }
 
-test("the colour tokens are the mockups' palette, in light and in dark", () => {
+test("the color tokens are the mockups' palette, in light and in dark", () => {
   const light = tokensIn(':root,\n[data-theme="light"]');
   const dark = tokensIn('[data-theme="dark"]');
   for (const [token, lightValue, darkValue] of MOCKUP_PALETTE) {
     expect(light.get(token)?.toUpperCase(), `light ${token}`).toBe(lightValue);
     expect(dark.get(token)?.toUpperCase(), `dark ${token}`).toBe(darkValue);
   }
-  // Every colour the light theme defines, the dark theme redefines, so nothing falls back to a light value.
+  // Every color the light theme defines, the dark theme redefines, so nothing falls back to a light value.
   expect([...light.keys()].filter((token) => !dark.has(token))).toEqual([]);
 });
 
-test("outside tokens.css, no stylesheet or component names a colour of its own", () => {
+test("outside tokens.css, no stylesheet or component names a color of its own", () => {
   const sources = {
     ...import.meta.glob<string>("../src/**/*.css", { query: "?raw", import: "default", eager: true }),
     ...import.meta.glob<string>("../src/**/*.tsx", { query: "?raw", import: "default", eager: true }),
   };
-  const colourLiteral = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|oklch|lab|lch)\(|:\s*(?:white|black)\b/i;
+  const colorLiteral = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|oklch|lab|lch)\(|:\s*(?:white|black)\b/i;
   const offenders = Object.entries(sources)
     .filter(([path]) => !path.endsWith("/theme/tokens.css"))
-    .filter(([, text]) => colourLiteral.test(text.replace(/\/\*[\s\S]*?\*\//g, "")))
+    .filter(([, text]) => colorLiteral.test(text.replace(/\/\*[\s\S]*?\*\//g, "")))
     .map(([path]) => path);
   expect(Object.keys(sources).length).toBeGreaterThan(20);
   expect(offenders).toEqual([]);
@@ -145,7 +145,7 @@ test("outside tokens.css, no stylesheet or component names a colour of its own",
 
 function luminance(hex: string): number {
   const match = /^#([0-9a-f]{6})$/i.exec(hex);
-  if (!match) throw new Error(`not a #rrggbb colour: ${hex}`);
+  if (!match) throw new Error(`not a #rrggbb color: ${hex}`);
   const [r, g, b] = [0, 2, 4].map((i) => {
     const channel = Number.parseInt(match[1].slice(i, i + 2), 16) / 255;
     return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
@@ -163,7 +163,7 @@ type Pair = { fore: string; back: string; min: number; where: string };
 const stylesheets = import.meta.glob<string>("../src/**/*.css", { query: "?raw", import: "default", eager: true });
 
 /**
- * Every text colour a stylesheet sets, with the surface it sits on: the same rule's background if it sets one;
+ * Every text color a stylesheet sets, with the surface it sits on: the same rule's background if it sets one;
  * otherwise the amethyst fill for white-on-amethyst text, the plum panel for the sign-in screens' brand text
  * (--brand-*; both ends of its gradient), the field fills for text inside an input, the sidebar's plum for the
  * sidebar's text, and the card and page for everything else. Disabled states are exempt from the contrast rule.
@@ -229,7 +229,7 @@ const LISTED: Pair[] = [
   { fore: "--brand-head", back: "--brand-to", min: 4.5, where: "brand panel headline, bottom end" },
 ];
 
-test("every colour pair the components use meets WCAG AA in both themes", () => {
+test("every color pair the components use meets WCAG AA in both themes", () => {
   const derived = textPairsInStylesheets();
   expect(derived.length).toBeGreaterThan(30);
   const failures: string[] = [];
@@ -249,7 +249,7 @@ test("every colour pair the components use meets WCAG AA in both themes", () => 
 
 test("no rule fades a control that can still take the keyboard focus, since that would fade its focus ring too", () => {
   // R19: opacity on the focused element also fades its box-shadow ring (to about 2:1). A control that is unavailable but
-  // still focusable (aria-disabled, data-unavailable) is dimmed with colours instead. A truly :disabled one can't be focused.
+  // still focusable (aria-disabled, data-unavailable) is dimmed with colors instead. A truly :disabled one can't be focused.
   const fading: string[] = [];
   let checked = 0;
   for (const [path, css] of Object.entries(stylesheets)) {
@@ -280,7 +280,7 @@ test("the keyboard focus ring is a solid 2px amethyst ring with the soft halo ou
   }
 });
 
-test("a filled button's focus ring has a card-coloured gap inside it, so its own fill can't swallow the ring", () => {
+test("a filled button's focus ring has a card-colored gap inside it, so its own fill can't swallow the ring", () => {
   for (const [theme, tokens] of [
     ["light", tokensIn(':root,\n[data-theme="light"]')],
     ["dark", tokensIn('[data-theme="dark"]')],
@@ -293,7 +293,7 @@ test("a filled button's focus ring has a card-coloured gap inside it, so its own
   expect(rule).toMatch(/box-shadow:\s*var\(--focus-ring-filled\)/);
 });
 
-test("the focus ring survives forced-colours (high contrast) mode, where shadows are dropped", () => {
+test("the focus ring survives forced-colors (high contrast) mode, where shadows are dropped", () => {
   const rule = /(?:^|\n):focus-visible\s*\{([^}]*)\}/.exec(globalCss)?.[1];
   expect(rule).toMatch(/outline:\s*3px solid transparent/);
   expect(rule).toMatch(/box-shadow:\s*var\(--focus-ring\)/);

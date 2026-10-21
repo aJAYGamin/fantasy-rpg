@@ -14,7 +14,7 @@
   text-align: center;
 }
 
-/* Inside the Game Status card, centred in whatever height the Quick Actions beside it make. */
+/* Inside the Game Status card, centered in whatever height the Quick Actions beside it make. */
 .inCard {
   flex: 1;
   justify-content: center;

@@ -42,7 +42,7 @@ const SETTINGS_ICONS: Record<string, LucideIcon> = {
   "settings-notifications": Bell,
 };
 
-/** A page or settings section gets the icon it has in the sidebar and menus; a hero, a dot in their own colour. */
+/** A page or settings section gets the icon it has in the sidebar and menus; a hero, a dot in their own color. */
 function Mark({ entry }: { entry: SearchEntry }) {
   if (entry.group === "Heroes") return <span className={styles.hero} data-hero={entry.id.replace("hero-", "")} />;
   const Icon = (entry.group === "Pages" ? PAGE_ICONS.get(entry.path) : SETTINGS_ICONS[entry.id]) ?? Settings;

@@ -8,7 +8,7 @@ export type ButtonProps = ComponentPropsWithRef<"button"> & {
   /** Shows a spinner and ignores further presses until the work finishes. */
   loading?: boolean;
   /**
-   * Greyed and inert, yet still reachable by pointer and keyboard so a tooltip can say why (a `disabled` button gets
+   * Grayed and inert, yet still reachable by pointer and keyboard so a tooltip can say why (a `disabled` button gets
    * neither hover nor focus). Point `aria-describedby` at the reason, which a tooltip alone doesn't tell screen readers.
    */
   unavailable?: boolean;

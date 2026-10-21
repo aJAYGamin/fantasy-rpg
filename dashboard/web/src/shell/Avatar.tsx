@@ -32,7 +32,7 @@ function Picture({ name, version }: { name: string; version: number }) {
 
 /**
  * The account's picture, or its initials when there is none (or it fails to load). It fills whatever circle it is
- * put in; that circle sets the size, colours and clipping.
+ * put in; that circle sets the size, colors and clipping.
  */
 export function Avatar({ user }: { user: User }) {
   const version = usePictureVersion();

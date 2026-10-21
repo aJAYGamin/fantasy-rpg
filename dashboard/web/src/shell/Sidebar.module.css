@@ -1,6 +1,6 @@
 /*
  * overview-v3's .side, .brand, .filter, .grp and .nav: a 250 px deep-plum column, the same in both themes. Text
- * sits on --side unless a rule gives its own background. Folded, it is a 72 px rail of centred icons.
+ * sits on --side unless a rule gives its own background. Folded, it is a 72 px rail of centered icons.
  */
 
 /* Above the page (its folded tooltips reach over it) and the top bar (z-index 30). */
@@ -204,7 +204,7 @@
   flex: 1;
 }
 
-/* Centred in the rail: the 3 px bar on the left is balanced by 3 px on the right. */
+/* Centered in the rail: the 3 px bar on the left is balanced by 3 px on the right. */
 .collapsed .item {
   justify-content: center;
   padding: 11px 3px 11px 0;

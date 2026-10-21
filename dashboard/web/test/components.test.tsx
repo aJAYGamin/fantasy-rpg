@@ -23,7 +23,7 @@ import {
 function PopoverDemo() {
   return (
     <>
-      <Popover label="Colour theme" trigger={(props) => <Button {...props}>Theme</Button>}>
+      <Popover label="Color theme" trigger={(props) => <Button {...props}>Theme</Button>}>
         <Button>Amethyst</Button>
       </Popover>
       <Button>Elsewhere</Button>
@@ -66,11 +66,11 @@ describe("Popover and Dialog", () => {
 
     const themeButton = screen.getByRole("button", { name: "Theme" });
     await user.click(themeButton);
-    const popover = screen.getByRole("dialog", { name: "Colour theme" });
+    const popover = screen.getByRole("dialog", { name: "Color theme" });
     expect(themeButton).toHaveAttribute("aria-expanded", "true");
     expect(popover).toContainElement(document.activeElement as HTMLElement);
     await user.keyboard("{Escape}");
-    expect(screen.queryByRole("dialog", { name: "Colour theme" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Color theme" })).toBeNull();
     expect(themeButton).toHaveAttribute("aria-expanded", "false");
     expect(themeButton).toHaveFocus();
 
@@ -88,9 +88,9 @@ describe("Popover and Dialog", () => {
     const user = userEvent.setup();
     render(<PopoverDemo />);
     await user.click(screen.getByRole("button", { name: "Theme" }));
-    expect(screen.getByRole("dialog", { name: "Colour theme" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Color theme" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Elsewhere" }));
-    expect(screen.queryByRole("dialog", { name: "Colour theme" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Color theme" })).toBeNull();
     expect(screen.getByRole("button", { name: "Elsewhere" })).toHaveFocus();
   });
 
@@ -99,7 +99,7 @@ describe("Popover and Dialog", () => {
     render(<PopoverDemo />);
     await user.click(screen.getByRole("button", { name: "Theme" }));
     fireEvent.pointerDown(document.body);
-    expect(screen.queryByRole("dialog", { name: "Colour theme" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Color theme" })).toBeNull();
     expect(screen.getByRole("button", { name: "Theme" })).toHaveFocus();
   });
 
@@ -109,7 +109,7 @@ describe("Popover and Dialog", () => {
     await user.click(screen.getByRole("button", { name: "Theme" }));
     expect(screen.getByRole("button", { name: "Amethyst" })).toHaveFocus();
     await user.tab();
-    expect(screen.queryByRole("dialog", { name: "Colour theme" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Color theme" })).toBeNull();
   });
 
   test("Tab stays inside an open dialog", async () => {
@@ -436,7 +436,7 @@ describe("display", () => {
     expect(screen.getByRole("region", { name: "Game Status" })).toHaveTextContent("Waiting");
   });
 
-  test("Ring tells screen readers what its centre says, e.g. the time left", () => {
+  test("Ring tells screen readers what its center says, e.g. the time left", () => {
     render(<Ring percent={82} size="lg" label="4:06" aria-label="Time left" valueText="4 minutes 6 seconds" />);
     expect(screen.getByRole("progressbar", { name: "Time left" })).toHaveAttribute("aria-valuetext", "4 minutes 6 seconds");
   });

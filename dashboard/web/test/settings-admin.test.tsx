@@ -147,7 +147,7 @@ describe("Appearance", () => {
     await settled(queryClient);
   });
 
-  test("the choices show what is saved, and the colour theme says more are coming", async () => {
+  test("the choices show what is saved, and the color theme says more are coming", async () => {
     const { queryClient } = renderShellAt("/settings/appearance", {
       settings: { appearance: "dark", sidebar: "icons" },
     });

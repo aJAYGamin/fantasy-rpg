@@ -10,7 +10,7 @@ export { MenuItem, type MenuItemProps, MenuLink, type MenuLinkProps, MenuSeparat
 export { PasswordInput, type PasswordInputProps } from "./PasswordInput";
 export { Pill, type PillTone } from "./Pill";
 export { Popover, type PopoverProps, type PopoverTriggerProps } from "./Popover";
-export { Ring, type RingColour, type RingProps } from "./Ring";
+export { Ring, type RingColor, type RingProps } from "./Ring";
 export { Segmented, type SegmentedOption, type SegmentedProps } from "./Segmented";
 export { Toggle, type ToggleProps } from "./Toggle";
 export { Tooltip, type TooltipProps } from "./Tooltip";

@@ -16,8 +16,8 @@ const SIDEBARS = [
   { value: "icons", label: "Icons only" },
 ] as const;
 
-// Amethyst is the only colour theme for now, so the only choice there is is the one in use.
-const COLOUR_THEMES = [
+// Amethyst is the only color theme for now, so the only choice there is is the one in use.
+const COLOR_THEMES = [
   {
     value: "amethyst",
     label: (
@@ -29,7 +29,7 @@ const COLOUR_THEMES = [
   },
 ] as const;
 
-/** Light, dark or the Mac's own setting; the colour theme; and whether the sidebar is folded to icons. */
+/** Light, dark or the Mac's own setting; the color theme; and whether the sidebar is folded to icons. */
 export function AppearanceSection({ settings }: { settings: Settings }) {
   const { saved, problem, save } = useSettingsSaver();
   return (
@@ -43,11 +43,11 @@ export function AppearanceSection({ settings }: { settings: Settings }) {
           onChange={(appearance) => appearance !== settings.appearance && save({ appearance })}
         />
       </SettingRow>
-      <SettingRow title="Colour theme" hint="More themes coming later">
+      <SettingRow title="Color theme" hint="More themes coming later">
         <Segmented
-          label="Colour theme"
-          options={COLOUR_THEMES}
-          value={settings.colourTheme}
+          label="Color theme"
+          options={COLOR_THEMES}
+          value={settings.colorTheme}
           // Amethyst is the only theme, so choosing it again can only change nothing.
           onChange={() => {}}
         />

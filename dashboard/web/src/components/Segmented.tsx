@@ -13,7 +13,7 @@ export type SegmentedProps<T extends string> = {
   label: string;
   disabled?: boolean;
   /**
-   * Greyed and inert, yet still reachable so a tooltip can say why (a `disabled` option gets neither hover nor focus):
+   * Grayed and inert, yet still reachable so a tooltip can say why (a `disabled` option gets neither hover nor focus):
    * the options carry aria-disabled, press and arrow keys change nothing. Point `aria-describedby` at the reason; the
    * group and each option are described by it.
    */
