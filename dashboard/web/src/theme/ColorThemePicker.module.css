@@ -1,0 +1,60 @@
+/* Five gems to a row, each with its name under it (the approved color themes mockup). */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(56px, 1fr));
+  gap: var(--space-2) var(--space-1);
+}
+
+.choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 2px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--dim);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.choice:hover {
+  background: var(--control-hover);
+  color: var(--text);
+}
+
+.choice[aria-checked="true"] {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* A hairline keeps the palest gems (Lunar, Frost) from melting into a white panel. */
+.gem {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+/* The chosen gem is ringed, as well as ticked: two cues, neither of them color alone. */
+.choice[aria-checked="true"] .gem {
+  box-shadow:
+    0 0 0 2px var(--card),
+    0 0 0 4px var(--text);
+}
+
+/* The tick sits in its own small badge, so it reads on a white gem and a black one alike. */
+.check {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 15px;
+  height: 15px;
+  padding: 2px;
+  border-radius: 50%;
+  background: var(--text);
+  color: var(--card);
+}

@@ -1,0 +1,34 @@
+/* signin-v1's .strength: four bars under the password; they fill with the level. */
+
+.meter {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.meter i {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--track);
+  transition: background-color var(--duration-fast) var(--ease);
+}
+
+.meter[data-level="1"] i.on {
+  background: var(--bad);
+}
+
+.meter[data-level="2"] i.on {
+  background: var(--warn);
+}
+
+.meter[data-level="3"] i.on,
+.meter[data-level="4"] i.on {
+  background: var(--ok);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meter i {
+    transition: none;
+  }
+}

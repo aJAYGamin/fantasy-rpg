@@ -1,0 +1,38 @@
+/* The mockups' .pill.ok / .pill.am, with warn, bad and neutral in the same shape. */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.45;
+  white-space: nowrap;
+}
+
+.ok {
+  background: var(--ok-soft);
+  color: var(--ok-ink);
+}
+
+.am {
+  background: var(--am-soft);
+  color: var(--am-text);
+}
+
+.warn {
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+}
+
+.bad {
+  background: var(--bad-soft);
+  color: var(--bad-ink);
+}
+
+.neutral {
+  background: var(--neutral-soft);
+  color: var(--neutral-ink);
+}

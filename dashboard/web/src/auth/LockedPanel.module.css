@@ -1,0 +1,25 @@
+/*
+ * signin-v1's .lock: a centered flex column, like the rest of the form, so the ring's 6px top margin adds to the
+ * lead's 18px below instead of collapsing into it (24px between them).
+ */
+
+.lock {
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+}
+
+.ring {
+  margin: 6px auto 14px;
+}
+
+.note {
+  font-size: var(--text-md);
+  color: var(--dim);
+}
+
+button.tryAgain {
+  margin-top: 18px;
+  padding-block: 10px;
+  font-weight: 600;
+}

@@ -1,0 +1,124 @@
+import { HttpResponse, http } from "msw";
+import { expect, test, vi } from "vitest";
+import { ApiFailure, api, onSignedOut } from "../src/api/client";
+import { captureRequests, server } from "./msw";
+
+const failureOf = (promise: Promise<unknown>) =>
+  promise.then(
+    () => {
+      throw new Error("expected the request to fail");
+    },
+    (error: unknown) => error,
+  );
+
+test("the API client marks state-changing requests", async () => {
+  const seen = captureRequests();
+  await api("POST", "/api/auth/signout");
+  expect(seen[0].headers.get("X-Amethyst-Request")).toBe("1");
+});
+
+test("reads go without the request header", async () => {
+  const seen = captureRequests();
+  await api("GET", "/api/game/status");
+  expect(seen[0].headers.get("X-Amethyst-Request")).toBeNull();
+});
+
+test("a POST without a body still sends an empty JSON object, which the server can read", async () => {
+  // Fastify answers 400 to Content-Type: application/json with an empty body.
+  const seen = captureRequests();
+  await api("POST", "/api/auth/signout");
+  expect(seen[0].headers.get("Content-Type")).toBe("application/json");
+  await vi.waitFor(() => expect(seen[0].body).toEqual({}));
+});
+
+test("a body is sent as JSON and the JSON answer comes back", async () => {
+  const seen = captureRequests();
+  const settings = await api<{ appearance: string }>("PATCH", "/api/settings", { appearance: "dark" });
+  expect(settings.appearance).toBe("dark");
+  await vi.waitFor(() => expect(seen[0].body).toEqual({ appearance: "dark" }));
+});
+
+test("an upload goes as it is: the request header, the file, and no JSON content type of its own", async () => {
+  // The browser writes the multipart Content-Type itself, with the boundary; a JSON one would break the upload.
+  const seen = captureRequests();
+  const form = new FormData();
+  form.append("file", new File([new Uint8Array(8)], "me.png", { type: "image/png" }));
+  await expect(api("PUT", "/api/account/avatar", form)).resolves.toBeUndefined();
+  expect(seen[0].method).toBe("PUT");
+  expect(seen[0].headers.get("X-Amethyst-Request")).toBe("1");
+  expect(seen[0].headers.get("Content-Type")).toBeNull();
+  expect(seen[0].body).toBe(form);
+});
+
+test("an answer with no content resolves with nothing", async () => {
+  await expect(api("POST", "/api/auth/signout")).resolves.toBeUndefined();
+});
+
+test("a refusal carries the status and the server's error body", async () => {
+  const refusal = { error: "wrong_password", message: "That password isn't right.", triesLeft: 3 };
+  server.use(http.post("/api/auth/signin", () => HttpResponse.json(refusal, { status: 401 })));
+  const failure = await failureOf(api("POST", "/api/auth/signin", { username: "owner", password: "nope" }));
+  expect(failure).toBeInstanceOf(ApiFailure);
+  expect(failure).toMatchObject({ status: 401, body: refusal });
+});
+
+test("an error page that isn't JSON still becomes an error the app can show", async () => {
+  server.use(http.get("/api/settings", () => new HttpResponse("Bad gateway", { status: 502 })));
+  const failure = await failureOf(api("GET", "/api/settings"));
+  expect(failure).toMatchObject({ status: 502, body: { error: "server_error" } });
+  expect((failure as ApiFailure).body.message).not.toBe("");
+});
+
+test("an unreachable server becomes an error the app can show", async () => {
+  server.use(http.get("/api/settings", () => HttpResponse.error()));
+  const failure = await failureOf(api("GET", "/api/settings"));
+  expect(failure).toMatchObject({ status: 0, body: { error: "network_error" } });
+});
+
+test("a signed_out answer from any route is reported; other 401s are not", async () => {
+  const heard = vi.fn();
+  const stop = onSignedOut(heard);
+  try {
+    server.use(
+      http.get("/api/notifications", () =>
+        HttpResponse.json({ error: "signed_out", message: "Please sign in." }, { status: 401 }),
+      ),
+      http.post("/api/auth/signin", () =>
+        HttpResponse.json({ error: "wrong_password", message: "That password isn't right." }, { status: 401 }),
+      ),
+    );
+    await failureOf(api("POST", "/api/auth/signin", { username: "owner", password: "nope" }));
+    expect(heard).not.toHaveBeenCalled();
+    await failureOf(api("GET", "/api/notifications"));
+    expect(heard).toHaveBeenCalledTimes(1);
+  } finally {
+    stop();
+  }
+});
+
+test("a refusal says how far the server's clock is from this computer's, from the Date header", async () => {
+  const refusal = { error: "locked", message: "Too many tries.", lockedUntil: "2026-10-19T10:05:00.000Z" };
+  const answerWith = (date: string | undefined) =>
+    server.use(
+      http.post("/api/auth/signin", () =>
+        HttpResponse.json(refusal, { status: 423, headers: date === undefined ? undefined : { Date: date } }),
+      ),
+    );
+  const offsetFor = async () =>
+    ((await failureOf(api("POST", "/api/auth/signin", { username: "owner", password: "x" }))) as ApiFailure).clockOffset;
+
+  // A server 90 seconds ahead (the header has whole-second precision, so allow a second either way).
+  answerWith(new Date(Date.now() + 90_000).toUTCString());
+  expect(Math.abs((await offsetFor()) - 90_000)).toBeLessThanOrEqual(1_000);
+  // A server 90 seconds behind.
+  answerWith(new Date(Date.now() - 90_000).toUTCString());
+  expect(Math.abs((await offsetFor()) + 90_000)).toBeLessThanOrEqual(1_000);
+  // Clocks that agree to within what the header can tell are treated as agreeing.
+  answerWith(new Date().toUTCString());
+  expect(await offsetFor()).toBe(0);
+  // No header, or one that can't be read: no correction.
+  answerWith(undefined);
+  expect(await offsetFor()).toBe(0);
+  answerWith("not a date");
+  expect(await offsetFor()).toBe(0);
+});

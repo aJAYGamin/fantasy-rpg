@@ -1,0 +1,52 @@
+/* A card lifted off the page: the mockups' card surface and line, with the sign-in screen's soft shadow. */
+
+.root {
+  position: relative;
+  display: inline-flex;
+}
+
+.panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  z-index: 50;
+  min-width: 220px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
+  animation: pop-in var(--duration-fast) var(--ease);
+}
+
+.bare {
+  padding: 0;
+}
+
+/* The panel only takes focus so keyboard users start inside it; it needs no ring of its own. */
+.panel:focus-visible {
+  box-shadow: var(--shadow-pop);
+}
+
+.end {
+  right: 0;
+  transform-origin: top right;
+}
+
+.start {
+  left: 0;
+  transform-origin: top left;
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel {
+    animation: none;
+  }
+}

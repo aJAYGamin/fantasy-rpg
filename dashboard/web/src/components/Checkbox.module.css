@@ -1,0 +1,77 @@
+/* signin-v1's .chk / .box (on) and location-v2's .box (off). */
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-md);
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.box {
+  position: relative;
+  display: block;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+.input {
+  display: block;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 1.5px solid var(--check-border);
+  border-radius: 4px;
+  background: var(--input-bg);
+  cursor: pointer;
+  appearance: none;
+  transition:
+    background-color var(--duration-fast) var(--ease),
+    border-color var(--duration-fast) var(--ease),
+    box-shadow var(--duration-fast) var(--ease);
+}
+
+.input:hover:not(:disabled) {
+  border-color: var(--am);
+}
+
+/* The fill shows through a transparent --am-edge; a pale color theme's fill gets a deeper one. */
+.input:checked {
+  border-color: var(--am-edge);
+  background: var(--am-fill);
+}
+
+.tick {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  color: var(--on-am);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-fast) var(--ease);
+}
+
+.input:checked + .tick {
+  opacity: 1;
+}
+
+.input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.input:checked:disabled + .tick {
+  opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .input,
+  .tick {
+    transition: none;
+  }
+}

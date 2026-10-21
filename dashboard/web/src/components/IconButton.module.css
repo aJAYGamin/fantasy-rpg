@@ -1,0 +1,54 @@
+/* The mockups' .iconbtn: a 34 px square, 7 px radius, dim 18 px outline icon. IconLink wears the same. */
+
+.iconButton {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--dim);
+  font-weight: 400;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease),
+    border-color var(--duration-fast) var(--ease),
+    color var(--duration-fast) var(--ease),
+    box-shadow var(--duration-fast) var(--ease);
+}
+
+.iconButton svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.8;
+}
+
+.bordered {
+  border-color: var(--line);
+}
+
+.iconButton:hover:not(:disabled) {
+  background: var(--control-hover);
+  color: var(--text);
+  text-decoration: none;
+}
+
+/* While its menu or panel is open, the button stays lit. */
+.iconButton[aria-expanded="true"] {
+  background: var(--control-hover);
+  color: var(--text);
+}
+
+.iconButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .iconButton {
+    transition: none;
+  }
+}

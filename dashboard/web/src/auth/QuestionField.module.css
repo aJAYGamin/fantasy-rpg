@@ -1,0 +1,23 @@
+/* signin-v1's .qnum: the question's number in a small lilac circle. */
+
+.number {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--am-soft);
+  color: var(--am-text);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+/* signin-v1's .q: 10px above, 4px between the question and its answer, nothing below (the next .q brings its own). */
+.question {
+  margin-top: 10px;
+}
+
+.question label {
+  margin-bottom: 4px;
+}

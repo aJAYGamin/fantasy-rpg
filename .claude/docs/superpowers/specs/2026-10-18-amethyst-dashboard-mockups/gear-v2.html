@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Gear mockup v2</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cinzel:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --side:#1E1230; --side2:#281A3F; --sideText:#B9A9D6; --sideHead:#7E6AA3;
+    --bg:#F5F3F9; --card:#FFFFFF; --line:#E7E2F0; --text:#2A2238; --dim:#7A7090;
+    --am:#7E4FE0; --am2:#9C6BF5; --amSoft:#EFE7FF; --gold:#C9962B; --ok:#2E9E5B; --okSoft:#E3F5EA; --warn:#D9822B; --bad:#C6455E; --badSoft:#FBE9ED;
+    --aria:#3D8FE0; --kael:#D84545; --lyra:#4CAF50;
+  }
+  *{box-sizing:border-box} body{margin:0;font:14px/1.45 Inter,system-ui,sans-serif;color:var(--text);background:var(--bg);display:flex;min-height:100vh}
+  svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  /* sidebar */
+  .side{width:250px;background:var(--side);color:var(--sideText);display:flex;flex-direction:column;flex-shrink:0}
+  .brand{display:flex;align-items:center;gap:10px;padding:20px 20px 16px;color:#fff;font-weight:700;font-size:17px}
+  .brand .gem{width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#C9A8FF,#7E4FE0 60%,#4B2A99);box-shadow:0 0 0 3px rgba(156,107,245,.25)}
+  .brand small{font-size:10px;background:var(--side2);color:#C9A8FF;padding:2px 6px;border-radius:4px;font-weight:600}
+  .filter{margin:6px 18px 10px;padding:9px 12px;border:1px dashed #4A3868;border-radius:6px;color:#7E6AA3;font-size:13px}
+  .grp{font-size:11px;letter-spacing:.12em;color:var(--sideHead);padding:18px 20px 6px;font-weight:600}
+  .nav{display:flex;align-items:center;gap:12px;padding:10px 20px;color:var(--sideText);font-weight:500}
+  .nav.on{background:var(--side2);color:#fff;border-left:3px solid var(--am2);padding-left:17px}
+  .nav .tag{margin-left:auto;font-size:10px;padding:2px 6px;border-radius:4px;background:#3A2A55;color:#C9A8FF}
+  .nav .tag.dev{background:#3A2A2A;color:#E9B36A}
+  /* main */
+  main{flex:1;display:flex;flex-direction:column;min-width:0}
+  .top{height:64px;background:var(--card);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px;padding:0 28px}
+  .iconbtn{width:34px;height:34px;border:1px solid var(--line);border-radius:7px;display:grid;place-items:center;color:var(--dim)}
+  .search{color:#A79DBA}
+  .tools{margin-left:auto;display:flex;gap:18px;align-items:center;color:var(--dim)} .tools>svg{display:block}
+  .bell{position:relative;display:inline-flex;align-items:center}.bell b{position:absolute;top:-7px;right:-9px;background:var(--am);color:#fff;font-size:10px;border-radius:9px;padding:1px 5px}
+  .avatar{width:34px;height:34px;border-radius:50%;background:var(--amSoft);color:var(--am);display:grid;place-items:center;font-weight:700}
+  .page{padding:24px 28px;display:flex;flex-direction:column;gap:20px}
+  .head{display:flex;align-items:flex-end;justify-content:space-between}
+  .head h1{margin:0;font-size:16px;letter-spacing:.06em}
+  .crumbs{color:var(--dim);font-size:13px;margin-top:4px}
+  .mini{display:flex;gap:28px}.mini div{font-size:11px;color:var(--dim);letter-spacing:.08em}.mini b{display:block;font-size:17px;color:var(--text);letter-spacing:0;margin-top:2px}
+  .mini b.gold{color:var(--gold)} .mini b.am{color:var(--am)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px}
+  .card>.ch{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line);font-weight:600}
+  .card>.ch em{font-style:italic;font-weight:500}
+  .cb{padding:16px 18px}
+  .pill{font-size:12px;padding:3px 10px;border-radius:999px;font-weight:600}
+  .pill.ok{background:var(--okSoft);color:var(--ok)} .pill.am{background:var(--amSoft);color:var(--am)}
+  .grid2{display:grid;grid-template-columns:1.25fr 1fr;gap:20px}
+  .kv{display:grid;grid-template-columns:140px 1fr;row-gap:10px;column-gap:12px}
+  .kv span{color:var(--dim)} .kv b{font-weight:600}
+  .ok{color:var(--ok)}
+  /* stat strip */
+  .strip{display:grid;grid-template-columns:repeat(4,1fr)}
+  .strip>div{display:flex;align-items:center;gap:12px;padding:16px 18px;border-right:1px solid var(--line)} .strip>div:last-child{border-right:0}
+  .ring{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-weight:600;font-size:13px;background:conic-gradient(var(--c) calc(var(--p)*1%),#ECE8F3 0)}
+  .ring i{width:38px;height:38px;border-radius:50%;background:#fff;display:grid;place-items:center;font-style:normal}
+  .strip .lbl{font-size:12px;letter-spacing:.06em;color:var(--dim);font-weight:600}
+  .strip .val{font-size:15px;font-weight:600}
+  /* party */
+  .party{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .hero{border:1px solid var(--line);border-radius:9px;padding:14px;border-top:3px solid var(--hc)}
+  .hero h3{margin:0 0 2px;font-size:15px;color:var(--hc)} .hero .sub{font-size:12px;color:var(--dim);margin-bottom:12px}
+  .bars div{margin-bottom:9px} .bars .l{display:flex;justify-content:space-between;font-size:12px;color:var(--dim);margin-bottom:3px}
+  .track{height:7px;border-radius:4px;background:#EEEAF4;overflow:hidden}.track i{display:block;height:100%;border-radius:4px}
+  /* quick actions */
+  .qa{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 12px;border:1px solid var(--line);border-radius:8px;background:#FAF8FD;font-weight:500}
+  .btn.primary{background:var(--am);border-color:var(--am);color:#fff}
+  .btn.danger{color:var(--bad);border-color:#F1C9D2;background:var(--badSoft)}
+  .sel{display:flex;gap:8px}.sel .inp{flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:8px;color:var(--dim);display:flex;justify-content:space-between}
+  .feed div{display:flex;gap:10px;padding:9px 0;border-bottom:1px dashed var(--line);font-size:13px}.feed div:last-child{border-bottom:0}
+  .feed time{color:var(--dim);width:58px;flex-shrink:0}
+  .dot{width:8px;height:8px;border-radius:50%;margin-top:6px;flex-shrink:0}
+  .note{font-size:12px;color:var(--dim);margin-top:10px}
+</style></head>
+<style>
+  main{position:relative}
+  .page{padding-bottom:90px}
+  .info{background:var(--amSoft);border:1px solid #DCCBFF;color:#4B2A99;border-radius:8px;padding:10px 14px;font-size:13px}
+  .herotabs{display:flex;gap:10px;align-items:center}
+  .ht{display:flex;align-items:center;gap:8px;padding:9px 16px;border:1px solid var(--line);border-radius:9px;background:var(--card);font-weight:600}
+  .ht small{font-weight:500;color:var(--dim)}
+  .ht .hd{width:10px;height:10px;border-radius:50%;background:var(--hc)}
+  .ht.on{border-color:var(--hc);box-shadow:inset 0 -3px 0 var(--hc)}
+  .ht-actions{margin-left:auto;display:flex;gap:8px}
+  .btn.sm{padding:7px 12px;font-size:13px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1.1fr;gap:20px;align-items:start}
+  .hint{font-size:12px;color:var(--dim);font-weight:500}
+  .form{display:flex;flex-direction:column;gap:10px}
+  .form label{display:grid;grid-template-columns:100px 1fr;align-items:center;gap:10px;color:var(--dim);font-size:13px}
+  .field{display:flex;align-items:center;gap:8px}
+  .field input{width:90px;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font:inherit;color:var(--text);background:#FCFBFE}
+  .unit{font-size:12px;color:var(--dim)}
+  .was{font-size:12px;color:var(--gold);font-weight:600}
+  .edited input{border-color:var(--am);background:var(--amSoft);color:#4B2A99;font-weight:600}
+  .edited .sn,.form label.edited{color:#4B2A99;font-weight:600}
+  .slider{display:flex;align-items:center;gap:10px}.slider span{font-size:12px;color:var(--text)}
+  .sl-track{position:relative;width:130px;height:6px;border-radius:3px;background:#ECE8F3}.sl-track i{display:block;height:100%;border-radius:3px;background:var(--am2)}
+  .sl-track b{position:absolute;top:-5px;width:16px;height:16px;margin-left:-8px;border-radius:50%;background:#fff;border:2px solid var(--am)}
+  .stat{display:grid;grid-template-columns:72px 90px 1fr;align-items:center;gap:10px;padding:6px 0;border-bottom:1px dashed var(--line)}
+  .stat .sn{color:var(--dim);font-size:13px}.stat .br{font-size:12px;color:var(--dim)}.stat .br.was{color:var(--gold)}
+  .mv-actions{display:flex;gap:8px;margin-bottom:10px}
+  .mvgrp{font-size:11px;letter-spacing:.1em;color:var(--dim);font-weight:600;margin:10px 0 4px}
+  .mv{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:13px;border-bottom:1px solid #F3F0F8}
+  .mv .tg{width:30px;height:17px;border-radius:9px;background:#DCD6E6;position:relative;flex-shrink:0}
+  .mv .tg::after{content:"";position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:#fff}
+  .mv .tg.on{background:var(--am)}.mv .tg.on::after{left:15px}
+  .mv .eq{font-size:10px;padding:1px 6px;border-radius:4px;background:var(--okSoft);color:var(--ok);font-weight:600}
+  .mv .lv{margin-left:auto;font-size:12px;color:var(--dim)}.mv .lv b{color:var(--gold)}
+  .mv.edited{background:var(--amSoft);border-radius:6px;padding-left:6px;padding-right:6px}
+  .more{font-size:12px;color:var(--am);margin-top:8px}
+  .applybar{position:sticky;bottom:0;display:flex;align-items:center;gap:10px;padding:14px 28px;background:var(--card);border-top:1px solid var(--line);box-shadow:0 -4px 14px rgba(42,34,56,.06)}
+  .pending{margin-right:auto;font-size:13px;color:var(--dim)}.pending b{color:#fff;background:var(--am);border-radius:10px;padding:1px 7px;margin-right:4px}
+  .nav.on{background:var(--side2)}
+</style>
+<style>
+  .gcols{display:grid;grid-template-columns:1fr 1.15fr;gap:20px;align-items:start}
+  .slots{display:flex;flex-direction:column;gap:10px}
+  .gslot{display:grid;grid-template-columns:96px 1fr auto auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:#FCFBFE}
+  .gslot .sl{font-size:11px;letter-spacing:.08em;color:var(--dim);font-weight:600}
+  .gp{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+  .gp b{font-weight:600}.bon{font-size:12px;color:var(--dim)}
+  .chg{font-size:11px;color:var(--gold);font-weight:600;width:100%;padding-left:18px}
+  .rar{width:10px;height:10px;border-radius:3px;background:var(--r);flex-shrink:0}
+  .gslot.edited{border-color:var(--am);background:var(--amSoft)}
+  .gslot.empty{border-style:dashed}.emp{color:#A79DBA}
+  .effect{margin:0 18px 16px;padding:12px 14px;border-radius:9px;background:#FAF8FD;border:1px solid var(--line)}
+  .eh{font-size:12px;color:var(--dim);font-weight:600;margin-bottom:6px}
+  .ev{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;color:var(--dim)}.ev b{color:var(--text)}
+  .ev .up b{color:#4B2A99}.ev i{font-style:normal;color:var(--ok);font-weight:600;font-size:12px}
+  .ftabs{display:flex;gap:4px;margin-bottom:8px}.ftabs span{padding:5px 11px;border-radius:7px;font-weight:500;color:var(--dim);font-size:13px}
+  .ftabs span i{font-style:normal;font-size:11px;background:#EEEAF4;border-radius:8px;padding:0 6px;margin-left:4px}
+  .ftabs span.on{background:var(--amSoft);color:#4B2A99}
+  .sp{display:grid;grid-template-columns:1fr 110px 120px 30px;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid #F3F0F8}
+  .sp b{display:block;font-weight:600;font-size:13px}.sp small{font-size:12px;color:var(--dim)}
+  .sp .new{font-style:normal;font-size:10px;background:var(--okSoft);color:var(--ok);padding:1px 6px;border-radius:4px;margin-left:6px}
+  .sp.added{background:#F3FBF6}
+  .who{font-size:12px;font-weight:600}.who.ok2{color:var(--ok)}.who.no{color:var(--bad)}
+  .btn.dis{opacity:.45}
+  .del{color:#C9A3AE;text-align:center}
+  .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--dim);margin-top:12px}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--r);margin-right:5px;vertical-align:-1px}
+  .chr{display:flex;gap:10px;align-items:center}
+  .nav.on{background:var(--side2)}
+  .gem{width:22px;height:22px;image-rendering:pixelated;flex-shrink:0}.gem.sm{width:16px;height:16px;vertical-align:-3px;margin-right:4px}
+  .rt{font-style:normal;font-size:11px;font-weight:700;letter-spacing:.02em}
+  .rt.common{color:#6B7280}.rt.uncommon{color:#1E9A3C}.rt.rare{color:#2546D6}.rt.epic{color:#7B2CD6}.rt.mythic{color:#CC1F2D}.rt.legendary{color:#B8920C}.rt.celestial{color:#1F9BD8}
+  .spn{display:flex;align-items:center;gap:10px}.spn b{display:inline!important;margin-right:6px} .spn small{display:block;margin-top:2px}
+  .gp .rt{margin-left:2px}
+</style>
+</head><body>
+  <aside class="side">
+    <div class="brand"><div class="gem"></div>Amethyst Dashboard <small>dev</small></div>
+    <div class="filter">Filter</div>
+    <div class="grp">OVERVIEW</div>
+    <div class="nav"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Overview</div>
+    <div class="grp">DEBUG</div>
+    <div class="nav"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M15 20c0-2.5 1.5-4.5 4-4.5"/></svg>Party</div>
+    <div class="nav"><svg viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>Inventory</div>
+    <div class="nav on"><svg viewBox="0 0 24 24"><path d="M14 4l6 6-9 9-6-6z"/><path d="M4 20l3-3"/></svg>Gear</div>
+    <div class="nav"><svg viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>Location</div>
+    <div class="grp">ADMIN</div>
+    <div class="nav"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v5c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V7z"/></svg>Admin <span class="tag dev">In development</span></div>
+  </aside>
+  <main>
+    <div class="top">
+      <div class="iconbtn"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></div>
+      <div class="search">Search for anything — a hero, an item, a map…</div>
+      <div class="tools">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1A2 2 0 1 1 4.3 17l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1A2 2 0 1 1 7 4.3l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1A2 2 0 1 1 19.7 7l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        <svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="8.5" cy="10" r="1.2"/><circle cx="12" cy="7.5" r="1.2"/><circle cx="15.5" cy="10" r="1.2"/></svg>
+        <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+        <span class="bell"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg><b>3</b></span>
+        <div class="avatar">Y</div>
+      </div>
+    </div>
+    <div class="page">
+      <div class="head">
+        <div><h1>GEAR</h1><div class="crumbs">Dashboard / Debug / Gear</div></div>
+        <span class="pill ok">● Exploring · changes can be applied</span>
+      </div>
+
+      <div class="info">Changes you apply here stay if you save the game. <b>Reset to before debugging</b> on the Overview rewinds everything to before your first Apply.</div>
+
+      <div class="herotabs">
+        <div class="ht on" style="--hc:var(--aria)"><span class="hd"></span>Aria <small>Mage · Water · Lv 7</small></div>
+        <div class="ht" style="--hc:var(--kael)"><span class="hd"></span>Kael <small>Warrior · Fire · Lv 7</small></div>
+        <div class="ht" style="--hc:var(--lyra)"><span class="hd"></span>Lyra <small>Healer · Wind · Lv 7</small></div>
+      </div>
+
+      <div class="gcols">
+        <div class="card">
+          <div class="ch"><em>Equipped on Aria</em><span class="hint">1 weapon · 1 armor · 3 accessories</span></div>
+          <div class="cb slots">
+            <div class="gslot edited"><span class="sl">WEAPON</span>
+              <div class="gp"><img class="gem" src="gem-Rare.png" alt=""><b>Tidecaller Rod</b><em class="rt rare">Rare</em><span class="bon">MAG +10 · Max MP +8</span><span class="chg">replacing Apprentice Staff</span></div>
+              <span class="btn sm">Change</span><span class="btn sm">Unequip</span></div>
+            <div class="gslot"><span class="sl">ARMOR</span>
+              <div class="gp"><img class="gem" src="gem-Common.png" alt=""><b>Mage Robe</b><em class="rt common">Common</em><span class="bon">ARC +6 · Max MP +6</span></div>
+              <span class="btn sm">Change</span><span class="btn sm">Unequip</span></div>
+            <div class="gslot"><span class="sl">ACCESSORY 1</span>
+              <div class="gp"><img class="gem" src="gem-Rare.png" alt=""><b>Sage Pendant</b><em class="rt rare">Rare</em><span class="bon">MAG +5 · Max MP +10</span></div>
+              <span class="btn sm">Change</span><span class="btn sm">Unequip</span></div>
+            <div class="gslot empty"><span class="sl">ACCESSORY 2</span><div class="gp"><span class="emp">Empty</span></div><span class="btn sm primary">Choose…</span><span></span></div>
+            <div class="gslot empty"><span class="sl">ACCESSORY 3</span><div class="gp"><span class="emp">Empty</span></div><span class="btn sm primary">Choose…</span><span></span></div>
+          </div>
+          <div class="effect">
+            <div class="eh">Aria with this gear</div>
+            <div class="ev"><span>ATK <b>18</b></span><span>DEF <b>16</b></span><span class="up">MAG <b>45</b> <i>+4</i></span><span>ARC <b>26</b></span><span>SPD <b>22</b></span><span>Max HP <b>150</b></span><span class="up">Max MP <b>83</b> <i>+3</i></span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="ch"><em>Spare gear</em><div class="chr"><span class="hint">Shared by the whole party</span><div class="btn sm primary">+ Add gear</div></div></div>
+          <div class="cb">
+            <div class="ftabs"><span class="on">All <i>8</i></span><span>Weapons <i>3</i></span><span>Armor <i>2</i></span><span>Accessories <i>3</i></span></div>
+            <div class="sp"><div class="spn"><img class="gem" src="gem-Common.png" alt=""><div><b>Apprentice Staff</b><em class="rt common">Common</em><small>Weapon · Mage only · MAG +6, Max MP +5</small></div></div><span class="who ok2">Aria can use</span><span class="btn sm">Equip on Aria</span><span class="del">🗑</span></div>
+            <div class="sp"><div class="spn"><img class="gem" src="gem-Common.png" alt=""><div><b>Worn Shortsword</b><em class="rt common">Common</em><small>Weapon · anyone · ATK +3</small></div></div><span class="who ok2">Aria can use</span><span class="btn sm">Equip on Aria</span><span class="del">🗑</span></div>
+            <div class="sp"><div class="spn"><img class="gem" src="gem-Uncommon.png" alt=""><div><b>Iron Greatsword</b><em class="rt uncommon">Uncommon</em><small>Weapon · Warrior only · ATK +8, SPD −1</small></div></div><span class="who no">Warrior only</span><span class="btn sm dis">Equip on Aria</span><span class="del">🗑</span></div>
+            <div class="sp"><div class="spn"><img class="gem" src="gem-Common.png" alt=""><div><b>Leather Vest</b><em class="rt common">Common</em><small>Armor · anyone · DEF +3</small></div></div><span class="who ok2">Aria can use</span><span class="btn sm">Equip on Aria</span><span class="del">🗑</span></div>
+            <div class="sp"><div class="spn"><img class="gem" src="gem-Rare.png" alt=""><div><b>Galewind Cloak</b><em class="rt rare">Rare</em><small>Armor · Wind only · DEF +5, SPD +6</small></div></div><span class="who no">Wind only</span><span class="btn sm dis">Equip on Aria</span><span class="del">🗑</span></div>
+            <div class="sp"><div class="spn"><img class="gem" src="gem-Uncommon.png" alt=""><div><b>Power Ring</b><em class="rt uncommon">Uncommon</em><small>Accessory · anyone · ATK +4</small></div></div><span class="who ok2">Aria can use</span><span class="btn sm">Equip on Aria</span><span class="del">🗑</span></div>
+            <div class="sp"><div class="spn"><img class="gem" src="gem-Uncommon.png" alt=""><div><b>Swift Boots</b><em class="rt uncommon">Uncommon</em><small>Accessory · anyone · SPD +5</small></div></div><span class="who ok2">Aria can use</span><span class="btn sm">Equip on Aria</span><span class="del">🗑</span></div>
+            <div class="sp added"><div class="spn"><img class="gem" src="gem-Legendary.png" alt=""><div><b>Amethyst Sigil <em class="new">new</em></b><em class="rt legendary">Legendary</em><small>Accessory · anyone · ATK, DEF, MAG, ARC, SPD +4</small></div></div><span class="who ok2">Aria can use</span><span class="btn sm">Equip on Aria</span><span class="del">🗑</span></div>
+            <div class="legend"><span><img class="gem sm" src="gem-Common.png" alt=""><em class="rt common">Common</em></span><span><img class="gem sm" src="gem-Uncommon.png" alt=""><em class="rt uncommon">Uncommon</em></span><span><img class="gem sm" src="gem-Rare.png" alt=""><em class="rt rare">Rare</em></span><span><img class="gem sm" src="gem-Epic.png" alt=""><em class="rt epic">Epic</em></span><span><img class="gem sm" src="gem-Mythic.png" alt=""><em class="rt mythic">Mythic</em></span><span><img class="gem sm" src="gem-Legendary.png" alt=""><em class="rt legendary">Legendary</em></span><span><img class="gem sm" src="gem-Celestial.png" alt=""><em class="rt celestial">Celestial</em></span></div>
+            <div class="note">Equipping follows the game's rules: a piece the hero can't wear says why and can't be equipped. Anything can still be added to the spare pile. “+ Add gear” opens a searchable list of all 18 pieces, like Add item.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="applybar">
+      <span class="pending"><b>2</b> changes waiting — Aria equips Tidecaller Rod (Apprentice Staff back to spare); Amethyst Sigil added</span>
+      <div class="btn">Discard edits</div>
+      <div class="btn primary">Apply changes</div>
+    </div>
+  </main>
+</body></html>

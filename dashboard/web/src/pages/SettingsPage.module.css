@@ -1,0 +1,89 @@
+/* The list of sections beside the open one. No mockup shows Settings; this uses the mockups' cards, rows and tones (R36). */
+
+.layout {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-5);
+}
+
+/* Stays in view while a long section (Account) scrolls, just under the top bar (64px, also sticky). */
+.list {
+  position: sticky;
+  top: calc(64px + var(--space-5));
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2);
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-control);
+  color: var(--label);
+  font-weight: 500;
+}
+
+.link svg {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  color: var(--dim);
+  stroke-width: 1.8;
+}
+
+.link:hover {
+  background: var(--control-hover);
+  color: var(--text);
+  text-decoration: none;
+}
+
+/* The section you're in: the lilac tint, with the sidebar's amethyst bar down its left edge. */
+.open,
+.open:hover {
+  background: var(--am-soft);
+  box-shadow: inset 3px 0 0 var(--am);
+  color: var(--am-ink);
+  font-weight: 600;
+}
+
+.open svg {
+  color: var(--am-text);
+}
+
+/* The section you're in keeps its bar while it shows the focus ring. */
+.open:focus-visible {
+  box-shadow: inset 3px 0 0 var(--am), var(--focus-ring);
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 760px;
+}
+
+@media (max-width: 860px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .list {
+    position: static;
+  }
+
+  .nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .content {
+    max-width: none;
+  }
+}

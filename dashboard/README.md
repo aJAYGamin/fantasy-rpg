@@ -1,0 +1,82 @@
+# Amethyst Dashboard
+
+A local web dashboard for the Amethyst fantasy RPG: accounts and sign-in, a themed layout (light and dark), search, notifications, settings and the debug pages. Later it connects to the Godot game; for now the debug pages show "waiting for the game".
+
+It is one npm package with three parts:
+
+- `shared/` constants and types used by both sides
+- `server/` a small Fastify server with a local SQLite database, reached only through `/api`
+- `web/` the React app, built with Vite
+
+## Run it
+
+```sh
+npm install
+npm run dev      # starts the server (port 4517) and Vite together
+```
+
+Then open <http://localhost:5173>. Vite forwards `/api` to the server on port 4517, so leave `AMETHYST_PORT` unset with `npm run dev`.
+
+The first visit asks you to create the owner account. Type your real security answers only into that form; they are stored as one-way hashes and are never written anywhere else.
+
+## Build it and run the built app
+
+```sh
+npm run build    # builds the web app to dist/web and the server to dist/server
+npm start        # runs the built server, which also serves dist/web (http://127.0.0.1:4517)
+```
+
+## Test it
+
+```sh
+npm run typecheck
+npm test         # unit and component tests (Vitest)
+```
+
+The end-to-end tests drive the built app in Chromium (1440 × 900):
+
+```sh
+npx playwright install chromium   # once
+npm run build && npm run e2e      # e2e tests what the last build made, so build first
+```
+
+`npm run e2e` starts its own servers, one per spec file (ports 4618 and 4619), each with an empty database in a fresh temporary folder that is removed afterwards. They run with `NODE_ENV=test` and `AMETHYST_LOCK_SECONDS=3`, so the sign-in and reset pauses last 3 seconds instead of 5 minutes; the server honors that setting only when `NODE_ENV` is `test`. A failed run leaves its traces in `test-results/`.
+
+Before calling a stage done, walk through the play-test checklist in [docs/stage1-playtest.md](docs/stage1-playtest.md).
+
+## Color themes
+
+The twenty color themes are the game's cursor colors. Their exact shades live in `web/src/theme/palettes.ts` (copied from the cursor art reference); `web/src/theme/themeTokens.ts` works out each theme's colors from them, and `web/src/theme/colorThemes.css` is the result. After changing `tokens.css`, `palettes.ts` or `themeTokens.ts`, rebuild that file:
+
+```bash
+npm run color-themes
+```
+
+A test fails until the file matches, and the contrast test checks every color pair in all twenty themes, light and dark.
+
+## Where things live
+
+The database is the file `data/amethyst.db`, created on first run (from this folder). It holds the account, sessions, settings and notifications, and is never committed. The server prints its full path as it starts. These environment variables change the defaults:
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `AMETHYST_PORT` | `4517` | The server's port |
+| `AMETHYST_HOST` | `127.0.0.1` | The address it listens on |
+| `AMETHYST_DB` | `data/amethyst.db` | The database file |
+| `AMETHYST_WEB_DIST` | `dist/web` with `npm start`, none in development | A built web app for the server to serve |
+| `AMETHYST_SECURE_COOKIES` | off | `1` marks the sign-in cookie Secure (only for HTTPS) |
+| `AMETHYST_ALLOWED_HOSTS` | none | More host names the server answers to, comma-separated (e.g. `mac-mini.local,dash.lan`) |
+
+The server only answers requests addressed to `localhost`, `127.0.0.1`, `[::1]` or the `AMETHYST_HOST` it listens on (unless that is `0.0.0.0` or `::`), whatever the port. Any other host name gets a 403, so a web page elsewhere can't reach this server by pointing one of its own names at your Mac (DNS rebinding). To open the dashboard under another name, add that name to `AMETHYST_ALLOWED_HOSTS`.
+
+## Forgot everything?
+
+If you've lost both your password and your security answers, there is no way back into the account; start again instead:
+
+1. Stop the server (Ctrl+C in Terminal).
+2. Delete the database file, `data/amethyst.db` (or the file `AMETHYST_DB` names), with `amethyst.db-wal` and `amethyst.db-shm` beside it if they are there. This loses the account, its settings and its notifications.
+3. Start the server again. The first visit asks you to create the account again.
+
+## Run it on this Mac only, for now
+
+The server listens on `127.0.0.1` so only this computer can reach it. Do not expose it to a network yet: it has no HTTPS, and the sign-in protections assume a trusted machine.

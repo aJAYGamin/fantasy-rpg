@@ -1,0 +1,227 @@
+/*
+ * Amethyst Dashboard design tokens. Every color in the app comes from here; components never hard-code one.
+ * The first block of each theme is copied from the approved mockups (overview-v3 / overview-dark-v1).
+ * The second block holds the in-between shades the mockups use for controls (button fill, input fill,
+ * placeholder, tracks, borders), taken from the same files; where a mockup shows only one theme, the other
+ * theme's value is chosen to sit in the same place on its own palette.
+ *
+ * Every text color reads at WCAG AA (4.5:1) on the surfaces it sits on, and control tracks and boundaries
+ * at 3:1 (theme.test.tsx checks each pair). Where a mockup shade fell short it was moved the smallest step
+ * on the same hue: light --dim (was #7a7090), the *-ink text tokens, the placeholder, the off switch and the
+ * checkbox border. --am-fill is the amethyst behind white text in both themes (dark --am is too light for it).
+ * The keyboard focus ring is a solid 2px --focus-line (3:1 or better on cards and the page) with the soft
+ * halo outside it; --focus-ring-filled is the same with a 2px card-colored gap inside, for filled buttons,
+ * whose own fill would otherwise swallow the ring. The --brand-* shades are the sign-in screens' plum panel (signin-v1's .brandside); its
+ * small footer line is lifted from the mockup's #7e6aa3 to read at 4.5:1 on the gradient.
+ * The --side-* shades are the sidebar's (deep plum in both themes). Its group labels, --side-head, are lifted on the
+ * same hue from the mockups' #7e6aa3 / #6e5b94 (3.8:1 / 3.4:1) to 4.5:1. The filter's dashed edge, --side-edge, is
+ * the mockups' #4a3868 lifted on its hue to 3:1 (it was 1.7:1 / 1.9:1); --side-line keeps that shade for the folded
+ * rail's dividers. The brand and badge tags are the mockups' own; --side-hover (no mockup shows one) sits between
+ * --side and --side2.
+ */
+
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  --side: #1e1230;
+  --side2: #281a3f;
+  --side-text: #b9a9d6;
+  --side-head: #8a78ac;
+  --bg: #f5f3f9;
+  --card: #ffffff;
+  --line: #e7e2f0;
+  --text: #2a2238;
+  --dim: #716785;
+  --am: #7e4fe0;
+  --am2: #9c6bf5;
+  --am-soft: #efe7ff;
+  --gold: #c9962b;
+  --warn: #d9822b;
+  --ok: #2e9e5b;
+  --ok-soft: #e3f5ea;
+  --bad: #c6455e;
+  --bad-soft: #fbe9ed;
+  --aria: #3d8fe0;
+  --kael: #d84545;
+  --lyra: #4caf50;
+
+  --on-am: #ffffff;
+  --am-fill: #7e4fe0;
+  --am-fill-hover: #6e40d6;
+  /* Filled shapes: --am-edge is drawn round them where a theme's fill is too pale for the card (none here), and an
+     on switch's track is --am-switch (here the same purple the mockups give it). */
+  --am-edge: transparent;
+  --am-switch: #7e4fe0;
+  /* An off switch's knob; an on one wears --on-am, which a bright theme makes dark. */
+  --knob-off: #ffffff;
+  --ok-ink: #247d48;
+  --bad-ink: #bf3b54;
+  --am-ink: #4b2a99;
+  --am-text: #7a4adf;
+  --am-line: #dccbff;
+  --ok-line: #bfe6cd;
+  --bad-line: #f1c9d2;
+  --warn-soft: #fdebdd;
+  --warn-ink: #a6571a;
+  --neutral-soft: #eeeaf4;
+  --neutral-ink: #6a5f80;
+  --label: #4a405c;
+  --control-bg: #faf8fd;
+  --control-hover: #f3f0f8;
+  --input-bg: #fcfbfe;
+  --placeholder: #73658f;
+  --row-line: #f3f0f8;
+  --track: #ece8f3;
+  --toggle-off: #8f86a3;
+  --check-border: #9188a5;
+  --disabled-bg: #cfc5e0;
+  --disabled-ink: #ffffff;
+  --scrollbar: #d6cde6;
+  --scrollbar-hover: #b9aed0;
+  --overlay: rgba(30, 18, 48, 0.45);
+  --gem: radial-gradient(circle at 35% 30%, #c9a8ff, #7e4fe0 60%, #4b2a99);
+  --gem-glow: 0 0 0 3px rgba(156, 107, 245, 0.25);
+
+  --side-strong: #ffffff;
+  --side-hover: #231636;
+  --side-line: #4a3868;
+  --side-edge: #7357a2;
+  --side-tag-ink: #c9a8ff;
+  --side-dev-bg: #3a2a2a;
+  --side-dev-ink: #e9b36a;
+  /* The top bar's sun only shows in dark mode (overview-dark-v1's gold); here it is that gold darkened to read on white. */
+  --sun: #8e6a1e;
+
+  --brand-from: #3b2361;
+  --brand-to: #1e1230;
+  --brand-head: #ffffff;
+  --brand-sub: #b9a9d6;
+  --brand-foot: #a090c3;
+  --brand-glow: rgba(156, 107, 245, 0.35);
+
+  --focus-line: #7e4fe0;
+  --focus-tint: rgba(126, 79, 224, 0.15);
+  --focus-halo: 0 0 0 3px var(--focus-tint);
+  --focus-ring: 0 0 0 2px var(--focus-line), 0 0 0 5px var(--focus-tint);
+  --focus-ring-filled: 0 0 0 2px var(--card), 0 0 0 4px var(--focus-line), 0 0 0 7px var(--focus-tint);
+  --bad-halo: 0 0 0 3px rgba(198, 69, 94, 0.15);
+  --shadow-pop: 0 10px 30px rgba(42, 34, 56, 0.15);
+  --shadow-bar: 0 -4px 14px rgba(42, 34, 56, 0.06);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --side: #0d0817;
+  --side2: #1e1433;
+  --side-text: #b3a3d3;
+  --side-head: #8270a7;
+  --bg: #120d1f;
+  --card: #1a1329;
+  --line: #2c2242;
+  --text: #ece4fa;
+  --dim: #9c8fb8;
+  --am: #9c6bf5;
+  --am2: #b48cff;
+  --am-soft: #2a1d47;
+  --gold: #e2b54b;
+  --warn: #e6a04f;
+  --ok: #4cc27e;
+  --ok-soft: #17301f;
+  --bad: #ee6f86;
+  --bad-soft: #3a1a24;
+  --aria: #5aa7f5;
+  --kael: #f06a6a;
+  --lyra: #6ccf6e;
+
+  --on-am: #ffffff;
+  --am-fill: #7e4fe0;
+  --am-fill-hover: #8452e4;
+  --am-edge: transparent;
+  --am-switch: #9c6bf5;
+  --knob-off: #ffffff;
+  --ok-ink: #4cc27e;
+  --bad-ink: #ee6f86;
+  --am-ink: #cdb4ff;
+  --am-text: #cdb4ff;
+  --am-line: #3d2b66;
+  --ok-line: #2c5a3b;
+  --bad-line: #5a2533;
+  --warn-soft: #3a2814;
+  --warn-ink: #e6a04f;
+  --neutral-soft: #2c2242;
+  --neutral-ink: #b3a3d3;
+  --label: #cbbfe0;
+  --control-bg: #221936;
+  --control-hover: #2a2040;
+  --input-bg: #150f23;
+  --placeholder: #9085a8;
+  --row-line: #231a36;
+  --track: #2c2242;
+  --toggle-off: #6e6488;
+  --check-border: #6e6488;
+  --disabled-bg: #3a2e52;
+  --disabled-ink: #8f82ab;
+  --scrollbar: #3a2e52;
+  --scrollbar-hover: #4a3a6a;
+  --overlay: rgba(5, 3, 10, 0.65);
+  --gem: radial-gradient(circle at 35% 30%, #c9a8ff, #7e4fe0 60%, #4b2a99);
+  --gem-glow: 0 0 0 3px rgba(156, 107, 245, 0.25);
+
+  --side-strong: #ffffff;
+  --side-hover: #150e25;
+  --side-line: #4a3868;
+  --side-edge: #6c5197;
+  --side-tag-ink: #c9a8ff;
+  --side-dev-bg: #3a2a2a;
+  --side-dev-ink: #e9b36a;
+  --sun: #e2b54b;
+
+  --brand-from: #2a1a47;
+  --brand-to: #0d0817;
+  --brand-head: #ffffff;
+  --brand-sub: #b3a3d3;
+  --brand-foot: #a090c3;
+  --brand-glow: rgba(156, 107, 245, 0.3);
+
+  --focus-line: #9c6bf5;
+  --focus-tint: rgba(156, 107, 245, 0.25);
+  --focus-halo: 0 0 0 3px var(--focus-tint);
+  --focus-ring: 0 0 0 2px var(--focus-line), 0 0 0 5px var(--focus-tint);
+  --focus-ring-filled: 0 0 0 2px var(--card), 0 0 0 4px var(--focus-line), 0 0 0 7px var(--focus-tint);
+  --bad-halo: 0 0 0 3px rgba(238, 111, 134, 0.25);
+  --shadow-pop: 0 10px 30px rgba(0, 0, 0, 0.45);
+  --shadow-bar: 0 -4px 14px rgba(0, 0, 0, 0.35);
+}
+
+/* The same in both themes. */
+:root {
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-brand: "Cinzel", Georgia, serif;
+
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-base: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+
+  --radius-sm: 6px;
+  --radius-control: 8px;
+  --radius-card: 10px;
+  --radius-dialog: 12px;
+  --radius-pill: 999px;
+
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 120ms;
+}

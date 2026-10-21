@@ -1,0 +1,10 @@
+/* party-v4's .info: a lilac strip, 13 px, under the page header. */
+
+.reminder {
+  padding: 10px 14px;
+  border: 1px solid var(--am-line);
+  border-radius: var(--radius-control);
+  background: var(--am-soft);
+  color: var(--am-ink);
+  font-size: var(--text-md);
+}

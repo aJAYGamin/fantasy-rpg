@@ -1,0 +1,66 @@
+/* overview-v3's .avatar: a 34 px amethyst-tinted circle with the initials (or the picture). */
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 50%;
+  background: var(--am-soft);
+  color: var(--am-text);
+  font-size: var(--text-md);
+  font-weight: 700;
+  cursor: pointer;
+  transition: box-shadow var(--duration-fast) var(--ease);
+}
+
+.avatar:hover {
+  box-shadow: 0 0 0 3px var(--am-line);
+}
+
+.avatar:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.menu {
+  min-width: 220px;
+}
+
+.who {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: 6px;
+  padding: 8px 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.name {
+  color: var(--text);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.username {
+  color: var(--dim);
+  font-size: var(--text-md);
+  overflow-wrap: anywhere;
+}
+
+.error {
+  margin: 4px 0 2px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bad-soft);
+  color: var(--bad-ink);
+  font-size: var(--text-md);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .avatar {
+    transition: none;
+  }
+}

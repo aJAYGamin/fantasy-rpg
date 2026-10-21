@@ -1,0 +1,48 @@
+/* overview-v3's .ring (46 px, 4 px band) and signin-v1's lock ring (120 px, 10 px band). */
+
+/* Registered so the filled arc can glide between values instead of jumping. */
+@property --ring-p {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
+.ring {
+  --size: 46px;
+  --band: 4px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  background: conic-gradient(var(--ring-c) calc(var(--ring-p) * 1%), var(--track) 0);
+  font-size: var(--text-md);
+  font-weight: 600;
+  transition: --ring-p 400ms var(--ease);
+}
+
+.inner {
+  display: grid;
+  place-items: center;
+  width: calc(var(--size) - 2 * var(--band));
+  height: calc(var(--size) - 2 * var(--band));
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.lg {
+  --size: 120px;
+  --band: 10px;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ring {
+    transition: none;
+  }
+}

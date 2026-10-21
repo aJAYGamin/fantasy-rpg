@@ -1,0 +1,104 @@
+/* signin-v1's .screen / .brandside / .form at the mockup's own sizes, stretched to fill the window. */
+
+.screen {
+  display: grid;
+  grid-template-columns: 0.9fr 1.1fr;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--card);
+}
+
+.brand {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-8);
+  overflow: hidden;
+  padding: 34px 30px;
+  background: radial-gradient(circle at 30% 20%, var(--brand-from), var(--brand-to) 60%);
+  color: var(--brand-sub);
+}
+
+/* The soft glow in the panel's lower corner. */
+.brand::after {
+  content: "";
+  position: absolute;
+  right: -60px;
+  bottom: -60px;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--brand-glow), transparent 70%);
+  pointer-events: none;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--brand-head);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.gem {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--gem);
+  box-shadow: var(--gem-glow);
+}
+
+.tag {
+  font-family: var(--font-brand);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--brand-head);
+}
+
+.tagsub {
+  max-width: 32em;
+  margin-top: var(--space-2);
+  font-size: var(--text-md);
+  color: var(--brand-sub);
+}
+
+.foot {
+  font-size: var(--text-xs);
+  color: var(--brand-foot);
+}
+
+.formSide {
+  display: flex;
+  padding: 34px 36px;
+}
+
+/* Auto margins center the form in the window, and let a tall one scroll instead of being cut off at the top. */
+.formInner {
+  width: min(100%, 400px);
+  margin: auto;
+}
+
+@media (max-width: 800px) {
+  .screen {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .brand {
+    gap: var(--space-5);
+    padding: var(--space-6);
+  }
+
+  /* Stacked, the form sits right under the panel instead of floating in the middle of what is left. */
+  .formSide {
+    padding: var(--space-6) var(--space-6) var(--space-8);
+  }
+
+  .formInner {
+    margin: 0 auto;
+  }
+}

@@ -1,0 +1,59 @@
+/*
+ * Rows of settings, divided by the hairline party-v4's .mv rows use. The first row sits at the top of the card body
+ * and the last at its bottom, so the card's own padding is the only margin.
+ */
+
+/* The control drops under the text when the card is too narrow for both side by side. */
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-6);
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--row-line);
+}
+
+.text {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.row:first-child,
+.toggleRow:first-child {
+  padding-top: 0;
+}
+
+.row:last-child,
+.toggleRow:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.title {
+  font-weight: 600;
+}
+
+.hint {
+  margin-top: 2px;
+  color: var(--dim);
+  font-size: var(--text-sm);
+}
+
+.control {
+  flex: 0 0 auto;
+  max-width: 100%;
+}
+
+.toggleRow {
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--row-line);
+}
+
+/* Lined up with the name: the switch is 30px wide, then the 10px gap. */
+.toggleHint {
+  margin-top: 2px;
+  padding-left: 40px;
+  color: var(--dim);
+  font-size: var(--text-sm);
+}

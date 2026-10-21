@@ -1,0 +1,218 @@
+/*
+ * overview-v3's .side, .brand, .filter, .grp and .nav: a 250 px deep-plum column, the same in both themes. Text
+ * sits on --side unless a rule gives its own background. Folded, it is a 72 px rail of centered icons.
+ */
+
+/* Above the page (its folded tooltips reach over it) and the top bar (z-index 30). */
+.sidebar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: 250px;
+  height: 100vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--side);
+  color: var(--side-text);
+  scrollbar-color: var(--side-line) transparent;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 20px 16px;
+  color: var(--side-strong);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.gem {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--gem);
+  box-shadow: var(--gem-glow);
+}
+
+.name {
+  min-width: 0;
+}
+
+.dev {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--side2);
+  color: var(--side-tag-ink);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.filterRow {
+  padding: 6px 18px 10px;
+}
+
+.filter {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 9px 12px;
+  border: 1px dashed var(--side-edge);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--side-text);
+  font-size: var(--text-md);
+  line-height: 1.45;
+  appearance: none;
+  transition: border-color var(--duration-fast) var(--ease);
+}
+
+.filter::placeholder {
+  color: var(--side-head);
+  opacity: 1;
+}
+
+.filter:hover:not(:focus) {
+  border-color: var(--side-head);
+}
+
+/* A solid 2px amethyst edge (the border plus a 1px shadow): the field ring's soft halo alone is lost on the plum. */
+.filter:focus,
+.filter:focus-visible {
+  border-style: solid;
+  border-color: var(--am2);
+  box-shadow:
+    0 0 0 1px var(--am2),
+    var(--focus-halo);
+}
+
+.groupLabel {
+  padding: 18px 20px 6px;
+  color: var(--side-head);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1.45;
+  letter-spacing: 0.12em;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The 3 px bar is always there (transparent) so the icon doesn't shift when an item becomes active. */
+.item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px 10px 17px;
+  border-left: 3px solid transparent;
+  border-radius: 0;
+  color: var(--side-text);
+  font-weight: 500;
+  line-height: 1.45;
+  text-decoration: none;
+  transition: background-color var(--duration-fast) var(--ease);
+}
+
+.item:hover {
+  background: var(--side-hover);
+  color: var(--side-text);
+  text-decoration: none;
+}
+
+.active,
+.active:hover {
+  border-left-color: var(--am2);
+  background: var(--side2);
+  color: var(--side-strong);
+}
+
+/* A full-width row: the ring goes inside it rather than spilling over the sidebar's edges. */
+.item:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus-line);
+}
+
+.icon {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.8;
+}
+
+.label {
+  min-width: 0;
+}
+
+.badge {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--side-dev-bg);
+  color: var(--side-dev-ink);
+  font-size: 10px;
+  line-height: 1.45;
+  white-space: nowrap;
+}
+
+.empty {
+  padding: 18px 20px 0;
+  color: var(--side-head);
+  font-size: var(--text-md);
+}
+
+.empty:empty {
+  padding: 0;
+}
+
+/* ---- folded to icons ---- */
+
+.collapsed {
+  width: 72px;
+  /* The tooltips reach out past the rail. */
+  overflow: visible;
+}
+
+.collapsed .brand {
+  justify-content: center;
+  padding: 20px 0 16px;
+}
+
+.collapsed .group + .group::before {
+  content: "";
+  display: block;
+  width: 28px;
+  height: 1px;
+  margin: 10px auto;
+  background: var(--side-line);
+}
+
+.tipAnchor {
+  display: flex;
+}
+
+.tipAnchor > .item {
+  flex: 1;
+}
+
+/* Centered in the rail: the 3 px bar on the left is balanced by 3 px on the right. */
+.collapsed .item {
+  justify-content: center;
+  padding: 11px 3px 11px 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .item,
+  .filter {
+    transition: none;
+  }
+}

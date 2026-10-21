@@ -1,0 +1,10 @@
+.panel {
+  width: 360px;
+}
+
+.title {
+  margin: 0 0 var(--space-3);
+  color: var(--text);
+  font-size: var(--text-md);
+  font-weight: 600;
+}

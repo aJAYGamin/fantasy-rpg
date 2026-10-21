@@ -1,0 +1,33 @@
+/* The mockups' .head: an uppercase 16 px title over a dim breadcrumb, extras bottom-aligned at the right. */
+
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-6);
+}
+
+.titles {
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  line-height: 1.45;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.crumbs {
+  margin-top: var(--space-1);
+  color: var(--dim);
+  font-size: var(--text-md);
+}
+
+.right {
+  display: flex;
+  flex-shrink: 0;
+  align-items: flex-end;
+  gap: var(--space-7);
+}

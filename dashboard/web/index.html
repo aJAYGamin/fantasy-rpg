@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Amethyst Dashboard</title>
+    <!-- Runs before anything paints: applies the light/dark theme and the color theme the last visit left behind, so
+         there's no flash of the wrong one. "Follow my Mac" is resolved from the Mac's setting right now. Keys match
+         ThemeProvider.tsx; the color themes are shared/src/colorThemes.ts's list (a test keeps the two the same). -->
+    <script id="theme-boot">
+      (function () {
+        var theme = "light";
+        var color = "amethyst";
+        var colors = " amethyst arcane rose garnet ember blaze gilded storm terra venom gale grove spirit frost tidal abyss void obsidian steel lunar ";
+        try {
+          var savedColor = localStorage.getItem("amethyst-color");
+          if (savedColor && colors.indexOf(" " + savedColor + " ") !== -1) color = savedColor;
+          var saved = localStorage.getItem("amethyst-theme");
+          if (saved === "light" || saved === "dark") theme = saved;
+          if (localStorage.getItem("amethyst-appearance") === "system" && window.matchMedia) {
+            theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          }
+        } catch (e) {}
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.dataset.color = color;
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

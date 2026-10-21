@@ -1,0 +1,102 @@
+/*
+ * overview-v3's .top: 64 px, the card color, a hairline underneath. The tools are 34 px buttons 2 px apart, so
+ * their 18 px icons sit 36 px apart as the mockup's bare icons do (18 px gaps); the avatar keeps its 18 px gap.
+ */
+
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: 64px;
+  padding: 0 var(--space-7);
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+}
+
+/* The mockup's placeholder text, at the same spot; it gets a field-like wash under the pointer. */
+.search {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  max-width: 440px;
+  height: 34px;
+  margin-left: -10px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--placeholder);
+  font-size: var(--text-base);
+  text-align: left;
+  cursor: text;
+  transition: background-color var(--duration-fast) var(--ease);
+}
+
+.search:hover {
+  background: var(--control-hover);
+  color: var(--dim);
+}
+
+.searchText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tools {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+/* 2 px gap + 8 px = the bell's 8 px of button padding short of the mockup's 18 px between bell and avatar. */
+.avatarSlot {
+  display: flex;
+  margin-left: var(--space-2);
+}
+
+.sun {
+  color: var(--sun);
+}
+
+.bell {
+  position: relative;
+}
+
+/* The panel under the bell: wide enough for a title, two lines of detail and a time on one row. */
+.notifications {
+  width: 380px;
+  max-width: calc(100vw - 2 * var(--space-4));
+}
+
+/*
+ * The mockup's .bell b: 7 px above and 9 px right of the 18 px icon, which sits 8 px inside the 34 px button.
+ * Offsets count from inside the button's 1 px (transparent) border.
+ */
+.badge {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  min-width: 16.5px;
+  padding: 1px 5px;
+  border-radius: 9px;
+  background: var(--am-fill);
+  color: var(--on-am);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.45;
+  text-align: center;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search {
+    transition: none;
+  }
+}

@@ -1,0 +1,11 @@
+/* What goes inside the avatar circle (the top bar's, Settings'): the circle itself belongs to the page using it. */
+
+.initials {
+  line-height: 1;
+}
+
+.picture {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
