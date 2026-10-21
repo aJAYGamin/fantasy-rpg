@@ -3,17 +3,22 @@ import { type ReactNode, useState } from "react";
 import { RouterProvider, createBrowserRouter } from "react-router";
 import { createQueryClient, useAuthState, useSettings, useSignedOutWatcher } from "./api/hooks";
 import { routes } from "./router";
-import { ThemeProvider, storedAppearance } from "./theme/ThemeProvider";
+import { ThemeProvider, storedAppearance, storedColorTheme } from "./theme/ThemeProvider";
 
 export type AppRouter = ReturnType<typeof createBrowserRouter>;
 
-/** Signed in, the account's appearance setting decides; before that (sign-in pages), the last one this browser saw. */
+/** Signed in, the account's appearance and color theme decide; before that (sign-in pages), the last ones this browser saw. */
 function AppTheme({ children }: { children: ReactNode }) {
   const auth = useAuthState();
   const signedIn = Boolean(auth.data?.user);
   const settings = useSettings({ enabled: signedIn });
   const appearance = (signedIn ? settings.data?.appearance : undefined) ?? storedAppearance();
-  return <ThemeProvider appearance={appearance}>{children}</ThemeProvider>;
+  const colorTheme = (signedIn ? settings.data?.colorTheme : undefined) ?? storedColorTheme();
+  return (
+    <ThemeProvider appearance={appearance} colorTheme={colorTheme}>
+      {children}
+    </ThemeProvider>
+  );
 }
 
 function SignedOutWatcher() {

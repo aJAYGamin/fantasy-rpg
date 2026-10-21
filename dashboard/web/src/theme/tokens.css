@@ -49,6 +49,12 @@
   --on-am: #ffffff;
   --am-fill: #7e4fe0;
   --am-fill-hover: #6e40d6;
+  /* Filled shapes: --am-edge is drawn round them where a theme's fill is too pale for the card (none here), and an
+     on switch's track is --am-switch (here the same purple the mockups give it). */
+  --am-edge: transparent;
+  --am-switch: #7e4fe0;
+  /* An off switch's knob; an on one wears --on-am, which a bright theme makes dark. */
+  --knob-off: #ffffff;
   --ok-ink: #247d48;
   --bad-ink: #bf3b54;
   --am-ink: #4b2a99;
@@ -132,6 +138,9 @@
   --on-am: #ffffff;
   --am-fill: #7e4fe0;
   --am-fill-hover: #8452e4;
+  --am-edge: transparent;
+  --am-switch: #9c6bf5;
+  --knob-off: #ffffff;
   --ok-ink: #4cc27e;
   --bad-ink: #ee6f86;
   --am-ink: #cdb4ff;

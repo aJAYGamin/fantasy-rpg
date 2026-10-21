@@ -1,8 +1,8 @@
 import type { Settings } from "../../../../shared/src/api";
 import { Segmented } from "../../components";
+import { ColorThemePicker } from "../../theme/ColorThemePicker";
 import { SectionCard } from "./SectionCard";
 import { SettingRow } from "./SettingRow";
-import styles from "./AppearanceSection.module.css";
 import { useSettingsSaver } from "./useSettingsSaver";
 
 const MODES = [
@@ -14,19 +14,6 @@ const MODES = [
 const SIDEBARS = [
   { value: "expanded", label: "Expanded" },
   { value: "icons", label: "Icons only" },
-] as const;
-
-// Amethyst is the only color theme for now, so the only choice there is is the one in use.
-const COLOR_THEMES = [
-  {
-    value: "amethyst",
-    label: (
-      <>
-        <span className={styles.swatch} aria-hidden="true" />
-        Amethyst
-      </>
-    ),
-  },
 ] as const;
 
 /** Light, dark or the Mac's own setting; the color theme; and whether the sidebar is folded to icons. */
@@ -43,14 +30,8 @@ export function AppearanceSection({ settings }: { settings: Settings }) {
           onChange={(appearance) => appearance !== settings.appearance && save({ appearance })}
         />
       </SettingRow>
-      <SettingRow title="Color theme" hint="More themes coming later">
-        <Segmented
-          label="Color theme"
-          options={COLOR_THEMES}
-          value={settings.colorTheme}
-          // Amethyst is the only theme, so choosing it again can only change nothing.
-          onChange={() => {}}
-        />
+      <SettingRow title="Color theme" hint="The game's twenty cursor colors. Each one recolors the accent and the sidebar.">
+        <ColorThemePicker value={settings.colorTheme} onChange={(colorTheme) => save({ colorTheme })} />
       </SettingRow>
       <SettingRow title="Sidebar" hint="Icons only folds the sidebar to a narrow rail.">
         <Segmented

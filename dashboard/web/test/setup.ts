@@ -23,6 +23,7 @@ afterEach(() => {
   resetMocks();
   localStorage.clear();
   delete document.documentElement.dataset.theme;
+  delete document.documentElement.dataset.color;
   // Each page sets the tab's title; the next test starts without one.
   document.title = "";
 });

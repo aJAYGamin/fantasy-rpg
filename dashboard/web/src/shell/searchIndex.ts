@@ -1,3 +1,4 @@
+import { COLOR_THEMES } from "../../../shared/src/colorThemes";
 import { NAV } from "./nav";
 
 /** The palette draws its results in this order. */
@@ -36,7 +37,8 @@ const SETTINGS_SECTIONS = [
   {
     slug: "appearance",
     label: "Appearance",
-    keywords: ["theme", "dark mode", "light mode", "color", "color", "sidebar"],
+    // Every color theme by name too ("garnet" finds where it's chosen).
+    keywords: ["theme", "dark mode", "light mode", "color", "color theme", "sidebar", ...COLOR_THEMES],
   },
   {
     slug: "account",

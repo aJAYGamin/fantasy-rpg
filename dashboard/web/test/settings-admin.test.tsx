@@ -147,16 +147,26 @@ describe("Appearance", () => {
     await settled(queryClient);
   });
 
-  test("the choices show what is saved, and the color theme says more are coming", async () => {
+  test("the choices show what is saved, including the color theme", async () => {
     const { queryClient } = renderShellAt("/settings/appearance", {
-      settings: { appearance: "dark", sidebar: "icons" },
+      settings: { appearance: "dark", sidebar: "icons", colorTheme: "tidal" },
     });
     expect(screen.getByRole("radio", { name: "Dark" })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("radio", { name: "Light" })).toHaveAttribute("aria-checked", "false");
     expect(screen.getByRole("radio", { name: "Icons only" })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("radio", { name: "Expanded" })).toHaveAttribute("aria-checked", "false");
-    expect(screen.getByRole("radio", { name: "Amethyst" })).toHaveAttribute("aria-checked", "true");
-    expect(screen.getByText("More themes coming later")).toBeVisible();
+    const themes = screen.getByRole("radiogroup", { name: "Color theme" });
+    expect(within(themes).getAllByRole("radio")).toHaveLength(20);
+    expect(within(themes).getByRole("radio", { name: "Tidal" })).toHaveAttribute("aria-checked", "true");
+    await settled(queryClient);
+  });
+
+  test("picking a color theme in Settings saves it, recolors the dashboard and says Saved", async () => {
+    const { queryClient } = renderShellAt("/settings/appearance");
+    await click(screen.getByRole("radio", { name: "Storm" }));
+    expect(document.documentElement.dataset.color).toBe("storm");
+    await waitFor(() => expect(lastRequest("/api/settings")?.body).toEqual({ colorTheme: "storm" }));
+    expect(await screen.findByText("Saved")).toBeVisible();
     await settled(queryClient);
   });
 

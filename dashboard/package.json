@@ -12,8 +12,9 @@
     "build": "vite build && tsc -p tsconfig.build.json",
     "start": "NODE_ENV=production node dist/server/server/src/index.js",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.e2e.json",
-    "e2e": "playwright test"
+    "typecheck": "tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.e2e.json && tsc -p tsconfig.scripts.json",
+    "e2e": "playwright test",
+    "color-themes": "tsx scripts/write-color-themes.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.3",

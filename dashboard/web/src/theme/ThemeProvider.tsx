@@ -1,5 +1,6 @@
 import { type ReactNode, createContext, useContext, useLayoutEffect, useMemo, useSyncExternalStore } from "react";
 import type { Settings } from "../../../shared/src/api";
+import { type ColorTheme, DEFAULT_COLOR_THEME, isColorTheme } from "../../../shared/src/colorThemes";
 
 export type Appearance = Settings["appearance"];
 export type ResolvedTheme = "light" | "dark";
@@ -7,6 +8,7 @@ export type ResolvedTheme = "light" | "dark";
 // index.html's inline script reads these two keys before React loads, so the first paint is already right.
 export const THEME_KEY = "amethyst-theme";
 export const APPEARANCE_KEY = "amethyst-appearance";
+export const COLOR_KEY = "amethyst-color";
 
 const DARK_QUERY = "(prefers-color-scheme: dark)";
 
@@ -48,11 +50,30 @@ export function storedAppearance(): Appearance {
   return "light";
 }
 
+/** The color theme this browser last showed, for pages shown before settings load (sign-in). */
+export function storedColorTheme(): ColorTheme {
+  try {
+    const color = localStorage.getItem(COLOR_KEY);
+    if (isColorTheme(color)) return color;
+  } catch {
+    // Unreadable storage: fall through to the default.
+  }
+  return DEFAULT_COLOR_THEME;
+}
+
 /**
- * Applies the theme to the whole page (data-theme on <html>) and remembers it for the next load.
+ * Applies the theme to the whole page (data-theme and data-color on <html>) and remembers both for the next load.
  * "system" follows the Mac's light/dark setting live.
  */
-export function ThemeProvider({ appearance, children }: { appearance: Appearance; children?: ReactNode }) {
+export function ThemeProvider({
+  appearance,
+  colorTheme = DEFAULT_COLOR_THEME,
+  children,
+}: {
+  appearance: Appearance;
+  colorTheme?: ColorTheme;
+  children?: ReactNode;
+}) {
   const macIsDarkNow = useMacIsDark(appearance === "system");
   const resolved: ResolvedTheme = appearance === "system" ? (macIsDarkNow ? "dark" : "light") : appearance;
 
@@ -62,6 +83,11 @@ export function ThemeProvider({ appearance, children }: { appearance: Appearance
     remember(THEME_KEY, resolved);
     remember(APPEARANCE_KEY, appearance);
   }, [appearance, resolved]);
+
+  useLayoutEffect(() => {
+    document.documentElement.dataset.color = colorTheme;
+    remember(COLOR_KEY, colorTheme);
+  }, [colorTheme]);
 
   const value = useMemo(() => ({ resolved }), [resolved]);
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

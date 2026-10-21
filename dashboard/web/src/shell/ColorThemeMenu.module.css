@@ -1,18 +1,10 @@
-.menu {
-  min-width: 230px;
+.panel {
+  width: 360px;
 }
 
-/* "More themes coming later": a quieter line than the choices above it. */
-.menu .note {
+.title {
+  margin: 0 0 var(--space-3);
+  color: var(--text);
   font-size: var(--text-md);
-  font-weight: 400;
-}
-
-/* A small gem: the theme's own color. */
-.swatch {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--gem);
-  box-shadow: var(--gem-glow);
+  font-weight: 600;
 }

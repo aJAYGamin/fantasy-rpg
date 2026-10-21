@@ -64,16 +64,19 @@
   cursor: not-allowed;
 }
 
-/* --am-fill rather than --am: white text needs the deeper amethyst to stay readable in dark mode. */
+/*
+ * --am-fill rather than --am: white text needs the deeper amethyst to stay readable in dark mode. The border is
+ * --am-edge: transparent (the fill shows through) unless a color theme's fill is too pale to stand out on white.
+ */
 .primary {
   background: var(--am-fill);
-  border-color: var(--am-fill);
+  border-color: var(--am-edge);
   color: var(--on-am);
 }
 
 .primary:hover:not(:disabled, [data-loading], [data-unavailable]) {
   background: var(--am-fill-hover);
-  border-color: var(--am-fill-hover);
+  border-color: var(--am-edge);
 }
 
 /* signin-v1's grayed "Try again": a flat lilac block rather than a faded purple one. */
@@ -128,7 +131,7 @@
 
 .primary[data-loading] {
   background: var(--am-fill);
-  border-color: var(--am-fill);
+  border-color: var(--am-edge);
   color: var(--on-am);
 }
 

@@ -61,7 +61,16 @@ The pauses below last **5 minutes** for real. (The automated tests shorten them;
 - [ ] Reload in dark mode: no flash of white.
 - [ ] Settings (gear) → Appearance → **Follow my Mac**.
 - [ ] Switch your Mac between Light and Dark in System Settings → Appearance: the dashboard follows at once.
-- [ ] The palette icon opens the color theme menu: Amethyst is ticked, "More themes coming later" does nothing.
+- [ ] The palette icon opens the twenty color themes, in the game's cursor-wheel order, with Amethyst ticked.
+- [ ] Pick **Garnet**: the sidebar and the accent turn deep red at once, and the panel stays open.
+- [ ] Pick **Storm**: its bright yellow buttons have dark text that's easy to read.
+- [ ] Use the arrow keys in the panel: left and right move along a row, up and down move along a column.
+- [ ] Press Esc: the panel closes and the palette icon has the focus again.
+- [ ] Reload: the color theme is still the one you picked, with no flash of purple first.
+- [ ] Switch to dark mode and try **Void** and **Obsidian**: their buttons glow in their rim colors.
+- [ ] Settings → Appearance shows the same twenty, with your pick ticked; picking one there says "Saved".
+- [ ] Search for a theme's name (say "garnet"): it finds Settings → Appearance.
+- [ ] Go back to whichever color theme you like.
 - [ ] The corners icon goes full screen.
 - [ ] Press it again (or Esc) to come back.
 - [ ] The arrow at the left folds the sidebar to icons.

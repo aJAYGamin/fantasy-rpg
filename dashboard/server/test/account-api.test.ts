@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { beforeEach, expect, test, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "../../shared/src/api.js";
+import { COLOR_THEMES } from "../../shared/src/colorThemes.js";
 import { hashPassword, verifyPassword } from "../src/auth/passwords.js";
 import { addNotification } from "../src/notifications/notifications.js";
 import {
@@ -717,11 +718,11 @@ test("every setting can be changed, one change at a time, and the rest stay", as
   await patch(app, "/api/settings", { keepSignedInDays: 90 }, cookie);
   await patch(app, "/api/settings", { gamePort: 50000 }, cookie);
   await patch(app, "/api/settings", { autoReconnect: false }, cookie);
-  await patch(app, "/api/settings", { colorTheme: "amethyst" }, cookie);
+  await patch(app, "/api/settings", { colorTheme: "garnet" }, cookie);
   const res = await patch(app, "/api/settings", { notify: { game: false } }, cookie);
   const expected = {
     appearance: "system",
-    colorTheme: "amethyst",
+    colorTheme: "garnet",
     sidebar: "icons",
     keepSignedInDays: 90,
     gamePort: 50000,
@@ -790,6 +791,16 @@ test("settings survive a server restart", async () => {
   expect((await get(app, "/api/settings", again)).json()).toMatchObject({ appearance: "dark", gamePort: 40000 });
 });
 
+test("every one of the twenty cursor colors is a color theme", async () => {
+  const { app, cookie } = await signedIn();
+  for (const colorTheme of COLOR_THEMES) {
+    const res = await patch(app, "/api/settings", { colorTheme }, cookie);
+    expect(res.statusCode, colorTheme).toBe(200);
+    expect(res.json().colorTheme).toBe(colorTheme);
+  }
+  expect(COLOR_THEMES).toHaveLength(20);
+});
+
 test("bad settings are refused", async () => {
   const { app, cookie } = await signedIn();
   expect((await patch(app, "/api/settings", { colorTheme: "teal" }, cookie)).statusCode).toBe(400);
@@ -800,6 +811,7 @@ test.each([
   ["appearance", { appearance: "sepia" }],
   ["appearance", { appearance: 1 }],
   ["colorTheme", { colorTheme: "teal" }],
+  ["colorTheme", { colorTheme: "Garnet" }],
   ["sidebar", { sidebar: "hidden" }],
   ["keepSignedInDays", { keepSignedInDays: 10 }],
   ["keepSignedInDays", { keepSignedInDays: "30" }],

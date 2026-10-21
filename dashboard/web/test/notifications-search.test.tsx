@@ -347,6 +347,9 @@ describe("search index", () => {
     expect(search(index, "kael").map((entry) => entry.label)).toEqual(["Kael"]);
     expect(search(index, "map").map((entry) => entry.label)).toContain("Location");
     expect(search(index, "dark").map((entry) => entry.label)).toContain("Appearance");
+    // A color theme is found by its name, and leads to where it is chosen.
+    expect(search(index, "garnet").map((entry) => entry.label)).toEqual(["Appearance"]);
+    expect(search(index, "color theme").map((entry) => entry.label)).toEqual(["Appearance"]);
     expect(search(index, "zzzz")).toEqual([]);
   });
 

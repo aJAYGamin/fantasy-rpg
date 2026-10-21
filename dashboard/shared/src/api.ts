@@ -1,5 +1,6 @@
 // The shapes the server sends and the web app reads.
 
+import { type ColorTheme, DEFAULT_COLOR_THEME } from "./colorThemes.js";
 import { DEFAULT_GAME_PORT } from "./constants.js";
 
 export type User = {
@@ -48,7 +49,7 @@ export type NotificationKind = "security" | "game" | "changes";
 
 export type Settings = {
   appearance: "light" | "dark" | "system";
-  colorTheme: "amethyst";
+  colorTheme: ColorTheme;
   sidebar: "expanded" | "icons";
   keepSignedInDays: 7 | 30 | 90;
   gamePort: number;
@@ -59,7 +60,7 @@ export type Settings = {
 
 export const DEFAULT_SETTINGS: Settings = {
   appearance: "light",
-  colorTheme: "amethyst",
+  colorTheme: DEFAULT_COLOR_THEME,
   sidebar: "expanded",
   keepSignedInDays: 30,
   gamePort: DEFAULT_GAME_PORT,

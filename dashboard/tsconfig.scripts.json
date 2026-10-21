@@ -1,0 +1,13 @@
+{
+  // Build-time scripts (npm run color-themes): Node code that imports the web app's theme module, written in the
+  // web app's import style. Kept apart from the web program so browser code never sees Node's types.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["scripts", "web/src/theme/themeTokens.ts", "web/src/theme/palettes.ts", "shared/src"]
+}

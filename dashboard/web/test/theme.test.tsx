@@ -1,10 +1,17 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { expect, test } from "vitest";
 import buttonCss from "../src/components/Button.module.css?raw";
+import checkboxCss from "../src/components/Checkbox.module.css?raw";
 import inputCss from "../src/components/Input.module.css?raw";
+import segmentedCss from "../src/components/Segmented.module.css?raw";
+import toggleCss from "../src/components/Toggle.module.css?raw";
 import globalCss from "../src/theme/global.css?raw";
+import { COLOR_THEMES } from "../../shared/src/colorThemes";
+import colorThemesCss from "../src/theme/colorThemes.css?raw";
+import { themeSelector, tokenBlock } from "../src/theme/themeTokens";
 import tokensCss from "../src/theme/tokens.css?raw";
 import { ThemeProvider, useTheme } from "../src/theme/ThemeProvider";
+import indexHtml from "../index.html?raw";
 import { mockMatchMedia, renderAt, runIndexHtmlThemeScript, settled } from "./helpers";
 import { SIGNED_OUT, mockAuthState, mockSettings } from "./msw";
 
@@ -81,6 +88,56 @@ test("signed in, the saved appearance setting decides the theme", async () => {
   expect(localStorage.getItem("amethyst-appearance")).toBe("dark");
 });
 
+const color = () => document.documentElement.dataset.color;
+
+test("the saved color theme is applied before React renders, and anything unknown falls back to Amethyst", () => {
+  localStorage.setItem("amethyst-color", "garnet");
+  runIndexHtmlThemeScript();
+  expect(color()).toBe("garnet");
+  localStorage.setItem("amethyst-color", "teal");
+  runIndexHtmlThemeScript();
+  expect(color()).toBe("amethyst");
+});
+
+test("with no color theme saved, the first load is Amethyst", () => {
+  runIndexHtmlThemeScript();
+  expect(color()).toBe("amethyst");
+});
+
+test("a chosen color theme is applied and remembered for the next load", () => {
+  render(<ThemeProvider appearance="light" colorTheme="tidal" />);
+  expect(color()).toBe("tidal");
+  expect(localStorage.getItem("amethyst-color")).toBe("tidal");
+});
+
+test("signed out, the sign-in page keeps the last color theme", async () => {
+  localStorage.setItem("amethyst-color", "grove");
+  runIndexHtmlThemeScript();
+  mockAuthState(SIGNED_OUT);
+  const { queryClient } = renderAt("/signin");
+  await screen.findByRole("button", { name: "Sign in" });
+  await settled(queryClient);
+  expect(color()).toBe("grove");
+});
+
+test("signed in, the saved color theme setting decides", async () => {
+  mockSettings({ colorTheme: "frost" });
+  const { queryClient } = renderAt("/");
+  await waitFor(() => expect(color()).toBe("frost"));
+  await settled(queryClient);
+  expect(localStorage.getItem("amethyst-color")).toBe("frost");
+});
+
+test("the boot script knows exactly the twenty color themes", () => {
+  const listed = /var colors = "([^"]*)"/.exec(indexHtml)?.[1].trim().split(" ");
+  expect(listed).toEqual([...COLOR_THEMES]);
+  for (const name of COLOR_THEMES) {
+    localStorage.setItem("amethyst-color", name);
+    runIndexHtmlThemeScript();
+    expect(color()).toBe(name);
+  }
+});
+
 // The approved mockups' palette (Task 6's token table): [token, light, dark].
 const MOCKUP_PALETTE = [
   ["--side", "#1E1230", "#0D0817"],
@@ -134,7 +191,7 @@ test("outside tokens.css, no stylesheet or component names a color of its own", 
   };
   const colorLiteral = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|oklch|lab|lch)\(|:\s*(?:white|black)\b/i;
   const offenders = Object.entries(sources)
-    .filter(([path]) => !path.endsWith("/theme/tokens.css"))
+    .filter(([path]) => !path.endsWith("/theme/tokens.css") && !path.endsWith("/theme/colorThemes.css"))
     .filter(([, text]) => colorLiteral.test(text.replace(/\/\*[\s\S]*?\*\//g, "")))
     .map(([path]) => path);
   expect(Object.keys(sources).length).toBeGreaterThan(20);
@@ -171,7 +228,7 @@ const stylesheets = import.meta.glob<string>("../src/**/*.css", { query: "?raw",
 function textPairsInStylesheets(): Pair[] {
   const pairs: Pair[] = [];
   for (const [path, css] of Object.entries(stylesheets)) {
-    if (path.endsWith("/theme/tokens.css")) continue;
+    if (path.endsWith("/theme/tokens.css") || path.endsWith("/theme/colorThemes.css")) continue;
     for (const [, selector, body] of css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
       // A rule for the disabled state itself is exempt; a hover rule that merely excludes it (":not(:disabled)") isn't.
       if (selector.replace(/:not\([^)]*\)/g, "").includes("disabled")) continue;
@@ -201,13 +258,16 @@ const LISTED: Pair[] = [
   { fore: "--text", back: "--bad-soft", min: 4.5, where: "typing in a field marked wrong" },
   { fore: "--toggle-off", back: "--card", min: 3, where: "an off switch's track on a card" },
   { fore: "--toggle-off", back: "--bg", min: 3, where: "an off switch's track on the page" },
-  { fore: "--on-am", back: "--toggle-off", min: 3, where: "the knob on an off switch" },
-  { fore: "--on-am", back: "--am", min: 3, where: "the knob on an on switch" },
+  { fore: "--knob-off", back: "--toggle-off", min: 3, where: "the knob on an off switch" },
+  { fore: "--on-am", back: "--am-switch", min: 3, where: "the knob on an on switch" },
   { fore: "--check-border", back: "--input-bg", min: 3, where: "an unticked checkbox's edge" },
   { fore: "--check-border", back: "--card", min: 3, where: "an unticked checkbox on a card" },
   { fore: "--check-border", back: "--bg", min: 3, where: "an unticked checkbox on the page" },
-  { fore: "--am-fill", back: "--card", min: 3, where: "a ticked checkbox / chosen segment on a card" },
-  { fore: "--am-fill", back: "--bg", min: 3, where: "a ticked checkbox / chosen segment on the page" },
+  // A filled control's shape: its fill, or the deeper --am-edge drawn round it when the fill is too pale (bright themes).
+  { fore: "--am-fill|--am-edge", back: "--card", min: 3, where: "a ticked checkbox / chosen segment / primary button on a card" },
+  { fore: "--am-fill|--am-edge", back: "--bg", min: 3, where: "a ticked checkbox / chosen segment / primary button on the page" },
+  { fore: "--am-switch|--am-edge", back: "--card", min: 3, where: "an on switch's track on a card" },
+  { fore: "--am-switch|--am-edge", back: "--bg", min: 3, where: "an on switch's track on the page" },
   // R19: the keyboard focus ring sits on whatever is behind the control, so it must stand out from the card and page.
   { fore: "--focus-line", back: "--card", min: 3, where: "the keyboard focus ring, on a card" },
   { fore: "--focus-line", back: "--bg", min: 3, where: "the keyboard focus ring, on the page" },
@@ -229,19 +289,33 @@ const LISTED: Pair[] = [
   { fore: "--brand-head", back: "--brand-to", min: 4.5, where: "brand panel headline, bottom end" },
 ];
 
-test("every color pair the components use meets WCAG AA in both themes", () => {
+/** The tokens in force for a color theme in one mode: tokens.css, with the theme's own block laid over it. */
+function tokensFor(color: (typeof COLOR_THEMES)[number], mode: "light" | "dark"): Map<string, string> {
+  const base = tokensIn(mode === "light" ? ':root,\n[data-theme="light"]' : '[data-theme="dark"]');
+  if (color === "amethyst") return base;
+  return new Map([...base, ...tokenBlock(colorThemesCss, themeSelector(color, mode))]);
+}
+
+// "--fill|--edge": the shape is told apart by its edge when one is drawn, otherwise by its fill.
+function foreground(tokens: Map<string, string>, fore: string): string | undefined {
+  const [fill, edge] = fore.split("|");
+  const drawnEdge = edge === undefined ? undefined : tokens.get(edge);
+  return drawnEdge !== undefined && drawnEdge !== "transparent" ? drawnEdge : tokens.get(fill);
+}
+
+test("every color pair the components use meets WCAG AA, in every color theme, in both modes", () => {
   const derived = textPairsInStylesheets();
   expect(derived.length).toBeGreaterThan(30);
   const failures: string[] = [];
-  for (const [theme, tokens] of [
-    ["light", tokensIn(':root,\n[data-theme="light"]')],
-    ["dark", tokensIn('[data-theme="dark"]')],
-  ] as const) {
-    for (const { fore, back, min, where } of [...derived, ...LISTED]) {
-      const [foreValue, backValue] = [tokens.get(fore), tokens.get(back)];
-      if (!foreValue || !backValue) throw new Error(`${theme} has no ${foreValue ? back : fore} (${where})`);
-      const ratio = contrast(foreValue, backValue);
-      if (ratio < min) failures.push(`${theme}: ${fore} on ${back} is ${ratio.toFixed(2)}:1, under ${min} (${where})`);
+  for (const color of COLOR_THEMES) {
+    for (const mode of ["light", "dark"] as const) {
+      const tokens = tokensFor(color, mode);
+      for (const { fore, back, min, where } of [...derived, ...LISTED]) {
+        const [foreValue, backValue] = [foreground(tokens, fore), tokens.get(back)];
+        if (!foreValue || !backValue) throw new Error(`${color} ${mode} has no ${foreValue ? back : fore} (${where})`);
+        const ratio = contrast(foreValue, backValue);
+        if (ratio < min) failures.push(`${color} ${mode}: ${fore} on ${back} is ${ratio.toFixed(2)}:1, under ${min} (${where})`);
+      }
     }
   }
   expect(failures).toEqual([]);
@@ -306,4 +380,24 @@ test("pointing at a field marked wrong keeps its red edge", () => {
   );
   expect(hoverEdges.length).toBeGreaterThan(0);
   for (const [, selector] of hoverEdges) expect(selector).toContain(':not([aria-invalid="true"])');
+});
+
+test("every filled accent shape draws --am-edge, so a pale theme color still stands out on white", () => {
+  // The contrast test above counts --am-edge as the shape's outline whenever a theme draws one; these are the rules
+  // that draw it: the primary button (resting, hovered, busy), the chosen segment, a ticked checkbox and an on switch.
+  const rule = (css: string, selector: string) => {
+    const start = css.indexOf(`${selector} {`);
+    if (start === -1) throw new Error(`no "${selector} {" rule`);
+    return css.slice(start, css.indexOf("}", start));
+  };
+  expect(rule(buttonCss, ".primary")).toContain("border-color: var(--am-edge)");
+  expect(rule(buttonCss, ".primary:hover:not(:disabled, [data-loading], [data-unavailable])")).toContain("var(--am-edge)");
+  expect(rule(buttonCss, ".primary[data-loading]")).toContain("border-color: var(--am-edge)");
+  expect(rule(segmentedCss, '.option[aria-checked="true"]')).toContain("var(--am-edge)");
+  expect(rule(checkboxCss, ".input:checked")).toContain("border-color: var(--am-edge)");
+  expect(rule(toggleCss, '.track[aria-checked="true"]')).toContain("var(--am-switch)");
+  expect(rule(toggleCss, '.track[aria-checked="true"]')).toContain("var(--am-edge)");
+  // An off switch's knob is always light; only an on switch's knob takes the theme's ink.
+  expect(rule(toggleCss, ".knob")).toContain("var(--knob-off)");
+  expect(rule(toggleCss, '.track[aria-checked="true"] .knob')).toContain("var(--on-am)");
 });

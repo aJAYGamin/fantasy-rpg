@@ -38,8 +38,9 @@
   border-color: var(--am);
 }
 
+/* The fill shows through a transparent --am-edge; a pale color theme's fill gets a deeper one. */
 .input:checked {
-  border-color: var(--am-fill);
+  border-color: var(--am-edge);
   background: var(--am-fill);
 }
 

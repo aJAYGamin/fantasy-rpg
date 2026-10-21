@@ -1,4 +1,5 @@
 import { DEFAULT_SETTINGS, type Settings, type SettingsPatch } from "../../../shared/src/api.js";
+import { COLOR_THEMES } from "../../../shared/src/colorThemes.js";
 import { GAME_PORT_MAX, GAME_PORT_MIN, KEEP_SIGNED_IN_DAY_CHOICES } from "../../../shared/src/constants.js";
 import { isObject } from "../bodies.js";
 import type { Db } from "../db/database.js";
@@ -14,7 +15,7 @@ const isPort = (value: unknown): value is number =>
 // What each setting may be. A key that is not here is not a setting.
 const CHECKS: { [K in keyof Omit<Settings, "notify">]: (value: unknown) => value is Settings[K] } = {
   appearance: oneOf(["light", "dark", "system"]),
-  colorTheme: oneOf(["amethyst"]),
+  colorTheme: oneOf(COLOR_THEMES),
   sidebar: oneOf(["expanded", "icons"]),
   keepSignedInDays: oneOf(KEEP_SIGNED_IN_DAY_CHOICES),
   gamePort: isPort,

@@ -44,6 +44,16 @@ npm run build && npm run e2e      # e2e tests what the last build made, so build
 
 Before calling a stage done, walk through the play-test checklist in [docs/stage1-playtest.md](docs/stage1-playtest.md).
 
+## Color themes
+
+The twenty color themes are the game's cursor colors. Their exact shades live in `web/src/theme/palettes.ts` (copied from the cursor art reference); `web/src/theme/themeTokens.ts` works out each theme's colors from them, and `web/src/theme/colorThemes.css` is the result. After changing `tokens.css`, `palettes.ts` or `themeTokens.ts`, rebuild that file:
+
+```bash
+npm run color-themes
+```
+
+A test fails until the file matches, and the contrast test checks every color pair in all twenty themes, light and dark.
+
 ## Where things live
 
 The database is the file `data/amethyst.db`, created on first run (from this folder). It holds the account, sessions, settings and notifications, and is never committed. The server prints its full path as it starts. These environment variables change the defaults:

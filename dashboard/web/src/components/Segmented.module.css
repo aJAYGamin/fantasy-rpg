@@ -45,8 +45,10 @@
   background: var(--control-hover);
 }
 
+/* The edge (transparent unless a color theme's fill is too pale for the card) outlines the chosen option. */
 .option[aria-checked="true"] {
   background: var(--am-fill);
+  box-shadow: inset 0 0 0 1px var(--am-edge);
   color: var(--on-am);
 }
 

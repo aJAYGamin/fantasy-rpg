@@ -68,6 +68,41 @@ test("the theme button turns the page dark, and a reload is dark from its very f
   await expect(html).toHaveAttribute("data-theme", "dark");
 });
 
+test("a color theme picked from the palette recolors the page, and a reload wears it from its very first paint", async ({
+  page,
+}) => {
+  await openOverview(page);
+  const html = page.locator("html");
+  await expect(html).toHaveAttribute("data-color", "amethyst");
+  const saved = nextSettingsSave(page);
+  await topBar(page).getByRole("button", { name: "Color theme" }).click();
+  await page.getByRole("radio", { name: "Garnet" }).click();
+  await expect(html).toHaveAttribute("data-color", "garnet");
+  expect((await saved).ok()).toBe(true);
+  // The stylesheet really recolors: the primary color the page now uses is Garnet's button color.
+  const fill = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--am-fill").trim());
+  expect(await fill()).toBe("#a8213f");
+
+  await page.addInitScript(() => {
+    const record = { values: [] as Array<string | null>, firstFrame: undefined as string | undefined };
+    (window as unknown as { colorRecord: typeof record }).colorRecord = record;
+    new MutationObserver((changes) => {
+      for (const change of changes) record.values.push((change.target as Element).getAttribute("data-color"));
+    }).observe(document, { attributes: true, attributeFilter: ["data-color"], subtree: true });
+    requestAnimationFrame(() => {
+      record.firstFrame = document.documentElement.dataset.color;
+    });
+  });
+  await page.reload();
+  await expect(topBar(page).getByRole("button", { name: "Color theme" })).toBeVisible();
+  const record = await page.evaluate(
+    () => (window as unknown as { colorRecord: { values: Array<string | null>; firstFrame?: string } }).colorRecord,
+  );
+  expect(record.firstFrame).toBe("garnet");
+  expect(record.values.every((value) => value === "garnet")).toBe(true);
+  expect(await fill()).toBe("#a8213f");
+});
+
 test("a folded sidebar stays folded after a reload, and it is the account's setting, not just this browser's", async ({
   page,
 }) => {

@@ -2,6 +2,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { describe, expect, test, vi } from "vitest";
 import type { Notification } from "../../shared/src/api";
+import { COLOR_THEMES, colorThemeName } from "../../shared/src/colorThemes";
 import tooltipCss from "../src/components/Tooltip.module.css?raw";
 import { Dialog } from "../src/components";
 import { PageHeader } from "../src/shell/PageHeader";
@@ -230,24 +231,66 @@ describe("top bar", () => {
     await settled(queryClient);
   });
 
-  test("the color theme menu shows Amethyst chosen and more themes coming later", async () => {
+  test("the palette button opens the twenty color themes in the cursor wheel's order, Amethyst chosen", async () => {
+    const { queryClient } = renderShellAt("/");
+    await click(topButton("Color theme"));
+    const panel = screen.getByRole("dialog", { name: "Color theme" });
+    const themes = within(panel).getByRole("radiogroup", { name: "Color theme" });
+    const radios = within(themes).getAllByRole("radio");
+    expect(radios.map((radio) => radio.textContent)).toEqual(COLOR_THEMES.map(colorThemeName));
+    const amethyst = within(themes).getByRole("radio", { name: "Amethyst" });
+    expect(amethyst).toHaveAttribute("aria-checked", "true");
+    expect(amethyst).toHaveFocus();
+    await settled(queryClient);
+  });
+
+  test("picking a color theme saves it and recolors the dashboard at once", async () => {
+    const { queryClient } = renderShellAt("/");
+    await click(topButton("Color theme"));
+    await click(screen.getByRole("radio", { name: "Garnet" }));
+    expect(document.documentElement.dataset.color).toBe("garnet");
+    expect(screen.getByRole("radio", { name: "Garnet" })).toHaveAttribute("aria-checked", "true");
+    await waitFor(() => expect(lastRequest("/api/settings")?.body).toEqual({ colorTheme: "garnet" }));
+    await settled(queryClient);
+  });
+
+  test("the arrow keys move through the grid of themes: across a row, and up and down a column", async () => {
+    const { queryClient } = renderShellAt("/");
+    await click(topButton("Color theme"));
+    const chosen = () => screen.getByRole("radio", { checked: true });
+    await keyboard("{ArrowRight}");
+    expect(chosen()).toHaveAccessibleName("Arcane");
+    expect(chosen()).toHaveFocus();
+    await keyboard("{ArrowDown}");
+    expect(chosen()).toHaveAccessibleName("Gilded");
+    await keyboard("{ArrowUp}{ArrowUp}");
+    expect(chosen()).toHaveAccessibleName("Void");
+    await keyboard("{ArrowLeft}{ArrowLeft}");
+    expect(chosen()).toHaveAccessibleName("Tidal");
+    await keyboard("{End}");
+    expect(chosen()).toHaveAccessibleName("Lunar");
+    await keyboard("{Home}");
+    expect(chosen()).toHaveAccessibleName("Amethyst");
+    await waitFor(() => expect(lastRequest("/api/settings")?.body).toEqual({ colorTheme: "amethyst" }));
+    await settled(queryClient);
+  });
+
+  test("Escape closes the color themes and gives the focus back to the palette button", async () => {
     const { queryClient } = renderShellAt("/");
     const trigger = topButton("Color theme");
     await click(trigger);
-    const menu = screen.getByRole("menu", { name: "Color theme" });
-    const amethyst = within(menu).getByRole("menuitemradio", { name: "Amethyst" });
-    expect(amethyst).toHaveAttribute("aria-checked", "true");
-    expect(amethyst).toHaveFocus();
-    const later = within(menu).getByRole("menuitem", { name: "More themes coming later" });
-    expect(later).toHaveAttribute("aria-disabled", "true");
-    await keyboard("{ArrowDown}");
-    expect(later).toHaveFocus();
-    await keyboard("{Enter}");
-    expect(screen.getByRole("menu", { name: "Color theme" })).toBeInTheDocument();
-    await click(amethyst);
-    expect(screen.queryByRole("menu")).toBeNull();
+    await keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Color theme" })).toBeNull();
     expect(trigger).toHaveFocus();
     expect(requestsTo("/api/settings").filter((seen) => seen.method === "PATCH")).toEqual([]);
+    await settled(queryClient);
+  });
+
+  test("a saved color theme shows chosen when the palette opens", async () => {
+    const { queryClient } = renderShellAt("/", { settings: { colorTheme: "storm" } });
+    await click(topButton("Color theme"));
+    expect(screen.getByRole("radio", { name: "Storm" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "Storm" })).toHaveFocus();
     await settled(queryClient);
   });
 
