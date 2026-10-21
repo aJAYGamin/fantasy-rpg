@@ -4,8 +4,8 @@ import {
   INVALID_USERNAME_MESSAGE,
   MIN_PASSWORD_LENGTH,
   TOO_SHORT_MESSAGE,
-  USERNAME_RULE,
 } from "../../../shared/src/constants";
+import { cleanUsername, isUsername } from "../../../shared/src/username";
 
 // The account rules and their sentences come from shared/, the same values the server enforces; checking here
 // only saves a round trip. The server stays the authority, and the pages also show its own refusals.
@@ -28,7 +28,7 @@ export function checkDisplayName(typed: string): Problem {
 }
 
 export const checkNewUsername = (typed: string): Problem =>
-  USERNAME_RULE.test(typed.trim()) ? undefined : INVALID_USERNAME_MESSAGE;
+  isUsername(cleanUsername(typed)) ? undefined : INVALID_USERNAME_MESSAGE;
 
 // The server takes a password in its NFKC form (an accent typed as one character or as two is the same password, R42),
 // so a password is counted, and compared with its confirmation, in that form too.

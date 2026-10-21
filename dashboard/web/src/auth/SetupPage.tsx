@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { type ChangeEvent, type FormEvent, type MouseEvent, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { SECURITY_QUESTIONS } from "../../../shared/src/constants";
+import { cleanUsername } from "../../../shared/src/username";
 import { queryKeys, useSetup } from "../api/hooks";
 import { Button, Field, Input, PasswordInput } from "../components";
 import { cx } from "../components/cx";
@@ -116,7 +117,7 @@ export function SetupPage() {
       return;
     }
     setup.mutate({
-      username: values.username.trim(),
+      username: cleanUsername(values.username),
       displayName: values.displayName.trim(),
       password: values.password,
       answers: values.answers,

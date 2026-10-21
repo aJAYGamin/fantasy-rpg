@@ -82,6 +82,35 @@ test("setup trims the typed username and display name", async () => {
   expect(res.json()).toMatchObject({ username: "owner", displayName: "The Owner" });
 });
 
+test("a username can have spaces, punctuation, accents and symbols; the ends are trimmed and curly quotes made straight", async () => {
+  for (const [typed, stored] of [
+    [" aJAY Gamin' ", "aJAY Gamin'"],
+    ["ówner/Ünïcødé ☆", "ówner/Ünïcødé ☆"],
+    ["Ace  ‘Bolt’", "Ace 'Bolt'"],
+  ]) {
+    const app = await testApp();
+    const res = await post(app, "/api/auth/setup", setupBody({ username: typed }));
+    expect(res.statusCode).toBe(201);
+    expect(res.json().username).toBe(stored);
+  }
+});
+
+test("a username with spaces and an apostrophe signs in however its spacing, quotes and capitals are typed", async () => {
+  const app = await testApp();
+  expect((await post(app, "/api/auth/setup", setupBody({ username: "aJAY Gamin'" }))).statusCode).toBe(201);
+  for (const typed of ["aJAY Gamin'", "  ajay gamin'  ", "AJAY   GAMIN’"]) {
+    expect((await signin(app, OWNER_PASSWORD, typed)).statusCode).toBe(200);
+  }
+  expect((await signin(app, OWNER_PASSWORD, "aJAYGamin'")).statusCode).toBe(401);
+});
+
+test("a username with spaces and an apostrophe can reset its password", async () => {
+  const app = await testApp();
+  expect((await post(app, "/api/auth/setup", setupBody({ username: "aJAY Gamin'" }))).statusCode).toBe(201);
+  const res = await post(app, "/api/auth/forgot", forgotBody({ username: " ajay  GAMIN’ " }));
+  expect(res.statusCode).toBe(204);
+});
+
 test("setup can never run twice", async () => {
   const app = await testApp();
   await post(app, "/api/auth/setup", setupBody());
@@ -107,9 +136,9 @@ test.each([
   ["a password of 9 characters", { password: "123456789" }, "too_short"],
   ["a 2 character username", { username: "ab" }, "invalid_username"],
   ["a 33 character username", { username: "a".repeat(33) }, "invalid_username"],
-  ["a username with a space", { username: "the owner" }, "invalid_username"],
-  ["a username with a slash", { username: "own/er" }, "invalid_username"],
-  ["a username with an accent", { username: "ówner" }, "invalid_username"],
+  ["a username of only spaces", { username: "     " }, "invalid_username"],
+  ["a username with a tab", { username: "own\ter" }, "invalid_username"],
+  ["a username with a zero-width space", { username: "own​er" }, "invalid_username"],
   ["a blank display name", { displayName: "   " }, "invalid_display_name"],
   ["a 41 character display name", { displayName: "d".repeat(41) }, "invalid_display_name"],
   ["a blank answer", { answers: ["Lanternfall", "   ", "Dragonbridge"] }, "missing_answer"],
@@ -378,7 +407,7 @@ test("an unknown username runs a real argon2 check, always against the same thro
 
 test("a username that breaks the rules is checked the same way as an unknown one", async () => {
   const app = await ownerApp();
-  await signin(app, "whatever-pass", "has spaces in it");
+  await signin(app, "whatever-pass", "has\ta tab in it");
   expect(vi.mocked(verifyPassword).mock.calls[0][0]).toMatch(/^\$argon2id\$/);
 });
 
@@ -390,6 +419,15 @@ test("the lock key is the typed username, trimmed and cut to 32 characters", asy
   expect(lockRows(app).map((r) => r.username)).toEqual(["x".repeat(32)]);
   await signin(app, "whatever-pass", `   ${"y".repeat(40)}   `);
   expect(lockRows(app).map((r) => r.username)).toEqual(["x".repeat(32), "y".repeat(32)]);
+});
+
+test("one name typed with different spacing, quotes or capitals shares one lock", async () => {
+  const app = await testApp();
+  expect((await post(app, "/api/auth/setup", setupBody({ username: "aJAY Gamin'" }))).statusCode).toBe(201);
+  await signin(app, WRONG, "aJAY Gamin'");
+  await signin(app, WRONG, "  ajay   gamin’ ");
+  expect((await signin(app, WRONG, "AJAY GAMIN'")).json().triesLeft).toBe(2);
+  expect(lockRows(app)).toHaveLength(1);
 });
 
 test("cutting the lock key never splits a character", async () => {

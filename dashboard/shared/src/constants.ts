@@ -13,16 +13,16 @@ export const MAX_WRONG_PASSWORDS = 5;
 export const MIN_PASSWORD_LENGTH = 10;
 
 // The account rules. The server enforces them; the sign-in forms check the same values before sending, so the
-// two can't drift apart. Lengths count characters as a person sees them (an emoji is one).
+// two can't drift apart. Lengths count characters as a person sees them (an emoji is one). The username rule
+// itself is in username.ts.
 export const USERNAME_MIN = 3;
 export const USERNAME_MAX = 32;
-export const USERNAME_RULE = new RegExp(`^[A-Za-z0-9_.-]{${USERNAME_MIN},${USERNAME_MAX}}$`);
 export const DISPLAY_NAME_MAX = 40;
 
 // The sentence for each of those rules, shown by the forms and sent by the server alike.
 export const TOO_SHORT_MESSAGE = `Passwords need at least ${MIN_PASSWORD_LENGTH} characters.`;
 export const INVALID_USERNAME_MESSAGE =
-  `Usernames are ${USERNAME_MIN} to ${USERNAME_MAX} letters, digits, dots, dashes or underscores.`;
+  `Usernames are ${USERNAME_MIN} to ${USERNAME_MAX} characters, with no invisible characters.`;
 export const INVALID_DISPLAY_NAME_MESSAGE = `Display names are 1 to ${DISPLAY_NAME_MAX} characters.`;
 
 export const SESSION_HOURS_DEFAULT = 12;

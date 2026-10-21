@@ -143,7 +143,7 @@ describe("first-run setup", () => {
 
     expect(alertTexts()).toEqual([
       "Display names are 1 to 40 characters.",
-      "Usernames are 3 to 32 letters, digits, dots, dashes or underscores.",
+      "Usernames are 3 to 32 characters, with no invisible characters.",
       "Passwords need at least 10 characters.",
       "Enter an answer.",
       "Enter an answer.",
@@ -168,11 +168,11 @@ describe("first-run setup", () => {
 
   test("a blank or over-long name and a bad username are caught before anything is sent", async () => {
     const { user } = await openSetup();
-    await fillSetup(user, { displayName: "   ", username: "no spaces allowed" });
+    await fillSetup(user, { displayName: "   ", username: "ab" });
     await user.click(button("Create account"));
     expect(alertTexts()).toEqual([
       "Display names are 1 to 40 characters.",
-      "Usernames are 3 to 32 letters, digits, dots, dashes or underscores.",
+      "Usernames are 3 to 32 characters, with no invisible characters.",
     ]);
     await replace(user, screen.getByLabelText("Username"), "owner");
     await replace(user, screen.getByLabelText("Display name"), "x".repeat(41));
@@ -180,6 +180,15 @@ describe("first-run setup", () => {
     await replace(user, screen.getByLabelText("Display name"), "x".repeat(40));
     expect(errorTexts()).toEqual([]);
     expect(requestsTo("/api/auth/setup")).toHaveLength(0);
+  });
+
+  test("a username with spaces, an apostrophe and stray spaces at the ends is accepted and sent trimmed", async () => {
+    const { user, router, queryClient } = await openSetup();
+    await fillSetup(user, { username: " aJAY Gamin\u2019 " });
+    await user.click(button("Create account"));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+    expect((lastRequest("/api/auth/setup")?.body as { username: string }).username).toBe("aJAY Gamin'");
+    await settled(queryClient);
   });
 
   test("a problem goes away as soon as it is fixed", async () => {
@@ -275,7 +284,7 @@ describe("first-run setup", () => {
   });
 
   test.each([
-    ["invalid_username", "Username", "Usernames are 3 to 32 letters, digits, dots, dashes or underscores."],
+    ["invalid_username", "Username", "Usernames are 3 to 32 characters, with no invisible characters."],
     ["invalid_display_name", "Display name", "Display names are 1 to 40 characters."],
     ["too_short", "Password", "Passwords need at least 10 characters."],
   ])("when the server says %s, it shows under %s", async (error, label, message) => {
@@ -877,8 +886,10 @@ describe("account rules", () => {
     expect(checkNewUsername("a".repeat(USERNAME_MIN))).toBeUndefined();
     expect(checkNewUsername("a".repeat(USERNAME_MAX))).toBeUndefined();
     expect(checkNewUsername("a".repeat(USERNAME_MAX + 1))).toBeDefined();
-    expect(checkNewUsername("has space")).toBeDefined();
+    expect(checkNewUsername("aJAY Gamin'")).toBeUndefined();
+    expect(checkNewUsername("own​er")).toBeDefined(); // a zero-width space
     expect(checkNewUsername(" owner ")).toBeUndefined(); // trimmed, as the server does
+    expect(checkNewUsername(" ab ")).toBeDefined(); // two characters once trimmed
   });
 
   test("display names count characters, not code units", () => {

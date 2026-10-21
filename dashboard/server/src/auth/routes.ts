@@ -5,8 +5,8 @@ import {
   SECURITY_QUESTIONS,
   SESSION_COOKIE,
   USERNAME_MAX,
-  USERNAME_RULE,
 } from "../../../shared/src/constants.js";
+import { cleanUsername, isUsername } from "../../../shared/src/username.js";
 import { isAnswers, isObject } from "../bodies.js";
 import type { Config } from "../config.js";
 import type { Db } from "../db/database.js";
@@ -42,12 +42,13 @@ export interface AuthDeps {
 
 const DAY_SECONDS = 86_400;
 
-// The typed username as a lock key: trimmed and cut to the longest name an account can have, so a stranger typing a
-// huge name cannot fill the lock table with huge rows. Cut by character, never through the middle of one.
-function lockKey(typed: string): string {
+// The typed username as a lock key: cleaned as a username is (so one name typed with other spacing or quotes is the
+// same lock) and cut to the longest name an account can have, so a stranger typing a huge name cannot fill the lock
+// table with huge rows. Cut by character, never through the middle of one.
+function lockKey(name: string): string {
   let key = "";
   let count = 0;
-  for (const char of typed.trim()) {
+  for (const char of name) {
     if (count === USERNAME_MAX) break;
     key += char;
     count++;
@@ -85,7 +86,7 @@ export function authRoutes(app: FastifyInstance, deps: AuthDeps): void {
 
   // A name that breaks the username rule cannot belong to an account, so it is treated as unknown rather than
   // looked up (a long name must never match an account through its first 32 characters).
-  const accountFor = (typed: string): Account | null => (USERNAME_RULE.test(typed) ? findByUsername(db, typed) : null);
+  const accountFor = (name: string): Account | null => (isUsername(name) ? findByUsername(db, name) : null);
 
   app.get("/api/auth/state", async (request): Promise<AuthState> => {
     const token = sessionTokenOf(request);
@@ -111,9 +112,9 @@ export function authRoutes(app: FastifyInstance, deps: AuthDeps): void {
     // The cheap check first; createOwner repeats it inside a transaction, which is what makes a race safe.
     if (countAccounts(db) > 0) return sendError(reply, 409, "already_set_up");
 
-    const username = body.username.trim();
+    const username = cleanUsername(body.username);
     const displayName = cleanDisplayName(body.displayName);
-    if (!USERNAME_RULE.test(username)) return sendError(reply, 400, "invalid_username");
+    if (!isUsername(username)) return sendError(reply, 400, "invalid_username");
     if (displayName === null) return sendError(reply, 400, "invalid_display_name");
     if (checkPasswordPolicy(body.password) === "too_short") return sendError(reply, 400, "too_short");
     if (body.answers.some((answer) => normalizeAnswer(answer) === "")) return sendError(reply, 400, "missing_answer");
@@ -145,7 +146,7 @@ export function authRoutes(app: FastifyInstance, deps: AuthDeps): void {
     }
     const { password } = body;
     const keepSignedIn = body.keepSignedIn === true;
-    const typed = body.username.trim();
+    const typed = cleanUsername(body.username);
     const key = lockKey(typed);
 
     // A locked name is turned away before any hashing is spent on it.
@@ -211,7 +212,7 @@ export function authRoutes(app: FastifyInstance, deps: AuthDeps): void {
       return sendError(reply, 400, "bad_request");
     }
     const { newPassword, answers } = body;
-    const typed = body.username.trim();
+    const typed = cleanUsername(body.username);
     const key = lockKey(typed);
 
     const before = readLock(db, key, "reset");
